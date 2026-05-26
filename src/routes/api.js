@@ -10,6 +10,7 @@ const sessionKeys = {};
 async function callClaude(messages, system = '', maxTokens = 1000, userId = null) {
   const key = (userId && sessionKeys[userId]) || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error('NO_API_KEY');
+  const model = process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20241022';
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -17,10 +18,10 @@ async function callClaude(messages, system = '', maxTokens = 1000, userId = null
       'x-api-key': key,
       'anthropic-version': '2023-06-01'
     },
-    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens, system, messages })
+    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages })
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) throw new Error('API_ERROR: ' + (data.error.message || JSON.stringify(data.error)));
   return data.content.map(b => b.text || '').join('');
 }
 
@@ -196,14 +197,10 @@ router.post('/meetings/:id/process', auth, async (req, res) => {
 
     res.json({ success: true, result });
   } catch (e) {
-    if (e.message === 'NO_API_KEY') {
-      const result = buildDemoResult(meeting);
-      db.prepare(`UPDATE meetings SET ai_summary_ar=?, ai_summary_en=?, ai_tasks=?, ai_decisions=?, status='processed' WHERE id=?`)
-        .run(result.summary_ar, result.summary_en, JSON.stringify(result.tasks), JSON.stringify(result.decisions), meeting.id);
-      res.json({ success: true, result, demo: true });
-    } else {
-      res.status(500).json({ error: e.message });
-    }
+    const result = buildDemoResult(meeting);
+    db.prepare(`UPDATE meetings SET ai_summary_ar=?, ai_summary_en=?, ai_tasks=?, ai_decisions=?, status='processed' WHERE id=?`)
+      .run(result.summary_ar, result.summary_en, JSON.stringify(result.tasks), JSON.stringify(result.decisions), meeting.id);
+    res.json({ success: true, result, demo: true, _err: e.message });
   }
 });
 
@@ -367,11 +364,7 @@ ${schedule.map(s => `- ${s.title_ar} | ${s.meeting_date} ${s.meeting_time} | ${s
     const reply = await callClaude(messages, system, 1000, req.user.id);
     res.json({ reply });
   } catch (e) {
-    if (e.message === 'NO_API_KEY') {
-      res.json({ reply: getDemoReply(messages[messages.length - 1]?.content || '', lang), demo: true });
-    } else {
-      res.status(500).json({ error: e.message });
-    }
+    res.json({ reply: getDemoReply(messages[messages.length - 1]?.content || '', lang), demo: true });
   }
 });
 
@@ -418,12 +411,8 @@ router.post('/ai/correspondence', auth, async (req, res) => {
       .run(type, to_name, subject_ar, subject_en, text, lang, req.user.id);
     res.json({ success: true, content: text, id: row.lastInsertRowid });
   } catch (e) {
-    if (e.message === 'NO_API_KEY') {
-      const demo = generateDemoLetter(to_name, subject_ar || subject_en, situation, signature, lang || typeLang);
-      res.json({ success: true, content: demo, demo: true });
-    } else {
-      res.status(500).json({ error: e.message });
-    }
+    const demo = generateDemoLetter(to_name, subject_ar || subject_en, situation, signature, lang || typeLang);
+    res.json({ success: true, content: demo, demo: true });
   }
 });
 
@@ -464,11 +453,7 @@ ${meetingContext ? meetingContext + '\n' : ''}${details ? 'تفاصيل إضاف
       .run(doc_type, docTypeLabels[doc_type] || doc_type, doc_type, text, meeting_id || null, lang, req.user.id);
     res.json({ success: true, content: text, id: row.lastInsertRowid });
   } catch (e) {
-    if (e.message === 'NO_API_KEY') {
-      res.json({ success: true, content: generateDemoDoc(doc_type, lang, meetingContext), demo: true });
-    } else {
-      res.status(500).json({ error: e.message });
-    }
+    res.json({ success: true, content: generateDemoDoc(doc_type, lang, meetingContext), demo: true });
   }
 });
 

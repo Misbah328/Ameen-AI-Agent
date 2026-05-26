@@ -106,7 +106,7 @@ async function login(){
     const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
     const d=await r.json();
     if(!r.ok)throw new Error(d.error);
-    localStorage.setItem('ameen_token',d.token);
+    localStorage.setItem('token',d.token);
     localStorage.setItem('ameen_user',JSON.stringify(d.user));
     location.href='/';
   }catch(e){err.textContent=e.message;err.style.display='block';}
@@ -125,7 +125,7 @@ async function signup(){
     const r=await fetch('/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(!r.ok)throw new Error(d.error);
-    localStorage.setItem('ameen_token',d.token);
+    localStorage.setItem('token',d.token);
     localStorage.setItem('ameen_user',JSON.stringify(d.user));
     location.href='/';
   }catch(e){err.textContent=e.message;err.style.display='block';}
