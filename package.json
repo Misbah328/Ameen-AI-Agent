@@ -1,0 +1,20 @@
+{
+  "name": "ameen-executive-secretary",
+  "version": "3.0.0",
+  "description": "Ameen AI Executive Meeting Intelligence System — Fully Bilingual AR/EN",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.6.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^1.4.5-lts.1"
+  }
+}
