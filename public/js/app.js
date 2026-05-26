@@ -1,655 +1,539 @@
-// ══ State ══════════════════════════════════════════════════════════════════
+'use strict';
+// ══ Utilities ════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const esc = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const now = () => new Date().toLocaleTimeString(App.lang === 'ar' ? 'ar-SA' : 'en-GB', {hour:'2-digit',minute:'2-digit'});
+const fmtDate = d => d ? new Date(d).toLocaleDateString(App.lang === 'ar' ? 'ar-SA' : 'en-GB', {year:'numeric',month:'short',day:'numeric'}) : '—';
+
+// ══ App State ══════════════════════════════════════════════════════════════════
 const App = {
-  user: null, lang: 'ar', token: null,
-  recording: false, secs: 0, tInt: null, wInt: null, srec: null,
-  fullText: '', currentMeetingId: null, chatHistory: [],
+  lang: localStorage.getItem('lang') || 'ar',
+  token: localStorage.getItem('token'),
+  user: null,
+  chatHistory: [],
+
+  async init() {
+    if (!this.token) { location.href = '/login.html'; return; }
+    try {
+      const me = await api('/auth/me');
+      this.user = me;
+      this.applyLang(this.lang);
+      this.renderUser();
+      await loadBadges();
+      await loadSelectLists();
+      Panels.init();
+      Panels.load('record');
+    } catch (e) { location.href = '/login.html'; }
+  },
+
+  setLang(l) {
+    this.lang = l;
+    localStorage.setItem('lang', l);
+    this.applyLang(l);
+    const cur = document.querySelector('.nb.active')?.dataset.p;
+    if (cur) Panels.load(cur);
+  },
+
+  applyLang(l) {
+    document.documentElement.lang = l;
+    document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+    document.querySelectorAll('.lb').forEach(b => b.classList.toggle('active', b.textContent.trim() === (l === 'ar' ? 'ع' : 'EN')));
+
+    document.querySelectorAll('[data-ar]').forEach(el => {
+      const txt = l === 'ar' ? el.dataset.ar : el.dataset.en;
+      if (!txt) return;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') { el.placeholder = txt; }
+      else { el.textContent = txt; }
+    });
+
+    document.querySelectorAll('[data-ph-ar]').forEach(el => {
+      el.placeholder = l === 'ar' ? el.dataset.phAr : el.dataset.phEn;
+    });
+
+    // Chat welcome
+    const wt = $('welcome-text');
+    const wts = $('welcome-ts');
+    if (wt) {
+      wt.textContent = l === 'ar'
+        ? 'أنا أمين، مساعدكم التنفيذي الذكي. يمكنني تحليل الاجتماعات، متابعة المهام والقرارات، والإجابة على أي سؤال تنفيذي.'
+        : "I'm Ameen, your executive AI. I can analyse meetings, track tasks and decisions, and answer any executive question.";
+    }
+    if (wts) wts.textContent = now();
+
+    // Chat input
+    const ci = $('ci');
+    if (ci) ci.placeholder = l === 'ar' ? 'اسأل أمين...' : 'Ask Ameen...';
+  },
+
+  renderUser() {
+    if (!this.user) return;
+    const l = this.lang;
+    const name = l === 'ar' ? this.user.name_ar : (this.user.name_en || this.user.name_ar);
+    const role = l === 'ar' ? (this.user.role_ar || 'مستخدم') : (this.user.role_en || 'User');
+    const initials = name.split(' ').slice(0,2).map(w => w[0]).join('');
+    const uav = $('u-av'); if (uav) uav.textContent = initials;
+    const uname = $('u-name'); if (uname) uname.textContent = name;
+    const urole = $('u-role'); if (urole) urole.textContent = role;
+  },
+
+  promptApiKey() {
+    const cur = sessionStorage.getItem('api_key') || '';
+    const k = prompt(this.lang === 'ar'
+      ? 'أدخل مفتاح Anthropic API (sk-ant-...):\n\nاتركه فارغاً للوضع التجريبي'
+      : 'Enter Anthropic API key (sk-ant-...):\n\nLeave blank for demo mode', cur);
+    if (k === null) return;
+    if (k && k.startsWith('sk-ant')) {
+      sessionStorage.setItem('api_key', k);
+      api('/api/ai/setkey', { method: 'POST', body: JSON.stringify({ key: k }) })
+        .then(() => {
+          $('api-key-btn').style.borderColor = 'var(--green)';
+          $('api-status-txt').textContent = this.lang === 'ar' ? '✓ مفعّل' : '✓ Active';
+        }).catch(() => {});
+    } else if (k === '') {
+      sessionStorage.removeItem('api_key');
+      $('api-status-txt').textContent = 'Anthropic API';
+    } else if (k) {
+      alert(this.lang === 'ar' ? 'مفتاح غير صالح — يجب أن يبدأ بـ sk-ant' : 'Invalid key — must start with sk-ant');
+    }
+  },
+
+  logout() {
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('api_key');
+    location.href = '/login.html';
+  }
 };
 
-const $ = id => document.getElementById(id);
-const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// ══ API ════════════════════════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  const tok = App.token || localStorage.getItem('token');
+  if (tok) headers['Authorization'] = `Bearer ${tok}`;
+  const r = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('Unauthenticated'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || data.message || `HTTP ${r.status}`);
+  return data;
+}
 
-// ══ Init ════════════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
-  App.token = localStorage.getItem('ameen_token');
-  const cached = localStorage.getItem('ameen_user');
-  if (!App.token) { location.href = '/login.html'; return; }
+// ══ Navigation ════════════════════════════════════════════════════════════════
+const Panels = {
+  init() {
+    document.querySelectorAll('.nb[data-p]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        Panels.load(btn.dataset.p);
+      });
+    });
+  },
+  async load(name) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    const panel = $(`panel-${name}`);
+    if (panel) panel.classList.add('active');
+    document.querySelectorAll('.nb').forEach(b => b.classList.toggle('active', b.dataset.p === name));
+    App.applyLang(App.lang);
 
-  if (cached) {
-    App.user = JSON.parse(cached);
-    App.lang = App.user.lang_pref || 'ar';
+    switch (name) {
+      case 'transcripts': await renderTranscripts(); break;
+      case 'tasks': await renderTasks(); break;
+      case 'schedule': await renderSchedule(); break;
+      case 'overview': await renderOverview(); break;
+      case 'team': await Team.load(); break;
+      case 'documents': await loadDocMeetings(); break;
+    }
   }
+};
 
-  // Verify token
-  try {
-    const r = await api('/auth/me');
-    App.user = r;
-    App.lang = r.lang_pref || 'ar';
-    localStorage.setItem('ameen_user', JSON.stringify(r));
-  } catch { location.href = '/login.html'; return; }
-
-  App.setLang(App.lang);
-  renderUser();
-  loadBadges();
-  loadSelectLists();
-  $('welcome-ts').textContent = now();
-  setInterval(loadBadges, 60000);
-});
-
-// ══ API helper ═══════════════════════════════════════════════════════════════
-async function api(url, opts = {}) {
-  const r = await fetch(url, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', ...opts.headers },
-    credentials: 'include',
-  });
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.error || 'Request failed');
-  return d;
-}
-
-function renderUser() {
-  const u = App.user;
-  if (!u) return;
-  $('u-name').textContent = App.lang === 'ar' ? u.name_ar : u.name_en;
-  $('u-role').textContent = App.lang === 'ar' ? u.role_ar : u.role_en;
-  const initials = (App.lang === 'ar' ? u.name_ar : u.name_en).split(' ').slice(0, 2).map(w => w[0]).join('');
-  $('u-av').textContent = initials;
-}
-
+// ══ Badges ════════════════════════════════════════════════════════════════════
 async function loadBadges() {
   try {
-    const stats = await api('/api/stats');
-    $('b-tk').textContent = stats.tasks_overdue || '—';
-    $('b-tr').textContent = stats.meetings || '—';
-    $('b-sc').textContent = stats.meetings || '—';
-    if (stats.tasks_overdue > 0) $('b-tk').className = 'nbg';
-  } catch {}
+    const s = await api('/api/stats');
+    const bt = $('b-tk'); if (bt) { bt.textContent = s.tasks_open; bt.style.display = s.tasks_open ? 'flex' : 'none'; bt.className = 'nbg' + (s.tasks_overdue > 0 ? ' nbg-red' : ' nbg-gold'); }
+    const br = $('b-tr'); if (br) { br.textContent = s.meetings; br.style.display = s.meetings ? 'flex' : 'none'; }
+    const bs = $('b-sc'); if (bs) { bs.textContent = s.schedule; bs.style.display = s.schedule ? 'flex' : 'none'; }
+
+    const lt = $('ov-late-tag'); if (lt) lt.textContent = `⚠ ${s.tasks_overdue} ${App.lang === 'ar' ? 'متأخرة' : 'overdue'}`;
+    const pt = $('ov-prog-tag'); if (pt) pt.textContent = `▶ ${s.tasks_open - s.tasks_overdue} ${App.lang === 'ar' ? 'جارٍ' : 'in progress'}`;
+    const dt = $('ov-done-tag'); if (dt) dt.textContent = `✓ ${s.tasks_done} ${App.lang === 'ar' ? 'مكتملة' : 'done'}`;
+  } catch (e) {}
 }
 
+// ══ Load select dropdowns ═════════════════════════════════════════════════════
 async function loadSelectLists() {
-  // Load meetings for dropdowns
   try {
-    const meetings = await api('/api/meetings');
-    [('doc-meeting-sel'), ('pm-meeting-sel')].forEach(id => {
-      const sel = $(id); if (!sel) return;
-      meetings.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = `${App.lang === 'ar' ? m.title_ar : (m.title_en || m.title_ar)} — ${m.meeting_date?.substring(0, 10) || ''}`;
-        sel.appendChild(opt);
-      });
-    });
-    // Schedule selector for pre-meeting
-    const scheds = await api('/api/schedule');
-    const pmSel = $('pm-meeting-sel');
-    if (pmSel) {
-      scheds.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = `${App.lang === 'ar' ? s.title_ar : (s.title_en || s.title_ar)} — ${s.meeting_date} ${s.meeting_time}`;
-        pmSel.appendChild(opt);
-      });
-    }
-  } catch {}
-
-  // Load users for task owner select
-  try {
-    const users = await api('/api/users');
-    const ownerSel = $('nt-owner');
-    if (ownerSel) {
-      users.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.id;
-        opt.textContent = App.lang === 'ar' ? u.name_ar : u.name_en;
-        ownerSel.appendChild(opt);
-      });
-    }
-  } catch {}
+    const users = await api('/api/members');
+    const l = App.lang;
+    const opts = users.map(u => `<option value="${u.id}">${esc(l === 'ar' ? u.name_ar : (u.name_en || u.name_ar))}</option>`).join('');
+    const ownerSel = $('nt-owner'); if (ownerSel) ownerSel.innerHTML = `<option value="">-- ${l === 'ar' ? 'اختر' : 'Select'} --</option>${opts}`;
+  } catch (e) {}
 }
 
-// ══ Language ════════════════════════════════════════════════════════════════
-App.setLang = function (l) {
-  App.lang = l;
-  document.documentElement.lang = l === 'ar' ? 'ar' : 'en';
-  document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
-  document.querySelectorAll('.lb').forEach(b => b.classList.toggle('active', b.textContent.trim() === (l === 'ar' ? 'ع' : 'EN')));
-
-  // Translate all data-ar / data-en elements
-  document.querySelectorAll('[data-ar]').forEach(el => {
-    if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT')
-      el.textContent = l === 'ar' ? el.dataset.ar : el.dataset.en;
-  });
-
-  // Translate placeholder
-  document.querySelectorAll('[data-ph-ar]').forEach(el => {
-    el.placeholder = l === 'ar' ? el.dataset.phAr : el.dataset.phEn;
-  });
-
-  renderUser();
-  if (App.user) api('/auth/lang', { method: 'PATCH', body: JSON.stringify({ lang: l }) }).catch(() => {});
-};
-
-// ══ Navigation ═══════════════════════════════════════════════════════════════
-document.querySelectorAll('.nb').forEach(b => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('.nb').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    const p = 'panel-' + b.dataset.p;
-    document.getElementById(p)?.classList.add('active');
-    Panels.load(b.dataset.p);
-  });
-});
-
-App.logout = async function () {
-  await fetch('/auth/logout', { method: 'POST' });
-  localStorage.clear();
-  location.href = '/login.html';
-};
-
-App.promptApiKey = function () {
-  const k = prompt('أدخل مفتاح Anthropic API:\nEnter Anthropic API key:\n(starts with sk-ant-)');
-  if (k && k.startsWith('sk-ant')) {
-    sessionStorage.setItem('ameen_api_key', k);
-    // Send to server-side via a lightweight in-memory store
-    fetch('/api/ai/setkey', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ key: k })
-    }).then(() => {
-      $('api-key-btn').classList.add('connected');
-      $('api-status-txt').textContent = '✓ AI Connected';
-    }).catch(() => {
-      // Key stored in session, will be sent with requests
-      $('api-key-btn').classList.add('connected');
-      $('api-status-txt').textContent = '✓ AI Connected';
-    });
-  }
-};
-
-// ══ Panels ═══════════════════════════════════════════════════════════════════
-const Panels = {
-  async load(name) {
-    if (name === 'transcripts') await this.loadTranscripts();
-    if (name === 'tasks') await this.loadTasks();
-    if (name === 'schedule') await this.loadSchedule();
-    if (name === 'overview') await this.loadOverview();
-    if (name === 'team') await this.loadTeam();
-    if (name === 'correspondence') await this.loadCorrHistory();
-    if (name === 'documents') await this.loadMeetingSelects();
-  },
-
-  async loadTranscripts() {
-    const body = $('transcripts-body');
-    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
-    try {
-      const meetings = await api('/api/meetings');
-      if (!meetings.length) { body.innerHTML = '<div class="es"><div class="es-icon">📝</div><div data-ar="لا توجد اجتماعات مسجلة بعد" data-en="No recorded meetings yet">لا توجد اجتماعات مسجلة بعد</div></div>'; return; }
-      body.innerHTML = meetings.map(m => renderMeetingCard(m)).join('');
-    } catch (e) { body.innerHTML = `<div class="es">${e.message}</div>`; }
-  },
-
-  async loadTasks() {
-    const body = $('tasks-body');
-    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
-    try {
-      const [tasks, decisions] = await Promise.all([api('/api/tasks'), api('/api/decisions')]);
-      updateTaskBadges(tasks);
-      body.innerHTML = renderTasksPanel(tasks, decisions);
-    } catch (e) { body.innerHTML = `<div class="es">${e.message}</div>`; }
-  },
-
-  async loadSchedule() {
-    const items = $('sched-items');
-    items.innerHTML = '<div class="es"><div class="loading"></div></div>';
-    try {
-      const scheds = await api('/api/schedule');
-      if (!scheds.length) { items.innerHTML = '<div class="es"><div class="es-icon">📅</div><div>لا توجد اجتماعات مجدولة</div></div>'; return; }
-      items.innerHTML = scheds.map(s => renderSchedRow(s)).join('');
-    } catch (e) { items.innerHTML = `<div class="es">${e.message}</div>`; }
-  },
-
-  async loadOverview() {
-    const body = $('overview-body');
-    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
-    try {
-      const [stats, tasks, meetings] = await Promise.all([api('/api/stats'), api('/api/tasks'), api('/api/meetings')]);
-      body.innerHTML = renderOverview(stats, tasks, meetings);
-    } catch (e) { body.innerHTML = `<div class="es">${e.message}</div>`; }
-  },
-
-  async loadTeam() {
-    const body = $('team-body');
-    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
-    try {
-      const users = await api('/api/users');
-      const taskStats = await api('/api/tasks');
-      body.innerHTML = renderTeam(users, taskStats);
-    } catch (e) { body.innerHTML = `<div class="es">${e.message}</div>`; }
-  },
-
-  async loadCorrHistory() { /* history loaded inline */ },
-
-  async loadMeetingSelects() {
-    // Refresh meeting select for documents
+async function loadDocMeetings() {
+  try {
+    const mtgs = await api('/api/meetings');
+    const l = App.lang;
     const sel = $('doc-meeting-sel');
-    if (!sel) return;
-    try {
-      const meetings = await api('/api/meetings');
-      sel.innerHTML = '<option value="">-- اختر اجتماعاً / Select meeting --</option>';
-      meetings.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = `${App.lang === 'ar' ? m.title_ar : (m.title_en || m.title_ar)} — ${m.meeting_date?.substring(0, 10) || ''}`;
-        sel.appendChild(opt);
-      });
-    } catch {}
-  }
-};
-
-function updateTaskBadges(tasks) {
-  const overdue = tasks.filter(t => t.status === 'overdue').length;
-  const inprog = tasks.filter(t => t.status === 'inprogress').length;
-  const done = tasks.filter(t => t.status === 'done').length;
-  $('ov-late-tag').innerHTML = `${overdue} <span data-ar="متأخرة" data-en="overdue">${App.lang === 'ar' ? 'متأخرة' : 'overdue'}</span>`;
-  $('ov-prog-tag').innerHTML = `${inprog} <span>${App.lang === 'ar' ? 'جارٍ' : 'in progress'}</span>`;
-  $('ov-done-tag').innerHTML = `${done} <span>${App.lang === 'ar' ? 'مكتملة' : 'done'}</span>`;
-  $('b-tk').textContent = overdue || '—';
+    if (sel) sel.innerHTML = `<option value="">-- ${l === 'ar' ? 'اختر اجتماعاً' : 'Select meeting'} --</option>` +
+      mtgs.map(m => `<option value="${m.id}">${esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar))} (${m.meeting_date?.substring(0,10) || ''})</option>`).join('');
+  } catch (e) {}
 }
 
-// ══ Render helpers ═══════════════════════════════════════════════════════════
-function renderMeetingCard(m) {
-  const tasks = JSON.parse(m.ai_tasks || '[]');
-  const decisions = JSON.parse(m.ai_decisions || '[]');
-  const processed = m.status === 'processed';
-  const title = App.lang === 'ar' ? m.title_ar : (m.title_en || m.title_ar);
-  const summary = App.lang === 'ar' ? m.ai_summary_ar : m.ai_summary_en;
-  const recorder = App.lang === 'ar' ? m.recorder_ar : m.recorder_en;
-  const dateStr = m.meeting_date ? m.meeting_date.substring(0, 16) : '';
-
-  return `<div class="card ${processed ? 'card-gold' : ''}">
-    <div class="ch">
-      <div>
-        <div class="ct">${esc(title)}</div>
-        <div class="ctsub">${esc(dateStr)} · ${esc(recorder || '')} · ${m.duration || 0} ${App.lang === 'ar' ? 'دقيقة' : 'min'}</div>
-      </div>
-      <div style="display:flex;gap:7px;align-items:center">
-        ${processed ? `<span class="tag tgold">✦ ${App.lang === 'ar' ? 'مُعالَج بـ AI' : 'AI Processed'}</span>` : `<span class="tag tgr">${App.lang === 'ar' ? 'مسودة' : 'Draft'}</span>`}
-        ${!processed ? `<button class="btn-ghost btn-sm" onclick="processWithAI(${m.id})">✦ ${App.lang === 'ar' ? 'تحليل' : 'Analyse'}</button>` : ''}
-      </div>
-    </div>
-    ${summary ? `<div style="background:var(--navy3);border-radius:var(--rm);padding:11px 13px;font-size:12px;line-height:1.7;color:var(--text2);margin-bottom:11px">${esc(summary)}</div>` : ''}
-    ${(tasks.length || decisions.length) ? `
-    <div class="eg">
-      ${tasks.length ? `<div class="ec"><div class="el">✅ ${App.lang === 'ar' ? 'المهام' : 'Tasks'}</div>${tasks.map(t => `<div class="ei"><div class="ed d-g"></div>${esc(App.lang === 'ar' ? t.text_ar : (t.text_en || t.text_ar))} ${t.owner_ar ? `<span class="tag tgold btn-sm" style="margin-right:4px">${esc(App.lang === 'ar' ? t.owner_ar : t.owner_en)}</span>` : ''}</div>`).join('')}</div>` : ''}
-      ${decisions.length ? `<div class="ec"><div class="el">⚖️ ${App.lang === 'ar' ? 'القرارات' : 'Decisions'}</div>${decisions.map(d => `<div class="ei"><div class="ed d-bl"></div>${esc(App.lang === 'ar' ? d.text_ar : (d.text_en || d.text_ar))}</div>`).join('')}</div>` : ''}
-    </div>` : ''}
-    ${m.transcript ? `<details style="margin-top:10px"><summary style="font-size:12px;color:var(--text3);cursor:pointer">${App.lang === 'ar' ? '📄 عرض النص الكامل' : '📄 View full transcript'}</summary><div class="tr-box" style="margin-top:8px;max-height:200px;font-size:12px;color:var(--text2)">${esc(m.transcript)}</div></details>` : ''}
-  </div>`;
-}
-
-const statusLabels = {
-  ar: { new: 'لم تبدأ', inprogress: 'قيد التنفيذ', done: 'مكتملة', overdue: 'متأخرة' },
-  en: { new: 'Not Started', inprogress: 'In Progress', done: 'Done', overdue: 'Overdue' }
-};
-const statusIcons = { new: '○', inprogress: '◑', done: '✓', overdue: '!' };
-const statusCls = { new: 'st-new', inprogress: 'st-prog', done: 'st-done', overdue: 'st-late' };
-
-function renderTasksPanel(tasks, decisions) {
-  const l = App.lang;
-  const taskRows = tasks.map(t => {
-    const s = t.status || 'new';
-    const txt = l === 'ar' ? t.text_ar : (t.text_en || t.text_ar);
-    const owner = l === 'ar' ? t.owner_name_ar : (t.owner_name_en || t.owner_name_ar);
-    const src = l === 'ar' ? t.source_meeting_title_ar : (t.source_meeting_title_en || t.source_meeting_title_ar);
-    return `<div class="task-row" id="tr-${t.id}">
-      <div class="task-st ${statusCls[s]}">${statusIcons[s]}</div>
-      <div style="flex:1;min-width:0">
-        <div class="task-txt">${esc(txt)}</div>
-        <div class="task-meta">
-          ${src ? `<span>📋 ${esc(src)}</span>` : ''}
-          ${t.due_date ? `<span>📅 ${t.due_date}</span>` : ''}
-          ${t.priority === 'urgent' ? `<span class="tag tr" style="font-size:9px">${l === 'ar' ? 'عاجل' : 'Urgent'}</span>` : ''}
-        </div>
-      </div>
-      ${owner ? `<div class="task-owner">${esc(owner)}</div>` : ''}
-      <select class="st-select" onchange="Tasks.updateStatus(${t.id}, this.value)" style="color:var(--${s === 'done' ? 'green' : s === 'overdue' ? 'red' : s === 'inprogress' ? 'amber' : 'text3'})">
-        ${Object.entries(statusLabels[l]).map(([k, v]) => `<option value="${k}" ${k === s ? 'selected' : ''}>${v}</option>`).join('')}
-      </select>
-      <button onclick="Tasks.delete(${t.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:3px 6px" title="Delete">✕</button>
-    </div>`;
-  }).join('');
-
-  const decRows = decisions.map(d => {
-    const txt = l === 'ar' ? d.text_ar : (d.text_en || d.text_ar);
-    const src = l === 'ar' ? d.meeting_title_ar : (d.meeting_title_en || d.meeting_title_ar);
-    const sLabel = l === 'ar' ? { active: 'نشط', implemented: 'مُنفَّذ', archived: 'مؤرشف' }[d.status] : { active: 'Active', implemented: 'Implemented', archived: 'Archived' }[d.status];
-    return `<div class="task-row">
-      <div class="task-st st-done">⚖️</div>
-      <div style="flex:1;min-width:0">
-        <div class="task-txt">${esc(txt)}</div>
-        <div class="task-meta">${src ? `<span>📋 ${esc(src)}</span>` : ''}</div>
-      </div>
-      <select class="st-select" onchange="Tasks.updateDecisionStatus(${d.id}, this.value)">
-        <option value="active" ${d.status === 'active' ? 'selected' : ''}>${l === 'ar' ? 'نشط' : 'Active'}</option>
-        <option value="implemented" ${d.status === 'implemented' ? 'selected' : ''}>${l === 'ar' ? 'مُنفَّذ' : 'Implemented'}</option>
-        <option value="archived" ${d.status === 'archived' ? 'selected' : ''}>${l === 'ar' ? 'مؤرشف' : 'Archived'}</option>
-      </select>
-      <button onclick="Tasks.deleteDecision(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:3px 6px">✕</button>
-    </div>`;
-  }).join('');
-
-  return `
-    <div class="card">
-      <div class="ch"><div class="ct" >${l === 'ar' ? 'لوحة المهام الحية' : 'Live Task Board'}</div><div class="ai-pill">✦ ${l === 'ar' ? 'أمين يتابع' : 'Ameen tracking'}</div></div>
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;padding:0 14px 9px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">
-        <div>${l === 'ar' ? 'المهمة' : 'Task'}</div>
-        <div style="text-align:center">${l === 'ar' ? 'المسؤول' : 'Owner'}</div>
-        <div style="text-align:center">${l === 'ar' ? 'الموعد' : 'Due'}</div>
-        <div style="text-align:center">${l === 'ar' ? 'الحالة' : 'Status'}</div>
-      </div>
-      ${tasks.length ? taskRows : `<div class="es"><div class="es-icon">✅</div><div>${l === 'ar' ? 'لا توجد مهام بعد' : 'No tasks yet'}</div></div>`}
-    </div>
-    <div class="card">
-      <div class="ch"><div class="ct">${l === 'ar' ? 'قرارات المجلس' : 'Board Decisions'}</div><span class="tag tgold">${decisions.length} ${l === 'ar' ? 'قرار' : 'decisions'}</span></div>
-      ${decisions.length ? decRows : `<div class="es"><div class="es-icon">⚖️</div><div>${l === 'ar' ? 'لا توجد قرارات مسجلة' : 'No decisions recorded yet'}</div></div>`}
-    </div>`;
-}
-
-function renderSchedRow(s) {
-  const l = App.lang;
-  const title = l === 'ar' ? s.title_ar : (s.title_en || s.title_ar);
-  const colors = ['#C9A84C', '#5B9BD6', '#2ECC8A', '#EFA827', '#E05A5A'];
-  const color = colors[s.id % colors.length];
-  return `<div class="sched-row">
-    <div class="stime" style="min-width:44px;text-align:center">
-      <div class="t">${s.meeting_time || ''}</div>
-      <div class="ap">${s.meeting_date || ''}</div>
-    </div>
-    <div class="sbar" style="background:${color}"></div>
-    <div style="flex:1">
-      <div class="sname">${esc(title)}</div>
-      <div class="smeta">
-        <span>${s.duration_mins} ${l === 'ar' ? 'دقيقة' : 'min'}</span>
-        <span>${esc(s.platform || '')}</span>
-        ${s.attendees ? `<span>👥 ${esc(s.attendees)}</span>` : ''}
-      </div>
-      ${s.agenda_ar ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">${esc(l === 'ar' ? s.agenda_ar : (s.agenda_en || s.agenda_ar))}</div>` : ''}
-    </div>
-    <button onclick="Schedule.delete(${s.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:3px 6px">✕</button>
-  </div>`;
-}
-
-function renderOverview(stats, tasks, meetings) {
-  const l = App.lang;
-  const lbl = (ar, en) => l === 'ar' ? ar : en;
-  const recentMtgs = meetings.slice(0, 4).map(m => `
-    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:.5px solid var(--border2)">
-      <span style="font-size:16px">🎙</span>
-      <div style="flex:1"><div style="font-size:12px;color:var(--text)">${esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar))}</div>
-      <div style="font-size:10px;color:var(--text3)">${m.meeting_date?.substring(0, 10)} · ${m.duration || 0} ${lbl('دقيقة', 'min')}</div></div>
-      ${m.status === 'processed' ? '<span class="tag tgold" style="font-size:9px">✦ AI</span>' : '<span class="tag tgr" style="font-size:9px">Draft</span>'}
-    </div>`).join('');
-
-  const ownerPerf = {};
-  tasks.forEach(t => {
-    const k = t.owner_name_ar || 'unknown';
-    if (!ownerPerf[k]) ownerPerf[k] = { ar: t.owner_name_ar, en: t.owner_name_en, total: 0, done: 0 };
-    ownerPerf[k].total++;
-    if (t.status === 'done') ownerPerf[k].done++;
-  });
-  const perfRows = Object.values(ownerPerf).slice(0, 5).map(p => {
-    const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
-    const col = pct >= 70 ? 'var(--gold)' : pct >= 40 ? 'var(--amber)' : 'var(--red)';
-    return `<div style="display:flex;align-items:center;gap:10px;font-size:12px">
-      <div style="width:26px;height:26px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gold);flex-shrink:0">${(l === 'ar' ? p.ar : (p.en || p.ar) || '?')[0]}</div>
-      <span style="flex:1;color:var(--text)">${esc(l === 'ar' ? p.ar : (p.en || p.ar))}</span>
-      <div style="flex:2;background:var(--navy4);border-radius:2px;height:5px;overflow:hidden"><div style="width:${pct}%;height:100%;border-radius:2px;background:${col}"></div></div>
-      <span style="color:var(--text3);min-width:30px;text-align:right;font-size:10px">${pct}%</span>
-    </div>`;
-  }).join('');
-
-  return `
-    <div class="stat-grid">
-      <div class="stat-c" style="border-color:var(--gold-border)"><div class="stat-lbl">${lbl('اجتماعات مُسجَّلة', 'Meetings Recorded')}</div><div class="stat-val">${stats.meetings}</div><div class="stat-sub">${lbl('هذا الشهر', 'this month')}</div></div>
-      <div class="stat-c"><div class="stat-lbl">${lbl('مهام مستخرجة', 'Tasks Extracted')}</div><div class="stat-val">${stats.tasks_total}</div><div class="stat-sub">${lbl('عبر أمين AI', 'via Ameen AI')}</div></div>
-      <div class="stat-c"><div class="stat-lbl">${lbl('مهام متأخرة', 'Overdue Tasks')}</div><div class="stat-val" style="color:var(--red)">${stats.tasks_overdue}</div><div class="stat-sub" style="color:var(--red)">${lbl('تحتاج تدخلاً', 'need attention')}</div></div>
-      <div class="stat-c"><div class="stat-lbl">${lbl('قرارات المجلس', 'Board Decisions')}</div><div class="stat-val">${stats.decisions}</div><div class="stat-sub">${lbl('هذا الشهر', 'this month')}</div></div>
-    </div>
-    <div class="card">
-      <div class="ch"><div class="ct">${lbl('معدل إنجاز المهام', 'Task Completion Rate')}</div><span style="font-size:15px;font-weight:700;color:var(--gold)">${stats.completion}%</span></div>
-      <div class="pbar-bg"><div class="pbar" style="width:${stats.completion}%"></div></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:6px">${stats.tasks_done} ${lbl('من', 'of')} ${stats.tasks_total} ${lbl('مهمة مكتملة', 'tasks completed')}</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-      <div class="card"><div class="ch"><div class="ct">${lbl('أداء الأعضاء', 'Member Performance')}</div></div><div style="display:flex;flex-direction:column;gap:9px">${perfRows || '<div style="color:var(--text3);font-size:12px">لا توجد بيانات</div>'}</div></div>
-      <div class="card"><div class="ch"><div class="ct">${lbl('الاجتماعات الأخيرة', 'Recent Meetings')}</div></div>${recentMtgs || '<div class="es">لا توجد اجتماعات</div>'}</div>
-    </div>`;
-}
-
-function renderTeam(users, tasks) {
-  const l = App.lang;
-  return `<div class="card">
-    <div class="ch"><div class="ct">${l === 'ar' ? 'أعضاء الفريق' : 'Team Members'}</div><span class="tag tgold">${users.length} ${l === 'ar' ? 'أعضاء' : 'members'}</span></div>
-    ${users.map(u => {
-      const userTasks = tasks.filter(t => t.owner_id === u.id);
-      const done = userTasks.filter(t => t.status === 'done').length;
-      const overdue = userTasks.filter(t => t.status === 'overdue').length;
-      return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:.5px solid var(--border2)">
-        <div style="width:38px;height:38px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--gold);flex-shrink:0">${(l === 'ar' ? u.name_ar : u.name_en).split(' ').slice(0,2).map(w => w[0]).join('')}</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(l === 'ar' ? u.name_ar : u.name_en)}</div>
-          <div style="font-size:11px;color:var(--text3)">${esc(l === 'ar' ? u.role_ar : u.role_en)} · ${esc(u.email)}</div>
-        </div>
-        <div style="text-align:center;font-size:11px;color:var(--text3)">
-          <div style="font-size:16px;font-weight:700;color:var(--gold)">${userTasks.length}</div>
-          <div>${l === 'ar' ? 'مهمة' : 'tasks'}</div>
-        </div>
-        ${overdue ? `<span class="tag tr">${overdue} ${l === 'ar' ? 'متأخرة' : 'overdue'}</span>` : `<span class="tag tg">${done} ${l === 'ar' ? 'مكتملة' : 'done'}</span>`}
-        <div style="font-size:10px;color:var(--text3)">${l === 'ar' ? 'انضم' : 'Joined'} ${u.created_at?.substring(0, 10) || ''}</div>
-      </div>`;
-    }).join('')}
-  </div>`;
-}
-
-// ══ Recording ════════════════════════════════════════════════════════════════
+// ══ Recording ═════════════════════════════════════════════════════════════════
 const Rec = {
-  async toggle() { App.recording ? this.stop() : this.start(); },
+  mediaRec: null, audioChunks: [], isRecording: false,
+  startTime: null, timerInt: null,
+  speechRec: null, fullTranscript: '',
+  currentMeetingId: null,
+
+  async toggle() {
+    if (this.isRecording) { await this.stop(); }
+    else { await this.start(); }
+  },
 
   async start() {
-    App.recording = true; App.secs = 0; App.fullText = '';
-    $('rec-ring').classList.add('on');
-    $('rec-ic').textContent = '⏹';
-    $('rec-st').textContent = App.lang === 'ar' ? 'جارٍ التسجيل...' : 'Recording in progress...';
-    $('rec-tm').style.display = 'block';
-    $('b-rec').style.display = 'flex';
-    $('live-tr-card').style.display = 'block';
-    $('live-ex-card').style.display = 'block';
-    $('live-tr').innerHTML = '';
-    $('status-pill').className = 'pill pill-red';
-    $('st-txt').textContent = App.lang === 'ar' ? 'تسجيل' : 'Recording';
-    ['ex-tasks', 'ex-decs', 'ex-rems', 'ex-fups'].forEach(id => {
-      $(id).innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
-    });
-
-    // Create meeting record
+    const title = $('mtg-title').value.trim() || (App.lang === 'ar' ? 'اجتماع بدون عنوان' : 'Untitled Meeting');
     try {
-      const r = await api('/api/meetings', {
+      const row = await api('/api/meetings', {
         method: 'POST',
-        body: JSON.stringify({ title_ar: $('mtg-title').value || (App.lang === 'ar' ? 'اجتماع جديد' : 'New Meeting'), title_en: $('mtg-title').value || 'New Meeting', transcript: '', duration: 0 })
+        body: JSON.stringify({ title_ar: title, title_en: title, transcript: '' })
       });
-      App.currentMeetingId = r.id;
-    } catch {}
+      this.currentMeetingId = row.id;
+    } catch (e) { alert(e.message); return; }
 
-    App.wInt = setInterval(() => {
-      for (let i = 0; i < 16; i++) { const h = Math.floor(Math.random() * 24) + 4; $('w' + i).style.height = h + 'px'; $('w' + i).classList.add('a'); }
-    }, 100);
-    this.updTimer();
-    App.tInt = setInterval(() => { App.secs++; this.updTimer(); }, 1000);
-    this.startSR();
+    this.fullTranscript = '';
+    this.isRecording = true;
+    $('rec-ring').classList.add('recording');
+    $('rec-ic').textContent = '⏹';
+    $('b-rec').style.display = 'flex';
+    $('live-tr-card').style.display = '';
+    $('live-ex-card').style.display = '';
+    $('ai-res-card').style.display = 'none';
+    $('live-tr').textContent = '';
+    $('ex-tasks').innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
+    $('ex-decs').innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
+    const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? '▶ جارٍ التسجيل' : '▶ Recording...';
+
+    this.startTime = Date.now();
+    this.timerInt = setInterval(() => {
+      const s = Math.floor((Date.now() - this.startTime) / 1000);
+      const ts = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+      $('rec-tm').textContent = ts;
+      $('rec-timer-lbl').textContent = ts;
+    }, 1000);
+
+    this.startWaveform();
+    this.startSpeechRec();
   },
 
-  startSR() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert(App.lang === 'ar' ? 'يتطلب Chrome أو Edge لدعم التسجيل' : 'Requires Chrome or Edge for recording'); return; }
-    App.srec = new SR();
-    App.srec.continuous = true;
-    App.srec.interimResults = true;
-    App.srec.lang = App.lang === 'ar' ? 'ar-SA' : 'en-US';
-    const spkClasses = ['sa', 'sb', 'sc', 'sd', 'se'];
-    const speakers = {};
-    let spkCount = 0;
-    let interim = null;
+  async stop() {
+    this.isRecording = false;
+    clearInterval(this.timerInt);
+    $('rec-ring').classList.remove('recording');
+    $('rec-ic').textContent = '🎙';
+    $('b-rec').style.display = 'none';
+    this.stopWaveform();
+    if (this.speechRec) { try { this.speechRec.stop(); } catch(e){} this.speechRec = null; }
+    const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? 'اضغط للبدء' : 'Tap to start';
 
-    App.srec.onresult = e => {
+    if (this.currentMeetingId && this.fullTranscript) {
+      const dur = Math.floor((Date.now() - this.startTime) / 1000);
+      await api(`/api/meetings/${this.currentMeetingId}`, { method: 'PATCH', body: JSON.stringify({ transcript: this.fullTranscript, duration: dur }) });
+    }
+  },
+
+  startSpeechRec() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { $('live-tr').textContent = App.lang === 'ar' ? 'المتصفح لا يدعم التعرف على الصوت — جرّب Chrome' : 'Browser does not support speech recognition — try Chrome'; return; }
+    this.speechRec = new SR();
+    this.speechRec.continuous = true;
+    this.speechRec.interimResults = true;
+    this.speechRec.lang = App.lang === 'ar' ? 'ar-SA' : 'en-US';
+
+    let interim = '';
+    this.speechRec.onresult = e => {
+      let final = '', int = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const txt = e.results[i][0].transcript.trim();
-        if (e.results[i].isFinal) {
-          App.fullText += txt + ' ';
-          const spkName = App.lang === 'ar' ? 'المتحدث' : 'Speaker';
-          if (!speakers[spkName]) { speakers[spkName] = spkClasses[spkCount++ % spkClasses.length]; }
-          this.addLine(spkName, speakers[spkName], txt);
-          if (interim) { interim.remove(); interim = null; }
-          // Auto-extract keywords
-          this.autoExtract(txt);
-        } else {
-          if (!interim) {
-            interim = document.createElement('div'); interim.className = 'sl'; interim.style.opacity = '.5';
-            interim.innerHTML = `<span class="spk sa">${App.lang === 'ar' ? 'المتحدث' : 'Speaker'}</span><span style="color:var(--text)"></span>`;
-            $('live-tr').appendChild(interim);
-          }
-          interim.querySelector('span:last-child').textContent = txt;
+        if (e.results[i].isFinal) { final += e.results[i][0].transcript + ' '; }
+        else { int += e.results[i][0].transcript; }
+      }
+      if (final) { this.fullTranscript += final; this.scanTranscript(final); }
+      const box = $('live-tr');
+      if (box) box.textContent = this.fullTranscript + int;
+    };
+
+    this.speechRec.onerror = e => { if (e.error !== 'aborted' && e.error !== 'no-speech') console.warn('SR error:', e.error); };
+    this.speechRec.onend = () => { if (this.isRecording) { try { this.speechRec.start(); } catch(e){} } };
+    try { this.speechRec.start(); } catch(e){}
+  },
+
+  scanTranscript(text) {
+    const t = text.toLowerCase();
+    const taskKw = ['يجب', 'سيتولى', 'مسؤول', 'مطلوب', 'بحلول', 'موعد', 'task', 'action', 'responsible', 'deadline', 'must', 'will do', 'follow up'];
+    const decKw = ['قررنا', 'اعتمدنا', 'موافقة', 'نوافق', 'decided', 'approved', 'agreed', 'resolution'];
+    if (taskKw.some(k => t.includes(k))) this.addExtracted('tasks', text.trim());
+    if (decKw.some(k => t.includes(k))) this.addExtracted('decs', text.trim());
+  },
+
+  addExtracted(type, text) {
+    const el = $(`ex-${type}`);
+    if (!el) return;
+    const existing = el.querySelectorAll('.ex-item');
+    if (existing.length === 0) el.innerHTML = '';
+    const d = document.createElement('div');
+    d.className = 'ex-item';
+    d.style.cssText = 'font-size:11px;padding:4px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start';
+    d.innerHTML = `<span style="color:var(--gold);flex-shrink:0">${type==='tasks'?'✅':'⚖️'}</span><span>${esc(text.substring(0,120))}${text.length>120?'…':''}</span>`;
+    el.appendChild(d);
+  },
+
+  startWaveform() {
+    let t = 0;
+    this._wfInt = setInterval(() => {
+      t++;
+      for (let i = 0; i < 16; i++) {
+        const b = $(`w${i}`);
+        if (b) {
+          const h = this.isRecording ? Math.max(4, Math.abs(Math.sin(t * 0.3 + i * 0.7)) * 28 + Math.random() * 8) : 4;
+          b.style.height = h + 'px';
         }
       }
-      $('live-tr').scrollTop = $('live-tr').scrollHeight;
-    };
-    App.srec.onerror = e => { if (e.error !== 'no-speech') console.error(e.error); };
-    App.srec.onend = () => { if (App.recording) { try { App.srec.start(); } catch {} } };
-    App.srec.start();
+    }, 80);
   },
 
-  addLine(speaker, tag, text) {
-    const d = document.createElement('div'); d.className = 'sl';
-    d.innerHTML = `<span class="spk ${tag}">${esc(speaker)}</span><span style="color:var(--text)">${esc(text)}<span class="cur"></span></span>`;
-    $('live-tr').appendChild(d);
-    $('live-tr').scrollTop = $('live-tr').scrollHeight;
-    setTimeout(() => d.querySelector('.cur')?.remove(), 1000);
-  },
+  stopWaveform() { clearInterval(this._wfInt); for (let i=0;i<16;i++) { const b=$(`w${i}`); if(b) b.style.height='4px'; } },
 
-  autoExtract(text) {
-    const t = text.toLowerCase();
-    const arTaskKws = ['يجب', 'نحتاج', 'سيقوم', 'المطلوب', 'مهمة'];
-    const arDecKws = ['قرر', 'اتفق', 'تم الموافقة', 'تقرر', 'نوافق'];
-    const enTaskKws = ['should', 'need to', 'will', 'must', 'action'];
-    const enDecKws = ['decided', 'agreed', 'approved', 'resolved'];
-    const isTask = [...arTaskKws, ...enTaskKws].some(k => t.includes(k));
-    const isDec = [...arDecKws, ...enDecKws].some(k => t.includes(k));
-    if (isTask) this.addExtracted('ex-tasks', 'd-g', text.substring(0, 60) + (text.length > 60 ? '...' : ''));
-    if (isDec) this.addExtracted('ex-decs', 'd-bl', text.substring(0, 60) + (text.length > 60 ? '...' : ''));
+  saveOnly() {
+    if (!this.currentMeetingId) return;
+    const t = $('sched-toast') || document.createElement('div');
+    t.textContent = App.lang === 'ar' ? '✓ تم الحفظ' : '✓ Saved';
+    Panels.load('transcripts');
   },
-
-  addExtracted(container, dotCls, text) {
-    const c = $(container);
-    const existing = c.querySelector('.ee');
-    if (existing) existing.remove();
-    const d = document.createElement('div'); d.className = 'ei';
-    d.innerHTML = `<div class="ed ${dotCls}"></div><span>${esc(text)}</span>`;
-    c.appendChild(d);
-  },
-
-  stop() {
-    App.recording = false;
-    if (App.srec) { App.srec.onend = null; try { App.srec.stop(); } catch {} App.srec = null; }
-    clearInterval(App.tInt); clearInterval(App.wInt);
-    for (let i = 0; i < 16; i++) { $('w' + i).style.height = '6px'; $('w' + i).classList.remove('a'); }
-    $('rec-ring').classList.remove('on'); $('rec-ic').textContent = '🎙';
-    $('rec-st').textContent = App.lang === 'ar' ? 'انتهى التسجيل — جاهز للمعالجة' : 'Recording stopped — ready to process';
-    $('b-rec').style.display = 'none';
-    $('status-pill').className = 'pill pill-green'; $('st-txt').textContent = App.lang === 'ar' ? 'جاهز' : 'Ready';
-    // Save transcript
-    if (App.currentMeetingId) {
-      api(`/api/meetings/${App.currentMeetingId}`, { method: 'PATCH', body: JSON.stringify({ transcript: App.fullText, duration: Math.floor(App.secs / 60) }) }).catch(() => {});
-    }
-  },
-
-  saveOnly() { if (App.recording) this.stop(); $('rec-st').textContent = App.lang === 'ar' ? '✓ تم الحفظ' : '✓ Saved'; },
 
   async processAI() {
-    if (App.recording) this.stop();
-    if (!App.fullText.trim() && !App.currentMeetingId) { alert(App.lang === 'ar' ? 'لا يوجد نص لمعالجته' : 'No transcript to process'); return; }
-    const btn = $('ai-proc-btn'); btn.disabled = true;
-    btn.innerHTML = `<span class="loading"></span> ${App.lang === 'ar' ? 'جارٍ التحليل...' : 'Analysing...'}`;
-    $('ai-res-card').style.display = 'block';
-    $('ai-res-body').innerHTML = `<div style="text-align:center;padding:16px;color:var(--text3)">${App.lang === 'ar' ? 'أمين يحلل الاجتماع...' : 'Ameen is analysing the meeting...'}</div>`;
+    if (!this.currentMeetingId) return;
+    const btn = $('ai-proc-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading"></span> ${App.lang === 'ar' ? 'أمين يحلل الاجتماع...' : 'Ameen is analysing...'}`;
 
     try {
-      const result = await api(`/api/meetings/${App.currentMeetingId}/process`, { method: 'POST' });
-      if (result.success) this.showResult(result.result);
-      if (result.demo) {
-        const note = document.createElement('div');
-        note.style.cssText = 'font-size:11px;color:var(--amber);margin-top:8px;padding:6px 10px;background:var(--amber2);border-radius:6px';
-        note.textContent = App.lang === 'ar' ? '⚠️ نتيجة تجريبية — أضف مفتاح Anthropic API للحصول على نتائج حقيقية' : '⚠️ Demo result — Add Anthropic API key for real AI analysis';
-        $('ai-res-body').appendChild(note);
-      }
+      const r = await api(`/api/meetings/${this.currentMeetingId}/process`, { method: 'POST' });
+      $('ai-res-card').style.display = '';
+      $('ai-res-body').innerHTML = this.renderResult(r.result, r.demo);
       await loadBadges();
     } catch (e) {
-      $('ai-res-body').innerHTML = `<div style="color:var(--red);font-size:12px">${e.message}</div>`;
+      $('ai-res-body').innerHTML = `<div style="color:var(--red);padding:10px">${e.message}</div>`;
+      $('ai-res-card').style.display = '';
     }
+
     btn.disabled = false;
-    btn.innerHTML = `✦ <span data-ar="تحليل بأمين AI" data-en="Analyse with Ameen AI">${App.lang === 'ar' ? 'تحليل بأمين AI' : 'Analyse with Ameen AI'}</span>`;
+    btn.innerHTML = `✦ <span>${App.lang === 'ar' ? 'استخراج المهام والمحضر' : 'Extract Tasks & Minutes'}</span>`;
   },
 
-  showResult(r) {
+  renderResult(r, demo) {
     const l = App.lang;
-    let h = '';
-    const summary = l === 'ar' ? r.summary_ar : r.summary_en;
-    if (summary) h += `<div style="background:var(--navy3);border-radius:var(--rm);padding:12px 14px;font-size:13px;line-height:1.7;color:var(--text2);margin-bottom:12px">${esc(summary)}</div>`;
-    if (r.tasks?.length) {
-      h += `<div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">✅ ${l === 'ar' ? 'المهام المستخرجة' : 'Extracted Tasks'}</div>`;
-      r.tasks.forEach((t, i) => {
-        const txt = l === 'ar' ? t.text_ar : (t.text_en || t.text_ar);
-        h += `<div style="display:flex;align-items:center;gap:7px;padding:5px 0;font-size:12px;border-bottom:.5px solid var(--border2)"><div style="width:18px;height:18px;border-radius:50%;background:var(--navy4);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text3);flex-shrink:0">${i + 1}</div>${esc(txt)}${t.owner_ar ? `<span class="tag tgold" style="margin-right:5px">${esc(l === 'ar' ? t.owner_ar : t.owner_en)}</span>` : ''}${t.due ? `<span class="tag tgr">${esc(t.due)}</span>` : ''}</div>`;
-      });
-    }
-    if (r.decisions?.length) {
-      h += `<div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 7px">⚖️ ${l === 'ar' ? 'القرارات' : 'Decisions'}</div>`;
-      r.decisions.forEach(d => {
-        const txt = l === 'ar' ? d.text_ar : (d.text_en || d.text_ar);
-        h += `<div style="display:flex;gap:6px;padding:4px 0;font-size:12px"><div style="width:5px;height:5px;border-radius:50%;background:var(--blue);margin-top:5px;flex-shrink:0"></div>${esc(txt)}</div>`;
-      });
-    }
-    $('ai-res-body').innerHTML = h || '<div style="color:var(--text3)">—</div>';
-  },
+    const lbl = (ar, en) => l === 'ar' ? ar : en;
 
-  updTimer() {
-    const m = Math.floor(App.secs / 60).toString().padStart(2, '0');
-    const s = (App.secs % 60).toString().padStart(2, '0');
-    $('rec-tm').textContent = m + ':' + s;
-    $('rec-timer-lbl').textContent = m + ':' + s;
+    // Summary section
+    const summary = `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:6px">📋 ${lbl('ملخص الاجتماع','Meeting Summary')}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.7">${esc(l === 'ar' ? r.summary_ar : r.summary_en)}</div>
+        ${r.key_topics_ar?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(l==='ar'?r.key_topics_ar:r.key_topics_en||r.key_topics_ar).map(t=>`<span class="tag" style="background:var(--gold-dim);color:var(--gold)">${esc(t)}</span>`).join('')}</div>` : ''}
+        ${demo ? `<div class="tag ta" style="margin-top:6px;display:inline-flex">⚠ ${lbl('نتائج تجريبية','Demo results')}</div>` : ''}
+      </div>`;
+
+    // Group tasks by owner
+    const tasks = r.tasks || [];
+    let tasksByOwner = {};
+    tasks.forEach(t => {
+      const owner = l === 'ar' ? (t.owner_ar || lbl('غير محدد','Unassigned')) : (t.owner_en || t.owner_ar || 'Unassigned');
+      if (!tasksByOwner[owner]) tasksByOwner[owner] = [];
+      tasksByOwner[owner].push(t);
+    });
+
+    const tasksHtml = tasks.length ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:10px">✅ ${lbl('المهام المستخرجة بحسب المسؤول','Extracted Tasks by Owner')} (${tasks.length})</div>
+        ${Object.entries(tasksByOwner).map(([owner, ownerTasks]) => `
+          <div style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0">${esc(owner.split(' ').slice(0,1).map(w=>w[0]).join(''))}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${esc(owner)}</div>
+              <span class="tag" style="background:var(--navy4);font-size:10px">${ownerTasks.length} ${lbl('مهمة','task')}</span>
+            </div>
+            ${ownerTasks.map(t => `
+              <div style="display:flex;gap:8px;padding:7px 0 7px 12px;border-bottom:.5px solid var(--border2);align-items:flex-start">
+                <div style="width:5px;height:5px;border-radius:50%;background:${t.priority==='urgent'?'var(--red)':'var(--gold)'};margin-top:5px;flex-shrink:0"></div>
+                <div style="flex:1;font-size:12px;color:var(--text);line-height:1.6">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</div>
+                ${t.priority==='urgent'?`<span class="tag tr" style="font-size:10px">${lbl('عاجل','Urgent')}</span>`:''}
+                ${t.due?`<span class="tag" style="background:var(--navy4);font-size:10px">${esc(t.due)}</span>`:''}
+              </div>`).join('')}
+          </div>`).join('')}
+      </div>` : '';
+
+    // Decisions
+    const decisions = r.decisions || [];
+    const decsHtml = decisions.length ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">⚖️ ${lbl('القرارات','Decisions')} (${decisions.length})</div>
+        ${decisions.map(d => `
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:.5px solid var(--border2);font-size:12px;color:var(--text)">
+            <span style="color:var(--green)">✓</span>
+            ${esc(l==='ar'?d.text_ar:(d.text_en||d.text_ar))}
+          </div>`).join('')}
+      </div>` : '';
+
+    // Follow-ups
+    const followups = r.followups || [];
+    const fuHtml = followups.length ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">📌 ${lbl('نقاط المتابعة','Follow-up Points')}</div>
+        ${followups.map(f => `
+          <div style="display:flex;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border2);font-size:12px;color:var(--text)">
+            <span style="color:var(--amber)">→</span>
+            ${esc(l==='ar'?f.text_ar:(f.text_en||f.text_ar))}
+          </div>`).join('')}
+      </div>` : '';
+
+    const actions = `
+      <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">
+        <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')">📋 ${lbl('عرض المهام','View Tasks')}</button>
+        <button class="btn-ghost btn-sm" onclick="Panels.load('transcripts')">📝 ${lbl('المحاضر','Transcripts')}</button>
+      </div>`;
+
+    return summary + tasksHtml + decsHtml + fuHtml + actions;
   }
 };
 
-async function processWithAI(meetingId) {
+// ══ Transcripts ═══════════════════════════════════════════════════════════════
+async function renderTranscripts() {
+  const body = $('transcripts-body');
+  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const r = await api(`/api/meetings/${meetingId}/process`, { method: 'POST' });
-    alert(App.lang === 'ar' ? 'تم التحليل بنجاح! اذهب إلى المحاضر لعرض النتيجة.' : 'Analysis complete! Go to Transcripts to view the result.');
-    Panels.load('transcripts');
-  } catch (e) { alert(e.message); }
+    const meetings = await api('/api/meetings');
+    const l = App.lang;
+    if (!meetings.length) {
+      body.innerHTML = `<div class="es"><div class="es-icon">📝</div><div>${l==='ar'?'لا توجد اجتماعات مسجلة بعد':'No recorded meetings yet'}</div></div>`;
+      return;
+    }
+    body.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">
+      ${meetings.map(m => {
+        const title = l==='ar' ? m.title_ar : (m.title_en || m.title_ar);
+        const tasks = tryParse(m.ai_tasks, []);
+        const decisions = tryParse(m.ai_decisions, []);
+        const summary = l==='ar' ? (m.ai_summary_ar||'') : (m.ai_summary_en || m.ai_summary_ar || '');
+        const isProcessed = m.status === 'processed';
+        return `<div class="card">
+          <div class="ch">
+            <div>
+              <div class="ct">${esc(title)}</div>
+              <div class="ctsub">${m.meeting_date?.substring(0,10)||''} ${m.duration ? `· ${Math.floor(m.duration/60)}:${String(m.duration%60).padStart(2,'0')} ${l==='ar'?'دقيقة':'min'}` : ''} · ${esc(m.recorder_ar||'')}</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              ${isProcessed ? `<span class="tag tg">✓ ${l==='ar'?'مُعالج':'Processed'}</span>` : `<span class="tag ta">${l==='ar'?'جديد':'New'}</span>`}
+              ${tasks.length ? `<span class="tag tgold">${tasks.length} ${l==='ar'?'مهمة':'tasks'}</span>` : ''}
+              ${decisions.length ? `<span class="tag" style="background:var(--navy4)">${decisions.length} ${l==='ar'?'قرار':'decisions'}</span>` : ''}
+            </div>
+          </div>
+          ${summary ? `<div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:10px;padding:0 2px">${esc(summary)}</div>` : ''}
+          ${m.transcript ? `<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0">${l==='ar'?'عرض النص الكامل':'Show full transcript'}</summary><div class="tr-box" style="margin-top:8px;max-height:200px;overflow-y:auto">${esc(m.transcript)}</div></details>` : ''}
+          ${tasks.length ? `<div style="margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:5px">✅ ${l==='ar'?'المهام':'Tasks'}</div>
+            ${tasks.slice(0,5).map(t=>`<div style="display:flex;gap:7px;padding:4px 0;border-bottom:.5px solid var(--border2);font-size:11px;color:var(--text)">
+              <span style="color:var(--gold)">→</span>
+              <span style="flex:1">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</span>
+              ${t.owner_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l==='ar'?t.owner_ar:t.owner_en||t.owner_ar)}</span>` : ''}
+            </div>`).join('')}
+          </div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
 
-// ══ Tasks ════════════════════════════════════════════════════════════════════
+function tryParse(s, def) { try { return JSON.parse(s || '[]'); } catch { return def; } }
+
+// ══ Tasks ═════════════════════════════════════════════════════════════════════
+async function renderTasks() {
+  const body = $('tasks-body');
+  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+  try {
+    const [tasks, decisions] = await Promise.all([api('/api/tasks'), api('/api/decisions')]);
+    const l = App.lang;
+
+    const overdue = tasks.filter(t => t.status === 'overdue');
+    const inprog = tasks.filter(t => t.status === 'inprogress' || t.status === 'new');
+    const done = tasks.filter(t => t.status === 'done');
+
+    const renderTask = t => {
+      const text = l==='ar' ? t.text_ar : (t.text_en || t.text_ar);
+      const owner = l==='ar' ? t.owner_name_ar : (t.owner_name_en || t.owner_name_ar);
+      const mtg = l==='ar' ? t.source_meeting_title_ar : (t.source_meeting_title_en || t.source_meeting_title_ar);
+      const isOverdue = t.status === 'overdue';
+      const isDone = t.status === 'done';
+      return `<div class="trow" id="tr-${t.id}">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <input type="checkbox" class="tck" ${isDone?'checked':''} onchange="Tasks.updateStatus(${t.id}, this.checked?'done':'inprogress')" title="${l==='ar'?'تحديث':'Update'}"/>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;color:var(--text);${isDone?'text-decoration:line-through;color:var(--text3)':''}">${esc(text)}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+              ${owner ? `<span class="tag tgold">${esc(owner)}</span>` : ''}
+              ${isOverdue ? `<span class="tag tr">${l==='ar'?'متأخرة':'Overdue'}</span>` : ''}
+              ${t.priority==='urgent' ? `<span class="tag tr">${l==='ar'?'عاجل':'Urgent'}</span>` : ''}
+              ${t.due_date ? `<span class="tag" style="background:var(--navy4)">${esc(t.due_date)}</span>` : ''}
+              ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📝 ${esc(mtg)}</span>` : ''}
+            </div>
+          </div>
+          <button onclick="Tasks.delete(${t.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0" title="${l==='ar'?'حذف':'Delete'}">✕</button>
+        </div>
+      </div>`;
+    };
+
+    const renderDecision = d => {
+      const text = l==='ar' ? d.text_ar : (d.text_en || d.text_ar);
+      const mtg = l==='ar' ? d.meeting_title_ar : (d.meeting_title_en || d.meeting_title_ar);
+      const isImpl = d.status === 'implemented';
+      return `<div class="trow">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <input type="checkbox" class="tck" ${isImpl?'checked':''} onchange="Tasks.updateDecisionStatus(${d.id}, this.checked?'implemented':'active')"/>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;color:var(--text);${isImpl?'text-decoration:line-through;color:var(--text3)':''}">${esc(text)}</div>
+            ${mtg ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">📝 ${esc(mtg)}</div>` : ''}
+          </div>
+          <button onclick="Tasks.deleteDecision(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">✕</button>
+        </div>
+      </div>`;
+    };
+
+    body.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
+      <div class="card">
+        <div class="ch"><div class="ct">${l==='ar'?'⚠ متأخرة / جديدة':'⚠ Overdue / Open'}</div><span class="tag tr">${overdue.length + inprog.length}</span></div>
+        ${overdue.length + inprog.length === 0 ? `<div class="es" style="padding:20px"><div class="es-icon" style="font-size:22px">✓</div><div style="font-size:12px">${l==='ar'?'لا مهام متأخرة':'No overdue tasks'}</div></div>` : [...overdue, ...inprog].map(renderTask).join('')}
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">✓ ${l==='ar'?'مكتملة':'Done'}</div><span class="tag tg">${done.length}</span></div>
+        ${done.length === 0 ? `<div class="es" style="padding:20px"><div style="font-size:12px;color:var(--text3)">${l==='ar'?'لا مهام مكتملة':'No completed tasks'}</div></div>` : done.map(renderTask).join('')}
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">⚖️ ${l==='ar'?'القرارات':'Decisions'}</div><span class="tag" style="background:var(--navy4)">${decisions.length}</span></div>
+        ${decisions.length === 0 ? `<div class="es" style="padding:20px"><div style="font-size:12px;color:var(--text3)">${l==='ar'?'لا قرارات':'No decisions'}</div></div>` : decisions.map(renderDecision).join('')}
+      </div>
+    </div>`;
+  } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
+}
+
+// ══ Tasks Actions ═════════════════════════════════════════════════════════════
 const Tasks = {
   async updateStatus(id, status) {
-    try { await api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); loadBadges(); }
+    try { await api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); await loadBadges(); renderTasks(); }
     catch (e) { alert(e.message); }
   },
   async delete(id) {
     if (!confirm(App.lang === 'ar' ? 'حذف هذه المهمة؟' : 'Delete this task?')) return;
     await api(`/api/tasks/${id}`, { method: 'DELETE' });
     document.getElementById('tr-' + id)?.remove();
-    loadBadges();
+    await loadBadges();
   },
   async updateDecisionStatus(id, status) {
     await api(`/api/decisions/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }).catch(() => {});
@@ -657,121 +541,97 @@ const Tasks = {
   async deleteDecision(id) {
     if (!confirm(App.lang === 'ar' ? 'حذف هذا القرار؟' : 'Delete this decision?')) return;
     await api(`/api/decisions/${id}`, { method: 'DELETE' });
-    Panels.load('tasks');
+    renderTasks();
   }
 };
 
-// ══ Modals ═══════════════════════════════════════════════════════════════════
+// ══ Task Modal ════════════════════════════════════════════════════════════════
 const Modals = {
   addTask() { $('modal-task').classList.add('open'); },
   close() { $('modal-task').classList.remove('open'); },
   async saveTask() {
     const data = {
-      text_ar: $('nt-ar').value, text_en: $('nt-en').value,
+      text_ar: $('nt-ar').value.trim(),
+      text_en: $('nt-en').value.trim(),
       owner_id: $('nt-owner').value || null,
-      due_date: $('nt-due').value, priority: $('nt-priority').value,
+      due_date: $('nt-due').value,
+      priority: $('nt-priority').value,
     };
     if (!data.text_ar) { alert(App.lang === 'ar' ? 'أدخل نص المهمة' : 'Enter task text'); return; }
     try {
       await api('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
       this.close();
-      Panels.load('tasks');
+      await renderTasks();
+      await loadBadges();
       ['nt-ar', 'nt-en', 'nt-due'].forEach(id => $(id).value = '');
     } catch (e) { alert(e.message); }
   }
 };
 $('modal-task').addEventListener('click', e => { if (e.target === $('modal-task')) Modals.close(); });
 
-// ══ Pre-meeting Report ═══════════════════════════════════════════════════════
-const PreMeeting = {
-  async generate() {
-    const selId = $('pm-meeting-sel')?.value;
-    const body = $('pm-body');
-    body.innerHTML = `<div class="es"><div class="loading"></div><div>${App.lang === 'ar' ? 'أمين يُعدّ التقرير...' : 'Ameen is preparing the report...'}</div></div>`;
-    try {
-      const r = await api('/api/ai/premeeting', { method: 'POST', body: JSON.stringify({ schedule_id: selId || null, lang: App.lang }) });
-      body.innerHTML = this.renderReport(r);
-    } catch (e) { body.innerHTML = `<div class="es">${e.message}</div>`; }
-  },
-
-  renderReport(r) {
-    const l = App.lang;
-    const m = r.meeting;
-    const rp = r.report;
-    const lbl = (ar, en) => l === 'ar' ? ar : en;
-    const title = m ? (l === 'ar' ? m.title_ar : (m.title_en || m.title_ar)) : lbl('التقرير', 'Report');
-
-    const section = (icon, color, heading, items, isObj = false) => {
-      if (!items?.length) return '';
-      const rows = isObj ? items.map(it => `<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border2);font-size:12px;color:var(--text)"><div style="width:5px;height:5px;border-radius:50%;background:${color};margin-top:6px;flex-shrink:0"></div>${esc(it.item || it)} ${it.owner ? `<span class="tag tgold" style="margin-right:4px">${esc(it.owner)}</span>` : ''} ${it.reason ? `<span class="tag tgr">${esc(it.reason)}</span>` : ''}</div>`).join('') :
-        items.map(it => `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border2);font-size:12px;color:var(--text)"><div style="width:5px;height:5px;border-radius:50%;background:${color};margin-top:5px;flex-shrink:0"></div>${esc(it)}</div>`).join('');
-      return `<div style="background:var(--navy3);border-radius:var(--rm);padding:13px;border:1px solid var(--border2);margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
-          <div style="width:28px;height:28px;border-radius:var(--rs);background:${color}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${icon}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${heading}</div>
-        </div>${rows}</div>`;
-    };
-
-    const agendaItems = l === 'ar' ? rp.agenda_ar : rp.agenda_en;
-    const agendaRows = agendaItems?.map(a => `<div style="display:flex;align-items:flex-start;gap:9px;padding:5px 0;border-bottom:.5px solid var(--border2);font-size:12px;color:var(--text)"><div style="font-size:11px;font-weight:700;color:var(--gold);min-width:40px">${esc(a.time)}</div>${esc(a.item)}</div>`).join('') || '';
-
-    return `<div class="card card-gold">
-      <div class="ch">
-        <div><div class="ct">${esc(title)}</div><div class="ctsub">${m ? `${m.meeting_date || ''} ${m.meeting_time || ''} · ${esc(m.platform || '')}` : ''}</div></div>
-        <div style="display:flex;gap:7px">
-          ${r.demo ? `<span class="tag ta">${lbl('تجريبي', 'Demo')}</span>` : '<span class="tag tgold">✦ AI</span>'}
-        </div>
-      </div>
-      ${section('✅', 'var(--green)', lbl('ما الذي أُنجز؟', 'What was completed?'), l === 'ar' ? rp.completed_ar : rp.completed_en)}
-      ${section('⚠️', 'var(--red)', lbl('ما الذي تأخر؟', 'What is delayed?'), l === 'ar' ? rp.delayed_ar : rp.delayed_en, true)}
-      ${section('🎯', 'var(--gold)', lbl('ما الذي يحتاج قراراً اليوم؟', 'What needs a decision today?'), l === 'ar' ? rp.decisions_needed_ar : rp.decisions_needed_en)}
-      ${agendaRows ? `<div style="background:var(--navy3);border-radius:var(--rm);padding:13px;border:1px solid var(--border2);margin-bottom:10px">
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:9px">📋 ${lbl('جدول الأعمال المقترح', 'Suggested Agenda')}</div>${agendaRows}</div>` : ''}
-      <div style="display:flex;gap:9px;margin-top:4px;justify-content:flex-end">
-        <button class="btn-ghost" onclick="window.print()">📤 ${lbl('طباعة', 'Print')}</button>
-        <button class="btn-gold" onclick="PreMeeting.generate()">↺ ${lbl('تحديث', 'Refresh')}</button>
-      </div>
-    </div>`;
-  }
-};
-
 // ══ Chat ══════════════════════════════════════════════════════════════════════
 const Chat = {
   async send() {
     const inp = $('ci'); const text = inp.value.trim(); if (!text) return;
     inp.value = ''; inp.style.height = '';
-    this.append(text, true); this.showTyping();
+    this.append(text, true);
+    this.showTyping();
     App.chatHistory.push({ role: 'user', content: text });
     try {
-      const r = await api('/api/ai/chat', { method: 'POST', body: JSON.stringify({ messages: App.chatHistory.slice(-8), lang: App.lang }) });
+      const r = await api('/api/ai/chat', { method: 'POST', body: JSON.stringify({ messages: App.chatHistory.slice(-10), lang: App.lang }) });
       removeTyping();
       this.append(r.reply, false);
       App.chatHistory.push({ role: 'assistant', content: r.reply });
       if (r.demo) this.showDemoNote();
-    } catch (e) { removeTyping(); this.append(App.lang === 'ar' ? 'عذراً، حدث خطأ.' : 'Sorry, an error occurred.', false); }
+    } catch (e) {
+      removeTyping();
+      this.append(App.lang === 'ar' ? 'عذراً، حدث خطأ.' : 'Sorry, an error occurred.', false);
+    }
   },
-  quick(btn) { const q = App.lang === 'ar' ? btn.dataset.qAr : btn.dataset.qEn; $('ci').value = q; this.send(); },
+  quick(btn) {
+    const q = App.lang === 'ar' ? btn.dataset.qAr : btn.dataset.qEn;
+    $('ci').value = q;
+    this.send();
+  },
   key(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } },
+  clear() { App.chatHistory = []; const m = $('chat-msgs'); if (m) { m.innerHTML = ''; m.appendChild(buildWelcomeMsg()); } },
   append(text, isUser) {
-    const msgs = $('chat-msgs'); const d = document.createElement('div'); d.className = 'msg' + (isUser ? ' user' : '');
-    const av = isUser ? `<div class="mav">${App.user ? (App.lang === 'ar' ? App.user.name_ar : App.user.name_en).split(' ').slice(0, 2).map(w => w[0]).join('') : '?'}</div>` : `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>`;
+    const msgs = $('chat-msgs');
+    const chips = $('chat-chips');
+    const d = document.createElement('div');
+    d.className = 'msg' + (isUser ? ' user' : '');
+    const name = App.user ? (App.lang === 'ar' ? App.user.name_ar : App.user.name_en) : '';
+    const initials = name.split(' ').slice(0,2).map(w => w[0]).join('') || '?';
+    const av = isUser
+      ? `<div class="mav">${esc(initials)}</div>`
+      : `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>`;
     d.innerHTML = `${av}<div><div class="mb">${esc(text)}</div><div class="mts">${now()}</div></div>`;
-    msgs.insertBefore(d, msgs.querySelector('#chat-chips') ? msgs.querySelector('#chat-chips') : null);
-    msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
+    if (chips && msgs.contains(chips)) { msgs.insertBefore(d, chips); }
+    else { msgs.appendChild(d); }
+    msgs.scrollTop = msgs.scrollHeight;
   },
   showTyping() {
-    const msgs = $('chat-msgs'); const d = document.createElement('div'); d.className = 'msg'; d.id = 'typ';
+    const msgs = $('chat-msgs');
+    const d = document.createElement('div'); d.className = 'msg'; d.id = 'typ';
     d.innerHTML = `<div class="mav"><img src="/logo.png"/></div><div class="mb"><div class="tyd"><span></span><span></span><span></span></div></div>`;
     msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
   },
   showDemoNote() {
     const note = document.createElement('div');
-    note.style.cssText = 'font-size:11px;color:var(--amber);padding:6px 10px;background:var(--amber2);border-radius:6px;margin-top:4px;text-align:center';
-    note.textContent = App.lang === 'ar' ? '⚠️ رد تجريبي — أضف مفتاح Anthropic API للحصول على ردود حقيقية' : '⚠️ Demo reply — Add Anthropic API key for real AI responses';
+    note.style.cssText = 'font-size:11px;color:var(--amber);padding:6px 10px;background:rgba(201,168,76,.1);border-radius:6px;margin:4px 0;text-align:center';
+    note.textContent = App.lang === 'ar' ? '⚠️ رد تجريبي — أضف مفتاح Anthropic API للردود الحقيقية' : '⚠️ Demo reply — Add Anthropic API key for real AI responses';
     $('chat-msgs').appendChild(note);
   }
 };
 function removeTyping() { $('typ')?.remove(); }
+function buildWelcomeMsg() {
+  const d = document.createElement('div'); d.className = 'msg'; d.id = 'welcome-msg';
+  const txt = App.lang === 'ar'
+    ? 'أنا أمين، مساعدكم التنفيذي الذكي. يمكنني تحليل الاجتماعات، متابعة المهام والقرارات، والإجابة على أي سؤال تنفيذي.'
+    : "I'm Ameen, your executive AI. I can analyse meetings, track tasks and decisions, and answer any executive question.";
+  d.innerHTML = `<div class="mav"><img src="/logo.png" alt="Ameen"/></div><div><div class="mb">${esc(txt)}</div><div class="mts">${now()}</div></div>`;
+  return d;
+}
 
 // ══ Correspondence ════════════════════════════════════════════════════════════
 const Corr = {
@@ -789,17 +649,18 @@ const Corr = {
     if (!data.situation) { alert(App.lang === 'ar' ? 'يرجى وصف الموقف' : 'Please describe the situation'); return; }
     const btn = $('corr-btn'); btn.disabled = true;
     btn.innerHTML = `<span class="loading"></span> ${App.lang === 'ar' ? 'أمين يكتب...' : 'Ameen is drafting...'}`;
-    $('corr-result').innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3)">${App.lang === 'ar' ? 'أمين يصيغ الخطاب...' : 'Drafting the letter...'}</div>`;
+    $('corr-result').innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3)">${App.lang === 'ar' ? 'أمين يصيغ الخطاب...' : 'Drafting letter...'}</div>`;
     try {
       const r = await api('/api/ai/correspondence', { method: 'POST', body: JSON.stringify(data) });
       this.currentContent = r.content;
-      $('corr-result').style.direction = data.type === 'formal_en' || data.type === 'email_en' ? 'ltr' : 'rtl';
-      $('corr-result').style.textAlign = data.type === 'formal_en' || data.type === 'email_en' ? 'left' : 'right';
+      const isEn = data.type.includes('_en');
+      $('corr-result').style.direction = isEn ? 'ltr' : 'rtl';
+      $('corr-result').style.textAlign = isEn ? 'left' : 'right';
       $('corr-result').textContent = r.content;
-      const toast = $('corr-toast'); toast.style.display = 'flex'; setTimeout(() => toast.style.display = 'none', 2500);
+      $('corr-toast').style.display = 'flex'; setTimeout(() => $('corr-toast').style.display = 'none', 2500);
     } catch (e) { $('corr-result').innerHTML = `<div style="color:var(--red)">${e.message}</div>`; }
     btn.disabled = false;
-    btn.innerHTML = `✦ <span data-ar="صياغة الخطاب" data-en="Draft Letter">${App.lang === 'ar' ? 'صياغة الخطاب' : 'Draft Letter'}</span>`;
+    btn.innerHTML = `✦ <span>${App.lang === 'ar' ? 'صياغة الخطاب' : 'Draft Letter'}</span>`;
   },
   copy() { if (this.currentContent) { navigator.clipboard.writeText(this.currentContent); alert(App.lang === 'ar' ? '✓ تم النسخ' : '✓ Copied'); } },
   print() { window.print(); }
@@ -825,10 +686,10 @@ const DocGen = {
       $('doc-result').style.direction = data.lang === 'en' ? 'ltr' : 'rtl';
       $('doc-result').style.textAlign = data.lang === 'en' ? 'left' : 'right';
       $('doc-result').textContent = r.content;
-      const toast = $('doc-toast'); toast.style.display = 'flex'; setTimeout(() => toast.style.display = 'none', 2500);
+      $('doc-toast').style.display = 'flex'; setTimeout(() => $('doc-toast').style.display = 'none', 2500);
     } catch (e) { $('doc-result').innerHTML = `<div style="color:var(--red)">${e.message}</div>`; }
     btn.disabled = false;
-    btn.innerHTML = `✦ <span data-ar="توليد الوثيقة" data-en="Generate Document">${App.lang === 'ar' ? 'توليد الوثيقة' : 'Generate Document'}</span>`;
+    btn.innerHTML = `✦ <span>${App.lang === 'ar' ? 'توليد الوثيقة' : 'Generate Document'}</span>`;
   },
   copy() { if (this.currentContent) { navigator.clipboard.writeText(this.currentContent); alert(App.lang === 'ar' ? '✓ تم النسخ' : '✓ Copied'); } },
   print() { window.print(); }
@@ -838,8 +699,8 @@ const DocGen = {
 const Schedule = {
   async add() {
     const data = {
-      title_ar: $('nm-title-ar').value,
-      title_en: $('nm-title-en').value,
+      title_ar: $('nm-title-ar').value.trim(),
+      title_en: $('nm-title-en').value.trim(),
       meeting_date: $('nm-date').value,
       meeting_time: $('nm-time').value,
       duration_mins: $('nm-dur').value,
@@ -854,21 +715,324 @@ const Schedule = {
     }
     try {
       await api('/api/schedule', { method: 'POST', body: JSON.stringify(data) });
-      const toast = $('sched-toast'); toast.style.display = 'flex'; setTimeout(() => toast.style.display = 'none', 2500);
-      Panels.load('schedule');
-      loadBadges();
-      ['nm-title-ar', 'nm-title-en', 'nm-date', 'nm-att', 'nm-agenda-ar', 'nm-agenda-en'].forEach(id => $(id).value = '');
+      $('sched-toast').style.display = 'flex'; setTimeout(() => $('sched-toast').style.display = 'none', 2500);
+      await renderSchedule();
+      await loadBadges();
+      ['nm-title-ar', 'nm-title-en', 'nm-att', 'nm-agenda-ar', 'nm-agenda-en'].forEach(id => $(id).value = '');
     } catch (e) { alert(e.message); }
   },
   async delete(id) {
-    if (!confirm(App.lang === 'ar' ? 'حذف هذا الاجتماع من الجدول؟' : 'Remove this meeting from schedule?')) return;
+    if (!confirm(App.lang === 'ar' ? 'حذف هذا الاجتماع من الجدول؟' : 'Remove from schedule?')) return;
     await api(`/api/schedule/${id}`, { method: 'DELETE' });
-    Panels.load('schedule');
+    await renderSchedule();
+    await loadBadges();
+  },
+  openReminder(id, titleAr, titleEn, date, time, platform, attendees, agendaAr, agendaEn) {
+    const l = App.lang;
+    const title = l === 'ar' ? titleAr : (titleEn || titleAr);
+    const agenda = l === 'ar' ? (agendaAr || agendaEn) : (agendaEn || agendaAr);
+    const dt = date && time ? `${date} ${l === 'ar' ? 'الساعة' : 'at'} ${time}` : (date || '');
+    const subj = l === 'ar' ? `تذكير: ${title} — ${dt}` : `Reminder: ${title} — ${dt}`;
+    const body = l === 'ar'
+      ? `السلام عليكم ورحمة الله وبركاته،\n\nيسعدنا تذكيركم بموعد اجتماع:\n\n📌 ${title}\n📅 ${dt}\n📍 ${platform || ''}\n\n${agenda ? `جدول الأعمال:\n${agenda}\n\n` : ''}نرجو حضوركم في الموعد المحدد.\n\nمع التحية،\nفريق أمين للذكاء الاصطناعي`
+      : `Dear Team,\n\nThis is a reminder for the upcoming meeting:\n\n📌 ${title}\n📅 ${dt}\n📍 ${platform || ''}\n\n${agenda ? `Agenda:\n${agenda}\n\n` : ''}Please attend at the scheduled time.\n\nBest regards,\nAmeen AI Team`;
+    EmailReminder.open(subj, body, attendees || '');
   }
 };
+
+async function renderSchedule() {
+  const el = $('sched-items');
+  el.innerHTML = '<div class="es"><div class="loading"></div></div>';
+  try {
+    const items = await api('/api/schedule');
+    const l = App.lang;
+    if (!items.length) {
+      el.innerHTML = `<div class="es" style="padding:20px"><div class="es-icon">📅</div><div>${l==='ar'?'لا اجتماعات مجدولة':'No scheduled meetings'}</div></div>`;
+      return;
+    }
+    const today = new Date().toISOString().substring(0,10);
+    el.innerHTML = items.map(s => {
+      const title = l==='ar' ? s.title_ar : (s.title_en || s.title_ar);
+      const isUpcoming = s.meeting_date >= today;
+      const agenda = l==='ar' ? (s.agenda_ar || s.agenda_en) : (s.agenda_en || s.agenda_ar);
+      const reminderCall = `Schedule.openReminder(${s.id},${JSON.stringify(s.title_ar)},${JSON.stringify(s.title_en||'')},${JSON.stringify(s.meeting_date||'')},${JSON.stringify(s.meeting_time||'')},${JSON.stringify(s.platform||'')},${JSON.stringify(s.attendees||'')},${JSON.stringify(s.agenda_ar||'')},${JSON.stringify(s.agenda_en||'')})`;
+      return `<div style="padding:13px 0;border-bottom:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">
+              📅 ${esc(s.meeting_date||'')} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ''} · ${s.duration_mins||60} ${l==='ar'?'د':'min'} · ${esc(s.platform||'')}
+            </div>
+            ${s.attendees ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">👥 ${esc(s.attendees)}</div>` : ''}
+            ${agenda ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">📋 ${esc(agenda.substring(0,80))}${agenda.length>80?'…':''}</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
+            ${isUpcoming ? `<span class="tag tg" style="font-size:10px">${l==='ar'?'قادم':'Upcoming'}</span>` : `<span class="tag" style="background:var(--navy4);font-size:10px">${l==='ar'?'مضى':'Past'}</span>`}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn-ghost btn-sm" onclick="${reminderCall}" style="font-size:11px">📧 ${l==='ar'?'إرسال تذكير':'Send Reminder'}</button>
+          <button class="btn-ghost btn-sm" onclick="Schedule.delete(${s.id})" style="font-size:11px;color:var(--red)">✕ ${l==='ar'?'حذف':'Delete'}</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) { el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px">${e.message}</div>`; }
+}
+
+// ══ Email Reminder ════════════════════════════════════════════════════════════
+const EmailReminder = {
+  open(subject, body, to) {
+    $('email-to').value = to || '';
+    $('email-subject').value = subject || '';
+    $('email-body').value = body || '';
+    $('email-status').style.display = 'none';
+    $('smtp-note').style.display = 'none';
+    $('modal-email').classList.add('open');
+  },
+  close() { $('modal-email').classList.remove('open'); },
+  async send() {
+    const btn = $('email-send-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading"></span> ${App.lang === 'ar' ? 'جارٍ الإرسال...' : 'Sending...'}`;
+    const status = $('email-status');
+    try {
+      const r = await api('/api/email/send', { method: 'POST', body: JSON.stringify({
+        to: $('email-to').value,
+        subject: $('email-subject').value,
+        body: $('email-body').value,
+      })});
+      status.style.display = 'block';
+      status.style.cssText = 'display:block;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px;background:rgba(77,200,140,.1);color:var(--green)';
+      status.textContent = `✓ ${App.lang === 'ar' ? `تم الإرسال إلى ${r.sent_to} مستلم` : `Sent to ${r.sent_to} recipient(s)`}`;
+      setTimeout(() => this.close(), 2000);
+    } catch (e) {
+      if (e.message === 'SMTP_NOT_CONFIGURED' || e.message?.includes('SMTP')) {
+        status.style.display = 'block';
+        status.style.cssText = 'display:block;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px;background:rgba(201,168,76,.08);color:var(--amber)';
+        status.textContent = App.lang === 'ar' ? '⚙️ لم يتم إعداد البريد الإلكتروني بعد' : '⚙️ Email not configured yet';
+        $('smtp-note').style.display = 'block';
+      } else {
+        status.style.display = 'block';
+        status.style.cssText = 'display:block;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px;background:rgba(224,90,90,.1);color:var(--red)';
+        status.textContent = e.message;
+      }
+    }
+    btn.disabled = false;
+    btn.innerHTML = `📧 <span>${App.lang === 'ar' ? 'إرسال' : 'Send'}</span>`;
+  }
+};
+$('modal-email').addEventListener('click', e => { if (e.target === $('modal-email')) EmailReminder.close(); });
+
+// ══ Team Management ═══════════════════════════════════════════════════════════
+const Team = {
+  editingId: null,
+
+  async load() {
+    const body = $('team-body');
+    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const [members, tasks] = await Promise.all([api('/api/members'), api('/api/tasks')]);
+      body.innerHTML = this.render(members, tasks);
+    } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
+  },
+
+  render(members, tasks) {
+    const l = App.lang;
+    if (!members.length) return `<div class="es"><div class="es-icon">👥</div><div>${l==='ar'?'لا يوجد أعضاء فريق — اضغط إضافة عضو':'No team members — click Add Member'}</div></div>`;
+
+    return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px">
+      ${members.map(m => {
+        const name = l==='ar' ? m.name_ar : (m.name_en || m.name_ar);
+        const role = l==='ar' ? (m.role_ar || '') : (m.role_en || m.role_ar || '');
+        const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').substring(0,2);
+        const memberTasks = tasks.filter(t => t.owner_name_ar === m.name_ar || t.owner_name_en === m.name_en);
+        const doneTasks = memberTasks.filter(t => t.status === 'done').length;
+        const overdueTasks = memberTasks.filter(t => t.status === 'overdue').length;
+        const inProgTasks = memberTasks.filter(t => t.status === 'inprogress' || t.status === 'new').length;
+        const completion = memberTasks.length > 0 ? Math.round((doneTasks / memberTasks.length) * 100) : 0;
+        return `<div class="card" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:50px;height:50px;border-radius:50%;background:var(--gold-dim);border:2px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:var(--gold);flex-shrink:0">${esc(initials)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(name)}</div>
+              ${m.name_en && l === 'ar' ? `<div style="font-size:11px;color:var(--text3)">${esc(m.name_en)}</div>` : ''}
+              <div style="font-size:11px;color:var(--gold)">${esc(role || (l==='ar'?'عضو فريق':'Team Member'))}</div>
+              <div style="font-size:11px;color:var(--text3);direction:ltr;text-align:${l==='ar'?'right':'left'}">${esc(m.email)}</div>
+            </div>
+          </div>
+          ${memberTasks.length > 0 ? `
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:5px">
+              <span>${l==='ar'?'الإنجاز':'Completion'}</span><span>${completion}%</span>
+            </div>
+            <div style="height:4px;background:var(--navy4);border-radius:4px;overflow:hidden">
+              <div style="height:100%;background:${completion===100?'var(--green)':completion>50?'var(--gold)':'var(--amber)'};width:${completion}%;border-radius:4px;transition:.3s"></div>
+            </div>
+          </div>` : ''}
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${overdueTasks ? `<span class="tag tr">${overdueTasks} ${l==='ar'?'متأخرة':'overdue'}</span>` : ''}
+            ${inProgTasks ? `<span class="tag ta">${inProgTasks} ${l==='ar'?'جارٍ':'in progress'}</span>` : ''}
+            ${doneTasks ? `<span class="tag tg">${doneTasks} ${l==='ar'?'مكتملة':'done'}</span>` : ''}
+            ${!memberTasks.length ? `<span class="tag" style="background:var(--navy4);font-size:10px">${l==='ar'?'لا مهام مسندة':'No tasks assigned'}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:7px;border-top:1px solid var(--border2);padding-top:10px">
+            <button class="btn-ghost btn-sm" onclick="Team.edit(${m.id})" style="flex:1;font-size:11px">✏️ ${l==='ar'?'تعديل':'Edit'}</button>
+            <button class="btn-ghost btn-sm" onclick="Team.delete(${m.id})" style="color:var(--red);font-size:11px">✕ ${l==='ar'?'حذف':'Delete'}</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  },
+
+  showAdd() {
+    this.editingId = null;
+    const title = $('member-modal-title');
+    title.textContent = App.lang === 'ar' ? 'إضافة عضو جديد' : 'Add New Member';
+    ['m-name-ar', 'm-name-en', 'm-email', 'm-role-ar', 'm-role-en'].forEach(id => $(id).value = '');
+    $('modal-member').classList.add('open');
+  },
+
+  async edit(id) {
+    try {
+      const members = await api('/api/members');
+      const m = members.find(x => x.id === id);
+      if (!m) return;
+      this.editingId = id;
+      $('member-modal-title').textContent = App.lang === 'ar' ? 'تعديل بيانات العضو' : 'Edit Member';
+      $('m-name-ar').value = m.name_ar || '';
+      $('m-name-en').value = m.name_en || '';
+      $('m-email').value = m.email || '';
+      $('m-role-ar').value = m.role_ar || '';
+      $('m-role-en').value = m.role_en || '';
+      $('modal-member').classList.add('open');
+    } catch (e) { alert(e.message); }
+  },
+
+  closeModal() { $('modal-member').classList.remove('open'); },
+
+  async save() {
+    const data = {
+      name_ar: $('m-name-ar').value.trim(),
+      name_en: $('m-name-en').value.trim(),
+      email: $('m-email').value.trim(),
+      role_ar: $('m-role-ar').value.trim(),
+      role_en: $('m-role-en').value.trim(),
+    };
+    if (!data.name_ar || !data.email) {
+      alert(App.lang === 'ar' ? 'الاسم بالعربي والبريد الإلكتروني مطلوبان' : 'Arabic name and email are required');
+      return;
+    }
+    try {
+      if (this.editingId) {
+        await api(`/api/members/${this.editingId}`, { method: 'PATCH', body: JSON.stringify(data) });
+      } else {
+        await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
+      }
+      this.closeModal();
+      await this.load();
+      await loadSelectLists();
+      await loadBadges();
+    } catch (e) { alert(e.message); }
+  },
+
+  async delete(id) {
+    if (!confirm(App.lang === 'ar' ? 'حذف هذا العضو من الفريق؟' : 'Delete this team member?')) return;
+    try {
+      await api(`/api/members/${id}`, { method: 'DELETE' });
+      await this.load();
+      await loadSelectLists();
+      await loadBadges();
+    } catch (e) { alert(e.message); }
+  }
+};
+$('modal-member').addEventListener('click', e => { if (e.target === $('modal-member')) Team.closeModal(); });
+
+// ══ Overview / Dashboard ══════════════════════════════════════════════════════
+async function renderOverview() {
+  const body = $('overview-body');
+  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+  try {
+    const [stats, tasks, meetings, schedule, members] = await Promise.all([
+      api('/api/stats'), api('/api/tasks'), api('/api/meetings'),
+      api('/api/schedule'), api('/api/members')
+    ]);
+    const l = App.lang;
+    const lbl = (ar, en) => l === 'ar' ? ar : en;
+    const today = new Date().toISOString().substring(0,10);
+    const upcoming = schedule.filter(s => s.meeting_date >= today);
+
+    const statCards = [
+      { icon:'🎙', val: stats.meetings, label: lbl('اجتماع مسجل','Recorded Meetings'), color:'var(--gold)' },
+      { icon:'📋', val: stats.tasks_open, label: lbl('مهمة مفتوحة','Open Tasks'), color: stats.tasks_overdue>0?'var(--red)':'var(--amber)' },
+      { icon:'⚠️', val: stats.tasks_overdue, label: lbl('مهمة متأخرة','Overdue Tasks'), color:'var(--red)' },
+      { icon:'✓', val: stats.tasks_done, label: lbl('مهمة مكتملة','Completed Tasks'), color:'var(--green)' },
+      { icon:'⚖️', val: stats.decisions, label: lbl('قرار مسجل','Decisions'), color:'var(--blue)' },
+      { icon:'📅', val: stats.schedule, label: lbl('اجتماع مجدول','Scheduled'), color:'var(--gold)' },
+      { icon:'👥', val: stats.users, label: lbl('عضو فريق','Team Members'), color:'var(--text)' },
+      { icon:'🎯', val: stats.completion+'%', label: lbl('نسبة الإنجاز','Completion Rate'), color: stats.completion>70?'var(--green)':stats.completion>40?'var(--amber)':'var(--red)' },
+    ];
+
+    // Task breakdown by member
+    const memberBreakdown = members.map(m => {
+      const mt = tasks.filter(t => t.owner_name_ar === m.name_ar);
+      const done = mt.filter(t => t.status === 'done').length;
+      return { name: l==='ar' ? m.name_ar : (m.name_en || m.name_ar), total: mt.length, done, pct: mt.length ? Math.round(done/mt.length*100) : 0 };
+    }).filter(x => x.total > 0).sort((a,b) => b.total - a.total);
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+        ${statCards.map(s => `<div class="card" style="text-align:center;padding:18px 10px">
+          <div style="font-size:26px;margin-bottom:4px">${s.icon}</div>
+          <div style="font-size:28px;font-weight:800;color:${s.color}">${s.val}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${s.label}</div>
+        </div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="card">
+          <div class="ct" style="margin-bottom:12px">👥 ${lbl('أداء الفريق','Team Performance')}</div>
+          ${memberBreakdown.length ? memberBreakdown.map(m => `
+            <div style="margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text);margin-bottom:4px">
+                <span>${esc(m.name)}</span>
+                <span style="color:${m.pct===100?'var(--green)':m.pct>50?'var(--gold)':'var(--amber)'}">${m.done}/${m.total} (${m.pct}%)</span>
+              </div>
+              <div style="height:6px;background:var(--navy4);border-radius:6px;overflow:hidden">
+                <div style="height:100%;background:${m.pct===100?'var(--green)':m.pct>50?'var(--gold)':'var(--amber)'};width:${m.pct}%;border-radius:6px;transition:.4s"></div>
+              </div>
+            </div>`).join('') : `<div style="font-size:12px;color:var(--text3)">${lbl('لا توجد مهام مسندة','No tasks assigned')}</div>`}
+        </div>
+        <div class="card">
+          <div class="ct" style="margin-bottom:12px">📅 ${lbl('الاجتماعات القادمة','Upcoming Meetings')}</div>
+          ${upcoming.length ? upcoming.slice(0,5).map(s => `
+            <div style="padding:8px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l==='ar'?s.title_ar:(s.title_en||s.title_ar))}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${esc(s.meeting_date||'')} ${s.meeting_time?'🕐 '+esc(s.meeting_time):''} · ${esc(s.platform||'')}</div>
+            </div>`).join('')
+          : `<div style="font-size:12px;color:var(--text3)">${lbl('لا اجتماعات قادمة','No upcoming meetings')}</div>`}
+        </div>
+      </div>
+      ${tasks.filter(t=>t.status==='overdue').length ? `
+      <div class="card" style="margin-top:14px">
+        <div class="ct" style="color:var(--red);margin-bottom:10px">⚠ ${lbl('المهام المتأخرة الفورية','Urgent Overdue Tasks')}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px">
+          ${tasks.filter(t=>t.status==='overdue').slice(0,6).map(t => `
+            <div style="background:var(--navy3);border-radius:8px;padding:10px;border:1px solid rgba(224,90,90,.2)">
+              <div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap">
+                ${t.owner_name_ar?`<span class="tag tgold" style="font-size:10px">${esc(l==='ar'?t.owner_name_ar:t.owner_name_en||t.owner_name_ar)}</span>`:''}
+                ${t.due_date?`<span class="tag tr" style="font-size:10px">${esc(t.due_date)}</span>`:''}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}`;
+  } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
+}
 
 // ══ Textarea auto-resize ══════════════════════════════════════════════════════
 $('ci').addEventListener('input', function () {
   this.style.height = 'auto';
   this.style.height = Math.min(this.scrollHeight, 100) + 'px';
 });
+
+// ══ Bootstrap ══════════════════════════════════════════════════════════════════
+App.init();

@@ -16,11 +16,11 @@
     <div class="brand-logo"><img src="/logo.png" alt="AMEEN"/></div>
     <div>
       <div class="brand-ar" id="b-ar">أمين للذكاء الاصطناعي</div>
-      <div class="brand-en" id="b-en">Ameen AI Solutions · Executive Meeting Intelligence</div>
+      <div class="brand-en" id="b-en">Ameen AI · Executive Meeting Intelligence</div>
     </div>
   </div>
-  <div class="topbar-mid" id="top-mid">
-    <span id="t-welcome">نظام إدارة الاجتماعات التنفيذي</span>
+  <div class="topbar-mid">
+    <span id="t-welcome" data-ar="نظام إدارة الاجتماعات التنفيذي" data-en="Executive Meeting Intelligence System">نظام إدارة الاجتماعات التنفيذي</span>
   </div>
   <div class="topbar-right">
     <div class="lang-toggle">
@@ -28,14 +28,14 @@
       <button class="lb" onclick="App.setLang('en')">EN</button>
     </div>
     <button class="ai-key-btn" id="api-key-btn" onclick="App.promptApiKey()">✦ <span id="api-status-txt">Anthropic API</span></button>
-    <div class="pill pill-green" id="status-pill"><span class="sdot" style="background:var(--green)"></span><span id="st-txt">جاهز</span></div>
+    <div class="pill pill-green" id="status-pill"><span class="sdot" style="background:var(--green)"></span><span id="st-txt" data-ar="جاهز" data-en="Ready">جاهز</span></div>
     <button class="btn-ghost btn-sm" onclick="App.logout()"><span data-ar="خروج" data-en="Sign Out">خروج</span></button>
   </div>
 </header>
 
 <!-- SIDEBAR -->
 <nav class="sidebar" id="sidebar">
-  <div class="nsec" id="ns-meetings" data-ar="الاجتماعات" data-en="Meetings">الاجتماعات</div>
+  <div class="nsec" data-ar="الاجتماعات" data-en="Meetings">الاجتماعات</div>
   <button class="nb active" data-p="record">
     <span class="nb-icon">🎙</span>
     <span class="nb-label" data-ar="تسجيل اجتماع" data-en="Record Meeting">تسجيل اجتماع</span>
@@ -52,10 +52,6 @@
     <span class="nb-label" data-ar="متابعة المهام والقرارات" data-en="Task & Decision Tracker">متابعة المهام والقرارات</span>
     <span class="nbg" id="b-tk">—</span>
   </button>
-  <button class="nb" data-p="premeeting">
-    <span class="nb-icon">📊</span>
-    <span class="nb-label" data-ar="تقرير ما قبل الاجتماع" data-en="Pre-Meeting Report">تقرير ما قبل الاجتماع</span>
-  </button>
   <div class="nsec" data-ar="المساعد الذكي" data-en="AI Assistant">المساعد الذكي</div>
   <button class="nb" data-p="ask">
     <span class="nb-icon">🤖</span>
@@ -63,25 +59,25 @@
   </button>
   <button class="nb" data-p="correspondence">
     <span class="nb-icon">✉️</span>
-    <span class="nb-label" data-ar="مدير المراسلات" data-en="Correspondence Manager">مدير المراسلات</span>
+    <span class="nb-label" data-ar="مدير المراسلات" data-en="Correspondence">مدير المراسلات</span>
   </button>
   <button class="nb" data-p="documents">
     <span class="nb-icon">📄</span>
     <span class="nb-label" data-ar="توليد التقارير" data-en="Report Generator">توليد التقارير</span>
   </button>
-  <div class="nsec" data-ar="النظرة العامة" data-en="Overview">النظرة العامة</div>
+  <div class="nsec" data-ar="الإدارة" data-en="Management">الإدارة</div>
   <button class="nb" data-p="schedule">
     <span class="nb-icon">📅</span>
     <span class="nb-label" data-ar="جدول الاجتماعات" data-en="Meeting Schedule">جدول الاجتماعات</span>
     <span class="nbg nbg-gold" id="b-sc">—</span>
   </button>
-  <button class="nb" data-p="overview">
-    <span class="nb-icon">📈</span>
-    <span class="nb-label" data-ar="لوحة التحكم" data-en="Executive Dashboard">لوحة التحكم</span>
-  </button>
   <button class="nb" data-p="team">
     <span class="nb-icon">👥</span>
-    <span class="nb-label" data-ar="الفريق" data-en="Team">الفريق</span>
+    <span class="nb-label" data-ar="أعضاء الفريق" data-en="Team Members">أعضاء الفريق</span>
+  </button>
+  <button class="nb" data-p="overview">
+    <span class="nb-icon">📈</span>
+    <span class="nb-label" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</span>
   </button>
   <div class="sf">
     <div class="urow">
@@ -103,7 +99,7 @@
     <div class="ph-row">
       <div>
         <div class="ptitle" data-ar="تسجيل اجتماع" data-en="Record Meeting">تسجيل اجتماع</div>
-        <div class="ptitle-sub" data-ar="تسجيل مباشر · نسخ فوري · استخراج ذكي" data-en="Live recording · Real-time transcription · AI extraction">تسجيل مباشر · نسخ فوري · استخراج ذكي</div>
+        <div class="ptitle-sub" data-ar="تسجيل مباشر · نسخ فوري · استخراج ذكي للمهام" data-en="Live recording · Real-time transcription · AI task extraction">تسجيل مباشر · نسخ فوري · استخراج ذكي للمهام</div>
       </div>
       <div class="ai-pill">✦ <span data-ar="أمين AI مباشر" data-en="Ameen AI Live">أمين AI مباشر</span></div>
     </div>
@@ -124,19 +120,20 @@
           <input class="rec-title-inp" id="mtg-title"
             data-ph-ar="عنوان الاجتماع — مجلس الإدارة، الاجتماع التشغيلي..."
             data-ph-en="Meeting title — Board Meeting, Operational Review..."
-            placeholder="عنوان الاجتماع — مجلس الإدارة، الاجتماع التشغيلي..."/>
-          <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start recording">اضغط للبدء</div>
+            placeholder="عنوان الاجتماع..."/>
+          <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start">اضغط للبدء</div>
           <div class="rec-tm" id="rec-tm">00:00</div>
-          <div class="rec-ht" id="rec-ht" data-ar="سيقوم أمين بالنسخ واستخراج المهام والقرارات فورياً" data-en="Ameen will transcribe and extract tasks & decisions in real time">سيقوم أمين بالنسخ واستخراج المهام والقرارات فورياً</div>
+          <div class="rec-ht" id="rec-ht" data-ar="سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً" data-en="Ameen will transcribe and extract tasks per team member in real time">سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً</div>
         </div>
         <div class="feat-pills">
           <div class="fp" data-ar="👥 تحديد المتحدثين" data-en="👥 Speaker Detection">👥 تحديد المتحدثين</div>
-          <div class="fp" data-ar="✅ استخراج المهام" data-en="✅ Task Extraction">✅ استخراج المهام</div>
+          <div class="fp" data-ar="✅ مهام لكل عضو" data-en="✅ Tasks per Member">✅ مهام لكل عضو</div>
           <div class="fp" data-ar="⚖️ تتبع القرارات" data-en="⚖️ Decision Tracking">⚖️ تتبع القرارات</div>
-          <div class="fp" data-ar="📝 ملخص ذكي" data-en="📝 AI Summary">📝 ملخص ذكي</div>
+          <div class="fp" data-ar="📝 محضر كامل" data-en="📝 Full Minutes">📝 محضر كامل</div>
         </div>
       </div>
     </div>
+
     <div class="card" id="live-tr-card" style="display:none">
       <div class="ch">
         <div>
@@ -147,48 +144,41 @@
       </div>
       <div class="tr-box" id="live-tr" style="max-height:180px"></div>
     </div>
+
     <div class="card" id="live-ex-card" style="display:none">
       <div class="ch">
         <div>
-          <div class="ct" data-ar="مستخرج لحظياً بالذكاء الاصطناعي" data-en="Real-time AI Extraction">مستخرج لحظياً بالذكاء الاصطناعي</div>
-          <div class="ctsub" data-ar="يتحدث تلقائياً مع كل جملة" data-en="Updates automatically with each sentence">يتحدث تلقائياً مع كل جملة</div>
+          <div class="ct" data-ar="مستخرج لحظياً" data-en="Real-time Extraction">مستخرج لحظياً</div>
+          <div class="ctsub" data-ar="يتحدث تلقائياً مع كل جملة" data-en="Updates with each sentence">يتحدث تلقائياً مع كل جملة</div>
         </div>
         <div class="ai-pill">✦ أمين</div>
       </div>
       <div class="eg">
         <div class="ec">
-          <div class="el" data-ar="✅ المهام / Tasks" data-en="✅ Tasks">✅ المهام / Tasks</div>
+          <div class="el" data-ar="✅ مهام مكتشفة" data-en="✅ Detected Tasks">✅ مهام مكتشفة</div>
           <div id="ex-tasks"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
         </div>
         <div class="ec">
-          <div class="el" data-ar="⚖️ القرارات / Decisions" data-en="⚖️ Decisions">⚖️ القرارات / Decisions</div>
+          <div class="el" data-ar="⚖️ قرارات مكتشفة" data-en="⚖️ Detected Decisions">⚖️ قرارات مكتشفة</div>
           <div id="ex-decs"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
-        </div>
-        <div class="ec">
-          <div class="el" data-ar="🔔 التذكيرات / Reminders" data-en="🔔 Reminders">🔔 التذكيرات / Reminders</div>
-          <div id="ex-rems"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
-        </div>
-        <div class="ec">
-          <div class="el" data-ar="⚠️ نقاط العمل / Action Points" data-en="⚠️ Action Points">⚠️ نقاط العمل / Action Points</div>
-          <div id="ex-fups"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
         </div>
       </div>
       <div style="display:flex;gap:10px;margin-top:13px;justify-content:flex-end">
-        <button class="btn-ghost" onclick="Rec.saveOnly()">
-          💾 <span data-ar="حفظ فقط" data-en="Save Only">حفظ فقط</span>
-        </button>
-        <button class="btn-gold" id="ai-proc-btn" onclick="Rec.processAI()">
-          ✦ <span data-ar="تحليل بأمين AI" data-en="Analyse with Ameen AI">تحليل بأمين AI</span>
-        </button>
+        <button class="btn-ghost" onclick="Rec.saveOnly()">💾 <span data-ar="حفظ فقط" data-en="Save Only">حفظ فقط</span></button>
+        <button class="btn-gold" id="ai-proc-btn" onclick="Rec.processAI()">✦ <span data-ar="استخراج المهام والمحضر" data-en="Extract Tasks & Minutes">استخراج المهام والمحضر</span></button>
       </div>
     </div>
+
     <div class="card card-gold" id="ai-res-card" style="display:none">
       <div class="ch">
         <div>
-          <div class="ct" data-ar="ملخص أمين الذكي" data-en="Ameen AI Summary">ملخص أمين الذكي</div>
-          <div class="ctsub" data-ar="مهام وقرارات محفوظة تلقائياً في قاعدة البيانات" data-en="Tasks & decisions automatically saved to database">مهام وقرارات محفوظة تلقائياً في قاعدة البيانات</div>
+          <div class="ct" data-ar="نتائج أمين AI" data-en="Ameen AI Results">نتائج أمين AI</div>
+          <div class="ctsub" data-ar="مهام وقرارات ومحضر محفوظة تلقائياً" data-en="Tasks, decisions & minutes saved automatically">مهام وقرارات ومحضر محفوظة تلقائياً</div>
         </div>
-        <div class="tag tg">✓ <span data-ar="مكتمل" data-en="Complete">مكتمل</span></div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <div class="tag tg">✓ <span data-ar="مكتمل" data-en="Complete">مكتمل</span></div>
+          <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')" style="font-size:11px"><span data-ar="عرض المهام" data-en="View Tasks">عرض المهام</span></button>
+        </div>
       </div>
       <div id="ai-res-body"></div>
     </div>
@@ -201,7 +191,7 @@
     <div class="ph-row">
       <div>
         <div class="ptitle" data-ar="المحاضر والنصوص" data-en="Transcripts & Minutes">المحاضر والنصوص</div>
-        <div class="ptitle-sub" data-ar="جميع الاجتماعات المسجلة مع ملخصاتها" data-en="All recorded meetings with AI summaries">جميع الاجتماعات المسجلة مع ملخصاتها</div>
+        <div class="ptitle-sub" data-ar="جميع الاجتماعات المسجلة مع ملخصاتها ومهامها" data-en="All recorded meetings with summaries and tasks">جميع الاجتماعات المسجلة مع ملخصاتها ومهامها</div>
       </div>
       <button class="btn-ghost btn-sm" onclick="Panels.load('transcripts')">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
     </div>
@@ -217,12 +207,12 @@
     <div class="ph-row">
       <div>
         <div class="ptitle" data-ar="متابعة المهام والقرارات" data-en="Task & Decision Tracker">متابعة المهام والقرارات</div>
-        <div class="ptitle-sub" data-ar="لوحة حية لكل مهمة وقرار من جميع الاجتماعات" data-en="Live board for all tasks and decisions from every meeting">لوحة حية لكل مهمة وقرار من جميع الاجتماعات</div>
+        <div class="ptitle-sub" data-ar="لوحة حية لكل مهمة وقرار من جميع الاجتماعات" data-en="Live board for all tasks and decisions">لوحة حية لكل مهمة وقرار من جميع الاجتماعات</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <span class="tag tr" id="ov-late-tag">0 <span data-ar="متأخرة" data-en="overdue">متأخرة</span></span>
-        <span class="tag ta" id="ov-prog-tag">0 <span data-ar="جارٍ" data-en="in progress">جارٍ</span></span>
-        <span class="tag tg" id="ov-done-tag">0 <span data-ar="مكتملة" data-en="done">مكتملة</span></span>
+        <span class="tag tr" id="ov-late-tag">—</span>
+        <span class="tag ta" id="ov-prog-tag">—</span>
+        <span class="tag tg" id="ov-done-tag">—</span>
         <button class="btn-gold btn-sm" onclick="Modals.addTask()">+ <span data-ar="مهمة جديدة" data-en="New Task">مهمة جديدة</span></button>
       </div>
     </div>
@@ -232,64 +222,41 @@
   </div>
 </section>
 
-<!-- ══ PRE-MEETING REPORT ══════════════════════════════════════ -->
-<section class="panel" id="panel-premeeting">
-  <div class="ph">
-    <div class="ph-row">
-      <div>
-        <div class="ptitle" data-ar="تقرير ما قبل الاجتماع" data-en="Pre-Meeting Smart Report">تقرير ما قبل الاجتماع</div>
-        <div class="ptitle-sub" data-ar="أمين يُجمّع التحديثات ويُجيب: ماذا أُنجز؟ ماذا تأخر؟ ماذا نحتاج اليوم؟" data-en="Ameen compiles: What was completed? What is delayed? What needs a decision today?">أمين يُجمّع التحديثات ويُجيب: ماذا أُنجز؟ ماذا تأخر؟ ماذا نحتاج اليوم؟</div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <select class="fi" style="width:auto;padding:6px 12px" id="pm-meeting-sel">
-          <option value="">-- <span data-ar="اختر اجتماعاً" data-en="Select meeting">اختر اجتماعاً</span> --</option>
-        </select>
-        <button class="btn-gold" onclick="PreMeeting.generate()">✦ <span data-ar="توليد التقرير" data-en="Generate Report">توليد التقرير</span></button>
-      </div>
-    </div>
-  </div>
-  <div class="pbody" id="pm-body">
-    <div class="es">
-      <div class="es-icon">📊</div>
-      <div data-ar="اختر اجتماعاً قادماً وسيُعدّ أمين التقرير الكامل" data-en="Select an upcoming meeting and Ameen will prepare the full report">اختر اجتماعاً قادماً وسيُعدّ أمين التقرير الكامل</div>
-    </div>
-  </div>
-</section>
-
 <!-- ══ ASK AMEEN ═══════════════════════════════════════════════ -->
 <section class="panel" id="panel-ask">
   <div class="ph">
     <div class="ph-row">
       <div>
         <div class="ptitle" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</div>
-        <div class="ptitle-sub" data-ar="مساعدك الذكي التنفيذي · سياق كامل لجميع الاجتماعات والمهام" data-en="Your executive AI secretary · Full context of all meetings and tasks">مساعدك الذكي التنفيذي · سياق كامل لجميع الاجتماعات والمهام</div>
+        <div class="ptitle-sub" data-ar="مساعدك الذكي التنفيذي · سياق كامل لجميع الاجتماعات والمهام والقرارات" data-en="Your executive AI · Full context of all meetings, tasks and decisions">مساعدك الذكي التنفيذي · سياق كامل</div>
       </div>
-      <div class="ai-pill">✦ Claude · Anthropic</div>
+      <div style="display:flex;gap:7px;align-items:center">
+        <div class="ai-pill">✦ Claude · Anthropic</div>
+        <button class="btn-ghost btn-sm" onclick="Chat.clear()"><span data-ar="مسح" data-en="Clear">مسح</span></button>
+      </div>
     </div>
   </div>
   <div class="chat-body" id="chat-msgs">
     <div class="msg" id="welcome-msg">
       <div class="mav"><img id="ameen-av" src="/logo.png" alt="Ameen"/></div>
       <div>
-        <div class="mb" id="welcome-text">مرحباً! أنا أمين، مساعدكم الذكي التنفيذي. لديّ سياق كامل لجميع الاجتماعات والمهام والقرارات. كيف يمكنني مساعدتكم؟
-
-Hello! I'm Ameen, your executive AI secretary. I have full context of all meetings, tasks and decisions. How may I assist you today?</div>
+        <div class="mb" id="welcome-text"></div>
         <div class="mts" id="welcome-ts"></div>
       </div>
     </div>
     <div class="qchips" id="chat-chips">
-      <button class="qc" data-q-ar="ما هي المهام المتأخرة؟" data-q-en="What are the overdue tasks?" onclick="Chat.quick(this)">المهام المتأخرة / Overdue tasks</button>
-      <button class="qc" data-q-ar="لخّص آخر اجتماع للمجلس" data-q-en="Summarise the last board meeting" onclick="Chat.quick(this)">ملخص آخر اجتماع / Last meeting summary</button>
-      <button class="qc" data-q-ar="ما القرارات المعلقة؟" data-q-en="What are the pending decisions?" onclick="Chat.quick(this)">القرارات المعلقة / Pending decisions</button>
-      <button class="qc" data-q-ar="من الأكثر تأخراً في إنجاز مهامه؟" data-q-en="Who has the most overdue tasks?" onclick="Chat.quick(this)">تحليل الأداء / Performance</button>
+      <button class="qc" data-q-ar="ما هي المهام المتأخرة؟" data-q-en="What are the overdue tasks?" onclick="Chat.quick(this)" data-ar="المهام المتأخرة" data-en="Overdue tasks">المهام المتأخرة</button>
+      <button class="qc" data-q-ar="لخّص آخر اجتماع للمجلس" data-q-en="Summarise the last board meeting" onclick="Chat.quick(this)" data-ar="ملخص آخر اجتماع" data-en="Last meeting summary">ملخص آخر اجتماع</button>
+      <button class="qc" data-q-ar="ما القرارات المعلقة؟" data-q-en="What are the pending decisions?" onclick="Chat.quick(this)" data-ar="القرارات المعلقة" data-en="Pending decisions">القرارات المعلقة</button>
+      <button class="qc" data-q-ar="كيف أداء الفريق؟" data-q-en="How is the team performing?" onclick="Chat.quick(this)" data-ar="أداء الفريق" data-en="Team performance">أداء الفريق</button>
     </div>
   </div>
   <div class="chat-ft">
     <button class="sbtn" onclick="Chat.send()">↑</button>
     <textarea class="ci" id="ci" rows="1"
-      data-ph-ar="اسأل عن الاجتماعات أو المهام أو القرارات..."
-      data-ph-en="Ask about meetings, tasks or decisions..."
-      placeholder="اسأل عن الاجتماعات أو المهام أو القرارات..."
+      data-ph-ar="اسأل أمين عن الاجتماعات أو المهام أو القرارات أو الفريق..."
+      data-ph-en="Ask Ameen about meetings, tasks, decisions or team..."
+      placeholder="اسأل أمين..."
       onkeydown="Chat.key(event)"></textarea>
   </div>
 </section>
@@ -302,45 +269,43 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
         <div class="ptitle" data-ar="مدير المراسلات" data-en="Correspondence Manager">مدير المراسلات</div>
         <div class="ptitle-sub" data-ar="صِف الموقف وسيكتب أمين الخطاب الرسمي" data-en="Describe the situation and Ameen drafts the formal letter">صِف الموقف وسيكتب أمين الخطاب الرسمي</div>
       </div>
-      <button class="btn-ghost btn-sm" onclick="Panels.load('correspondence')">↺ <span data-ar="السجل" data-en="History">السجل</span></button>
     </div>
   </div>
   <div class="pbody">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;flex:1;min-height:0">
       <div class="card" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
-        <div><div class="ct" data-ar="صياغة مراسلة جديدة" data-en="Draft New Correspondence">صياغة مراسلة جديدة</div></div>
+        <div class="ct" data-ar="صياغة مراسلة جديدة" data-en="Draft New Correspondence">صياغة مراسلة جديدة</div>
         <div class="fs">
           <div class="frow">
-            <div class="fl" data-ar="النوع / Type" data-en="Type">النوع / Type</div>
+            <div class="fl" data-ar="نوع المراسلة" data-en="Type">نوع المراسلة</div>
             <select class="fi" id="corr-type">
-              <option value="formal_ar">خطاب رسمي — عربي / Formal Letter (Arabic)</option>
+              <option value="formal_ar">خطاب رسمي — عربي</option>
               <option value="formal_en">Formal Letter — English</option>
-              <option value="bilingual">مراسلة ثنائية اللغة / Bilingual</option>
-              <option value="memo_ar">مذكرة داخلية — عربي / Internal Memo (Arabic)</option>
-              <option value="email_ar">بريد إلكتروني — عربي / Email (Arabic)</option>
+              <option value="memo_ar">مذكرة داخلية — عربي</option>
+              <option value="email_ar">بريد إلكتروني — عربي</option>
               <option value="email_en">Email — English</option>
-              <option value="board_resolution">قرار مجلس الإدارة / Board Resolution</option>
+              <option value="board_resolution">قرار مجلس الإدارة</option>
             </select>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="إلى / To" data-en="To">إلى / To</div>
-            <input class="fi" id="corr-to" data-ph-ar="شركة الخليج للاستثمار / Gulf Investment Co." data-ph-en="Gulf Investment Co." placeholder="شركة الخليج للاستثمار"/>
+            <div class="fl" data-ar="إلى" data-en="To">إلى</div>
+            <input class="fi" id="corr-to" data-ph-ar="شركة الخليج للاستثمار" data-ph-en="Gulf Investment Co." placeholder="الجهة المستلمة"/>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="الموضوع (عربي)" data-en="Subject (Arabic)">الموضوع (عربي)</div>
-            <input class="fi" id="corr-subject-ar" placeholder="عقد الشراكة الاستراتيجية"/>
+            <div class="fl" data-ar="الموضوع" data-en="Subject">الموضوع</div>
+            <input class="fi" id="corr-subject-ar" placeholder="موضوع الخطاب"/>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="Subject (English)" data-en="Subject (English)">Subject (English)</div>
-            <input class="fi" id="corr-subject-en" placeholder="Strategic Partnership Agreement" style="text-align:left" dir="ltr"/>
+            <div class="fl">Subject (English)</div>
+            <input class="fi" id="corr-subject-en" placeholder="Letter subject" style="text-align:left" dir="ltr"/>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="اشرح الموقف / Describe the situation" data-en="Describe the situation">اشرح الموقف / Describe the situation</div>
-            <textarea class="fi" id="corr-body" rows="5" data-ph-ar="اشرح الموقف بإيجاز وسيصيغ أمين الخطاب..." data-ph-en="Describe the situation briefly and Ameen will draft..."></textarea>
+            <div class="fl" data-ar="اشرح الموقف" data-en="Describe situation">اشرح الموقف</div>
+            <textarea class="fi" id="corr-body" rows="5" data-ph-ar="اشرح الموقف بإيجاز وسيصيغ أمين الخطاب..." data-ph-en="Describe briefly and Ameen will draft..."></textarea>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="التوقيع / Signature" data-en="Signature">التوقيع / Signature</div>
-            <input class="fi" id="corr-sig" data-ph-ar="م. أحمد العمراني، الرئيس التنفيذي" data-ph-en="Ahmed Al-Omrani, CEO" placeholder="م. أحمد العمراني، الرئيس التنفيذي"/>
+            <div class="fl" data-ar="التوقيع" data-en="Signature">التوقيع</div>
+            <input class="fi" id="corr-sig" data-ph-ar="م. أحمد العمراني، الرئيس التنفيذي" data-ph-en="Ahmed Al-Omrani, CEO" placeholder="التوقيع"/>
           </div>
           <div class="fa">
             <button class="btn-gold" id="corr-btn" onclick="Corr.generate()">✦ <span data-ar="صياغة الخطاب" data-en="Draft Letter">صياغة الخطاب</span></button>
@@ -352,7 +317,7 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
         <div class="ch">
           <div>
             <div class="ct" data-ar="الخطاب المُصاغ" data-en="Generated Letter">الخطاب المُصاغ</div>
-            <div class="ctsub" data-ar="جاهز للنسخ أو الإرسال" data-en="Ready to copy or send">جاهز للنسخ أو الإرسال</div>
+            <div class="ctsub" data-ar="جاهز للنسخ أو الطباعة" data-en="Ready to copy or print">جاهز للنسخ أو الطباعة</div>
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn-ghost btn-sm" onclick="Corr.copy()">📋 <span data-ar="نسخ" data-en="Copy">نسخ</span></button>
@@ -372,7 +337,7 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
   <div class="ph">
     <div class="ph-row">
       <div>
-        <div class="ptitle" data-ar="توليد التقارير والوثائق" data-en="Document & Report Generator">توليد التقارير والوثائق</div>
+        <div class="ptitle" data-ar="توليد التقارير والوثائق" data-en="Report & Document Generator">توليد التقارير والوثائق</div>
         <div class="ptitle-sub" data-ar="اختر النوع وسيُنشئ أمين الوثيقة كاملة" data-en="Select type and Ameen generates the complete document">اختر النوع وسيُنشئ أمين الوثيقة كاملة</div>
       </div>
     </div>
@@ -380,34 +345,34 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
   <div class="pbody">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;flex:1;min-height:0">
       <div class="card" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
-        <div><div class="ct" data-ar="خصائص الوثيقة" data-en="Document Properties">خصائص الوثيقة</div></div>
+        <div class="ct" data-ar="خصائص الوثيقة" data-en="Document Properties">خصائص الوثيقة</div>
         <div class="fs">
           <div class="frow">
-            <div class="fl" data-ar="نوع الوثيقة / Document Type" data-en="Document Type">نوع الوثيقة / Document Type</div>
+            <div class="fl" data-ar="نوع الوثيقة" data-en="Document Type">نوع الوثيقة</div>
             <select class="fi" id="doc-type">
-              <option value="minutes_ar">محضر اجتماع — عربي / Meeting Minutes (Arabic)</option>
+              <option value="minutes_ar">محضر اجتماع — عربي</option>
               <option value="minutes_en">Meeting Minutes — English</option>
-              <option value="minutes_bi">محضر ثنائي اللغة / Bilingual Minutes</option>
-              <option value="board_report">تقرير مجلس الإدارة / Board Report</option>
-              <option value="exec_summary">ملخص تنفيذي / Executive Summary</option>
-              <option value="action_plan">خطة العمل / Action Plan</option>
-              <option value="decision_log">سجل القرارات / Decision Log</option>
-              <option value="kpi_report">تقرير مؤشرات الأداء / KPI Report</option>
+              <option value="minutes_bi">محضر ثنائي اللغة</option>
+              <option value="board_report">تقرير مجلس الإدارة</option>
+              <option value="exec_summary">ملخص تنفيذي</option>
+              <option value="action_plan">خطة العمل</option>
+              <option value="decision_log">سجل القرارات</option>
+              <option value="kpi_report">تقرير مؤشرات الأداء</option>
             </select>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="اجتماع المصدر / Source Meeting" data-en="Source Meeting">اجتماع المصدر / Source Meeting</div>
+            <div class="fl" data-ar="الاجتماع المصدر" data-en="Source Meeting">الاجتماع المصدر</div>
             <select class="fi" id="doc-meeting-sel">
               <option value="">-- <span data-ar="اختر اجتماعاً" data-en="Select meeting">اختر اجتماعاً</span> --</option>
             </select>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="تفاصيل إضافية / Additional Details" data-en="Additional Details">تفاصيل إضافية / Additional Details</div>
+            <div class="fl" data-ar="تفاصيل إضافية" data-en="Additional Details">تفاصيل إضافية</div>
             <textarea class="fi" id="doc-details" rows="4" data-ph-ar="أي تفاصيل إضافية..." data-ph-en="Any additional details..."></textarea>
           </div>
           <div class="fr2">
             <div class="frow">
-              <div class="fl" data-ar="اللغة / Language" data-en="Language">اللغة / Language</div>
+              <div class="fl" data-ar="اللغة" data-en="Language">اللغة</div>
               <select class="fi" id="doc-lang">
                 <option value="ar">العربية</option>
                 <option value="en">English</option>
@@ -417,9 +382,9 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
             <div class="frow">
               <div class="fl" data-ar="مستوى التفصيل" data-en="Detail Level">مستوى التفصيل</div>
               <select class="fi" id="doc-detail">
-                <option value="summary">موجز / Summary</option>
-                <option value="standard" selected>قياسي / Standard</option>
-                <option value="detailed">تفصيلي / Detailed</option>
+                <option value="summary" data-ar="موجز" data-en="Summary">موجز</option>
+                <option value="standard" selected data-ar="قياسي" data-en="Standard">قياسي</option>
+                <option value="detailed" data-ar="تفصيلي" data-en="Detailed">تفصيلي</option>
               </select>
             </div>
           </div>
@@ -433,7 +398,7 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
         <div class="ch">
           <div>
             <div class="ct" data-ar="الوثيقة المُولَّدة" data-en="Generated Document">الوثيقة المُولَّدة</div>
-            <div class="ctsub" data-ar="محفوظة تلقائياً في السجل" data-en="Automatically saved to history">محفوظة تلقائياً في السجل</div>
+            <div class="ctsub" data-ar="محفوظة تلقائياً" data-en="Automatically saved">محفوظة تلقائياً</div>
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn-ghost btn-sm" onclick="DocGen.copy()">📋 <span data-ar="نسخ" data-en="Copy">نسخ</span></button>
@@ -454,30 +419,43 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
     <div class="ph-row">
       <div>
         <div class="ptitle" data-ar="جدول الاجتماعات" data-en="Meeting Schedule">جدول الاجتماعات</div>
-        <div class="ptitle-sub" data-ar="جميع الاجتماعات القادمة وإضافة اجتماعات جديدة" data-en="All upcoming meetings and schedule new ones">جميع الاجتماعات القادمة وإضافة اجتماعات جديدة</div>
+        <div class="ptitle-sub" data-ar="الاجتماعات القادمة مع إمكانية إرسال التذكيرات" data-en="Upcoming meetings with email reminder capability">الاجتماعات القادمة مع إمكانية إرسال التذكيرات</div>
       </div>
       <button class="btn-ghost btn-sm" onclick="Panels.load('schedule')">↺</button>
     </div>
   </div>
   <div class="pbody">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
-      <div class="card" id="schedule-list">
-        <div class="ch"><div class="ct" data-ar="الاجتماعات القادمة" data-en="Upcoming Meetings">الاجتماعات القادمة</div></div>
+      <div class="card">
+        <div class="ch">
+          <div class="ct" data-ar="الاجتماعات القادمة" data-en="Upcoming Meetings">الاجتماعات القادمة</div>
+        </div>
         <div id="sched-items"><div class="es"><div class="loading"></div></div></div>
       </div>
       <div class="card">
         <div class="ch"><div class="ct" data-ar="جدولة اجتماع جديد" data-en="Schedule New Meeting">جدولة اجتماع جديد</div></div>
         <div class="fs">
-          <div class="frow"><div class="fl" data-ar="عنوان الاجتماع (عربي)" data-en="Meeting Title (Arabic)">عنوان الاجتماع (عربي)</div>
-            <input class="fi" id="nm-title-ar" data-ph-ar="اجتماع مجلس الإدارة الطارئ" data-ph-en="Emergency Board Meeting" placeholder="اجتماع مجلس الإدارة الطارئ"/></div>
-          <div class="frow"><div class="fl" data-ar="Meeting Title (English)" data-en="Meeting Title (English)">Meeting Title (English)</div>
-            <input class="fi" id="nm-title-en" placeholder="Emergency Board Meeting" dir="ltr" style="text-align:left"/></div>
-          <div class="fr2">
-            <div class="frow"><div class="fl" data-ar="التاريخ / Date" data-en="Date">التاريخ / Date</div><input class="fi" type="date" id="nm-date"/></div>
-            <div class="frow"><div class="fl" data-ar="الوقت / Time" data-en="Time">الوقت / Time</div><input class="fi" type="time" id="nm-time" value="09:00"/></div>
+          <div class="frow">
+            <div class="fl" data-ar="عنوان الاجتماع (عربي)" data-en="Meeting Title (Arabic)">عنوان الاجتماع (عربي)</div>
+            <input class="fi" id="nm-title-ar" data-ph-ar="اجتماع مجلس الإدارة" data-ph-en="Board Meeting" placeholder="اجتماع مجلس الإدارة"/>
+          </div>
+          <div class="frow">
+            <div class="fl">Meeting Title (English)</div>
+            <input class="fi" id="nm-title-en" placeholder="Board Meeting" dir="ltr" style="text-align:left"/>
           </div>
           <div class="fr2">
-            <div class="frow"><div class="fl" data-ar="المدة / Duration" data-en="Duration">المدة / Duration</div>
+            <div class="frow">
+              <div class="fl" data-ar="التاريخ" data-en="Date">التاريخ</div>
+              <input class="fi" type="date" id="nm-date"/>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="الوقت" data-en="Time">الوقت</div>
+              <input class="fi" type="time" id="nm-time" value="09:00"/>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="المدة" data-en="Duration">المدة</div>
               <select class="fi" id="nm-dur">
                 <option value="30">30 <span data-ar="دقيقة" data-en="min">دقيقة</span></option>
                 <option value="45">45 <span data-ar="دقيقة" data-en="min">دقيقة</span></option>
@@ -486,23 +464,30 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
                 <option value="120">120 <span data-ar="دقيقة" data-en="min">دقيقة</span></option>
               </select>
             </div>
-            <div class="frow"><div class="fl" data-ar="المنصة / Platform" data-en="Platform">المنصة / Platform</div>
+            <div class="frow">
+              <div class="fl" data-ar="المنصة" data-en="Platform">المنصة</div>
               <select class="fi" id="nm-plat">
-                <option>قاعة الاجتماعات / Meeting Room</option>
-                <option>Zoom</option>
-                <option>Teams</option>
-                <option>Google Meet</option>
+                <option value="قاعة الاجتماعات" data-ar="قاعة الاجتماعات" data-en="Meeting Room">قاعة الاجتماعات</option>
+                <option value="Zoom">Zoom</option>
+                <option value="Teams">Teams</option>
+                <option value="Google Meet">Google Meet</option>
               </select>
             </div>
           </div>
-          <div class="frow"><div class="fl" data-ar="المشاركون / Attendees" data-en="Attendees">المشاركون / Attendees</div>
-            <input class="fi" id="nm-att" data-ph-ar="م. أحمد، م. سارة، م. خالد..." data-ph-en="Ahmed, Sara, Khalid..." placeholder="م. أحمد، م. سارة..."/></div>
-          <div class="frow"><div class="fl" data-ar="جدول الأعمال (عربي)" data-en="Agenda (Arabic)">جدول الأعمال (عربي)</div>
-            <textarea class="fi" id="nm-agenda-ar" rows="2" placeholder="بنود الاجتماع..."></textarea></div>
-          <div class="frow"><div class="fl">Agenda (English)</div>
-            <textarea class="fi" id="nm-agenda-en" rows="2" placeholder="Meeting agenda items..." dir="ltr" style="text-align:left"></textarea></div>
+          <div class="frow">
+            <div class="fl" data-ar="المشاركون (أسماء أو إيميلات)" data-en="Attendees (names or emails)">المشاركون</div>
+            <input class="fi" id="nm-att" data-ph-ar="م. أحمد، م. سارة..." data-ph-en="Ahmed, Sara..." placeholder="المشاركون"/>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="جدول الأعمال (عربي)" data-en="Agenda (Arabic)">جدول الأعمال (عربي)</div>
+            <textarea class="fi" id="nm-agenda-ar" rows="2" placeholder="بنود الاجتماع..."></textarea>
+          </div>
+          <div class="frow">
+            <div class="fl">Agenda (English)</div>
+            <textarea class="fi" id="nm-agenda-en" rows="2" placeholder="Meeting agenda items..." dir="ltr" style="text-align:left"></textarea>
+          </div>
           <div class="fa">
-            <button class="btn-gold" onclick="Schedule.add()">✓ <span data-ar="جدولة الاجتماع" data-en="Schedule Meeting">جدولة الاجتماع</span></button>
+            <button class="btn-gold" onclick="Schedule.add()">✓ <span data-ar="جدولة" data-en="Schedule">جدولة</span></button>
             <div class="toast" id="sched-toast">✓ <span data-ar="تمت الجدولة" data-en="Scheduled">تمت الجدولة</span></div>
           </div>
         </div>
@@ -511,18 +496,34 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
   </div>
 </section>
 
-<!-- ══ OVERVIEW ════════════════════════════════════════════════ -->
-<section class="panel" id="panel-overview">
-  <div class="ph"><div class="ptitle" data-ar="لوحة التحكم التنفيذية" data-en="Executive Dashboard">لوحة التحكم التنفيذية</div></div>
-  <div class="pbody" id="overview-body">
+<!-- ══ TEAM MEMBERS ════════════════════════════════════════════ -->
+<section class="panel" id="panel-team">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="أعضاء الفريق" data-en="Team Members">أعضاء الفريق</div>
+        <div class="ptitle-sub" data-ar="إدارة أعضاء الفريق — الأسماء والإيميلات والمسميات الوظيفية" data-en="Manage team members — names, emails and designations">إدارة أعضاء الفريق — الأسماء والإيميلات والمسميات الوظيفية</div>
+      </div>
+      <button class="btn-gold btn-sm" onclick="Team.showAdd()">+ <span data-ar="إضافة عضو" data-en="Add Member">إضافة عضو</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="team-body">
     <div class="es"><div class="loading"></div></div>
   </div>
 </section>
 
-<!-- ══ TEAM ════════════════════════════════════════════════════ -->
-<section class="panel" id="panel-team">
-  <div class="ph"><div class="ptitle" data-ar="الفريق" data-en="Team">الفريق</div></div>
-  <div class="pbody" id="team-body">
+<!-- ══ OVERVIEW / DASHBOARD ═══════════════════════════════════ -->
+<section class="panel" id="panel-overview">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="لوحة التحكم التنفيذية" data-en="Executive Dashboard">لوحة التحكم التنفيذية</div>
+        <div class="ptitle-sub" data-ar="نظرة شاملة على أداء الفريق والاجتماعات والمهام" data-en="Complete overview of team performance, meetings and tasks">نظرة شاملة على الأداء</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="Panels.load('overview')">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="overview-body">
     <div class="es"><div class="loading"></div></div>
   </div>
 </section>
@@ -530,28 +531,108 @@ Hello! I'm Ameen, your executive AI secretary. I have full context of all meetin
 </main>
 </div>
 
-<!-- ADD TASK MODAL -->
+<!-- ══ MODAL: ADD TASK ════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
     <div class="modal-title" data-ar="إضافة مهمة جديدة" data-en="Add New Task">إضافة مهمة جديدة</div>
     <div class="fs">
-      <div class="frow"><div class="fl" data-ar="نص المهمة (عربي)" data-en="Task (Arabic)">نص المهمة (عربي)</div><input class="fi" id="nt-ar" placeholder="إعداد التقرير المالي..."/></div>
-      <div class="frow"><div class="fl">Task (English)</div><input class="fi" id="nt-en" placeholder="Prepare financial report..." dir="ltr" style="text-align:left"/></div>
+      <div class="frow">
+        <div class="fl" data-ar="نص المهمة (عربي)" data-en="Task (Arabic)">نص المهمة (عربي)</div>
+        <input class="fi" id="nt-ar" placeholder="إعداد التقرير المالي..."/>
+      </div>
+      <div class="frow">
+        <div class="fl">Task (English)</div>
+        <input class="fi" id="nt-en" placeholder="Prepare financial report..." dir="ltr" style="text-align:left"/>
+      </div>
       <div class="fr2">
-        <div class="frow"><div class="fl" data-ar="المسؤول / Owner" data-en="Owner">المسؤول / Owner</div>
+        <div class="frow">
+          <div class="fl" data-ar="المسؤول" data-en="Owner">المسؤول</div>
           <select class="fi" id="nt-owner"><option value="">-- <span data-ar="اختر" data-en="Select">اختر</span> --</option></select>
         </div>
-        <div class="frow"><div class="fl" data-ar="تاريخ الاستحقاق / Due Date" data-en="Due Date">تاريخ الاستحقاق / Due Date</div><input class="fi" type="date" id="nt-due"/></div>
+        <div class="frow">
+          <div class="fl" data-ar="تاريخ الاستحقاق" data-en="Due Date">تاريخ الاستحقاق</div>
+          <input class="fi" type="date" id="nt-due"/>
+        </div>
       </div>
-      <div class="frow"><div class="fl" data-ar="الأولوية / Priority" data-en="Priority">الأولوية / Priority</div>
+      <div class="frow">
+        <div class="fl" data-ar="الأولوية" data-en="Priority">الأولوية</div>
         <select class="fi" id="nt-priority">
-          <option value="normal" data-ar="عادي / Normal" data-en="Normal">عادي / Normal</option>
-          <option value="urgent" data-ar="عاجل / Urgent" data-en="Urgent">عاجل / Urgent</option>
+          <option value="normal" data-ar="عادي" data-en="Normal">عادي / Normal</option>
+          <option value="urgent" data-ar="عاجل" data-en="Urgent">عاجل / Urgent</option>
         </select>
       </div>
       <div class="fa">
         <button class="btn-gold" onclick="Modals.saveTask()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
         <button class="btn-ghost" onclick="Modals.close()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: TEAM MEMBER ═════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-member">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title" id="member-modal-title" data-ar="إضافة عضو جديد" data-en="Add New Member">إضافة عضو جديد</div>
+    <div class="fs">
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="الاسم (عربي)" data-en="Name (Arabic)">الاسم (عربي)</div>
+          <input class="fi" id="m-name-ar" placeholder="م. محمد الأحمد"/>
+        </div>
+        <div class="frow">
+          <div class="fl">Name (English)</div>
+          <input class="fi" id="m-name-en" placeholder="Mohammed Al-Ahmad" dir="ltr" style="text-align:left"/>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني</div>
+        <input class="fi" id="m-email" type="email" placeholder="mohammed@company.com" dir="ltr" style="text-align:left"/>
+      </div>
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="المسمى الوظيفي (عربي)" data-en="Designation (Arabic)">المسمى الوظيفي (عربي)</div>
+          <input class="fi" id="m-role-ar" placeholder="مدير المشاريع"/>
+        </div>
+        <div class="frow">
+          <div class="fl">Designation (English)</div>
+          <input class="fi" id="m-role-en" placeholder="Project Manager" dir="ltr" style="text-align:left"/>
+        </div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--text3);line-height:1.6">
+        <span data-ar="ℹ️ سيتمكن العضو من تسجيل الدخول بكلمة المرور الافتراضية: ameen2026 (يمكن تغييرها لاحقاً)" data-en="ℹ️ Member can log in with default password: ameen2026 (can be changed later)">ℹ️ سيتمكن العضو من تسجيل الدخول بكلمة المرور الافتراضية: ameen2026</span>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" onclick="Team.save()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
+        <button class="btn-ghost" onclick="Team.closeModal()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: EMAIL REMINDER ══════════════════════════════════ -->
+<div class="modal-overlay" id="modal-email">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title">📧 <span data-ar="إرسال تذكير بالاجتماع" data-en="Send Meeting Reminder">إرسال تذكير بالاجتماع</span></div>
+    <div class="fs">
+      <div class="frow">
+        <div class="fl" data-ar="إلى (بريد إلكتروني)" data-en="To (Email)">إلى (بريد إلكتروني)</div>
+        <textarea class="fi" id="email-to" rows="2" dir="ltr" style="text-align:left" placeholder="email1@example.com, email2@example.com"></textarea>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="الموضوع" data-en="Subject">الموضوع</div>
+        <input class="fi" id="email-subject" dir="ltr" style="text-align:left"/>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="نص الرسالة" data-en="Message">نص الرسالة</div>
+        <textarea class="fi" id="email-body" rows="7"></textarea>
+      </div>
+      <div id="email-status" style="display:none;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px"></div>
+      <div id="smtp-note" style="display:none;background:rgba(201,168,76,.08);border:1px solid var(--gold-border);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--text3);line-height:1.7">
+        ⚙️ <span data-ar="لتفعيل الإرسال، أضف متغيرات البيئة: SMTP_HOST, SMTP_USER, SMTP_PASS في إعدادات Replit." data-en="To enable sending, add environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS in Replit settings.">لتفعيل الإرسال، أضف متغيرات البيئة: SMTP_HOST, SMTP_USER, SMTP_PASS</span>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" id="email-send-btn" onclick="EmailReminder.send()">📧 <span data-ar="إرسال" data-en="Send">إرسال</span></button>
+        <button class="btn-ghost" onclick="EmailReminder.close()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
       </div>
     </div>
   </div>

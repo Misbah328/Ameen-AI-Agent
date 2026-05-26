@@ -112,10 +112,10 @@ select.fi option{background:var(--navy2)}
 .wb.a{opacity:1}
 .rec-ring{width:90px;height:90px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;position:relative}
 .rec-ring:hover{box-shadow:0 0 0 8px var(--gold-dim)}
-.rec-ring.on{border-color:var(--red);animation:rpulse 1.8s infinite}
+.rec-ring.on,.rec-ring.recording{border-color:var(--red);animation:rpulse 1.8s infinite}
 @keyframes rpulse{0%,100%{box-shadow:0 0 0 0 rgba(224,90,90,.4)}50%{box-shadow:0 0 0 14px rgba(224,90,90,0)}}
 .rec-ic{width:38px;height:38px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;color:var(--navy);font-size:18px;transition:.2s}
-.rec-ring.on .rec-ic{background:var(--red)}
+.rec-ring.on .rec-ic,.rec-ring.recording .rec-ic{background:var(--red)}
 .rec-status{text-align:center}
 .rec-title-inp{border:none;outline:none;background:transparent;font-size:15px;font-weight:600;color:var(--text);font-family:inherit;text-align:center;border-bottom:1px solid var(--border);padding-bottom:4px;min-width:300px}
 .rec-title-inp::placeholder{color:var(--text3);font-weight:400}
@@ -221,3 +221,16 @@ select.fi option{background:var(--navy2)}
 .modal-overlay.open{display:flex}
 .modal{background:var(--navy2);border:1px solid var(--border);border-radius:var(--r);padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto}
 .modal-title{font-size:16px;font-weight:700;color:var(--gold);margin-bottom:16px}
+
+/* ── Task Board (new) ─────────────────────────────────────────── */
+.trow{padding:10px 13px;border-bottom:1px solid var(--border2);transition:.12s}
+.trow:hover{background:var(--navy3)}
+.trow:last-child{border-bottom:none}
+.tck{width:15px;height:15px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;margin-top:2px}
+
+/* ── Nav badge variants ───────────────────────────────────────── */
+.nbg-red{background:var(--red);color:#fff}
+.nbg-gold{background:var(--gold);color:var(--navy)}
+
+/* ── Rec timer show ───────────────────────────────────────────── */
+.rec-ring.recording ~ .rec-status .rec-tm{display:block}
