@@ -124,9 +124,27 @@ router.post('/meetings', auth, (req, res) => {
 });
 
 router.patch('/meetings/:id', auth, (req, res) => {
-  const { transcript, duration } = req.body;
-  db.prepare('UPDATE meetings SET transcript=?, duration=? WHERE id=?').run(transcript, duration, req.params.id);
-  res.json({ success: true });
+  const { transcript, duration, title_ar, title_en } = req.body;
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Not found' });
+
+  const newTitleAr = title_ar !== undefined ? title_ar : meeting.title_ar;
+  const newTitleEn = title_en !== undefined ? (title_en || title_ar || meeting.title_en) : meeting.title_en;
+  const newTranscript = transcript !== undefined ? transcript : meeting.transcript;
+  const newDuration = duration !== undefined ? duration : meeting.duration;
+
+  db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=? WHERE id=?')
+    .run(newTitleAr, newTitleEn, newTranscript, newDuration, req.params.id);
+
+  // Keep denormalized titles in tasks & decisions in sync
+  if (title_ar !== undefined || title_en !== undefined) {
+    db.prepare('UPDATE tasks SET source_meeting_title_ar=?, source_meeting_title_en=? WHERE source_meeting_id=?')
+      .run(newTitleAr, newTitleEn, req.params.id);
+    db.prepare('UPDATE decisions SET meeting_title_ar=?, meeting_title_en=? WHERE meeting_id=?')
+      .run(newTitleAr, newTitleEn, req.params.id);
+  }
+
+  res.json({ success: true, title_ar: newTitleAr, title_en: newTitleEn });
 });
 
 // ── AI: Process Meeting ───────────────────────────────────────────────────────

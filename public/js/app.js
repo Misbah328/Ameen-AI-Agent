@@ -465,7 +465,10 @@ async function renderTranscripts() {
         return `<div class="card">
           <div class="ch">
             <div>
-              <div class="ct">${esc(title)}</div>
+              <div class="ct" style="display:flex;align-items:center;gap:7px">
+                <span id="mtg-title-${m.id}">${esc(title)}</span>
+                <button class="btn-ghost btn-sm" style="padding:2px 7px;font-size:11px" title="${l==='ar'?'تعديل العنوان':'Edit title'}" onclick='editMeetingTitle(${m.id}, ${JSON.stringify(m.title_ar||'')}, ${JSON.stringify(m.title_en||m.title_ar||'')})'>✏️</button>
+              </div>
               <div class="ctsub">${m.meeting_date?.substring(0,10)||''} ${m.duration ? `· ${Math.floor(m.duration/60)}:${String(m.duration%60).padStart(2,'0')} ${l==='ar'?'دقيقة':'min'}` : ''} · ${esc(m.recorder_ar||'')}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -491,6 +494,25 @@ async function renderTranscripts() {
 }
 
 function tryParse(s, def) { try { return JSON.parse(s || '[]'); } catch { return def; } }
+
+async function editMeetingTitle(id, curAr, curEn) {
+  const l = App.lang;
+  const newAr = prompt(l==='ar' ? 'العنوان بالعربية:' : 'Arabic title:', curAr || '');
+  if (newAr === null) return;
+  const newEn = prompt(l==='ar' ? 'العنوان بالإنجليزية:' : 'English title:', curEn || newAr);
+  if (newEn === null) return;
+  const title_ar = newAr.trim();
+  const title_en = newEn.trim() || title_ar;
+  if (!title_ar) { alert(l==='ar' ? 'العنوان لا يمكن أن يكون فارغاً' : 'Title cannot be empty'); return; }
+  try {
+    await api('/api/meetings/' + id, { method: 'PATCH', body: JSON.stringify({ title_ar, title_en }) });
+    const span = $('mtg-title-' + id);
+    if (span) span.textContent = l==='ar' ? title_ar : title_en;
+    await renderTranscripts();
+  } catch (e) {
+    alert((l==='ar' ? 'تعذّر حفظ العنوان: ' : 'Could not save title: ') + e.message);
+  }
+}
 
 // ══ Tasks ═════════════════════════════════════════════════════════════════════
 async function renderTasks() {
