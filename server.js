@@ -20,11 +20,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));
 
-// SPA fallback
+// SPA fallback — login removed, always serve the app
 app.get('*', (req, res) => {
-  const f = req.path.includes('login') ? 'login.html' : 'index.html';
-  res.sendFile(path.join(__dirname, 'public', f));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const { startReminderScheduler } = require('./src/reminders');
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`✓ Ameen Executive Secretary running at http://localhost:${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✓ Ameen Secretary running at http://localhost:${PORT}`);
+  startReminderScheduler();
+});

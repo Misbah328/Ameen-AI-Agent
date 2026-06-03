@@ -1,0 +1,1 @@
+- [Replit Mail delivery](replit-mail-delivery.md) — built-in Replit Mail ignores `to` and sends only to the Repl owner's verified email; need SendGrid/Resend for arbitrary recipients.

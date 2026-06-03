@@ -17,6 +17,25 @@ body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:14px;line-height:1
   --r:12px;--rm:8px;--rs:6px;
 }
 
+/* ── Light Theme ──────────────────────────────────────────────── */
+[data-theme="light"]{
+  --gold:#9C7C1E;--gold2:#B8932E;--gold3:#8A6C16;
+  --gold-dim:rgba(156,124,30,.10);--gold-border:rgba(156,124,30,.30);
+  --navy:#F4F2ED;--navy2:#FFFFFF;--navy3:#ECEAE3;--navy4:#E2DFD6;
+  --text:#1E2030;--text2:#4A4A52;--text3:#7A7770;
+  --green:#1E9E68;--green2:rgba(30,158,104,.12);
+  --red:#C8453F;--red2:rgba(200,69,63,.12);
+  --amber:#C77F12;--amber2:rgba(199,127,18,.12);
+  --blue:#3A75B0;--blue2:rgba(58,117,176,.12);
+  --border:rgba(156,124,30,.22);--border2:rgba(0,0,0,.07);
+}
+
+/* ── Theme Toggle Button ──────────────────────────────────────── */
+.theme-toggle{display:flex;align-items:center;gap:5px;font-size:11px;padding:4px 11px;border-radius:100px;background:var(--gold-dim);color:var(--gold);border:.5px solid var(--gold-border);cursor:pointer;font-family:inherit;font-weight:500;transition:.15s}
+.theme-toggle:hover{background:var(--gold-border)}
+.stat-clickable{transition:transform .12s,box-shadow .12s}
+.stat-clickable:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.18);border-color:var(--gold-border)}
+
 /* ── Shell Grid ───────────────────────────────────────────────── */
 .shell{display:grid;grid-template-columns:248px 1fr;grid-template-rows:58px 1fr;height:100vh;background:var(--navy);color:var(--text)}
 

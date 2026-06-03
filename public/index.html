@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>أمين — نظام الاجتماعات التنفيذي</title>
+<title>Ameen Secretary</title>
 <link rel="icon" href="/logo.png"/>
 <link rel="stylesheet" href="/css/app.css"/>
 </head>
@@ -15,8 +15,8 @@
   <div class="brand">
     <div class="brand-logo"><img src="/logo.png" alt="AMEEN"/></div>
     <div>
-      <div class="brand-ar" id="b-ar">أمين للذكاء الاصطناعي</div>
-      <div class="brand-en" id="b-en">Ameen AI · Executive Meeting Intelligence</div>
+      <div class="brand-ar" id="b-ar">أمين السكرتير</div>
+      <div class="brand-en" id="b-en">Ameen Secretary</div>
     </div>
   </div>
   <div class="topbar-mid">
@@ -27,9 +27,9 @@
       <button class="lb active" onclick="App.setLang('ar')">ع</button>
       <button class="lb" onclick="App.setLang('en')">EN</button>
     </div>
+    <button class="theme-toggle btn-sm" id="theme-btn" onclick="App.toggleTheme()" title="Theme"><span id="theme-icon">☀️</span> <span id="theme-label" data-ar="فاتح" data-en="Light">فاتح</span></button>
     <button class="ai-key-btn" id="api-key-btn" onclick="App.promptApiKey()">✦ <span id="api-status-txt">Anthropic API</span></button>
     <div class="pill pill-green" id="status-pill"><span class="sdot" style="background:var(--green)"></span><span id="st-txt" data-ar="جاهز" data-en="Ready">جاهز</span></div>
-    <button class="btn-ghost btn-sm" onclick="App.logout()"><span data-ar="خروج" data-en="Sign Out">خروج</span></button>
   </div>
 </header>
 
@@ -56,10 +56,6 @@
   <button class="nb" data-p="ask">
     <span class="nb-icon">🤖</span>
     <span class="nb-label" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</span>
-  </button>
-  <button class="nb" data-p="correspondence">
-    <span class="nb-icon">✉️</span>
-    <span class="nb-label" data-ar="مدير المراسلات" data-en="Correspondence">مدير المراسلات</span>
   </button>
   <button class="nb" data-p="documents">
     <span class="nb-icon">📄</span>
@@ -258,77 +254,6 @@
       data-ph-en="Ask Ameen about meetings, tasks, decisions or team..."
       placeholder="اسأل أمين..."
       onkeydown="Chat.key(event)"></textarea>
-  </div>
-</section>
-
-<!-- ══ CORRESPONDENCE ══════════════════════════════════════════ -->
-<section class="panel" id="panel-correspondence">
-  <div class="ph">
-    <div class="ph-row">
-      <div>
-        <div class="ptitle" data-ar="مدير المراسلات" data-en="Correspondence Manager">مدير المراسلات</div>
-        <div class="ptitle-sub" data-ar="صِف الموقف وسيكتب أمين الخطاب الرسمي" data-en="Describe the situation and Ameen drafts the formal letter">صِف الموقف وسيكتب أمين الخطاب الرسمي</div>
-      </div>
-    </div>
-  </div>
-  <div class="pbody">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;flex:1;min-height:0">
-      <div class="card" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
-        <div class="ct" data-ar="صياغة مراسلة جديدة" data-en="Draft New Correspondence">صياغة مراسلة جديدة</div>
-        <div class="fs">
-          <div class="frow">
-            <div class="fl" data-ar="نوع المراسلة" data-en="Type">نوع المراسلة</div>
-            <select class="fi" id="corr-type">
-              <option value="formal_ar">خطاب رسمي — عربي</option>
-              <option value="formal_en">Formal Letter — English</option>
-              <option value="memo_ar">مذكرة داخلية — عربي</option>
-              <option value="email_ar">بريد إلكتروني — عربي</option>
-              <option value="email_en">Email — English</option>
-              <option value="board_resolution">قرار مجلس الإدارة</option>
-            </select>
-          </div>
-          <div class="frow">
-            <div class="fl" data-ar="إلى" data-en="To">إلى</div>
-            <input class="fi" id="corr-to" data-ph-ar="شركة الخليج للاستثمار" data-ph-en="Gulf Investment Co." placeholder="الجهة المستلمة"/>
-          </div>
-          <div class="frow">
-            <div class="fl" data-ar="الموضوع" data-en="Subject">الموضوع</div>
-            <input class="fi" id="corr-subject-ar" placeholder="موضوع الخطاب"/>
-          </div>
-          <div class="frow">
-            <div class="fl">Subject (English)</div>
-            <input class="fi" id="corr-subject-en" placeholder="Letter subject" style="text-align:left" dir="ltr"/>
-          </div>
-          <div class="frow">
-            <div class="fl" data-ar="اشرح الموقف" data-en="Describe situation">اشرح الموقف</div>
-            <textarea class="fi" id="corr-body" rows="5" data-ph-ar="اشرح الموقف بإيجاز وسيصيغ أمين الخطاب..." data-ph-en="Describe briefly and Ameen will draft..."></textarea>
-          </div>
-          <div class="frow">
-            <div class="fl" data-ar="التوقيع" data-en="Signature">التوقيع</div>
-            <input class="fi" id="corr-sig" data-ph-ar="م. أحمد العمراني، الرئيس التنفيذي" data-ph-en="Ahmed Al-Omrani, CEO" placeholder="التوقيع"/>
-          </div>
-          <div class="fa">
-            <button class="btn-gold" id="corr-btn" onclick="Corr.generate()">✦ <span data-ar="صياغة الخطاب" data-en="Draft Letter">صياغة الخطاب</span></button>
-            <div class="toast" id="corr-toast">✓ <span data-ar="تم الحفظ" data-en="Saved">تم الحفظ</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="card" style="display:flex;flex-direction:column;min-height:0">
-        <div class="ch">
-          <div>
-            <div class="ct" data-ar="الخطاب المُصاغ" data-en="Generated Letter">الخطاب المُصاغ</div>
-            <div class="ctsub" data-ar="جاهز للنسخ أو الطباعة" data-en="Ready to copy or print">جاهز للنسخ أو الطباعة</div>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn-ghost btn-sm" onclick="Corr.copy()">📋 <span data-ar="نسخ" data-en="Copy">نسخ</span></button>
-            <button class="btn-ghost btn-sm" onclick="Corr.print()">🖨 <span data-ar="طباعة" data-en="Print">طباعة</span></button>
-          </div>
-        </div>
-        <div class="doc-out" id="corr-result">
-          <div class="es"><div class="es-icon">✉️</div><div data-ar="الخطاب يظهر هنا" data-en="Letter appears here">الخطاب يظهر هنا</div></div>
-        </div>
-      </div>
-    </div>
   </div>
 </section>
 
@@ -628,7 +553,7 @@
       </div>
       <div id="email-status" style="display:none;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px"></div>
       <div id="smtp-note" style="display:none;background:rgba(201,168,76,.08);border:1px solid var(--gold-border);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--text3);line-height:1.7">
-        ⚙️ <span data-ar="لتفعيل الإرسال، أضف متغيرات البيئة: SMTP_HOST, SMTP_USER, SMTP_PASS في إعدادات Replit." data-en="To enable sending, add environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS in Replit settings.">لتفعيل الإرسال، أضف متغيرات البيئة: SMTP_HOST, SMTP_USER, SMTP_PASS</span>
+        ⚙️ <span data-ar="يتم الإرسال عبر بريد Replit المدمج تلقائياً دون أي إعداد." data-en="Email is sent automatically via built-in Replit Mail — no setup required.">يتم الإرسال عبر بريد Replit المدمج تلقائياً.</span>
       </div>
       <div class="fa">
         <button class="btn-gold" id="email-send-btn" onclick="EmailReminder.send()">📧 <span data-ar="إرسال" data-en="Send">إرسال</span></button>

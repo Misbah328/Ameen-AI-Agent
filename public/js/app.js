@@ -8,22 +8,22 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString(App.lang === 'ar' ? 'ar-
 // ══ App State ══════════════════════════════════════════════════════════════════
 const App = {
   lang: localStorage.getItem('lang') || 'ar',
-  token: localStorage.getItem('token'),
+  theme: localStorage.getItem('theme') || 'dark',
   user: null,
   chatHistory: [],
 
   async init() {
-    if (!this.token) { location.href = '/login.html'; return; }
+    this.applyTheme(this.theme);
     try {
       const me = await api('/auth/me');
       this.user = me;
-      this.applyLang(this.lang);
-      this.renderUser();
-      await loadBadges();
-      await loadSelectLists();
-      Panels.init();
-      Panels.load('record');
-    } catch (e) { location.href = '/login.html'; }
+    } catch (e) { this.user = null; }
+    this.applyLang(this.lang);
+    this.renderUser();
+    await loadBadges();
+    await loadSelectLists();
+    Panels.init();
+    Panels.load('record');
   },
 
   setLang(l) {
@@ -32,6 +32,24 @@ const App = {
     this.applyLang(l);
     const cur = document.querySelector('.nb.active')?.dataset.p;
     if (cur) Panels.load(cur);
+  },
+
+  toggleTheme() {
+    this.applyTheme(this.theme === 'dark' ? 'light' : 'dark');
+  },
+
+  applyTheme(t) {
+    this.theme = t;
+    localStorage.setItem('theme', t);
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = $('theme-icon');
+    if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+    const lbl = $('theme-label');
+    if (lbl) {
+      lbl.dataset.ar = t === 'dark' ? 'فاتح' : 'داكن';
+      lbl.dataset.en = t === 'dark' ? 'Light' : 'Dark';
+      lbl.textContent = this.lang === 'ar' ? lbl.dataset.ar : lbl.dataset.en;
+    }
   },
 
   applyLang(l) {
@@ -97,20 +115,12 @@ const App = {
     }
   },
 
-  logout() {
-    localStorage.removeItem('token');
-    sessionStorage.removeItem('api_key');
-    location.href = '/login.html';
-  }
 };
 
 // ══ API ════════════════════════════════════════════════════════════════════════
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  const tok = App.token || localStorage.getItem('token');
-  if (tok) headers['Authorization'] = `Bearer ${tok}`;
   const r = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
-  if (r.status === 401) { location.href = '/login.html'; throw new Error('Unauthenticated'); }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || data.message || `HTTP ${r.status}`);
   return data;
@@ -175,6 +185,7 @@ async function loadDocMeetings() {
     const l = App.lang;
     const sel = $('doc-meeting-sel');
     if (sel) sel.innerHTML = `<option value="">-- ${l === 'ar' ? 'اختر اجتماعاً' : 'Select meeting'} --</option>` +
+      `<option value="all">${l === 'ar' ? '📊 جميع الاجتماعات السابقة (تقرير موحّد)' : '📊 All past meetings (combined report)'}</option>` +
       mtgs.map(m => `<option value="${m.id}">${esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar))} (${m.meeting_date?.substring(0,10) || ''})</option>`).join('');
   } catch (e) {}
 }
@@ -318,6 +329,10 @@ const Rec = {
 
     try {
       const r = await api(`/api/meetings/${this.currentMeetingId}/process`, { method: 'POST' });
+      if (r.result && r.result.title_ar) {
+        const ti = $('mtg-title');
+        if (ti) ti.value = App.lang === 'ar' ? r.result.title_ar : (r.result.title_en || r.result.title_ar);
+      }
       $('ai-res-card').style.display = '';
       $('ai-res-body').innerHTML = this.renderResult(r.result, r.demo);
       await loadBadges();
@@ -342,6 +357,29 @@ const Rec = {
         ${r.key_topics_ar?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(l==='ar'?r.key_topics_ar:r.key_topics_en||r.key_topics_ar).map(t=>`<span class="tag" style="background:var(--gold-dim);color:var(--gold)">${esc(t)}</span>`).join('')}</div>` : ''}
         ${demo ? `<div class="tag ta" style="margin-top:6px;display:inline-flex">⚠ ${lbl('نتائج تجريبية','Demo results')}</div>` : ''}
       </div>`;
+
+    // Speaker-attributed transcript (Gemini-in-Meet style)
+    const speakerTr = r.speaker_transcript || [];
+    const speakersHtml = speakerTr.length ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:10px">🗣️ ${lbl('النص حسب المتحدث','Transcript by Speaker')}</div>
+        ${speakerTr.map(s => `
+          <div style="display:flex;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2);align-items:flex-start">
+            <div style="width:26px;height:26px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gold);flex-shrink:0">${esc(String(s.speaker||'?').split(' ').slice(0,2).map(w=>w[0]).join(''))}</div>
+            <div style="flex:1">
+              <div style="font-size:11px;font-weight:700;color:var(--gold)">${esc(s.speaker || lbl('متحدث','Speaker'))}</div>
+              <div style="font-size:12px;color:var(--text);line-height:1.6">${esc(l==='ar'?(s.text_ar||s.text_en||''):(s.text_en||s.text_ar||''))}</div>
+            </div>
+          </div>`).join('')}
+      </div>` : '';
+
+    // Formal minutes
+    const minutes = l === 'ar' ? (r.minutes_ar || '') : (r.minutes_en || r.minutes_ar || '');
+    const minutesHtml = minutes ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">📄 ${lbl('محضر الاجتماع الرسمي','Official Meeting Minutes')}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.8;white-space:pre-wrap">${esc(minutes)}</div>
+      </div>` : '';
 
     // Group tasks by owner
     const tasks = r.tasks || [];
@@ -402,7 +440,7 @@ const Rec = {
         <button class="btn-ghost btn-sm" onclick="Panels.load('transcripts')">📝 ${lbl('المحاضر','Transcripts')}</button>
       </div>`;
 
-    return summary + tasksHtml + decsHtml + fuHtml + actions;
+    return summary + speakersHtml + minutesHtml + tasksHtml + decsHtml + fuHtml + actions;
   }
 };
 
@@ -632,39 +670,6 @@ function buildWelcomeMsg() {
   d.innerHTML = `<div class="mav"><img src="/logo.png" alt="Ameen"/></div><div><div class="mb">${esc(txt)}</div><div class="mts">${now()}</div></div>`;
   return d;
 }
-
-// ══ Correspondence ════════════════════════════════════════════════════════════
-const Corr = {
-  currentContent: '',
-  async generate() {
-    const data = {
-      type: $('corr-type').value,
-      to_name: $('corr-to').value,
-      subject_ar: $('corr-subject-ar').value,
-      subject_en: $('corr-subject-en').value,
-      situation: $('corr-body').value,
-      signature: $('corr-sig').value,
-      lang: App.lang,
-    };
-    if (!data.situation) { alert(App.lang === 'ar' ? 'يرجى وصف الموقف' : 'Please describe the situation'); return; }
-    const btn = $('corr-btn'); btn.disabled = true;
-    btn.innerHTML = `<span class="loading"></span> ${App.lang === 'ar' ? 'أمين يكتب...' : 'Ameen is drafting...'}`;
-    $('corr-result').innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3)">${App.lang === 'ar' ? 'أمين يصيغ الخطاب...' : 'Drafting letter...'}</div>`;
-    try {
-      const r = await api('/api/ai/correspondence', { method: 'POST', body: JSON.stringify(data) });
-      this.currentContent = r.content;
-      const isEn = data.type.includes('_en');
-      $('corr-result').style.direction = isEn ? 'ltr' : 'rtl';
-      $('corr-result').style.textAlign = isEn ? 'left' : 'right';
-      $('corr-result').textContent = r.content;
-      $('corr-toast').style.display = 'flex'; setTimeout(() => $('corr-toast').style.display = 'none', 2500);
-    } catch (e) { $('corr-result').innerHTML = `<div style="color:var(--red)">${e.message}</div>`; }
-    btn.disabled = false;
-    btn.innerHTML = `✦ <span>${App.lang === 'ar' ? 'صياغة الخطاب' : 'Draft Letter'}</span>`;
-  },
-  copy() { if (this.currentContent) { navigator.clipboard.writeText(this.currentContent); alert(App.lang === 'ar' ? '✓ تم النسخ' : '✓ Copied'); } },
-  print() { window.print(); }
-};
 
 // ══ Document Generator ════════════════════════════════════════════════════════
 const DocGen = {
@@ -962,14 +967,14 @@ async function renderOverview() {
     const upcoming = schedule.filter(s => s.meeting_date >= today);
 
     const statCards = [
-      { icon:'🎙', val: stats.meetings, label: lbl('اجتماع مسجل','Recorded Meetings'), color:'var(--gold)' },
-      { icon:'📋', val: stats.tasks_open, label: lbl('مهمة مفتوحة','Open Tasks'), color: stats.tasks_overdue>0?'var(--red)':'var(--amber)' },
-      { icon:'⚠️', val: stats.tasks_overdue, label: lbl('مهمة متأخرة','Overdue Tasks'), color:'var(--red)' },
-      { icon:'✓', val: stats.tasks_done, label: lbl('مهمة مكتملة','Completed Tasks'), color:'var(--green)' },
-      { icon:'⚖️', val: stats.decisions, label: lbl('قرار مسجل','Decisions'), color:'var(--blue)' },
-      { icon:'📅', val: stats.schedule, label: lbl('اجتماع مجدول','Scheduled'), color:'var(--gold)' },
-      { icon:'👥', val: stats.users, label: lbl('عضو فريق','Team Members'), color:'var(--text)' },
-      { icon:'🎯', val: stats.completion+'%', label: lbl('نسبة الإنجاز','Completion Rate'), color: stats.completion>70?'var(--green)':stats.completion>40?'var(--amber)':'var(--red)' },
+      { icon:'🎙', val: stats.meetings, label: lbl('اجتماع مسجل','Recorded Meetings'), color:'var(--gold)', go:'transcripts' },
+      { icon:'📋', val: stats.tasks_open, label: lbl('مهمة مفتوحة','Open Tasks'), color: stats.tasks_overdue>0?'var(--red)':'var(--amber)', go:'tasks' },
+      { icon:'⚠️', val: stats.tasks_overdue, label: lbl('مهمة متأخرة','Overdue Tasks'), color:'var(--red)', go:'tasks' },
+      { icon:'✓', val: stats.tasks_done, label: lbl('مهمة مكتملة','Completed Tasks'), color:'var(--green)', go:'tasks' },
+      { icon:'⚖️', val: stats.decisions, label: lbl('قرار مسجل','Decisions'), color:'var(--blue)', go:'transcripts' },
+      { icon:'📅', val: stats.schedule, label: lbl('اجتماع مجدول','Scheduled'), color:'var(--gold)', go:'schedule' },
+      { icon:'👥', val: stats.users, label: lbl('عضو فريق','Team Members'), color:'var(--text)', go:'team' },
+      { icon:'🎯', val: stats.completion+'%', label: lbl('نسبة الإنجاز','Completion Rate'), color: stats.completion>70?'var(--green)':stats.completion>40?'var(--amber)':'var(--red)', go:'tasks' },
     ];
 
     // Task breakdown by member
@@ -981,7 +986,7 @@ async function renderOverview() {
 
     body.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-        ${statCards.map(s => `<div class="card" style="text-align:center;padding:18px 10px">
+        ${statCards.map(s => `<div class="card stat-clickable" style="text-align:center;padding:18px 10px;cursor:pointer" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
           <div style="font-size:26px;margin-bottom:4px">${s.icon}</div>
           <div style="font-size:28px;font-weight:800;color:${s.color}">${s.val}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${s.label}</div>

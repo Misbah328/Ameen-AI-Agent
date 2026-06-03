@@ -123,6 +123,19 @@ db.exec(`
   );
 `);
 
+// ── Lightweight migrations: add columns if missing ──────────────────────────
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some(c => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+ensureColumn('meetings', 'ai_minutes_ar', 'TEXT');
+ensureColumn('meetings', 'ai_minutes_en', 'TEXT');
+ensureColumn('meetings', 'speaker_transcript', "TEXT DEFAULT '[]'");
+ensureColumn('schedule', 'reminder_sent', 'INTEGER DEFAULT 0');
+ensureColumn('schedule', 'reminder_email', 'TEXT');
+
 // Seed demo data if empty
 const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get();
 if (userCount.c === 0) {

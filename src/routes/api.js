@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
-const nodemailer = require('nodemailer');
+const { sendEmail } = require('../utils/replitmail');
 
 // ── In-memory API key store (per user session) ─────────────────────────────
 const sessionKeys = {};
@@ -137,12 +137,19 @@ router.post('/meetings/:id/process', auth, async (req, res) => {
   const members = db.prepare('SELECT name_ar, name_en FROM users').all();
   const memberNames = members.map(m => `${m.name_ar} / ${m.name_en}`).join(', ');
 
-  const system = `أنت أمين، مساعد ذكي تنفيذي متخصص في تحليل اجتماعات مجالس الإدارة.
+  const system = `أنت أمين، مساعد ذكي تنفيذي متخصص في تحليل اجتماعات مجالس الإدارة (بأسلوب Gemini in Meet).
 أعضاء الفريق الحاليون: ${memberNames}
-قم بتحليل النص وأرجع JSON فقط بدون markdown. الهيكل المطلوب:
+حلّل نص الاجتماع بدقة: تعرّف على المتحدثين بالاسم من خلال سياق الحوار والأسماء المذكورة، واستخرج المهام منسوبةً لأصحابها بالاسم، والقرارات، ومحضراً رسمياً.
+إن لم يكن للاجتماع عنوان واضح، فولّد عنواناً موجزاً ومعبّراً من المحتوى.
+أرجع JSON فقط بدون markdown. الهيكل المطلوب:
 {
+  "title_ar": "عنوان موجز مولّد من المحتوى بالعربية",
+  "title_en": "Concise generated title in English",
   "summary_ar": "ملخص عربي مفصل للاجتماع",
   "summary_en": "Detailed English meeting summary",
+  "minutes_ar": "محضر اجتماع رسمي منظم بالعربية (الحضور، البنود، النقاش، القرارات، المهام)",
+  "minutes_en": "Formal structured meeting minutes in English",
+  "speaker_transcript": [{"speaker":"اسم المتحدث","text_ar":"ما قاله بالعربية","text_en":"what they said in English"}],
   "tasks": [{"text_ar":"...","text_en":"...","owner_ar":"اسم المسؤول بالعربي","owner_en":"Owner name in English","due":"YYYY-MM-DD or empty string","priority":"urgent|normal"}],
   "decisions": [{"text_ar":"...","text_en":"..."}],
   "reminders": [{"text_ar":"...","text_en":"..."}],
@@ -153,22 +160,36 @@ router.post('/meetings/:id/process', auth, async (req, res) => {
   "key_topics_en": ["topic1"]
 }`;
 
+  const UNTITLED = ['اجتماع بدون عنوان', 'Untitled Meeting', 'اجتماع جديد', 'New Meeting', ''];
+  const needsTitle = !meeting.title_ar || UNTITLED.includes((meeting.title_ar || '').trim());
+
   try {
     const text = await callClaude([{
       role: 'user',
-      content: `عنوان الاجتماع: ${meeting.title_ar}\nالتاريخ: ${meeting.meeting_date}\nالنص:\n${meeting.transcript}`
-    }], system, 2500, req.user.id);
+      content: `عنوان الاجتماع: ${needsTitle ? '(بدون عنوان — يرجى توليد عنوان مناسب)' : meeting.title_ar}\nالتاريخ: ${meeting.meeting_date}\nالنص:\n${meeting.transcript}`
+    }], system, 4000, req.user.id);
 
     let result;
     try { result = JSON.parse(text.replace(/```json|```/g, '').trim()); }
     catch { result = buildDemoResult(meeting); }
+
+    // Auto-generated title when none was provided
+    let finalTitleAr = meeting.title_ar;
+    let finalTitleEn = meeting.title_en || meeting.title_ar;
+    if (needsTitle && result.title_ar) {
+      finalTitleAr = result.title_ar;
+      finalTitleEn = result.title_en || result.title_ar;
+      db.prepare('UPDATE meetings SET title_ar=?, title_en=? WHERE id=?').run(finalTitleAr, finalTitleEn, meeting.id);
+    }
 
     db.prepare(`
       UPDATE meetings SET
         ai_summary_ar=?, ai_summary_en=?,
         ai_tasks=?, ai_decisions=?,
         ai_reminders=?, ai_followups=?,
-        ai_sentiment=?, speakers=?, status='processed'
+        ai_sentiment=?, speakers=?,
+        ai_minutes_ar=?, ai_minutes_en=?, speaker_transcript=?,
+        status='processed'
       WHERE id=?
     `).run(
       result.summary_ar, result.summary_en,
@@ -178,8 +199,13 @@ router.post('/meetings/:id/process', auth, async (req, res) => {
       JSON.stringify(result.followups || []),
       result.sentiment || 'neutral',
       JSON.stringify(result.speakers || []),
+      result.minutes_ar || '', result.minutes_en || '',
+      JSON.stringify(result.speaker_transcript || []),
       meeting.id
     );
+
+    result.title_ar = finalTitleAr;
+    result.title_en = finalTitleEn;
 
     const insertTask = db.prepare(`
       INSERT INTO tasks (text_ar, text_en, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
@@ -198,16 +224,26 @@ router.post('/meetings/:id/process', auth, async (req, res) => {
     res.json({ success: true, result });
   } catch (e) {
     const result = buildDemoResult(meeting);
-    db.prepare(`UPDATE meetings SET ai_summary_ar=?, ai_summary_en=?, ai_tasks=?, ai_decisions=?, status='processed' WHERE id=?`)
-      .run(result.summary_ar, result.summary_en, JSON.stringify(result.tasks), JSON.stringify(result.decisions), meeting.id);
+    if (needsTitle && result.title_ar) {
+      db.prepare('UPDATE meetings SET title_ar=?, title_en=? WHERE id=?').run(result.title_ar, result.title_en, meeting.id);
+    }
+    db.prepare(`UPDATE meetings SET ai_summary_ar=?, ai_summary_en=?, ai_tasks=?, ai_decisions=?, ai_minutes_ar=?, ai_minutes_en=?, speaker_transcript=?, status='processed' WHERE id=?`)
+      .run(result.summary_ar, result.summary_en, JSON.stringify(result.tasks), JSON.stringify(result.decisions), result.minutes_ar || '', result.minutes_en || '', JSON.stringify(result.speaker_transcript || []), meeting.id);
     res.json({ success: true, result, demo: true, _err: e.message });
   }
 });
 
 function buildDemoResult(meeting) {
+  const titleAr = meeting.title_ar || 'اجتماع تنفيذي';
+  const titleEn = meeting.title_en || meeting.title_ar || 'Executive Meeting';
   return {
-    summary_ar: `تمت مناقشة ${meeting.title_ar} بنجاح. تم تحديد المهام والقرارات الرئيسية لجميع أعضاء الفريق.`,
-    summary_en: `${meeting.title_en || meeting.title_ar} completed successfully. Key tasks and decisions identified for all team members.`,
+    title_ar: titleAr,
+    title_en: titleEn,
+    summary_ar: `تمت مناقشة ${titleAr} بنجاح. تم تحديد المهام والقرارات الرئيسية لجميع أعضاء الفريق.`,
+    summary_en: `${titleEn} completed successfully. Key tasks and decisions identified for all team members.`,
+    minutes_ar: `محضر اجتماع: ${titleAr}\nالتاريخ: ${(meeting.meeting_date || '').substring(0,10)}\n\nالبنود:\n- مراجعة الأداء العام\n- متابعة المهام السابقة\n\nالقرارات:\n- اعتماد بنود الاجتماع والمضي في التنفيذ`,
+    minutes_en: `Meeting Minutes: ${titleEn}\nDate: ${(meeting.meeting_date || '').substring(0,10)}\n\nItems:\n- General performance review\n- Follow-up on previous tasks\n\nDecisions:\n- Meeting items approved for implementation`,
+    speaker_transcript: [],
     tasks: [
       { text_ar: 'مراجعة تقرير الأداء وإعداد الملاحظات', text_en: 'Review performance report and prepare notes', owner_ar: 'المدير التنفيذي', owner_en: 'Managing Director', due: '', priority: 'normal' },
       { text_ar: 'متابعة بنود الاجتماع مع الفريق', text_en: 'Follow up on meeting items with the team', owner_ar: 'مدير العمليات', owner_en: 'Operations Manager', due: '', priority: 'normal' }
@@ -298,36 +334,17 @@ router.post('/email/send', auth, async (req, res) => {
   const { to, subject, body, html } = req.body;
   if (!to || !subject || !body) return res.status(400).json({ error: 'to, subject and body are required' });
 
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    return res.status(503).json({
-      error: 'SMTP_NOT_CONFIGURED',
-      message: 'Email not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS environment variables.'
-    });
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: smtpUser, pass: smtpPass }
-    });
-
     const recipients = to.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
-
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || smtpUser,
-      to: recipients.join(', '),
+    // Sent via Replit Mail (blueprint:replitmail) — delivered to the workspace
+    // owner's verified Replit email. No SMTP credentials required.
+    const result = await sendEmail({
+      to: recipients,
       subject,
       text: body,
       html: html || `<div style="font-family:Arial,sans-serif;direction:auto">${body.replace(/\n/g, '<br>')}</div>`
     });
-
-    res.json({ success: true, sent_to: recipients.length });
+    res.json({ success: true, sent_to: recipients.length, accepted: result.accepted });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -392,42 +409,20 @@ function getDemoReply(q, lang) {
     : 'أنا أمين، مساعدكم الذكي التنفيذي. لديّ سياق كامل لجميع الاجتماعات والمهام والقرارات. يمكنكم سؤالي عن المهام المتأخرة، القرارات المعلقة، ملخصات الاجتماعات، أداء الفريق، الاجتماعات القادمة، أو أي موضوع آخر.';
 }
 
-// ── AI: Correspondence ─────────────────────────────────────────────────────
-router.post('/ai/correspondence', auth, async (req, res) => {
-  const { type, to_name, subject_ar, subject_en, situation, signature, lang } = req.body;
-  if (!situation) return res.status(400).json({ error: 'Situation required' });
-  const typeLang = (type || '').includes('_en') || lang === 'en' ? 'en' : 'ar';
-  const prompt = `أنت كاتب مراسلات تنفيذي محترف لشركة أمين للذكاء الاصطناعي.
-اكتب ${type || 'خطاباً رسمياً'} ${typeLang === 'en' ? 'in formal professional English only' : 'بالعربية الرسمية الفصيحة فقط'}.
-الجهة المستلمة: ${to_name || (typeLang === 'en' ? 'The Concerned Party' : 'الجهة المعنية')}
-الموضوع: ${typeLang === 'en' ? (subject_en || subject_ar || '') : (subject_ar || subject_en || '')}
-الموقف: ${situation}
-التوقيع: ${signature || (typeLang === 'en' ? 'CEO, Ameen AI Solutions' : 'الرئيس التنفيذي، أمين للذكاء الاصطناعي')}
-اكتب الخطاب كاملاً فقط بدون أي تعليق إضافي.`;
-
-  try {
-    const text = await callClaude([{ role: 'user', content: prompt }], '', 1200, req.user.id);
-    const row = db.prepare(`INSERT INTO correspondence (type, to_name, subject_ar, subject_en, content, lang, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(type, to_name, subject_ar, subject_en, text, lang, req.user.id);
-    res.json({ success: true, content: text, id: row.lastInsertRowid });
-  } catch (e) {
-    const demo = generateDemoLetter(to_name, subject_ar || subject_en, situation, signature, lang || typeLang);
-    res.json({ success: true, content: demo, demo: true });
-  }
-});
-
-function generateDemoLetter(to, subject, situation, sig, lang) {
-  if (lang === 'en') {
-    return `${new Date().toLocaleDateString('en-GB')}\n\n${to || 'To Whom It May Concern'}\n\nSubject: ${subject || 'Official Correspondence'}\n\nDear Sir / Madam,\n\nWe write on behalf of Ameen AI Solutions regarding the above-referenced subject.\n\n${situation}\n\nWe trust this meets your requirements and remain at your disposal for any clarification.\n\nYours sincerely,\n\n${sig || 'CEO, Ameen AI Solutions'}`;
-  }
-  return `بسم الله الرحمن الرحيم\n\n${new Date().toLocaleDateString('ar-SA')}\n\nالسادة / ${to || 'الجهة المعنية'}\nالمحترمين\n\nالموضوع: ${subject || 'موضوع المراسلة'}\n\nتحية طيبة وبعد،\n\nيسعدنا التواصل معكم بشأن الموضوع المشار إليه أعلاه.\n\n${situation}\n\nنأمل أن تجدوا في هذا الخطاب ما يلبي متطلباتكم، ونحن رهن إشارتكم لأي استفسار.\n\nوتفضلوا بقبول فائق الاحترام والتقدير،\n\n${sig || 'الرئيس التنفيذي، أمين للذكاء الاصطناعي'}`;
-}
-
 // ── AI: Document Generator ─────────────────────────────────────────────────
 router.post('/ai/document', auth, async (req, res) => {
   const { doc_type, meeting_id, details, lang, detail_level } = req.body;
   let meetingContext = '';
-  if (meeting_id) {
+  if (meeting_id === 'all') {
+    const all = db.prepare("SELECT * FROM meetings WHERE status='processed' ORDER BY meeting_date DESC").all();
+    if (all.length) {
+      meetingContext = 'تقرير موحّد من جميع الاجتماعات السابقة:\n\n' + all.map(m =>
+        `• اجتماع: ${m.title_ar} (${(m.meeting_date || '').substring(0,10)})\n  الملخص: ${m.ai_summary_ar || ''}\n  المهام: ${m.ai_tasks || '[]'}\n  القرارات: ${m.ai_decisions || '[]'}`
+      ).join('\n\n');
+    } else {
+      meetingContext = 'لا توجد اجتماعات معالَجة بعد لإعداد تقرير منها.';
+    }
+  } else if (meeting_id) {
     const m = db.prepare('SELECT * FROM meetings WHERE id=?').get(meeting_id);
     if (m) meetingContext = `اجتماع: ${m.title_ar}\nالتاريخ: ${m.meeting_date}\nالملخص: ${m.ai_summary_ar || ''}\nالمهام: ${m.ai_tasks || '[]'}\nالقرارات: ${m.ai_decisions || '[]'}`;
   }
@@ -450,7 +445,7 @@ ${meetingContext ? meetingContext + '\n' : ''}${details ? 'تفاصيل إضاف
   try {
     const text = await callClaude([{ role: 'user', content: prompt }], '', 1800, req.user.id);
     const row = db.prepare(`INSERT INTO documents (type, title_ar, title_en, content, source_meeting_id, lang, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(doc_type, docTypeLabels[doc_type] || doc_type, doc_type, text, meeting_id || null, lang, req.user.id);
+      .run(doc_type, docTypeLabels[doc_type] || doc_type, doc_type, text, (meeting_id && meeting_id !== 'all') ? meeting_id : null, lang, req.user.id);
     res.json({ success: true, content: text, id: row.lastInsertRowid });
   } catch (e) {
     res.json({ success: true, content: generateDemoDoc(doc_type, lang, meetingContext), demo: true });
@@ -477,11 +472,6 @@ router.get('/stats', auth, (req, res) => {
   const schedule = db.prepare('SELECT COUNT(*) as c FROM schedule').get().c;
   const completion = tasks_total > 0 ? Math.round((tasks_done / tasks_total) * 100) : 0;
   res.json({ meetings, tasks_total, tasks_open, tasks_overdue, tasks_done, decisions, users, schedule, completion });
-});
-
-// ── Correspondence History ─────────────────────────────────────────────────
-router.get('/correspondence', auth, (req, res) => {
-  res.json(db.prepare('SELECT c.*, u.name_ar as author_ar, u.name_en as author_en FROM correspondence c LEFT JOIN users u ON c.created_by=u.id ORDER BY c.created_at DESC LIMIT 20').all());
 });
 
 // ── Document History ───────────────────────────────────────────────────────

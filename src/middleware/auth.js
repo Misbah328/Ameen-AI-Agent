@@ -1,14 +1,21 @@
-const jwt = require('jsonwebtoken');
+const db = require('../db/database');
+
+// Login has been removed. Every request runs as the default executive user
+// (the first/seed user, typically the CEO). This keeps req.user.id available
+// for all routes without requiring a token or sign-in.
+let cachedUser = null;
+
+function getDefaultUser() {
+  if (cachedUser) return cachedUser;
+  const u = db.prepare('SELECT id, email FROM users ORDER BY id ASC LIMIT 1').get();
+  if (u) cachedUser = u;
+  return u;
+}
 
 const auth = (req, res, next) => {
-  const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET || 'ameen-secret');
-    next();
-  } catch {
-    res.status(401).json({ error: 'Token invalid' });
-  }
+  const u = getDefaultUser();
+  req.user = u ? { id: u.id, email: u.email } : { id: 1, email: 'system@ameen.ai' };
+  next();
 };
 
 module.exports = auth;
