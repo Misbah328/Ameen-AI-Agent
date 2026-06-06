@@ -79,20 +79,26 @@ async function sendWhatsApp({ to, body }) {
   if (!numbers.length) throw new Error('No WhatsApp recipients');
   const settings = await getConnectorSettings('twilio');
   const accountSid = settings.account_sid || settings.accountSid || settings.sid;
-  const authToken =
-    settings.auth_token || settings.authToken || connectorToken(settings);
+  // Twilio connector uses API Key auth: username = api_key (SK...), password = api_key_secret.
+  // Fall back to classic account_sid + auth_token if those are what's present.
+  const authUser = settings.api_key || accountSid;
+  const authPass =
+    settings.api_key_secret ||
+    settings.auth_token ||
+    settings.authToken;
   const fromRaw =
+    settings.phone_number ||
     settings.whatsapp_from ||
     settings.from_number ||
-    settings.phone_number ||
     process.env.TWILIO_WHATSAPP_FROM ||
     '+14155238886'; // Twilio WhatsApp sandbox number
-  if (!accountSid || !authToken) throw new Error('Twilio credentials not found in connector settings');
+  if (!accountSid || !authUser || !authPass) throw new Error('Twilio credentials not found in connector settings');
   const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
-  const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const auth = Buffer.from(`${authUser}:${authPass}`).toString('base64');
   const results = [];
   for (const num of numbers) {
-    const params = new URLSearchParams({ From: from, To: `whatsapp:${num}`, Body: body });
+    const toNum = String(num).startsWith('whatsapp:') ? num : `whatsapp:${num}`;
+    const params = new URLSearchParams({ From: from, To: toNum, Body: body });
     const res = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
