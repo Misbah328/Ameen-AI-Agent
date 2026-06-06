@@ -133,8 +133,45 @@ function ensureColumn(table, column, definition) {
 ensureColumn('meetings', 'ai_minutes_ar', 'TEXT');
 ensureColumn('meetings', 'ai_minutes_en', 'TEXT');
 ensureColumn('meetings', 'speaker_transcript', "TEXT DEFAULT '[]'");
+ensureColumn('meetings', 'shared', 'INTEGER DEFAULT 0');
+ensureColumn('meetings', 'shared_at', 'DATETIME');
 ensureColumn('schedule', 'reminder_sent', 'INTEGER DEFAULT 0');
 ensureColumn('schedule', 'reminder_email', 'TEXT');
+ensureColumn('schedule', 'reminder_channel', "TEXT DEFAULT 'email'");
+ensureColumn('tasks', 'confirm_token', 'TEXT');
+ensureColumn('tasks', 'confirmed', 'INTEGER DEFAULT 0');
+ensureColumn('tasks', 'confirmed_at', 'DATETIME');
+ensureColumn('tasks', 'assignee_email', 'TEXT');
+ensureColumn('tasks', 'assignee_phone', 'TEXT');
+
+// Key/value settings (e.g. subscription plan)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS meeting_attendees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    share_token TEXT UNIQUE,
+    shared INTEGER DEFAULT 0,
+    confirmed INTEGER DEFAULT 0,
+    confirmed_at DATETIME,
+    comment TEXT DEFAULT '',
+    responded_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(meeting_id) REFERENCES meetings(id)
+  );
+`);
+
+// Default plan = free
+if (!db.prepare('SELECT value FROM settings WHERE key=?').get('plan')) {
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('plan', 'free');
+}
 
 // Seed demo data if empty
 const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get();

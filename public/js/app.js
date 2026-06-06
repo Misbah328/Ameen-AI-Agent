@@ -10,6 +10,7 @@ const App = {
   lang: localStorage.getItem('lang') || 'ar',
   theme: localStorage.getItem('theme') || 'dark',
   user: null,
+  plan: 'free',
   chatHistory: [],
 
   async init() {
@@ -18,12 +19,57 @@ const App = {
       const me = await api('/auth/me');
       this.user = me;
     } catch (e) { this.user = null; }
+    await this.loadPlan();
     this.applyLang(this.lang);
     this.renderUser();
     await loadBadges();
     await loadSelectLists();
     Panels.init();
     Panels.load('record');
+  },
+
+  isPro() { return this.plan === 'pro'; },
+
+  async loadPlan() {
+    try { const r = await api('/api/plan'); this.plan = r.plan || 'free'; } catch (e) { this.plan = 'free'; }
+    this.renderPlan();
+  },
+
+  renderPlan() {
+    const pro = this.isPro();
+    const txt = $('plan-txt'); if (txt) txt.textContent = pro ? 'Pro' : 'Free';
+    const badge = $('plan-badge'); if (badge) badge.style.color = pro ? 'var(--gold)' : 'var(--text3)';
+    const btn = $('plan-btn'); if (btn) btn.style.borderColor = pro ? 'var(--gold-border)' : '';
+    document.querySelectorAll('[data-pro]').forEach(el => { el.style.display = pro ? '' : 'none'; });
+    document.querySelectorAll('[data-free]').forEach(el => { el.style.display = pro ? 'none' : ''; });
+  },
+
+  openPlan() {
+    const l = this.lang;
+    const cur = $('plan-current');
+    if (cur) cur.textContent = (l === 'ar' ? 'باقتك الحالية: ' : 'Current plan: ') + (this.isPro() ? 'Pro ⭐' : 'Free');
+    $('plan-upgrade-btn').style.display = this.isPro() ? 'none' : '';
+    $('plan-downgrade-btn').style.display = this.isPro() ? '' : 'none';
+    $('modal-plan').classList.add('open');
+    this.applyLang(l);
+  },
+  closePlan() { $('modal-plan').classList.remove('open'); },
+
+  async setPlan(plan) {
+    try {
+      const r = await api('/api/plan', { method: 'PATCH', body: JSON.stringify({ plan }) });
+      this.plan = r.plan;
+      this.renderPlan();
+      this.closePlan();
+      const cur = document.querySelector('.nb.active')?.dataset.p;
+      if (cur) Panels.load(cur);
+    } catch (e) { alert(e.message); }
+  },
+
+  requirePro() {
+    if (this.isPro()) return true;
+    this.openPlan();
+    return false;
   },
 
   setLang(l) {
@@ -173,6 +219,7 @@ async function loadBadges() {
 async function loadSelectLists() {
   try {
     const users = await api('/api/members');
+    App._members = users;
     const l = App.lang;
     const opts = users.map(u => `<option value="${u.id}">${esc(l === 'ar' ? u.name_ar : (u.name_en || u.name_ar))}</option>`).join('');
     const ownerSel = $('nt-owner'); if (ownerSel) ownerSel.innerHTML = `<option value="">-- ${l === 'ar' ? 'اختر' : 'Select'} --</option>${opts}`;
@@ -225,6 +272,9 @@ const Rec = {
     $('ex-decs').innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
     const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? '▶ جارٍ التسجيل' : '▶ Recording...';
 
+    // Live editing while recording is a Pro feature.
+    this.setupEditableTranscript();
+
     this.startTime = Date.now();
     this.timerInt = setInterval(() => {
       const s = Math.floor((Date.now() - this.startTime) / 1000);
@@ -233,8 +283,28 @@ const Rec = {
       $('rec-timer-lbl').textContent = ts;
     }, 1000);
 
+    // Live AI extraction: every ~18s send the latest transcript to the AI and
+    // refresh the detected tasks (with owners) + decisions before the meeting ends.
+    this._lastExtractLen = 0;
+    this.liveExInt = setInterval(() => { this.liveExtract(); }, 18000);
+
     this.startWaveform();
     this.startSpeechRec();
+  },
+
+  setupEditableTranscript() {
+    const box = $('live-tr');
+    if (!box) return;
+    if (App.isPro()) {
+      box.setAttribute('contenteditable', 'true');
+      box.style.outline = 'none';
+      box.title = App.lang === 'ar' ? 'يمكنك التعديل أثناء التسجيل (Pro)' : 'You can edit while recording (Pro)';
+      box.oninput = () => { this._userEdited = true; this.fullTranscript = box.innerText; };
+      this._editHint = this._editHint || true;
+    } else {
+      box.removeAttribute('contenteditable');
+      box.oninput = null;
+    }
   },
 
   async stop() {
@@ -244,8 +314,18 @@ const Rec = {
     $('rec-ic').textContent = '🎙';
     $('b-rec').style.display = 'none';
     this.stopWaveform();
+    clearInterval(this.liveExInt);
     if (this.speechRec) { try { this.speechRec.stop(); } catch(e){} this.speechRec = null; }
     const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? 'اضغط للبدء' : 'Tap to start';
+
+    // If the coordinator edited the transcript live (Pro), keep their version.
+    const box = $('live-tr');
+    if (App.isPro() && box && box.getAttribute('contenteditable') === 'true') {
+      this.fullTranscript = box.innerText;
+    }
+
+    // One final live extraction pass so nothing said near the end is missed.
+    await this.liveExtract();
 
     if (this.currentMeetingId && this.fullTranscript) {
       const dur = Math.floor((Date.now() - this.startTime) / 1000);
@@ -270,7 +350,15 @@ const Rec = {
       }
       if (final) { this.fullTranscript += final; this.scanTranscript(final); }
       const box = $('live-tr');
-      if (box) box.textContent = this.fullTranscript + int;
+      if (!box) return;
+      // In Pro edit mode, don't clobber the coordinator's edits/cursor — only
+      // append newly finalized speech; skip interim repainting.
+      if (App.isPro() && box.getAttribute('contenteditable') === 'true') {
+        if (final && !this._userEdited) { box.innerText = this.fullTranscript; }
+        else if (final) { box.innerText = box.innerText + final; this.fullTranscript = box.innerText; }
+      } else {
+        box.textContent = this.fullTranscript + int;
+      }
     };
 
     this.speechRec.onerror = e => { if (e.error !== 'aborted' && e.error !== 'no-speech') console.warn('SR error:', e.error); };
@@ -296,6 +384,42 @@ const Rec = {
     d.style.cssText = 'font-size:11px;padding:4px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start';
     d.innerHTML = `<span style="color:var(--gold);flex-shrink:0">${type==='tasks'?'✅':'⚖️'}</span><span>${esc(text.substring(0,120))}${text.length>120?'…':''}</span>`;
     el.appendChild(d);
+  },
+
+  // AI-powered live extraction of tasks (with owners) + decisions, refreshed
+  // periodically while recording so the coordinator sees them before the meeting ends.
+  async liveExtract() {
+    const transcript = (this.fullTranscript || '').trim();
+    if (transcript.length < 15) return;
+    if (this._extracting) return;
+    if (transcript.length === this._lastExtractLen) return;
+    this._extracting = true;
+    this._lastExtractLen = transcript.length;
+    try {
+      const members = (App._members || []).map(m => App.lang === 'ar' ? m.name_ar : (m.name_en || m.name_ar));
+      const r = await api('/api/live-extract', { method: 'POST', body: JSON.stringify({ transcript, members }) });
+      const l = App.lang;
+      const tEl = $('ex-tasks'), dEl = $('ex-decs');
+      if (tEl) {
+        const tasks = r.tasks || [];
+        tEl.innerHTML = tasks.length ? tasks.map(t => {
+          const txt = l === 'ar' ? t.text_ar : (t.text_en || t.text_ar);
+          const own = l === 'ar' ? (t.owner_ar || '') : (t.owner_en || t.owner_ar || '');
+          return `<div class="ex-item" style="font-size:11px;padding:5px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start">
+            <span style="color:var(--gold);flex-shrink:0">✅</span>
+            <span style="flex:1">${esc(txt || '')}${own ? ` <span class="tag tgold" style="font-size:9px">${esc(own)}</span>` : ''}</span></div>`;
+        }).join('') : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l === 'ar' ? 'لم تُكتشف مهام بعد...' : 'No tasks detected yet...'}</div>`;
+      }
+      if (dEl) {
+        const decs = r.decisions || [];
+        dEl.innerHTML = decs.length ? decs.map(d => {
+          const txt = l === 'ar' ? d.text_ar : (d.text_en || d.text_ar);
+          return `<div class="ex-item" style="font-size:11px;padding:5px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start">
+            <span style="color:var(--gold);flex-shrink:0">⚖️</span><span>${esc(txt || '')}</span></div>`;
+        }).join('') : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l === 'ar' ? 'لم تُكتشف قرارات بعد...' : 'No decisions detected yet...'}</div>`;
+      }
+    } catch (e) { /* keyword fallback already shown */ }
+    this._extracting = false;
   },
 
   startWaveform() {
@@ -434,10 +558,13 @@ const Rec = {
           </div>`).join('')}
       </div>` : '';
 
+    const mid = Rec.currentMeetingId;
+    const shareBtn = mid ? `<button class="btn-gold btn-sm" onclick="Share.open(${mid})">📤 ${lbl('مشاركة النتائج','Share Outcomes')}${App.isPro()?'':' ⭐'}</button>` : '';
     const actions = `
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">
         <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')">📋 ${lbl('عرض المهام','View Tasks')}</button>
         <button class="btn-ghost btn-sm" onclick="Panels.load('transcripts')">📝 ${lbl('المحاضر','Transcripts')}</button>
+        ${shareBtn}
       </div>`;
 
     return summary + speakersHtml + minutesHtml + tasksHtml + decsHtml + fuHtml + actions;
@@ -486,6 +613,10 @@ async function renderTranscripts() {
               <span style="flex:1">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</span>
               ${t.owner_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l==='ar'?t.owner_ar:t.owner_en||t.owner_ar)}</span>` : ''}
             </div>`).join('')}
+          </div>` : ''}
+          ${isProcessed ? `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+            ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l==='ar'?'تمت المشاركة':'Shared'}</span>` : ''}
+            <button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l==='ar'?'مشاركة النتائج':'Share Outcomes'}${App.isPro()?'':' ⭐'}</button>
           </div>` : ''}
         </div>`;
       }).join('')}
@@ -697,6 +828,7 @@ function buildWelcomeMsg() {
 const DocGen = {
   currentContent: '',
   async generate() {
+    if (!App.requirePro()) return;
     const data = {
       doc_type: $('doc-type').value,
       meeting_id: $('doc-meeting-sel').value || null,
@@ -735,6 +867,7 @@ const Schedule = {
       attendees: $('nm-att').value,
       agenda_ar: $('nm-agenda-ar').value,
       agenda_en: $('nm-agenda-en').value,
+      reminder_channel: ($('nm-channel') && $('nm-channel').value) || 'email',
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
       alert(App.lang === 'ar' ? 'يرجى إدخال العنوان والتاريخ والوقت' : 'Please enter title, date and time');
@@ -805,6 +938,101 @@ async function renderSchedule() {
     }).join('');
   } catch (e) { el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px">${e.message}</div>`; }
 }
+
+// ══ Share Outcomes (PRO) ══════════════════════════════════════════════════════
+const Share = {
+  meetingId: null,
+
+  async open(meetingId) {
+    if (!App.requirePro()) return;
+    this.meetingId = meetingId;
+    const box = $('share-attendees');
+    box.innerHTML = `<div style="font-size:11px;color:var(--text3)">${App.lang==='ar'?'جارٍ التحميل...':'Loading...'}</div>`;
+    $('share-status').style.display = 'none';
+    $('modal-share').classList.add('open');
+    App.applyLang(App.lang);
+    try {
+      const rows = await api(`/api/meetings/${meetingId}/attendees`);
+      box.innerHTML = '';
+      if (rows && rows.length) rows.forEach(r => this.addRow(r));
+      else {
+        // Seed from team members so the coordinator can pick from them.
+        const members = App._members || [];
+        if (members.length) members.slice(0, 6).forEach(m => this.addRow({ name: App.lang==='ar'?m.name_ar:(m.name_en||m.name_ar), email: m.email || '', phone: m.phone || '', include: false }));
+        else this.addRow();
+      }
+    } catch (e) { box.innerHTML = ''; this.addRow(); }
+  },
+
+  addRow(r = {}) {
+    const box = $('share-attendees');
+    const l = App.lang;
+    const row = document.createElement('div');
+    row.className = 'share-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--navy3);border:1px solid var(--border2);border-radius:9px;padding:8px';
+    row.innerHTML = `
+      <input type="checkbox" class="sa-inc" ${r.include===false?'':'checked'} title="${l==='ar'?'مشاركة معه':'Share with'}" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--gold)">
+      <input class="fi sa-name" placeholder="${l==='ar'?'الاسم':'Name'}" value="${esc(r.name||'')}" style="flex:1;min-width:110px">
+      <input class="fi sa-email" type="email" placeholder="${l==='ar'?'البريد':'Email'}" value="${esc(r.email||'')}" style="flex:1.3;min-width:140px">
+      <input class="fi sa-phone" type="tel" placeholder="${l==='ar'?'الجوال (واتساب)':'Phone (WhatsApp)'}" value="${esc(r.phone||'')}" style="flex:1;min-width:120px">
+      <button class="btn-ghost btn-sm" onclick="this.closest('.share-row').remove()" style="color:var(--red);flex-shrink:0">✕</button>`;
+    box.appendChild(row);
+  },
+
+  collect() {
+    return [...document.querySelectorAll('#share-attendees .share-row')].map(row => ({
+      include: row.querySelector('.sa-inc').checked,
+      name: row.querySelector('.sa-name').value.trim(),
+      email: row.querySelector('.sa-email').value.trim(),
+      phone: row.querySelector('.sa-phone').value.trim(),
+    })).filter(a => a.name || a.email || a.phone);
+  },
+
+  status(msg, ok) {
+    const el = $('share-status');
+    el.style.display = 'block';
+    el.style.background = ok ? 'var(--green-dim,rgba(34,197,94,.12))' : 'rgba(239,68,68,.12)';
+    el.style.color = ok ? 'var(--green,#22c55e)' : 'var(--red)';
+    el.textContent = msg;
+  },
+
+  async send() {
+    const l = App.lang;
+    const attendees = this.collect();
+    const recipients = attendees.filter(a => a.include);
+    if (!recipients.length) { this.status(l==='ar'?'اختر حاضراً واحداً على الأقل':'Select at least one attendee', false); return; }
+    if (recipients.some(a => !a.name))
+      { this.status(l==='ar'?'كل حاضر مُختار يجب أن يكون له اسم':'Every selected attendee needs a name', false); return; }
+    const channel = $('share-channel').value;
+    if (channel !== 'whatsapp' && recipients.some(a => a.include && !a.email))
+      { this.status(l==='ar'?'بعض الحضور بلا بريد إلكتروني':'Some attendees are missing an email', false); return; }
+    if (channel !== 'email' && recipients.some(a => a.include && !a.phone))
+      { this.status(l==='ar'?'بعض الحضور بلا رقم جوال':'Some attendees are missing a phone number', false); return; }
+
+    const btn = $('share-send-btn'); btn.disabled = true;
+    const orig = btn.innerHTML;
+    btn.innerHTML = `<span class="loading"></span> ${l==='ar'?'جارٍ الإرسال...':'Sending...'}`;
+    try {
+      // Persist the full contact list, then share only with the included subset
+      // (the coordinator's audience filter — feature #7).
+      const saved = await api(`/api/meetings/${this.meetingId}/attendees`, { method: 'POST', body: JSON.stringify({ attendees }) });
+      // Map included recipients to stable DB ids via a full composite key
+      // (name|email|phone) so same-name attendees are never over-shared.
+      const key = a => `${(a.name||'').trim()}|${(a.email||'').trim()}|${(a.phone||'').trim()}`;
+      const includedKeys = new Set(recipients.map(key));
+      const attendee_ids = (saved || []).filter(s => includedKeys.has(key(s))).map(s => s.id);
+      if (!attendee_ids.length) { this.status(l==='ar'?'تعذّر تحديد المستلمين':'Could not resolve recipients', false); btn.disabled=false; btn.innerHTML=orig; return; }
+      const r = await api(`/api/meetings/${this.meetingId}/share`, { method: 'POST', body: JSON.stringify({ channel, attendee_ids }) });
+      const sent = r.shared != null ? r.shared : recipients.length;
+      this.status(l==='ar'?`✓ تمت المشاركة وإرسال ${sent} رابط`:`✓ Shared & sent ${sent} link(s)`, true);
+      if (document.querySelector('.nb.active')?.dataset.p === 'transcripts') await renderTranscripts();
+      setTimeout(() => this.close(), 1600);
+    } catch (e) { this.status((l==='ar'?'تعذّر الإرسال: ':'Send failed: ') + e.message, false); }
+    btn.disabled = false; btn.innerHTML = orig;
+  },
+
+  close() { $('modal-share').classList.remove('open'); },
+};
 
 // ══ Email Reminder ════════════════════════════════════════════════════════════
 const EmailReminder = {

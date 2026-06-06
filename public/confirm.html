@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تأكيد المهام | Ameen Secretary</title>
+  <style>
+    :root { --teal:#0e7490; --teal-d:#0c5e74; --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --ok:#16a34a; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.6; padding:16px; }
+    .wrap { max-width:680px; margin:0 auto; }
+    .brand { display:flex; align-items:center; gap:10px; justify-content:center; padding:14px 0 18px; color:var(--teal); font-weight:800; font-size:20px; }
+    .brand .dot { width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--teal),#22d3ee);display:grid;place-items:center;color:#fff;font-size:18px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:14px; box-shadow:0 2px 10px rgba(2,6,23,.04); }
+    h1 { font-size:20px; margin-bottom:4px; }
+    .date { color:var(--muted); font-size:13px; margin-bottom:6px; }
+    h2 { font-size:15px; color:var(--teal); margin:14px 0 8px; display:flex; align-items:center; gap:6px; }
+    p.summary { white-space:pre-wrap; color:#334155; font-size:14px; }
+    ul { list-style:none; }
+    li.item { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:11px 13px; margin-bottom:8px; font-size:14px; }
+    li.item .owner { display:inline-block; margin-top:4px; font-size:12px; color:var(--teal); font-weight:700; }
+    .checkrow { display:flex; align-items:flex-start; gap:12px; padding:14px; background:#ecfeff; border:1px solid #a5f3fc; border-radius:12px; cursor:pointer; }
+    .checkrow input { width:22px; height:22px; margin-top:2px; accent-color:var(--teal); flex-shrink:0; }
+    .checkrow .t { font-weight:700; font-size:15px; }
+    .checkrow .s { font-size:13px; color:var(--muted); }
+    textarea { width:100%; border:1px solid var(--line); border-radius:10px; padding:12px; font-family:inherit; font-size:14px; resize:vertical; min-height:90px; margin-top:6px; }
+    button { width:100%; background:var(--teal); color:#fff; border:0; border-radius:12px; padding:15px; font-size:16px; font-weight:800; cursor:pointer; margin-top:14px; }
+    button:hover { background:var(--teal-d); }
+    button:disabled { opacity:.6; cursor:default; }
+    .toggle { text-align:center; margin:8px 0 18px; }
+    .toggle button { width:auto; display:inline-block; background:transparent; color:var(--teal); border:1px solid var(--teal); padding:6px 16px; font-size:13px; margin:0; }
+    .done { text-align:center; padding:30px 16px; }
+    .done .big { font-size:54px; }
+    .done h1 { color:var(--ok); margin:10px 0; }
+    .muted { color:var(--muted); font-size:13px; }
+    .err { text-align:center; padding:50px 16px; color:var(--muted); }
+    .label { font-weight:700; font-size:14px; margin-top:12px; display:block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><span class="dot">أ</span><span id="brandText">أمين السكرتير</span></div>
+    <div class="toggle"><button id="langBtn" type="button">English</button></div>
+    <div id="root"><div class="err">…</div></div>
+  </div>
+
+  <script>
+    const TOKEN = location.pathname.split('/').pop();
+    let LANG = 'ar';
+    let DATA = null;
+    const T = {
+      ar: { minutes:'محضر الاجتماع', summary:'الملخص', decisions:'القرارات', mytasks:'مهامي', confirm:'أؤكد استلام مهامي والموافقة عليها', confirmSub:'بالضغط هنا فإنك تقر باستلام المهام أعلاه', comment:'ملاحظاتك (اختياري)', commentPh:'أضف أي ملاحظة أو تعليق على المحضر أو المهام…', send:'إرسال التأكيد', sending:'جارٍ الإرسال…', thanksTitle:'تم استلام ردك', thanksSub:'شكراً لك، تم تسجيل تأكيدك وملاحظاتك بنجاح.', notfound:'الرابط غير صالح أو منتهي الصلاحية.', hello:'مرحباً', owner:'المسؤول' },
+      en: { minutes:'Meeting Minutes', summary:'Summary', decisions:'Decisions', mytasks:'My Tasks', confirm:'I confirm receipt and acceptance of my tasks', confirmSub:'By checking this you acknowledge the tasks above', comment:'Your comments (optional)', commentPh:'Add any note or comment on the minutes or tasks…', send:'Send Confirmation', sending:'Sending…', thanksTitle:'Response Received', thanksSub:'Thank you, your confirmation and comments were recorded.', notfound:'This link is invalid or has expired.', hello:'Hello', owner:'Owner' }
+    };
+    const esc = s => (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+    async function load() {
+      try {
+        const r = await fetch('/api/public/' + TOKEN);
+        if (!r.ok) throw new Error('nf');
+        DATA = await r.json();
+        render();
+      } catch (e) {
+        document.getElementById('root').innerHTML = '<div class="err">' + T[LANG].notfound + '</div>';
+      }
+    }
+
+    function render() {
+      const t = T[LANG];
+      document.documentElement.lang = LANG;
+      document.documentElement.dir = LANG === 'ar' ? 'rtl' : 'ltr';
+      document.getElementById('brandText').textContent = LANG === 'ar' ? 'أمين السكرتير' : 'Ameen Secretary';
+      document.getElementById('langBtn').textContent = LANG === 'ar' ? 'English' : 'العربية';
+      const m = DATA.meeting, a = DATA.attendee;
+      const title = LANG === 'ar' ? m.title_ar : (m.title_en || m.title_ar);
+      const summary = LANG === 'ar' ? m.summary_ar : (m.summary_en || m.summary_ar);
+      const minutes = LANG === 'ar' ? m.minutes_ar : (m.minutes_en || m.minutes_ar);
+
+      if (a.confirmed) { return done(); }
+
+      const tasksHtml = (DATA.my_tasks || []).map(tk => {
+        const txt = LANG === 'ar' ? tk.text_ar : (tk.text_en || tk.text_ar);
+        const own = LANG === 'ar' ? (tk.owner_ar || '') : (tk.owner_en || tk.owner_ar || '');
+        return '<li class="item">' + esc(txt) + (own ? '<br><span class="owner">' + t.owner + ': ' + esc(own) + '</span>' : '') + '</li>';
+      }).join('') || '<li class="item muted">—</li>';
+
+      const decHtml = (DATA.decisions || []).map(d => '<li class="item">' + esc(LANG === 'ar' ? d.text_ar : (d.text_en || d.text_ar)) + '</li>').join('');
+
+      document.getElementById('root').innerHTML =
+        '<div class="card">' +
+          '<h1>' + esc(title) + '</h1>' +
+          '<div class="date">' + (m.date || '') + '</div>' +
+          '<p class="muted">' + t.hello + ' ' + esc(a.name) + '</p>' +
+          (summary ? '<h2>📋 ' + t.summary + '</h2><p class="summary">' + esc(summary) + '</p>' : '') +
+          (decHtml ? '<h2>✅ ' + t.decisions + '</h2><ul>' + decHtml + '</ul>' : '') +
+          '<h2>📝 ' + t.mytasks + '</h2><ul>' + tasksHtml + '</ul>' +
+        '</div>' +
+        '<div class="card">' +
+          '<label class="checkrow"><input type="checkbox" id="cf"><span><span class="t">' + t.confirm + '</span><br><span class="s">' + t.confirmSub + '</span></span></label>' +
+          '<label class="label">' + t.comment + '</label>' +
+          '<textarea id="cm" placeholder="' + t.commentPh + '">' + esc(a.comment || '') + '</textarea>' +
+          '<button id="send">' + t.send + '</button>' +
+        '</div>';
+
+      document.getElementById('send').onclick = submit;
+    }
+
+    async function submit() {
+      const t = T[LANG];
+      const btn = document.getElementById('send');
+      btn.disabled = true; btn.textContent = t.sending;
+      try {
+        await fetch('/api/public/' + TOKEN, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirmed: document.getElementById('cf').checked, comment: document.getElementById('cm').value })
+        });
+        DATA.attendee.confirmed = true;
+        done();
+      } catch (e) { btn.disabled = false; btn.textContent = t.send; }
+    }
+
+    function done() {
+      const t = T[LANG];
+      document.getElementById('root').innerHTML =
+        '<div class="card done"><div class="big">✅</div><h1>' + t.thanksTitle + '</h1><p class="muted">' + t.thanksSub + '</p></div>';
+    }
+
+    document.getElementById('langBtn').onclick = () => { LANG = LANG === 'ar' ? 'en' : 'ar'; render(); };
+    load();
+  </script>
+</body>
+</html>

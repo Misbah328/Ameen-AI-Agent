@@ -29,6 +29,7 @@
     </div>
     <button class="theme-toggle btn-sm" id="theme-btn" onclick="App.toggleTheme()" title="Theme"><span id="theme-icon">☀️</span> <span id="theme-label" data-ar="فاتح" data-en="Light">فاتح</span></button>
     <button class="ai-key-btn" id="api-key-btn" onclick="App.promptApiKey()">✦ <span id="api-status-txt">Anthropic API</span></button>
+    <button class="ai-key-btn" id="plan-btn" onclick="App.openPlan()" title="Plan"><span id="plan-badge">●</span> <span id="plan-txt">Free</span></button>
     <div class="pill pill-green" id="status-pill"><span class="sdot" style="background:var(--green)"></span><span id="st-txt" data-ar="جاهز" data-en="Ready">جاهز</span></div>
   </div>
 </header>
@@ -400,8 +401,16 @@
             </div>
           </div>
           <div class="frow">
-            <div class="fl" data-ar="المشاركون (أسماء أو إيميلات)" data-en="Attendees (names or emails)">المشاركون</div>
-            <input class="fi" id="nm-att" data-ph-ar="م. أحمد، م. سارة..." data-ph-en="Ahmed, Sara..." placeholder="المشاركون"/>
+            <div class="fl" data-ar="المشاركون (أسماء أو إيميلات أو أرقام جوال)" data-en="Attendees (names, emails or phone numbers)">المشاركون</div>
+            <input class="fi" id="nm-att" data-ph-ar="م. أحمد، sara@x.com، ‎+9665..." data-ph-en="Ahmed, sara@x.com, +9665..." placeholder="المشاركون"/>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="قناة التذكير" data-en="Reminder Channel">قناة التذكير</div>
+            <select class="fi" id="nm-channel">
+              <option value="email" data-ar="بريد إلكتروني" data-en="Email">بريد إلكتروني / Email</option>
+              <option value="whatsapp" data-ar="واتساب" data-en="WhatsApp">واتساب / WhatsApp</option>
+              <option value="both" data-ar="بريد + واتساب" data-en="Email + WhatsApp">بريد + واتساب / Both</option>
+            </select>
           </div>
           <div class="frow">
             <div class="fl" data-ar="جدول الأعمال (عربي)" data-en="Agenda (Arabic)">جدول الأعمال (عربي)</div>
@@ -529,6 +538,69 @@
       <div class="fa">
         <button class="btn-gold" onclick="Team.save()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
         <button class="btn-ghost" onclick="Team.closeModal()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: SHARE OUTCOMES (PRO) ════════════════════════════ -->
+<div class="modal-overlay" id="modal-share">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-title">📤 <span data-ar="مشاركة النتائج والمحضر" data-en="Share Outcomes & Minutes">مشاركة النتائج والمحضر</span></div>
+    <div class="fs">
+      <div style="font-size:12px;color:var(--text3);line-height:1.6" data-ar="حدّد الحضور الذين تريد مشاركة المحضر والمهام والقرارات معهم. سيصلهم رابط لتأكيد مهامهم وإضافة ملاحظاتهم." data-en="Select which attendees receive the minutes, tasks and decisions. They'll get a link to confirm their tasks and add comments.">حدّد الحضور...</div>
+      <div class="frow">
+        <div class="fl" data-ar="قناة المشاركة" data-en="Share Channel">قناة المشاركة</div>
+        <select class="fi" id="share-channel">
+          <option value="email" data-ar="بريد إلكتروني" data-en="Email">بريد إلكتروني / Email</option>
+          <option value="whatsapp" data-ar="واتساب" data-en="WhatsApp">واتساب / WhatsApp</option>
+          <option value="both" data-ar="بريد + واتساب" data-en="Email + WhatsApp">بريد + واتساب / Both</option>
+        </select>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="الحضور" data-en="Attendees">الحضور</div>
+        <div id="share-attendees" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto"></div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="Share.addRow()" style="align-self:flex-start">+ <span data-ar="إضافة حاضر" data-en="Add attendee">إضافة حاضر</span></button>
+      <div id="share-status" style="display:none;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px"></div>
+      <div class="fa">
+        <button class="btn-gold" id="share-send-btn" onclick="Share.send()">📤 <span data-ar="مشاركة وإرسال الروابط" data-en="Share & Send Links">مشاركة وإرسال الروابط</span></button>
+        <button class="btn-ghost" onclick="Share.close()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: PLAN / UPGRADE ══════════════════════════════════ -->
+<div class="modal-overlay" id="modal-plan">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title">⭐ <span data-ar="الباقة والاشتراك" data-en="Plan & Subscription">الباقة والاشتراك</span></div>
+    <div class="fs">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px;background:var(--navy3);border:1px solid var(--border2);border-radius:12px;padding:16px">
+          <div style="font-weight:800;color:var(--text);font-size:15px">Free</div>
+          <ul style="margin:10px 0 0;padding-inline-start:18px;font-size:12px;color:var(--text3);line-height:1.9">
+            <li data-ar="تسجيل ونسخ مباشر" data-en="Live recording & transcription">تسجيل ونسخ مباشر</li>
+            <li data-ar="استخراج المهام والمحضر بالذكاء الاصطناعي" data-en="AI task & minutes extraction">استخراج المهام والمحضر</li>
+            <li data-ar="استخراج المهام أثناء التسجيل" data-en="Live task extraction while recording">استخراج المهام أثناء التسجيل</li>
+            <li data-ar="تذكيرات بريد/واتساب للاجتماعات" data-en="Email/WhatsApp meeting reminders">تذكيرات بريد/واتساب</li>
+          </ul>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:12px;padding:16px">
+          <div style="font-weight:800;color:var(--gold);font-size:15px">⭐ Pro</div>
+          <ul style="margin:10px 0 0;padding-inline-start:18px;font-size:12px;color:var(--text);line-height:1.9">
+            <li data-ar="مشاركة النتائج مع الحضور وتأكيد المهام" data-en="Share outcomes & attendee task confirmation">مشاركة النتائج وتأكيد المهام</li>
+            <li data-ar="التحكم في من تُشارك معه" data-en="Sharing & audience controls">التحكم في المشاركة</li>
+            <li data-ar="تعديل المحتوى أثناء التسجيل" data-en="Live editing while recording">تعديل المحتوى أثناء التسجيل</li>
+            <li data-ar="توليد التقارير والوثائق" data-en="Reports & document generation">توليد التقارير</li>
+          </ul>
+        </div>
+      </div>
+      <div id="plan-current" style="font-size:12px;color:var(--text3);text-align:center"></div>
+      <div class="fa">
+        <button class="btn-gold" id="plan-upgrade-btn" onclick="App.setPlan('pro')">⭐ <span data-ar="الترقية إلى Pro" data-en="Upgrade to Pro">الترقية إلى Pro</span></button>
+        <button class="btn-ghost" id="plan-downgrade-btn" onclick="App.setPlan('free')"><span data-ar="الرجوع إلى Free" data-en="Switch to Free">الرجوع إلى Free</span></button>
+        <button class="btn-ghost" onclick="App.closePlan()"><span data-ar="إغلاق" data-en="Close">إغلاق</span></button>
       </div>
     </div>
   </div>

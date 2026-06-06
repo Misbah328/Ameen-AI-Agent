@@ -1,1 +1,2 @@
 - [Replit Mail delivery](replit-mail-delivery.md) — built-in Replit Mail ignores `to` and sends only to the Repl owner's verified email; need SendGrid/Resend for arbitrary recipients.
+- [Claude model env var](claude-model-env.md) — `not_found_error: model: X` from Anthropic means the model is retired, not a bad key; set `CLAUDE_MODEL` shared env to a current model.

@@ -1,7 +1,26 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { sendEmail } = require('../utils/replitmail');
+const notify = require('../utils/notify');
+
+// ── Plan helpers ────────────────────────────────────────────────────────────
+function getPlan() {
+  const row = db.prepare('SELECT value FROM settings WHERE key=?').get('plan');
+  return (row && row.value) || 'free';
+}
+function requirePro(req, res, next) {
+  if (getPlan() !== 'pro') {
+    return res.status(402).json({ error: 'PRO_REQUIRED', message: 'هذه الميزة متاحة في الباقة المدفوعة / This feature requires the Pro plan' });
+  }
+  next();
+}
+function token() { return crypto.randomBytes(16).toString('hex'); }
+function baseUrl(req) {
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
+  return `${proto}://${req.get('host')}`;
+}
 
 // ── In-memory API key store (per user session) ─────────────────────────────
 const sessionKeys = {};
@@ -333,12 +352,13 @@ router.get('/schedule', auth, (req, res) => {
 });
 
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
+  const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   const row = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', req.user.id);
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id);
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -427,8 +447,8 @@ function getDemoReply(q, lang) {
     : 'أنا أمين، مساعدكم الذكي التنفيذي. لديّ سياق كامل لجميع الاجتماعات والمهام والقرارات. يمكنكم سؤالي عن المهام المتأخرة، القرارات المعلقة، ملخصات الاجتماعات، أداء الفريق، الاجتماعات القادمة، أو أي موضوع آخر.';
 }
 
-// ── AI: Document Generator ─────────────────────────────────────────────────
-router.post('/ai/document', auth, async (req, res) => {
+// ── AI: Document Generator (PRO — reports/documents) ───────────────────────
+router.post('/ai/document', auth, requirePro, async (req, res) => {
   const { doc_type, meeting_id, details, lang, detail_level } = req.body;
   let meetingContext = '';
   if (meeting_id === 'all') {
@@ -495,6 +515,156 @@ router.get('/stats', auth, (req, res) => {
 // ── Document History ───────────────────────────────────────────────────────
 router.get('/documents', auth, (req, res) => {
   res.json(db.prepare('SELECT d.*, u.name_ar as author_ar, u.name_en as author_en FROM documents d LEFT JOIN users u ON d.created_by=u.id ORDER BY d.created_at DESC LIMIT 20').all());
+});
+
+// ── Subscription Plan ──────────────────────────────────────────────────────
+router.get('/plan', auth, (req, res) => {
+  res.json({ plan: getPlan() });
+});
+router.patch('/plan', auth, (req, res) => {
+  const plan = req.body.plan === 'pro' ? 'pro' : 'free';
+  db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('plan', plan);
+  res.json({ plan });
+});
+
+// ── Live AI extraction during recording (free) ─────────────────────────────
+// Receives a transcript chunk + known member names; returns tasks (with owners)
+// and decisions detected so far. Lightweight + fast.
+router.post('/live-extract', auth, async (req, res) => {
+  const { transcript, members } = req.body;
+  if (!transcript || transcript.trim().length < 12) return res.json({ tasks: [], decisions: [] });
+  const memberList = Array.isArray(members) && members.length
+    ? members.join('، ')
+    : db.prepare('SELECT name_ar FROM users').all().map(u => u.name_ar).join('، ');
+  const system = `أنت مساعد ذكي يستخرج المهام والقرارات من نص اجتماع مباشر (قد يكون غير مكتمل).
+أعِد JSON فقط بالشكل: {"tasks":[{"text_ar":"","text_en":"","owner_ar":"","owner_en":""}],"decisions":[{"text_ar":"","text_en":""}]}.
+أسماء الحضور المعروفون: ${memberList}. اربط كل مهمة بأقرب اسم مالك إن وُجد. لا تختلق مهاماً غير مذكورة. أعد JSON صالحاً بدون أي شرح.`;
+  try {
+    const raw = await callClaude(
+      [{ role: 'user', content: `النص حتى الآن:\n"""${transcript.slice(-4000)}"""` }],
+      system, 900, req.user.id
+    );
+    const m = raw.match(/\{[\s\S]*\}/);
+    const parsed = m ? JSON.parse(m[0]) : { tasks: [], decisions: [] };
+    res.json({ tasks: parsed.tasks || [], decisions: parsed.decisions || [] });
+  } catch (e) {
+    res.json({ tasks: [], decisions: [], _err: e.message });
+  }
+});
+
+// ── Meeting Attendees ──────────────────────────────────────────────────────
+router.get('/meetings/:id/attendees', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(req.params.id));
+});
+
+// Replace the attendee contact list for a meeting.
+router.post('/meetings/:id/attendees', auth, (req, res) => {
+  const meetingId = req.params.id;
+  const list = Array.isArray(req.body.attendees) ? req.body.attendees : [];
+  const existing = db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=?').all(meetingId);
+  const byName = {};
+  existing.forEach(a => { byName[a.name.trim()] = a; });
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM meeting_attendees WHERE meeting_id=?').run(meetingId);
+    const ins = db.prepare(`INSERT INTO meeting_attendees (meeting_id, name, email, phone, share_token, shared, confirmed, confirmed_at, comment, responded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    list.forEach(a => {
+      if (!a.name || !a.name.trim()) return;
+      const prev = byName[a.name.trim()];
+      ins.run(meetingId, a.name.trim(), a.email || '', a.phone || '',
+        (prev && prev.share_token) || token(),
+        prev ? prev.shared : 0, prev ? prev.confirmed : 0, prev ? prev.confirmed_at : null,
+        prev ? prev.comment : '', prev ? prev.responded_at : null);
+    });
+  });
+  tx();
+  res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(meetingId));
+});
+
+// ── Share meeting outcomes to selected attendees (PRO) ─────────────────────
+router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
+  const meetingId = req.params.id;
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(meetingId);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const channel = ['email', 'whatsapp', 'both'].includes(req.body.channel) ? req.body.channel : 'email';
+  // attendee_ids = filtered subset chosen by the coordinator (audience filter, feature #7).
+  // If the caller sends the key at all, we ALWAYS honor it as the exact audience —
+  // an empty/invalid list must NOT silently fall back to "share with everyone".
+  const hasFilter = Object.prototype.hasOwnProperty.call(req.body, 'attendee_ids');
+  const ids = Array.isArray(req.body.attendee_ids) ? req.body.attendee_ids.map(Number) : [];
+  let attendees = db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=?').all(meetingId);
+  if (hasFilter) attendees = attendees.filter(a => ids.includes(a.id));
+  if (!attendees.length) return res.status(400).json({ error: 'لا يوجد حضور محددون للمشاركة / No attendees selected' });
+
+  const tasks = JSON.parse(meeting.ai_tasks || '[]');
+  const decisions = JSON.parse(meeting.ai_decisions || '[]');
+  const results = [];
+  for (const a of attendees) {
+    if (!a.share_token) {
+      db.prepare('UPDATE meeting_attendees SET share_token=? WHERE id=?').run(token(), a.id);
+      a.share_token = db.prepare('SELECT share_token FROM meeting_attendees WHERE id=?').get(a.id).share_token;
+    }
+    const link = `${baseUrl(req)}/m/${a.share_token}`;
+    // Tasks owned by this attendee (loose name match), else all.
+    const mine = tasks.filter(t => (t.owner_ar && a.name && (t.owner_ar.includes(a.name) || a.name.includes(t.owner_ar))) ||
+                                   (t.owner_en && a.name && (t.owner_en.toLowerCase().includes(a.name.toLowerCase()))));
+    const taskLines = (mine.length ? mine : tasks).map(t => `• ${t.text_ar}`).join('\n');
+    const subject = `محضر ونتائج: ${meeting.title_ar} | Minutes & Actions: ${meeting.title_en || meeting.title_ar}`;
+    const text =
+      `مرحباً ${a.name}،\n\nتمت مشاركة محضر ونتائج اجتماع "${meeting.title_ar}".\n\n` +
+      `الملخص:\n${meeting.ai_summary_ar || '-'}\n\n` +
+      (decisions.length ? `القرارات:\n${decisions.map(d => '• ' + d.text_ar).join('\n')}\n\n` : '') +
+      (taskLines ? `المهام:\n${taskLines}\n\n` : '') +
+      `لتأكيد مهامك وإضافة ملاحظاتك، افتح الرابط:\n${link}\n\n— أمين السكرتير`;
+    const html =
+      `<div style="font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right">` +
+      `<h2 style="color:#0e7490">محضر ونتائج الاجتماع</h2>` +
+      `<p>مرحباً <b>${a.name}</b>،</p>` +
+      `<p>تمت مشاركة محضر ونتائج اجتماع «${meeting.title_ar}».</p>` +
+      `<h3>الملخص</h3><p>${(meeting.ai_summary_ar || '-').replace(/\n/g, '<br>')}</p>` +
+      (decisions.length ? `<h3>القرارات</h3><ul>${decisions.map(d => '<li>' + d.text_ar + '</li>').join('')}</ul>` : '') +
+      ((mine.length ? mine : tasks).length ? `<h3>المهام</h3><ul>${(mine.length ? mine : tasks).map(t => '<li>' + t.text_ar + '</li>').join('')}</ul>` : '') +
+      `<p><a href="${link}" style="background:#0e7490;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">تأكيد المهام وإضافة ملاحظات</a></p>` +
+      `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>`;
+    const out = await notify.notify({ channel, email: a.email, phone: a.phone, subject, text, html });
+    db.prepare('UPDATE meeting_attendees SET shared=1 WHERE id=?').run(a.id);
+    results.push({ id: a.id, name: a.name, link, ...out });
+  }
+  db.prepare("UPDATE meetings SET shared=1, shared_at=CURRENT_TIMESTAMP WHERE id=?").run(meetingId);
+  res.json({ success: true, shared: results.length, channel, results });
+});
+
+// ── Public attendee confirmation (NO AUTH — token-gated) ───────────────────
+router.get('/public/:token', (req, res) => {
+  const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
+  if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(a.meeting_id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const tasks = JSON.parse(meeting.ai_tasks || '[]');
+  const decisions = JSON.parse(meeting.ai_decisions || '[]');
+  const mine = tasks.filter(t => (t.owner_ar && (t.owner_ar.includes(a.name) || a.name.includes(t.owner_ar))) ||
+                                 (t.owner_en && a.name && t.owner_en.toLowerCase().includes(a.name.toLowerCase())));
+  res.json({
+    attendee: { name: a.name, confirmed: !!a.confirmed, comment: a.comment || '' },
+    meeting: {
+      title_ar: meeting.title_ar, title_en: meeting.title_en,
+      date: (meeting.meeting_date || '').substring(0, 10),
+      summary_ar: meeting.ai_summary_ar || '', summary_en: meeting.ai_summary_en || '',
+      minutes_ar: meeting.ai_minutes_ar || '', minutes_en: meeting.ai_minutes_en || '',
+    },
+    my_tasks: mine.length ? mine : tasks,
+    decisions,
+  });
+});
+
+router.post('/public/:token', (req, res) => {
+  const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
+  if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
+  const confirmed = req.body.confirmed ? 1 : 0;
+  const comment = (req.body.comment || '').toString().slice(0, 2000);
+  db.prepare('UPDATE meeting_attendees SET confirmed=?, confirmed_at=CURRENT_TIMESTAMP, comment=?, responded_at=CURRENT_TIMESTAMP WHERE id=?')
+    .run(confirmed, comment, a.id);
+  res.json({ success: true });
 });
 
 module.exports = router;

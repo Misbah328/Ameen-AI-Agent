@@ -20,6 +20,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));
 
+// Public attendee confirmation page (token-gated, no login)
+app.get('/m/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'confirm.html'));
+});
+
 // SPA fallback — login removed, always serve the app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

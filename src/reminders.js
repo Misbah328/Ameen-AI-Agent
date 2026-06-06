@@ -3,6 +3,7 @@
 // owner's verified Replit email. No SMTP credentials required.
 const db = require('./db/database');
 const { sendEmail } = require('./utils/replitmail');
+const notify = require('./utils/notify');
 
 // Default test recipient (per project requirement). Replit Mail routes to the
 // owner's verified email regardless, but we keep the intended recipient on the
@@ -24,6 +25,12 @@ function extractEmails(attendees) {
   return attendees.split(/[,;\n]+/).map(s => s.trim()).filter(s => /\S+@\S+\.\S+/.test(s));
 }
 
+function extractPhones(attendees) {
+  if (!attendees) return [];
+  return attendees.split(/[,;\n]+/).map(s => s.trim())
+    .filter(s => !/@/.test(s) && /\+?\d[\d\s()-]{6,}/.test(s));
+}
+
 async function checkAndSend() {
   let rows;
   try {
@@ -38,8 +45,9 @@ async function checkAndSend() {
     const minutesUntil = (dt.getTime() - now) / 60000;
     // Send once the meeting is within the lead window but hasn't started yet.
     if (minutesUntil <= LEAD_MINUTES && minutesUntil > 0) {
-      const recipients = [TEST_RECIPIENT, ...extractEmails(row.attendees)];
-      const uniq = [...new Set(recipients)];
+      const channel = ['email', 'whatsapp', 'both'].includes(row.reminder_channel) ? row.reminder_channel : 'email';
+      const emails = [...new Set([TEST_RECIPIENT, ...extractEmails(row.attendees)])];
+      const phones = extractPhones(row.attendees);
       const timeStr = (row.meeting_time || '').substring(0, 5);
       const subject = `تذكير: ${row.title_ar} — ${timeStr} | Reminder: ${row.title_en || row.title_ar}`;
       const body =
@@ -59,9 +67,16 @@ async function checkAndSend() {
         (row.agenda_en ? `Agenda:\n${row.agenda_en}\n` : '') +
         `\n— Ameen Secretary`;
       try {
-        await sendEmail({ to: uniq, subject, text: body });
-        db.prepare('UPDATE schedule SET reminder_sent=1, reminder_email=? WHERE id=?').run(uniq.join(', '), row.id);
-        console.log(`✓ Reminder sent for "${row.title_en || row.title_ar}" (meeting #${row.id})`);
+        const wantEmail = channel === 'email' || channel === 'both';
+        const wantWa = channel === 'whatsapp' || channel === 'both';
+        if (wantEmail) {
+          await notify.sendEmail({ to: emails, subject, text: body });
+        }
+        if (wantWa && phones.length) {
+          await notify.sendWhatsApp({ to: phones, body: `${subject}\n\n${body}` });
+        }
+        db.prepare('UPDATE schedule SET reminder_sent=1, reminder_email=? WHERE id=?').run(emails.join(', '), row.id);
+        console.log(`✓ Reminder sent (${channel}) for "${row.title_en || row.title_ar}" (meeting #${row.id})`);
       } catch (e) {
         console.error(`✗ Reminder failed for meeting #${row.id}:`, e.message);
       }

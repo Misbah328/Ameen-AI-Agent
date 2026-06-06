@@ -42,3 +42,4 @@ externalPort = 80
 
 [userenv.shared]
 PORT = "5000"
+CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
