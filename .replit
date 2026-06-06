@@ -4,7 +4,7 @@ channel = "stable-25_05"
 
 [agent]
 expertMode = true
-integrations = ["replitmail:1.0.0"]
+integrations = ["replitmail:1.0.0", "resend:1.0.0"]
 
 [workflows]
 runButton = "Project"
