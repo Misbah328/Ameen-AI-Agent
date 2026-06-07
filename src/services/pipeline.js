@@ -51,11 +51,17 @@ function buildSystemPrompt(memberNames, meetingDate) {
 أعضاء الفريق الحاليون: ${memberNames || '—'}
 تاريخ الاجتماع المرجعي لحساب التواريخ النسبية: ${today}
 
-مهامك بدقة مطلقة:
-1) استخرج كل بند عمل (action item) واضح من النص دون إغفال أي بند.
+مهامك بدقة مطلقة (قاعدة الاستخراج 100%):
+1) استخرج **كل** بند عمل (action item) من النص دون أي استثناء. اعتبر التالي مهاماً يجب استخراجها:
+   - الأوامر والتكليفات الصريحة ("جهّز التقرير").
+   - الطلبات المصاغة كسؤال ("هل يمكنك مراجعة الميزانية؟").
+   - الاقتراحات والأفكار ("ربما يجب أن نتواصل مع المورّد"، "أقترح أن نراجع العقد").
+   - الالتزامات الذاتية ("سأتولى هذا"، "سأرسلها غداً").
+   - أي متابعة أو وعد أو بند معلّق ذُكر ولو بشكل عابر.
+   عند الشك في كون العبارة مهمة من عدمه، أدرجها كمهمة مع needs_review=true. الإغفال خطأ فادح؛ الإفراط في الاستخراج مقبول.
 2) انسب كل مهمة إلى "الشخص المسؤول" بالاسم من خلال سياق الحوار.
 3) استخرج التواريخ المحددة لكل مهمة (YYYY-MM-DD). حوّل العبارات النسبية مثل "الأسبوع القادم" أو "يوم الثلاثاء" إلى تاريخ مطلق بالاعتماد على تاريخ الاجتماع المرجعي.
-4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين.
+4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة، أو كانت مجرد اقتراح/سؤال) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين.
 5) تعرّف على نوايا الجدولة: عبارات مثل "لنجتمع الثلاثاء القادم" أو "حدد اجتماع متابعة" يجب أن تُنتج عنصراً في scheduling_intents بتاريخ ووقت مطلقين متى أمكن.
 
 أرجع JSON فقط بدون أي markdown أو شرح. الهيكل:
@@ -77,32 +83,6 @@ function buildSystemPrompt(memberNames, meetingDate) {
   "key_topics_ar": [""],
   "key_topics_en": [""]
 }`;
-}
-
-function buildDemoResult(meeting) {
-  const titleAr = meeting.title_ar || 'اجتماع تنفيذي';
-  const titleEn = meeting.title_en || meeting.title_ar || 'Executive Meeting';
-  return {
-    title_ar: titleAr,
-    title_en: titleEn,
-    summary_ar: `تمت مناقشة ${titleAr} بنجاح. تم تحديد المهام والقرارات الرئيسية لجميع أعضاء الفريق.`,
-    summary_en: `${titleEn} completed successfully. Key tasks and decisions identified for all team members.`,
-    minutes_ar: `محضر اجتماع: ${titleAr}\nالتاريخ: ${(meeting.meeting_date || '').substring(0, 10)}\n\nالبنود:\n- مراجعة الأداء العام\n- متابعة المهام السابقة\n\nالقرارات:\n- اعتماد بنود الاجتماع والمضي في التنفيذ`,
-    minutes_en: `Meeting Minutes: ${titleEn}\nDate: ${(meeting.meeting_date || '').substring(0, 10)}\n\nItems:\n- General performance review\n- Follow-up on previous tasks\n\nDecisions:\n- Meeting items approved for implementation`,
-    speaker_transcript: [],
-    tasks: [
-      { text_ar: 'مراجعة تقرير الأداء وإعداد الملاحظات', text_en: 'Review performance report and prepare notes', owner_ar: 'المدير التنفيذي', owner_en: 'Managing Director', due: '', priority: 'normal', needs_review: false, review_reason: '' },
-      { text_ar: 'متابعة بنود الاجتماع مع الفريق', text_en: 'Follow up on meeting items with the team', owner_ar: 'مدير العمليات', owner_en: 'Operations Manager', due: '', priority: 'normal', needs_review: false, review_reason: '' }
-    ],
-    decisions: [{ text_ar: 'اعتماد بنود الاجتماع والمضي في التنفيذ', text_en: 'Meeting items approved for implementation' }],
-    scheduling_intents: [],
-    reminders: [{ text_ar: 'متابعة في الاجتماع القادم', text_en: 'Follow up in next meeting' }],
-    followups: [],
-    sentiment: 'positive',
-    speakers: [],
-    key_topics_ar: ['اجتماع عام'],
-    key_topics_en: ['General meeting']
-  };
 }
 
 // Core entry point — used by both the HTTP route and the self-verification test.
@@ -277,4 +257,4 @@ async function processMeeting({ meetingId, userId = null }) {
   return { result, tasksCreated, needsReviewCount, draftsCreated };
 }
 
-module.exports = { processMeeting, findConflicts, buildDemoResult };
+module.exports = { processMeeting, findConflicts };

@@ -4,6 +4,7 @@
 const db = require('./db/database');
 const { sendEmail } = require('./utils/replitmail');
 const notify = require('./utils/notify');
+const { isValidEmail, isValidPhone, normalizePhone } = require('./utils/validate');
 
 const LEAD_MINUTES = 15;
 
@@ -14,6 +15,32 @@ function meetingDateTime(row) {
   if (!datePart) return null;
   const dt = new Date(`${datePart}T${timePart}:00`);
   return isNaN(dt.getTime()) ? null : dt;
+}
+
+// Build the bilingual reminder subject + body for a schedule row. Extracted so it
+// can be unit-tested (e.g. asserting an edited meeting time is reflected) without
+// actually dispatching a notification.
+function buildReminderMessage(row, minutesUntil) {
+  const timeStr = (row.meeting_time || '').substring(0, 5);
+  const mins = Math.max(0, Math.round(minutesUntil));
+  const subject = `تذكير: ${row.title_ar} — ${timeStr} | Reminder: ${row.title_en || row.title_ar}`;
+  const body =
+    `تذكير باجتماع قادم خلال ${mins} دقيقة تقريباً\n\n` +
+    `العنوان: ${row.title_ar}\n` +
+    `التاريخ: ${(row.meeting_date || '').substring(0,10)}  الوقت: ${timeStr}\n` +
+    `المنصة: ${row.platform || '-'}\n` +
+    `المشاركون: ${row.attendees || '-'}\n` +
+    (row.agenda_ar ? `جدول الأعمال:\n${row.agenda_ar}\n` : '') +
+    `\n— أمين السكرتير\n\n` +
+    `———\n\n` +
+    `Reminder: upcoming meeting in ~${mins} minutes\n\n` +
+    `Title: ${row.title_en || row.title_ar}\n` +
+    `Date: ${(row.meeting_date || '').substring(0,10)}  Time: ${timeStr}\n` +
+    `Platform: ${row.platform || '-'}\n` +
+    `Attendees: ${row.attendees || '-'}\n` +
+    (row.agenda_en ? `Agenda:\n${row.agenda_en}\n` : '') +
+    `\n— Ameen Secretary`;
+  return { subject, body, timeStr };
 }
 
 function extractEmails(attendees) {
@@ -46,27 +73,13 @@ async function checkAndSend() {
       const channel = ['email', 'whatsapp', 'both'].includes(row.reminder_channel) ? row.reminder_channel : 'email';
       // Reminders go only to the meeting's actual attendees (emails/phones
       // parsed from the attendees field) — no hardcoded test recipient.
-      const emails = [...new Set(extractEmails(row.attendees))];
-      const phones = extractPhones(row.attendees);
+      // Validate before sending so malformed entries are dropped, not sent.
+      const emails = [...new Set(extractEmails(row.attendees))].filter(isValidEmail);
+      // Validate then canonicalize to E.164-ish so the provider never sees raw
+      // spaces/()/- that would fail despite passing the format check.
+      const phones = [...new Set(extractPhones(row.attendees))].filter(isValidPhone).map(normalizePhone);
       if (!emails.length && !phones.length) continue;
-      const timeStr = (row.meeting_time || '').substring(0, 5);
-      const subject = `تذكير: ${row.title_ar} — ${timeStr} | Reminder: ${row.title_en || row.title_ar}`;
-      const body =
-        `تذكير باجتماع قادم خلال ${Math.round(minutesUntil)} دقيقة تقريباً\n\n` +
-        `العنوان: ${row.title_ar}\n` +
-        `التاريخ: ${(row.meeting_date || '').substring(0,10)}  الوقت: ${timeStr}\n` +
-        `المنصة: ${row.platform || '-'}\n` +
-        `المشاركون: ${row.attendees || '-'}\n` +
-        (row.agenda_ar ? `جدول الأعمال:\n${row.agenda_ar}\n` : '') +
-        `\n— أمين السكرتير\n\n` +
-        `———\n\n` +
-        `Reminder: upcoming meeting in ~${Math.round(minutesUntil)} minutes\n\n` +
-        `Title: ${row.title_en || row.title_ar}\n` +
-        `Date: ${(row.meeting_date || '').substring(0,10)}  Time: ${timeStr}\n` +
-        `Platform: ${row.platform || '-'}\n` +
-        `Attendees: ${row.attendees || '-'}\n` +
-        (row.agenda_en ? `Agenda:\n${row.agenda_en}\n` : '') +
-        `\n— Ameen Secretary`;
+      const { subject, body } = buildReminderMessage(row, minutesUntil);
       try {
         const wantEmail = channel === 'email' || channel === 'both';
         const wantWa = channel === 'whatsapp' || channel === 'both';
@@ -95,4 +108,4 @@ function startReminderScheduler() {
   console.log('✓ Meeting reminder scheduler started (checks every minute, sends ~15 min before)');
 }
 
-module.exports = { startReminderScheduler, checkAndSend };
+module.exports = { startReminderScheduler, checkAndSend, buildReminderMessage, LEAD_MINUTES };

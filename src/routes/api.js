@@ -7,6 +7,7 @@ const notify = require('../utils/notify');
 const { callClaude, setSessionKey } = require('../utils/claude');
 const { processMeeting, findConflicts } = require('../services/pipeline');
 const { readRecent } = require('../utils/ailog');
+const { isValidEmail, isValidPhone, splitRecipients, partition } = require('../utils/validate');
 
 // ── Plan helpers ────────────────────────────────────────────────────────────
 function getPlan() {
@@ -204,11 +205,24 @@ router.post('/tasks', auth, (req, res) => {
 });
 
 router.patch('/tasks/:id', auth, (req, res) => {
-  const { status, notes, due_date, priority } = req.body;
+  const { status, notes, due_date, priority, text_ar, text_en, owner_id, owner_name_ar, owner_name_en } = req.body;
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Not found' });
-  db.prepare(`UPDATE tasks SET status=COALESCE(?,status), notes=COALESCE(?,notes), due_date=COALESCE(?,due_date), priority=COALESCE(?,priority), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(status, notes, due_date, priority, req.params.id);
+  // Resolve a freshly-assigned owner (by id) to its bilingual names, so editing
+  // the owner keeps owner_name_ar/en in sync with owner_id.
+  let oId = (owner_id === undefined) ? undefined : (owner_id || null);
+  let oNameAr = owner_name_ar;
+  let oNameEn = owner_name_en;
+  if (owner_id) {
+    const u = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(owner_id);
+    if (u) { oNameAr = u.name_ar; oNameEn = u.name_en; }
+  }
+  db.prepare(`UPDATE tasks SET
+      status=COALESCE(?,status), notes=COALESCE(?,notes), due_date=COALESCE(?,due_date), priority=COALESCE(?,priority),
+      text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en),
+      owner_id=COALESCE(?,owner_id), owner_name_ar=COALESCE(?,owner_name_ar), owner_name_en=COALESCE(?,owner_name_en),
+      updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(status, notes, due_date, priority, text_ar, text_en, oId, oNameAr, oNameEn, req.params.id);
   res.json(db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id));
 });
 
@@ -307,9 +321,12 @@ router.delete('/schedule/:id', auth, (req, res) => {
 router.post('/meetings/:id/whatsapp-summary', auth, async (req, res) => {
   const m = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Not found' });
-  const phones = (Array.isArray(req.body.phones) ? req.body.phones : String(req.body.phones || '').split(/[,;\n]+/))
-    .map(s => s.trim()).filter(Boolean);
-  if (!phones.length) return res.status(400).json({ error: 'لا يوجد رقم جوال / No phone number provided' });
+  const allPhones = splitRecipients(req.body.phones);
+  if (!allPhones.length) return res.status(400).json({ error: 'لا يوجد رقم جوال / No phone number provided' });
+  const { valid: validPhones, invalid: badPhones } = partition(allPhones, isValidPhone);
+  if (!validPhones.length) return res.status(400).json({ error: `رقم جوال غير صالح / Invalid phone number(s): ${badPhones.join(', ')}` });
+  // Canonicalize so the provider only ever sees E.164-ish numbers.
+  const phones = validPhones.map(normalizePhone);
   const tasks = JSON.parse(m.ai_tasks || '[]');
   const taskLines = tasks.map(t => `• ${t.text_ar}${t.owner_ar ? ' — ' + t.owner_ar : ''}`).join('\n');
   const body = `📋 ملخص الاجتماع: ${m.title_ar}\n${(m.meeting_date || '').substring(0, 10)}\n\n` +
@@ -330,7 +347,9 @@ router.post('/email/send', auth, async (req, res) => {
   if (!to || !subject || !body) return res.status(400).json({ error: 'to, subject and body are required' });
 
   try {
-    const recipients = to.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
+    const all = splitRecipients(to);
+    const { valid: recipients, invalid } = partition(all, isValidEmail);
+    if (!recipients.length) return res.status(400).json({ error: `بريد إلكتروني غير صالح / Invalid email address(es): ${invalid.join(', ') || '(empty)'}` });
     // Sent via Replit Mail (blueprint:replitmail) — delivered to the workspace
     // owner's verified Replit email. No SMTP credentials required.
     const result = await sendEmail({
@@ -559,6 +578,7 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
 
 // ── Share meeting outcomes to selected attendees (PRO) ─────────────────────
 router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
+ try {
   const meetingId = req.params.id;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(meetingId);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
@@ -616,6 +636,10 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
   }
   db.prepare("UPDATE meetings SET shared=1, shared_at=CURRENT_TIMESTAMP WHERE id=?").run(meetingId);
   res.json({ success: true, shared: results.length, channel, results });
+ } catch (e) {
+  console.error('✗ /share failed:', e.message);
+  res.status(500).json({ error: e.message });
+ }
 });
 
 // ── Share a generated document with the whole team (email) ─────────────────

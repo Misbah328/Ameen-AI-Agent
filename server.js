@@ -30,6 +30,24 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ── Global error handler ──────────────────────────────────────────────────────
+// Any error thrown (sync or via next(err)) in a route lands here and returns a
+// clean JSON 500 instead of crashing the process or hanging the request.
+app.use((err, req, res, next) => {
+  console.error('✗ Unhandled route error:', err && err.message, err && err.stack);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: (err && err.message) || 'Internal server error' });
+});
+
+// Process-level safety nets — a rejected promise or stray throw (e.g. a flaky
+// notification API) must never take the whole server down during a live demo.
+process.on('unhandledRejection', (reason) => {
+  console.error('✗ Unhandled promise rejection:', reason && (reason.message || reason));
+});
+process.on('uncaughtException', (err) => {
+  console.error('✗ Uncaught exception (kept alive):', err && err.message, err && err.stack);
+});
+
 const { startReminderScheduler } = require('./src/reminders');
 
 const PORT = process.env.PORT || 5000;

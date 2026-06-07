@@ -172,6 +172,26 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// Global, self-contained toast — works on any panel without needing a pre-existing
+// element. type: 'success' | 'error'.
+function showToast(message, type = 'success') {
+  let host = document.getElementById('global-toast-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'global-toast-host';
+    host.style.cssText = 'position:fixed;bottom:20px;inset-inline-end:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    document.body.appendChild(host);
+  }
+  const ok = type === 'success';
+  const t = document.createElement('div');
+  t.style.cssText = `pointer-events:auto;display:flex;align-items:center;gap:7px;padding:11px 15px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 22px rgba(0,0,0,.35);animation:fi .25s ease;` +
+    (ok ? 'background:rgba(46,204,138,.14);border:1px solid rgba(46,204,138,.45);color:#2ecc8a'
+        : 'background:rgba(224,90,90,.14);border:1px solid rgba(224,90,90,.45);color:#e05a5a');
+  t.textContent = `${ok ? '✓' : '⚠'} ${message}`;
+  host.appendChild(t);
+  setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3200);
+}
+
 // ══ Navigation ════════════════════════════════════════════════════════════════
 const Panels = {
   init() {
@@ -183,7 +203,13 @@ const Panels = {
       });
     });
   },
+  current: null,
+  _pollTimer: null,
+  // Tracker panels that should keep themselves fresh while open (reminders fire,
+  // tasks roll to overdue, drafts get confirmed elsewhere, etc.).
+  _livePanels: { tasks: renderTasks, schedule: renderSchedule, overview: renderOverview },
   async load(name) {
+    this.current = name;
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     const panel = $(`panel-${name}`);
     if (panel) panel.classList.add('active');
@@ -199,6 +225,16 @@ const Panels = {
       case 'documents': await loadDocMeetings(); break;
       case 'lastmeeting': await renderLastMeeting(); break;
     }
+    this._startPolling();
+  },
+  _startPolling() {
+    if (this._pollTimer) clearInterval(this._pollTimer);
+    this._pollTimer = setInterval(() => {
+      // Pause when the tab is hidden to avoid pointless background work.
+      if (document.hidden) return;
+      const fn = this._livePanels[this.current];
+      if (fn) { Promise.resolve(fn()).catch(() => {}); loadBadges().catch(() => {}); }
+    }, 20000);
   }
 };
 
@@ -462,7 +498,7 @@ const Rec = {
         if (ti) ti.value = App.lang === 'ar' ? r.result.title_ar : (r.result.title_en || r.result.title_ar);
       }
       $('ai-res-card').style.display = '';
-      $('ai-res-body').innerHTML = this.renderResult(r.result, r.demo);
+      $('ai-res-body').innerHTML = this.renderResult(r.result);
       await loadBadges();
     } catch (e) {
       $('ai-res-body').innerHTML = `<div style="color:var(--red);padding:10px">${e.message}</div>`;
@@ -473,7 +509,7 @@ const Rec = {
     btn.innerHTML = `✦ <span>${App.lang === 'ar' ? 'استخراج المهام والمحضر' : 'Extract Tasks & Minutes'}</span>`;
   },
 
-  renderResult(r, demo) {
+  renderResult(r) {
     const l = App.lang;
     const lbl = (ar, en) => l === 'ar' ? ar : en;
 
@@ -483,7 +519,6 @@ const Rec = {
         <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:6px">📋 ${lbl('ملخص الاجتماع','Meeting Summary')}</div>
         <div style="font-size:13px;color:var(--text);line-height:1.7">${esc(l === 'ar' ? r.summary_ar : r.summary_en)}</div>
         ${r.key_topics_ar?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(l==='ar'?r.key_topics_ar:r.key_topics_en||r.key_topics_ar).map(t=>`<span class="tag" style="background:var(--gold-dim);color:var(--gold)">${esc(t)}</span>`).join('')}</div>` : ''}
-        ${demo ? `<div class="tag ta" style="margin-top:6px;display:inline-flex">⚠ ${lbl('نتائج تجريبية','Demo results')}</div>` : ''}
       </div>`;
 
     // Speaker-attributed transcript (Gemini-in-Meet style)
@@ -747,6 +782,7 @@ async function renderTasks() {
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
     const [tasks, decisions] = await Promise.all([api('/api/tasks'), api('/api/decisions')]);
+    App.tasksCache = tasks;
     const l = App.lang;
 
     const overdue = tasks.filter(t => t.status === 'overdue');
@@ -773,7 +809,10 @@ async function renderTasks() {
               ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📝 ${esc(mtg)}</span>` : ''}
             </div>
           </div>
-          <button onclick="Tasks.delete(${t.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0" title="${l==='ar'?'حذف':'Delete'}">✕</button>
+          <div style="display:flex;gap:2px;flex-shrink:0">
+            <button onclick="Tasks.edit(${t.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px" title="${l==='ar'?'تعديل':'Edit'}">✏️</button>
+            <button onclick="Tasks.delete(${t.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px" title="${l==='ar'?'حذف':'Delete'}">✕</button>
+          </div>
         </div>
       </div>`;
     };
@@ -816,6 +855,26 @@ const Tasks = {
   async updateStatus(id, status) {
     try { await api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); await loadBadges(); renderTasks(); }
     catch (e) { alert(e.message); }
+  },
+  async edit(id) {
+    const l = App.lang;
+    const t = (App.tasksCache || []).find(x => x.id === id);
+    if (!t) return;
+    const curText = l === 'ar' ? (t.text_ar || '') : (t.text_en || t.text_ar || '');
+    const text = prompt(l === 'ar' ? 'نص المهمة:' : 'Task text:', curText);
+    if (text === null) return;
+    const due = prompt(l === 'ar' ? 'تاريخ الاستحقاق (YYYY-MM-DD أو فارغ):' : 'Due date (YYYY-MM-DD or empty):', t.due_date || '');
+    if (due === null) return;
+    const tt = text.trim();
+    if (!tt) { alert(l === 'ar' ? 'لا يمكن ترك النص فارغاً' : 'Text cannot be empty'); return; }
+    // Edit both languages together so the task stays consistent regardless of UI language.
+    const body = { text_ar: tt, text_en: tt, due_date: due.trim() };
+    try {
+      await api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      await renderTasks();
+      await loadBadges();
+      showToast(l === 'ar' ? 'تم تحديث المهمة' : 'Task updated', 'success');
+    } catch (e) { showToast(e.message, 'error'); }
   },
   async delete(id) {
     if (!confirm(App.lang === 'ar' ? 'حذف هذه المهمة؟' : 'Delete this task?')) return;
@@ -1053,8 +1112,19 @@ const Schedule = {
     await renderSchedule();
     await loadBadges();
   },
-  openReminder(id, titleAr, titleEn, date, time, platform, attendees, agendaAr, agendaEn) {
+  // Look the meeting up from the cached schedule by id, so we never inject
+  // Arabic titles (which contain quotes) into an HTML onclick attribute — that
+  // was breaking the markup and throwing "Unexpected end of input".
+  openReminder(id) {
     const l = App.lang;
+    const s = (App.scheduleCache || []).find(x => x.id === id);
+    if (!s) return;
+    const titleAr = s.title_ar, titleEn = s.title_en;
+    const date = (s.meeting_date || '').substring(0, 10);
+    const time = (s.meeting_time || '').substring(0, 5);
+    const platform = s.platform || '';
+    const attendees = s.attendees || '';
+    const agendaAr = s.agenda_ar || '', agendaEn = s.agenda_en || '';
     const title = l === 'ar' ? titleAr : (titleEn || titleAr);
     const agenda = l === 'ar' ? (agendaAr || agendaEn) : (agendaEn || agendaAr);
     const dt = date && time ? `${date} ${l === 'ar' ? 'الساعة' : 'at'} ${time}` : (date || '');
@@ -1071,6 +1141,7 @@ async function renderSchedule() {
   el.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
     const items = await api('/api/schedule');
+    App.scheduleCache = items;
     const l = App.lang;
     if (!items.length) {
       el.innerHTML = `<div class="es" style="padding:20px"><div class="es-icon">📅</div><div>${l==='ar'?'لا اجتماعات مجدولة':'No scheduled meetings'}</div></div>`;
@@ -1082,7 +1153,7 @@ async function renderSchedule() {
       const isUpcoming = s.meeting_date >= today;
       const isDraft = s.status === 'draft';
       const agenda = l==='ar' ? (s.agenda_ar || s.agenda_en) : (s.agenda_en || s.agenda_ar);
-      const reminderCall = `Schedule.openReminder(${s.id},${JSON.stringify(s.title_ar)},${JSON.stringify(s.title_en||'')},${JSON.stringify(s.meeting_date||'')},${JSON.stringify(s.meeting_time||'')},${JSON.stringify(s.platform||'')},${JSON.stringify(s.attendees||'')},${JSON.stringify(s.agenda_ar||'')},${JSON.stringify(s.agenda_en||'')})`;
+      const reminderCall = `Schedule.openReminder(${s.id})`;
       return `<div style="padding:13px 0;border-bottom:1px solid var(--border2);${isDraft?'background:linear-gradient(90deg,rgba(124,94,16,.10),transparent);border-inline-start:3px solid #d4a017;padding-inline-start:10px':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
@@ -1229,6 +1300,7 @@ const EmailReminder = {
       status.style.display = 'block';
       status.style.cssText = 'display:block;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px;background:rgba(77,200,140,.1);color:var(--green)';
       status.textContent = `✓ ${App.lang === 'ar' ? `تم الإرسال إلى ${r.sent_to} مستلم` : `Sent to ${r.sent_to} recipient(s)`}`;
+      showToast(App.lang === 'ar' ? `تم إرسال التذكير إلى ${r.sent_to} مستلم` : `Reminder sent to ${r.sent_to} recipient(s)`, 'success');
       setTimeout(() => this.close(), 2000);
     } catch (e) {
       if (e.message === 'SMTP_NOT_CONFIGURED' || e.message?.includes('SMTP')) {

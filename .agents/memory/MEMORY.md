@@ -1,1 +1,1 @@
-- [AI meeting pipeline](ai-pipeline.md) — idempotent re-processing, no fabricated data on failure, bilingual owner match, 15-min confirmed-only reminders, 409 conflict checks.
+- [onclick Arabic/dynamic-text injection](onclick-arabic-injection.md) — never embed JSON.stringify'd text in inline onclick; render an id and look up from a cached list.
