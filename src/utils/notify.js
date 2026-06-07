@@ -40,26 +40,26 @@ function connectorToken(settings) {
 // RESEND_FROM_EMAIL) over the connector, so a valid key can be supplied directly
 // when the connector holds a stale/invalid value.
 async function resolveResend() {
-  if (process.env.RESEND_API_KEY) {
-    return {
-      apiKey: process.env.RESEND_API_KEY,
-      from:
-        process.env.RESEND_FROM_EMAIL ||
-        process.env.MAIL_FROM ||
-        'Ameen Secretary <onboarding@resend.dev>',
-    };
+  const envKey = process.env.RESEND_API_KEY;
+  const envFrom = process.env.RESEND_FROM_EMAIL || process.env.MAIL_FROM;
+  // Load the connector only when env doesn't already supply every field. When a
+  // valid env key is present we tolerate the connector being absent/broken.
+  let settings = {};
+  if (!envKey || !envFrom) {
+    try {
+      settings = await getConnectorSettings('resend');
+    } catch (e) {
+      if (!envKey) throw e;
+    }
   }
-  const settings = await getConnectorSettings('resend');
-  const apiKey = connectorToken(settings);
-  if (!apiKey) throw new Error('Resend API key not found in connector settings');
-  return {
-    apiKey,
-    from:
-      settings.from_email ||
-      settings.from ||
-      process.env.MAIL_FROM ||
-      'Ameen Secretary <onboarding@resend.dev>',
-  };
+  const apiKey = envKey || connectorToken(settings);
+  if (!apiKey) throw new Error('Resend API key not found (set RESEND_API_KEY or connect Resend)');
+  const from =
+    envFrom ||
+    settings.from_email ||
+    settings.from ||
+    'Ameen Secretary <onboarding@resend.dev>';
+  return { apiKey, from };
 }
 
 async function sendViaResend({ to, subject, text, html }) {
@@ -93,20 +93,41 @@ async function sendEmail({ to, subject, text, html }) {
 }
 
 // ── WhatsApp via Twilio ──────────────────────────────────────────────────────
+// Resolve Twilio credentials with per-field precedence: each field comes from its
+// env var (TWILIO_*) first, then the connector. The connector is loaded only when
+// env doesn't already supply the core auth fields, and a broken connector is
+// tolerated when env provides them.
+async function resolveTwilio() {
+  const env = {
+    account_sid: process.env.TWILIO_ACCOUNT_SID,
+    api_key: process.env.TWILIO_API_KEY,
+    api_key_secret: process.env.TWILIO_API_KEY_SECRET,
+    auth_token: process.env.TWILIO_AUTH_TOKEN,
+    phone_number: process.env.TWILIO_WHATSAPP_FROM,
+  };
+  const haveCore = env.account_sid && (env.api_key_secret || env.auth_token);
+  let settings = {};
+  if (!haveCore || !env.phone_number) {
+    try {
+      settings = await getConnectorSettings('twilio');
+    } catch (e) {
+      if (!haveCore) throw e;
+    }
+  }
+  return {
+    account_sid: env.account_sid || settings.account_sid || settings.accountSid || settings.sid,
+    api_key: env.api_key || settings.api_key,
+    api_key_secret: env.api_key_secret || settings.api_key_secret,
+    auth_token: env.auth_token || settings.auth_token || settings.authToken,
+    phone_number:
+      env.phone_number || settings.phone_number || settings.whatsapp_from || settings.from_number,
+  };
+}
+
 async function sendWhatsApp({ to, body }) {
   const numbers = (Array.isArray(to) ? to : [to]).map(normalizePhone).filter(Boolean);
   if (!numbers.length) throw new Error('No WhatsApp recipients');
-  // Prefer explicit secrets over the connector, so valid Twilio credentials can
-  // be supplied directly when the connector holds a stale/invalid value.
-  const settings = process.env.TWILIO_ACCOUNT_SID
-    ? {
-        account_sid: process.env.TWILIO_ACCOUNT_SID,
-        api_key: process.env.TWILIO_API_KEY,
-        api_key_secret: process.env.TWILIO_API_KEY_SECRET,
-        auth_token: process.env.TWILIO_AUTH_TOKEN,
-        phone_number: process.env.TWILIO_WHATSAPP_FROM,
-      }
-    : await getConnectorSettings('twilio');
+  const settings = await resolveTwilio();
   const accountSid = settings.account_sid || settings.accountSid || settings.sid;
   // Twilio connector uses API Key auth: username = api_key (SK...), password = api_key_secret.
   // Fall back to classic account_sid + auth_token if those are what's present.
