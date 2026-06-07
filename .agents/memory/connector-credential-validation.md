@@ -12,3 +12,10 @@ A connector being "connected" does NOT mean its credentials are valid. `listConn
 **Confirmed field names (derivable via listConnections, recorded only as a sanity anchor):**
 - Resend: `api_key`, `from_email`. Send: `POST https://api.resend.com/emails` with `Authorization: Bearer <api_key>`. Unverified domains only send to the account owner.
 - Twilio: `account_sid`, `api_key`, `api_key_secret`, `phone_number` (NO `auth_token`). Auth = HTTP Basic `base64(api_key:api_key_secret)`, account_sid stays in the URL. WhatsApp From/To must be prefixed `whatsapp:`.
+
+**Validating Resend & Twilio keys (gotchas):**
+- A Resend "send-only" restricted key returns 401 on read endpoints (`GET /api-keys`) but sends fine — DON'T treat that 401 as invalid. Validate by actually sending (e.g. from `onboarding@resend.dev` to `delivered@resend.dev`).
+- Resend refuses to send from an unverified domain: error "The <domain> is not verified" → user must add DNS records at resend.com/domains. Until then use `onboarding@resend.dev` (only reaches the account owner).
+- Twilio Account SID starts with `AC...`; API Key SID starts with `SK...`. Easy to paste the SK into both fields → account fetch 404 (code 20404). Validate with `GET /Accounts/{AC...}.json` → 200.
+
+**Bypassing a stuck Replit connector:** re-running proposeIntegration may report "set up successfully" yet leave the SAME stale/invalid credential in place (it never re-prompts for the value). When that happens, stop re-proposing and instead read keys from explicit Replit Secrets (env vars) with the connector as fallback.
