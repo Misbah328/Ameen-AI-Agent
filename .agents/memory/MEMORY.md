@@ -1,1 +1,2 @@
 - [onclick Arabic/dynamic-text injection](onclick-arabic-injection.md) — never embed JSON.stringify'd text in inline onclick; render an id and look up from a cached list.
+- [Web Speech transcription](web-speech-transcription.md) — app uses browser webkitSpeechRecognition (NOT Whisper); how cut-off/persistence/accent name-correction are handled.

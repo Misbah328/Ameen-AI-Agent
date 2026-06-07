@@ -6,6 +6,7 @@
 const db = require('../db/database');
 const { callClaude } = require('../utils/claude');
 const { aiLog } = require('../utils/ailog');
+const { correctNames } = require('../utils/nameCorrect');
 
 const UNTITLED = ['اجتماع بدون عنوان', 'Untitled Meeting', 'اجتماع جديد', 'New Meeting', ''];
 
@@ -59,7 +60,7 @@ function buildSystemPrompt(memberNames, meetingDate) {
    - الالتزامات الذاتية ("سأتولى هذا"، "سأرسلها غداً").
    - أي متابعة أو وعد أو بند معلّق ذُكر ولو بشكل عابر.
    عند الشك في كون العبارة مهمة من عدمه، أدرجها كمهمة مع needs_review=true. الإغفال خطأ فادح؛ الإفراط في الاستخراج مقبول.
-2) انسب كل مهمة إلى "الشخص المسؤول" بالاسم من خلال سياق الحوار.
+2) انسب كل مهمة إلى "الشخص المسؤول" بالاسم من خلال سياق الحوار. عند ذكر اسم شخص، طابقه دائماً مع أقرب اسم من قائمة أعضاء الفريق أعلاه وصحّح أي خطأ إملائي ناتج عن التعرّف الصوتي ليطابق الاسم المعروف بالضبط (لا تخترع أسماء غير موجودة في القائمة).
 3) استخرج التواريخ المحددة لكل مهمة (YYYY-MM-DD). حوّل العبارات النسبية مثل "الأسبوع القادم" أو "يوم الثلاثاء" إلى تاريخ مطلق بالاعتماد على تاريخ الاجتماع المرجعي.
 4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة، أو كانت مجرد اقتراح/سؤال) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين.
 5) تعرّف على نوايا الجدولة: عبارات مثل "لنجتمع الثلاثاء القادم" أو "حدد اجتماع متابعة" يجب أن تُنتج عنصراً في scheduling_intents بتاريخ ووقت مطلقين متى أمكن.
@@ -106,6 +107,15 @@ async function processMeeting({ meetingId, userId = null }) {
   const memberNames = members.map(m => `${m.name_ar} / ${m.name_en}`).join(', ');
   const system = buildSystemPrompt(memberNames, meeting.meeting_date);
 
+  // Phonetic correction layer: snap mis-transcribed attendee names back to their
+  // known spelling BEFORE the AI sees them, so owner-matching and the minutes use
+  // the right names. The stored transcript is left untouched (kept verbatim).
+  const knownNames = members.flatMap(m => [m.name_ar, m.name_en]).filter(Boolean);
+  const { text: correctedTranscript, corrections } = correctNames(transcript, knownNames);
+  if (corrections.length) {
+    aiLog('process:name-correction', { meetingId, count: corrections.length, corrections: corrections.slice(0, 20) });
+  }
+
   const needsTitle = !meeting.title_ar || UNTITLED.includes((meeting.title_ar || '').trim());
 
   // Accuracy guarantee: we NEVER persist fabricated data. If the model call or
@@ -115,7 +125,7 @@ async function processMeeting({ meetingId, userId = null }) {
   try {
     const raw = await callClaude([{
       role: 'user',
-      content: `عنوان الاجتماع: ${needsTitle ? '(بدون عنوان — يرجى توليد عنوان مناسب)' : meeting.title_ar}\nالتاريخ: ${meeting.meeting_date}\nالنص الكامل:\n${transcript}`
+      content: `عنوان الاجتماع: ${needsTitle ? '(بدون عنوان — يرجى توليد عنوان مناسب)' : meeting.title_ar}\nالتاريخ: ${meeting.meeting_date}\nالنص الكامل:\n${correctedTranscript}`
     }], system, 4000, userId);
     aiLog('ai:raw', { meetingId, chars: raw.length, preview: raw.slice(0, 400) });
     result = JSON.parse(raw.replace(/```json|```/g, '').trim());

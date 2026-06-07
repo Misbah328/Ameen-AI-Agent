@@ -297,6 +297,7 @@ const Rec = {
     } catch (e) { alert(e.message); return; }
 
     this.fullTranscript = '';
+    this._lastSavedLen = 0;
     this.isRecording = true;
     $('rec-ring').classList.add('recording');
     $('rec-ic').textContent = '⏹';
@@ -325,8 +326,36 @@ const Rec = {
     this._lastExtractLen = 0;
     this.liveExInt = setInterval(() => { this.liveExtract(); }, 18000);
 
+    // Crash/refresh safety: persist the transcript to the DB every ~12s while
+    // recording, so the spoken record is never lost if the tab dies mid-meeting.
+    // (Previously the transcript was only saved once, at stop().)
+    this.saveInt = setInterval(() => { this.persistTranscript(); }, 12000);
+
     this.startWaveform();
     this.startSpeechRec();
+  },
+
+  // Save the live transcript to the meeting row without ending the session.
+  // Writes are serialized: only one PATCH is ever in flight, and the transcript
+  // only grows, so a skipped tick is always covered by the next one. stop() awaits
+  // the in-flight save before its final write, so the longest (complete) transcript
+  // is guaranteed to be the last thing persisted — no stale overwrite.
+  async persistTranscript() {
+    if (!this.currentMeetingId) return;
+    const t = (this.fullTranscript || '').trim();
+    if (!t || t.length === this._lastSavedLen) return;
+    if (this._saving) return; // a write is already in flight; growth covered next tick
+    this._saving = true;
+    const len = t.length;
+    this._savePromise = (async () => {
+      try {
+        const dur = Math.floor((Date.now() - this.startTime) / 1000);
+        await api(`/api/meetings/${this.currentMeetingId}`, { method: 'PATCH', body: JSON.stringify({ transcript: this.fullTranscript, duration: dur }) });
+        this._lastSavedLen = Math.max(this._lastSavedLen, len);
+      } catch (e) { /* transient — next tick retries */ }
+      finally { this._saving = false; }
+    })();
+    await this._savePromise;
   },
 
   setupEditableTranscript() {
@@ -352,6 +381,7 @@ const Rec = {
     $('b-rec').style.display = 'none';
     this.stopWaveform();
     clearInterval(this.liveExInt);
+    clearInterval(this.saveInt);
     if (this.speechRec) { try { this.speechRec.stop(); } catch(e){} this.speechRec = null; }
     const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? 'اضغط للبدء' : 'Tap to start';
 
@@ -360,6 +390,10 @@ const Rec = {
     if (App.isPro() && box && box.getAttribute('contenteditable') === 'true') {
       this.fullTranscript = box.innerText;
     }
+
+    // Wait for any in-flight periodic save to settle so our final write (which
+    // holds the complete transcript) lands last — never overwritten by a stale tick.
+    if (this._savePromise) { try { await this._savePromise; } catch (e) {} }
 
     // One final live extraction pass so nothing said near the end is missed.
     await this.liveExtract();
@@ -383,6 +417,7 @@ const Rec = {
 
     let interim = '';
     this.speechRec.onresult = e => {
+      this._recAlive = true; // heartbeat for the watchdog
       let final = '', int = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) { final += e.results[i][0].transcript + ' '; }
@@ -401,9 +436,52 @@ const Rec = {
       }
     };
 
-    this.speechRec.onerror = e => { if (e.error !== 'aborted' && e.error !== 'no-speech') console.warn('SR error:', e.error); };
-    this.speechRec.onend = () => { if (this.isRecording) { try { this.speechRec.start(); } catch(e){} } };
+    // Recoverable errors (no-speech on a pause, transient network, aborted on
+    // restart) must NOT end the session. The browser fires onend right after an
+    // error, where the watchdog restart kicks in. Fatal errors (mic permission
+    // denied / service blocked) are different — restarting can't fix them, so we
+    // gate further restarts and tell the coordinator instead of spinning forever.
+    this._recFatal = false;
+    this.speechRec.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        this._recFatal = true;
+        const box = $('live-tr');
+        if (box && !box.textContent.trim()) box.textContent = App.lang === 'ar'
+          ? 'تم رفض إذن الميكروفون — فعّله من إعدادات المتصفح ثم أعد المحاولة'
+          : 'Microphone permission denied — enable it in your browser settings and try again';
+      } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        console.warn('SR error:', e.error);
+      }
+    };
+    // "Infinite" capture: the browser engine self-terminates after silence or
+    // after long runs. As long as we're still recording, immediately restart so
+    // a natural pause never cuts the meeting off.
+    this.speechRec.onend = () => { this._restartRec(); };
+    this._recAlive = true; // heartbeat seeded so the watchdog doesn't fire instantly
     try { this.speechRec.start(); } catch(e){}
+
+    // Watchdog: if the engine silently dies (some Chrome builds stop firing onend
+    // after an error), this guarantees we come back to life within a few seconds.
+    clearInterval(this._recWatch);
+    this._recWatch = setInterval(() => {
+      if (!this.isRecording) { clearInterval(this._recWatch); return; }
+      if (this._recAlive) { this._recAlive = false; return; } // saw activity recently
+      this._restartRec();
+    }, 6000);
+  },
+
+  // Guarded restart — tolerates the "recognition has already started" race that
+  // Chrome throws when onend and the watchdog both fire near each other.
+  _restartRec() {
+    if (!this.isRecording || !this.speechRec || this._recFatal) return;
+    try { this.speechRec.start(); }
+    catch (e) {
+      // "already started" is benign (onend + watchdog raced). Any other error
+      // gets one delayed retry — but never if we've hit a fatal state.
+      if (!/already started/i.test(e.message || '')) {
+        setTimeout(() => { if (this.isRecording && !this._recFatal) this._restartRec(); }, 500);
+      }
+    }
   },
 
   scanTranscript(text) {
