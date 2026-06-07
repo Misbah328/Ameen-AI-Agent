@@ -5,30 +5,37 @@
 <script>
 /* Resilience: the app script (/js/app.js) is occasionally fetched truncated by the
    preview/artifact iframe when the dev server restarts mid-load. A truncated script
-   raises an uncaught "Unexpected end of input" SyntaxError. We detect that case and
-   the case where the script never finished executing, then reload exactly once. */
+   raises an uncaught "Unexpected end of input" SyntaxError, or simply never finishes
+   executing. A restart can span several seconds, so a single retry is not enough: if
+   two consecutive loads are truncated, the app stays stuck. We retry a bounded number
+   of times with a short delay (letting the server finish restarting), and reset the
+   counter once the app is confirmed ready so future restarts can recover again. */
 (function () {
-  function recoverOnce() {
-    try {
-      if (!sessionStorage.getItem('ameen_recovered')) {
-        sessionStorage.setItem('ameen_recovered', '1');
-        location.reload();
-      }
-    } catch (_) {}
+  var MAX_RETRIES = 5;
+  var RELOAD_DELAY_MS = 700;
+  function retries() {
+    try { return parseInt(sessionStorage.getItem('ameen_recover_n') || '0', 10) || 0; }
+    catch (_) { return 0; }
+  }
+  function recover() {
+    var n = retries();
+    if (n >= MAX_RETRIES) return; // give up — avoids an infinite reload loop on a genuine error
+    try { sessionStorage.setItem('ameen_recover_n', String(n + 1)); } catch (_) {}
+    setTimeout(function () { location.reload(); }, RELOAD_DELAY_MS);
   }
   window.addEventListener('error', function (e) {
     var fromApp = !e.filename || /\/js\/app\.js/.test(e.filename);
     if (e && e.message && /Unexpected end of input/.test(e.message) && fromApp) {
       if (e.preventDefault) e.preventDefault();
-      recoverOnce();
+      recover();
     }
   });
   window.addEventListener('load', function () {
     setTimeout(function () {
       if (!window.__AMEEN_READY) {
-        recoverOnce();
+        recover();
       } else {
-        try { sessionStorage.removeItem('ameen_recovered'); } catch (_) {}
+        try { sessionStorage.removeItem('ameen_recover_n'); } catch (_) {}
       }
     }, 1000);
   });
