@@ -17,6 +17,7 @@ function requirePro(req, res, next) {
   next();
 }
 function token() { return crypto.randomBytes(16).toString('hex'); }
+function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function baseUrl(req) {
   const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
   return `${proto}://${req.get('host')}`;
@@ -164,6 +165,22 @@ router.patch('/meetings/:id', auth, (req, res) => {
   }
 
   res.json({ success: true, title_ar: newTitleAr, title_en: newTitleEn });
+});
+
+// ── Hard-delete a meeting and all its dependents ───────────────────────────────
+router.delete('/meetings/:id', auth, (req, res) => {
+  const id = req.params.id;
+  const m = db.prepare('SELECT id FROM meetings WHERE id=?').get(id);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM tasks WHERE source_meeting_id=?').run(id);
+    db.prepare('DELETE FROM decisions WHERE meeting_id=?').run(id);
+    db.prepare('DELETE FROM meeting_attendees WHERE meeting_id=?').run(id);
+    db.prepare('UPDATE documents SET source_meeting_id=NULL WHERE source_meeting_id=?').run(id);
+    db.prepare('DELETE FROM meetings WHERE id=?').run(id);
+  });
+  tx();
+  res.json({ success: true });
 });
 
 // ── AI: Process Meeting ───────────────────────────────────────────────────────
@@ -362,9 +379,53 @@ router.post('/schedule', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
+router.patch('/schedule/:id', auth, (req, res) => {
+  const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel } = req.body;
+  const chan = reminder_channel !== undefined
+    ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
+    : row.reminder_channel;
+  // Editing the schedule re-arms the reminder so changed attendees get notified.
+  db.prepare(`UPDATE schedule SET
+      title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
+      meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
+      duration_mins=COALESCE(?,duration_mins), platform=COALESCE(?,platform),
+      attendees=COALESCE(?,attendees), agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
+      reminder_channel=?, reminder_sent=0
+    WHERE id=?`)
+    .run(
+      title_ar, title_en !== undefined ? (title_en || title_ar) : null,
+      meeting_date, meeting_time, duration_mins, platform,
+      attendees, agenda_ar, agenda_en, chan, req.params.id
+    );
+  res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
+});
+
 router.delete('/schedule/:id', auth, (req, res) => {
   db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ── Push a meeting summary + tasks to WhatsApp (Last Meeting precision tab) ─────
+router.post('/meetings/:id/whatsapp-summary', auth, async (req, res) => {
+  const m = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  const phones = (Array.isArray(req.body.phones) ? req.body.phones : String(req.body.phones || '').split(/[,;\n]+/))
+    .map(s => s.trim()).filter(Boolean);
+  if (!phones.length) return res.status(400).json({ error: 'لا يوجد رقم جوال / No phone number provided' });
+  const tasks = JSON.parse(m.ai_tasks || '[]');
+  const taskLines = tasks.map(t => `• ${t.text_ar}${t.owner_ar ? ' — ' + t.owner_ar : ''}`).join('\n');
+  const body = `📋 ملخص الاجتماع: ${m.title_ar}\n${(m.meeting_date || '').substring(0, 10)}\n\n` +
+    `${m.ai_summary_ar || '-'}\n\n` +
+    (taskLines ? `المهام:\n${taskLines}\n\n` : '') +
+    `— أمين السكرتير`;
+  try {
+    const out = await notify.sendWhatsApp({ to: phones, body });
+    res.json({ success: true, sent: phones.length, out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Email Reminders ───────────────────────────────────────────────────────────
@@ -464,6 +525,24 @@ router.post('/ai/document', auth, requirePro, async (req, res) => {
     const m = db.prepare('SELECT * FROM meetings WHERE id=?').get(meeting_id);
     if (m) meetingContext = `اجتماع: ${m.title_ar}\nالتاريخ: ${m.meeting_date}\nالملخص: ${m.ai_summary_ar || ''}\nالمهام: ${m.ai_tasks || '[]'}\nالقرارات: ${m.ai_decisions || '[]'}`;
   }
+  // Per-person assigned-task breakdown — reports can list each member's tasks.
+  const taskRows = (meeting_id && meeting_id !== 'all')
+    ? db.prepare('SELECT * FROM tasks WHERE source_meeting_id=?').all(meeting_id)
+    : db.prepare('SELECT * FROM tasks').all();
+  const byPerson = {};
+  taskRows.forEach(t => {
+    const who = t.owner_name_ar || t.owner_name_en || 'غير محدد / Unassigned';
+    (byPerson[who] = byPerson[who] || []).push(t);
+  });
+  const perPersonContext = Object.keys(byPerson).length
+    ? '\n\nالمهام المسندة لكل شخص / Tasks assigned per person:\n' +
+      Object.entries(byPerson).map(([who, ts]) =>
+        `• ${who} (${ts.length}):\n` + ts.map(t =>
+          `   - ${t.text_ar}${t.due_date ? ' [' + t.due_date + ']' : ''} (${t.status})`).join('\n')
+      ).join('\n')
+    : '';
+  meetingContext += perPersonContext;
+
   const docTypeLabels = {
     minutes_ar: 'محضر اجتماع رسمي بالعربية',
     minutes_en: 'Official Meeting Minutes in English',
@@ -472,7 +551,8 @@ router.post('/ai/document', auth, requirePro, async (req, res) => {
     exec_summary: 'ملخص تنفيذي',
     action_plan: 'خطة العمل التفصيلية',
     decision_log: 'سجل القرارات الرسمي',
-    kpi_report: 'تقرير مؤشرات الأداء الرئيسية'
+    kpi_report: 'تقرير مؤشرات الأداء الرئيسية',
+    team_tasks: 'تقرير المهام لكل عضو في الفريق / Tasks-per-person report'
   };
   const docLang = lang === 'en' ? 'in English only' : lang === 'bi' ? 'باللغتين العربية والإنجليزية (كل قسم بلغتين)' : 'بالعربية فقط';
   const prompt = `أنت كاتب وثائق تنفيذي محترف. أنشئ ${docTypeLabels[doc_type] || doc_type} ${docLang}.
@@ -610,20 +690,28 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
                                    (t.owner_en && a.name && (t.owner_en.toLowerCase().includes(a.name.toLowerCase()))));
     const taskLines = (mine.length ? mine : tasks).map(t => `• ${t.text_ar}`).join('\n');
     const subject = `محضر ونتائج: ${meeting.title_ar} | Minutes & Actions: ${meeting.title_en || meeting.title_ar}`;
+    // The full minutes / transcript text is included so recipients get the
+    // complete record (boss requirement: "send the full text").
+    const fullMinutes = meeting.ai_minutes_ar || meeting.ai_minutes_en || '';
+    const fullTranscript = meeting.transcript || '';
     const text =
       `مرحباً ${a.name}،\n\nتمت مشاركة محضر ونتائج اجتماع "${meeting.title_ar}".\n\n` +
       `الملخص:\n${meeting.ai_summary_ar || '-'}\n\n` +
       (decisions.length ? `القرارات:\n${decisions.map(d => '• ' + d.text_ar).join('\n')}\n\n` : '') +
       (taskLines ? `المهام:\n${taskLines}\n\n` : '') +
+      (fullMinutes ? `المحضر الكامل:\n${fullMinutes}\n\n` : '') +
+      (fullTranscript ? `النص الكامل للاجتماع:\n${fullTranscript}\n\n` : '') +
       `لتأكيد مهامك وإضافة ملاحظاتك، افتح الرابط:\n${link}\n\n— أمين السكرتير`;
     const html =
       `<div style="font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right">` +
       `<h2 style="color:#0e7490">محضر ونتائج الاجتماع</h2>` +
-      `<p>مرحباً <b>${a.name}</b>،</p>` +
-      `<p>تمت مشاركة محضر ونتائج اجتماع «${meeting.title_ar}».</p>` +
-      `<h3>الملخص</h3><p>${(meeting.ai_summary_ar || '-').replace(/\n/g, '<br>')}</p>` +
-      (decisions.length ? `<h3>القرارات</h3><ul>${decisions.map(d => '<li>' + d.text_ar + '</li>').join('')}</ul>` : '') +
-      ((mine.length ? mine : tasks).length ? `<h3>المهام</h3><ul>${(mine.length ? mine : tasks).map(t => '<li>' + t.text_ar + '</li>').join('')}</ul>` : '') +
+      `<p>مرحباً <b>${esc(a.name)}</b>،</p>` +
+      `<p>تمت مشاركة محضر ونتائج اجتماع «${esc(meeting.title_ar)}».</p>` +
+      `<h3>الملخص</h3><p>${esc(meeting.ai_summary_ar || '-').replace(/\n/g, '<br>')}</p>` +
+      (decisions.length ? `<h3>القرارات</h3><ul>${decisions.map(d => '<li>' + esc(d.text_ar) + '</li>').join('')}</ul>` : '') +
+      ((mine.length ? mine : tasks).length ? `<h3>المهام</h3><ul>${(mine.length ? mine : tasks).map(t => '<li>' + esc(t.text_ar) + '</li>').join('')}</ul>` : '') +
+      (fullMinutes ? `<h3>المحضر الكامل</h3><div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:12px;font-size:13px">${esc(fullMinutes)}</div>` : '') +
+      (fullTranscript ? `<h3>النص الكامل للاجتماع</h3><div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:12px;font-size:13px">${esc(fullTranscript)}</div>` : '') +
       `<p><a href="${link}" style="background:#0e7490;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">تأكيد المهام وإضافة ملاحظات</a></p>` +
       `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>`;
     const out = await notify.notify({ channel, email: a.email, phone: a.phone, subject, text, html });
@@ -632,6 +720,28 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
   }
   db.prepare("UPDATE meetings SET shared=1, shared_at=CURRENT_TIMESTAMP WHERE id=?").run(meetingId);
   res.json({ success: true, shared: results.length, channel, results });
+});
+
+// ── Share a generated document with the whole team (email) ─────────────────
+router.post('/documents/share', auth, requirePro, async (req, res) => {
+  const content = (req.body.content || '').toString().trim();
+  const title = (req.body.title || 'تقرير / Report').toString().trim();
+  if (!content) return res.status(400).json({ error: 'لا يوجد محتوى للمشاركة / No content to share' });
+  const members = db.prepare("SELECT name_ar, name_en, email FROM users WHERE email IS NOT NULL AND email != ''").all();
+  if (!members.length) return res.status(400).json({ error: 'لا يوجد أعضاء فريق بعناوين بريد / No team members with emails' });
+  const subject = `تقرير من أمين: ${title}`;
+  const results = [];
+  for (const mem of members) {
+    const text = `مرحباً ${mem.name_ar || mem.name_en || ''}،\n\nتمت مشاركة التقرير التالي معك:\n\n${content}\n\n— أمين السكرتير`;
+    const html = `<div style="font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right">` +
+      `<h2 style="color:#0e7490">${esc(title)}</h2>` +
+      `<p>مرحباً <b>${esc(mem.name_ar || mem.name_en || '')}</b>،</p>` +
+      `<div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:14px;font-size:13px;line-height:1.7">${esc(content)}</div>` +
+      `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>`;
+    const out = await notify.sendEmail({ to: mem.email, subject, text, html });
+    results.push({ name: mem.name_ar || mem.name_en, email: mem.email, ...out });
+  }
+  res.json({ success: true, shared: results.length, results });
 });
 
 // ── Public attendee confirmation (NO AUTH — token-gated) ───────────────────

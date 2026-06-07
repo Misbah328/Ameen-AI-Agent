@@ -79,6 +79,10 @@
     <span class="nb-label" data-ar="المحاضر والنصوص" data-en="Transcripts & Minutes">المحاضر والنصوص</span>
     <span class="nbg nbg-gold" id="b-tr">—</span>
   </button>
+  <button class="nb" data-p="lastmeeting">
+    <span class="nb-icon">⭐</span>
+    <span class="nb-label" data-ar="آخر اجتماع" data-en="Last Meeting">آخر اجتماع</span>
+  </button>
   <div class="nsec" data-ar="المتابعة التنفيذية" data-en="Executive Follow-up">المتابعة التنفيذية</div>
   <button class="nb" data-p="tasks">
     <span class="nb-icon">📋</span>
@@ -230,6 +234,22 @@
   </div>
 </section>
 
+<!-- ══ LAST MEETING (PRECISION VIEW) ══════════════════════════ -->
+<section class="panel" id="panel-lastmeeting">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="آخر اجتماع" data-en="Last Meeting">آخر اجتماع</div>
+        <div class="ptitle-sub" data-ar="ملخص أحدث اجتماع مع المهام وإمكانية الإرسال عبر واتساب" data-en="Most recent meeting summary, tasks, and push to WhatsApp">ملخص أحدث اجتماع مع المهام وإمكانية الإرسال عبر واتساب</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="Panels.load('lastmeeting')">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="lastmeeting-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
 <!-- ══ TASK & DECISION TRACKER ════════════════════════════════ -->
 <section class="panel" id="panel-tasks">
   <div class="ph">
@@ -308,14 +328,15 @@
           <div class="frow">
             <div class="fl" data-ar="نوع الوثيقة" data-en="Document Type">نوع الوثيقة</div>
             <select class="fi" id="doc-type">
-              <option value="minutes_ar">محضر اجتماع — عربي</option>
-              <option value="minutes_en">Meeting Minutes — English</option>
-              <option value="minutes_bi">محضر ثنائي اللغة</option>
-              <option value="board_report">تقرير مجلس الإدارة</option>
-              <option value="exec_summary">ملخص تنفيذي</option>
-              <option value="action_plan">خطة العمل</option>
-              <option value="decision_log">سجل القرارات</option>
-              <option value="kpi_report">تقرير مؤشرات الأداء</option>
+              <option value="minutes_ar">محضر اجتماع — عربي · Meeting Minutes (AR)</option>
+              <option value="minutes_en">محضر اجتماع — إنجليزي · Meeting Minutes (EN)</option>
+              <option value="minutes_bi">محضر ثنائي اللغة · Bilingual Minutes</option>
+              <option value="board_report">تقرير مجلس الإدارة · Board Report</option>
+              <option value="exec_summary">ملخص تنفيذي · Executive Summary</option>
+              <option value="action_plan">خطة العمل · Action Plan</option>
+              <option value="decision_log">سجل القرارات · Decision Log</option>
+              <option value="kpi_report">تقرير مؤشرات الأداء · KPI Report</option>
+              <option value="team_tasks">المهام لكل عضو · Tasks per Person</option>
             </select>
           </div>
           <div class="frow">
@@ -361,6 +382,7 @@
           <div style="display:flex;gap:6px">
             <button class="btn-ghost btn-sm" onclick="DocGen.copy()">📋 <span data-ar="نسخ" data-en="Copy">نسخ</span></button>
             <button class="btn-ghost btn-sm" onclick="DocGen.print()">🖨 <span data-ar="طباعة" data-en="Print">طباعة</span></button>
+            <button class="btn-gold btn-sm" onclick="DocGen.shareWithTeam()">📤 <span data-ar="مشاركة مع الفريق" data-en="Share with Team">مشاركة مع الفريق</span></button>
           </div>
         </div>
         <div class="doc-out" id="doc-result">
@@ -394,12 +416,8 @@
         <div class="ch"><div class="ct" data-ar="جدولة اجتماع جديد" data-en="Schedule New Meeting">جدولة اجتماع جديد</div></div>
         <div class="fs">
           <div class="frow">
-            <div class="fl" data-ar="عنوان الاجتماع (عربي)" data-en="Meeting Title (Arabic)">عنوان الاجتماع (عربي)</div>
-            <input class="fi" id="nm-title-ar" data-ph-ar="اجتماع مجلس الإدارة" data-ph-en="Board Meeting" placeholder="اجتماع مجلس الإدارة"/>
-          </div>
-          <div class="frow">
-            <div class="fl">Meeting Title (English)</div>
-            <input class="fi" id="nm-title-en" placeholder="Board Meeting" dir="ltr" style="text-align:left"/>
+            <div class="fl" data-ar="عنوان الاجتماع" data-en="Meeting Title">عنوان الاجتماع</div>
+            <input class="fi" id="nm-title" data-ph-ar="اجتماع مجلس الإدارة — Board Meeting" data-ph-en="Board Meeting — اجتماع مجلس الإدارة" placeholder="اجتماع مجلس الإدارة"/>
           </div>
           <div class="fr2">
             <div class="frow">

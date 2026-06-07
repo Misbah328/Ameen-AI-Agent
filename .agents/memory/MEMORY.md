@@ -2,3 +2,4 @@
 - [Claude model env var](claude-model-env.md) — `not_found_error: model: X` from Anthropic means the model is retired, not a bad key; set `CLAUDE_MODEL` shared env to a current model.
 - [Connector credential validation](connector-credential-validation.md) — a "connected" connector can have status:null + invalid creds (provider 401); validate with a read-only call, then it's a user fix, not code.
 - [Truncated script -> artifact crash](truncated-script-artifact-crash.md) — bare "Unexpected end of input" (no "JSON") = truncated script during restart; self-recover via readiness flag + one-time reload.
+- [Outbound HTML email escaping](outbound-html-email-escaping.md) — every dynamic field interpolated into share/report email HTML must be esc()'d; AI-derived fields and attendee names are XSS sinks.

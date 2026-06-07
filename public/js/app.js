@@ -197,6 +197,7 @@ const Panels = {
       case 'overview': await renderOverview(); break;
       case 'team': await Team.load(); break;
       case 'documents': await loadDocMeetings(); break;
+      case 'lastmeeting': await renderLastMeeting(); break;
     }
   }
 };
@@ -614,10 +615,11 @@ async function renderTranscripts() {
               ${t.owner_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l==='ar'?t.owner_ar:t.owner_en||t.owner_ar)}</span>` : ''}
             </div>`).join('')}
           </div>` : ''}
-          ${isProcessed ? `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l==='ar'?'تمت المشاركة':'Shared'}</span>` : ''}
-            <button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l==='ar'?'مشاركة النتائج':'Share Outcomes'}${App.isPro()?'':' ⭐'}</button>
-          </div>` : ''}
+            ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l==='ar'?'مشاركة النتائج':'Share Outcomes'}${App.isPro()?'':' ⭐'}</button>` : ''}
+            <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l==='ar'?'حذف':'Delete'}</button>
+          </div>
         </div>`;
       }).join('')}
     </div>`;
@@ -642,6 +644,97 @@ async function editMeetingTitle(id, curAr, curEn) {
     await renderTranscripts();
   } catch (e) {
     alert((l==='ar' ? 'تعذّر حفظ العنوان: ' : 'Could not save title: ') + e.message);
+  }
+}
+
+async function deleteMeeting(id, title) {
+  const l = App.lang;
+  const msg = l==='ar'
+    ? `حذف الاجتماع "${title}" نهائياً؟\nسيتم حذف مهامه وقراراته المرتبطة أيضاً.`
+    : `Permanently delete meeting "${title}"?\nIts linked tasks and decisions will also be removed.`;
+  if (!confirm(msg)) return;
+  try {
+    await api('/api/meetings/' + id, { method: 'DELETE' });
+    await renderTranscripts();
+    await loadBadges();
+  } catch (e) {
+    alert((l==='ar' ? 'تعذّر الحذف: ' : 'Could not delete: ') + e.message);
+  }
+}
+
+// ══ Last Meeting (precision view) ═════════════════════════════════════════════
+async function renderLastMeeting() {
+  const body = $('lastmeeting-body');
+  const l = App.lang;
+  const lbl = (ar, en) => l === 'ar' ? ar : en;
+  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+  try {
+    const meetings = await api('/api/meetings');
+    const processed = meetings.filter(m => m.status === 'processed');
+    const m = (processed.length ? processed : meetings)[0];
+    if (!m) {
+      body.innerHTML = `<div class="es" style="color:var(--text3)">${lbl('لا توجد اجتماعات بعد','No meetings yet')}</div>`;
+      return;
+    }
+    const title = esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar));
+    const summary = esc((l === 'ar' ? m.ai_summary_ar : (m.ai_summary_en || m.ai_summary_ar)) || lbl('لا يوجد ملخص','No summary'));
+    let tasks = []; try { tasks = JSON.parse(m.ai_tasks || '[]'); } catch {}
+    let decisions = []; try { decisions = JSON.parse(m.ai_decisions || '[]'); } catch {}
+    const tasksHtml = tasks.length ? tasks.map(t => `
+      <div style="background:var(--navy3);border-radius:8px;padding:10px;margin-bottom:6px">
+        <div style="font-size:12px;color:var(--text)">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+          ${t.owner_ar?`<span class="tag tgold" style="font-size:10px">${esc(l==='ar'?t.owner_ar:(t.owner_en||t.owner_ar))}</span>`:''}
+          ${t.due_date?`<span class="tag" style="background:var(--navy4);font-size:10px">${esc(t.due_date)}</span>`:''}
+        </div>
+      </div>`).join('') : `<div style="font-size:12px;color:var(--text3)">${lbl('لا توجد مهام','No tasks')}</div>`;
+    const decisionsHtml = decisions.length ? decisions.map(d => `
+      <div style="font-size:12px;color:var(--text);padding:6px 0;border-bottom:.5px solid var(--border2)">✓ ${esc(l==='ar'?(d.text_ar||d):(d.text_en||d.text_ar||d))}</div>`).join('')
+      : `<div style="font-size:12px;color:var(--text3)">${lbl('لا توجد قرارات','No decisions')}</div>`;
+
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:18px;font-weight:800;color:var(--text)">⭐ ${title}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px">📅 ${esc((m.meeting_date||'').substring(0,10))}</div>
+          </div>
+          <button class="btn-gold btn-sm" onclick="pushLastMeetingWhatsApp(${m.id})">📲 ${lbl('إرسال عبر واتساب','Push to WhatsApp')}</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="card">
+          <div class="ct" style="margin-bottom:10px">📝 ${lbl('الملخص التنفيذي','Executive Summary')}</div>
+          <div style="font-size:13px;line-height:1.7;color:var(--text2);white-space:pre-wrap">${summary}</div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="ct" style="margin-bottom:10px">📋 ${lbl('المهام','Action Items')}</div>
+            ${tasksHtml}
+          </div>
+          <div class="card">
+            <div class="ct" style="margin-bottom:10px">⚖️ ${lbl('القرارات','Decisions')}</div>
+            ${decisionsHtml}
+          </div>
+        </div>
+      </div>`;
+  } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
+}
+
+async function pushLastMeetingWhatsApp(id) {
+  const l = App.lang;
+  const phones = prompt(l==='ar'
+    ? 'أرقام الجوال للإرسال عبر واتساب (افصل بينها بفاصلة):'
+    : 'WhatsApp phone number(s), comma-separated:', '');
+  if (phones === null) return;
+  if (!phones.trim()) { alert(l==='ar' ? 'يرجى إدخال رقم جوال' : 'Please enter a phone number'); return; }
+  try {
+    const r = await api('/api/meetings/' + id + '/whatsapp-summary', {
+      method: 'POST', body: JSON.stringify({ phones: phones.trim() })
+    });
+    alert(l==='ar' ? `✓ تم الإرسال إلى ${r.sent} رقم` : `✓ Sent to ${r.sent} number(s)`);
+  } catch (e) {
+    alert((l==='ar' ? 'تعذّر الإرسال: ' : 'Could not send: ') + e.message);
   }
 }
 
@@ -851,15 +944,34 @@ const DocGen = {
     btn.innerHTML = `✦ <span>${App.lang === 'ar' ? 'توليد الوثيقة' : 'Generate Document'}</span>`;
   },
   copy() { if (this.currentContent) { navigator.clipboard.writeText(this.currentContent); alert(App.lang === 'ar' ? '✓ تم النسخ' : '✓ Copied'); } },
-  print() { window.print(); }
+  print() { window.print(); },
+  async shareWithTeam() {
+    const l = App.lang;
+    if (!this.currentContent) { alert(l === 'ar' ? 'لا توجد وثيقة للمشاركة' : 'No document to share'); return; }
+    if (!App.requirePro()) return;
+    const typeSel = $('doc-type');
+    const title = typeSel.options[typeSel.selectedIndex].text;
+    if (!confirm(l === 'ar' ? 'مشاركة هذا التقرير مع جميع أعضاء الفريق عبر البريد؟' : 'Share this report with all team members by email?')) return;
+    try {
+      const r = await api('/api/documents/share', {
+        method: 'POST', body: JSON.stringify({ content: this.currentContent, title })
+      });
+      alert(l === 'ar' ? `✓ تمت المشاركة مع ${r.shared} عضو` : `✓ Shared with ${r.shared} member(s)`);
+    } catch (e) {
+      alert((l === 'ar' ? 'تعذّرت المشاركة: ' : 'Could not share: ') + e.message);
+    }
+  }
 };
 
 // ══ Schedule ══════════════════════════════════════════════════════════════════
 const Schedule = {
   async add() {
+    // Unified smart title — one field stored in both AR and EN columns so the
+    // schedule reads correctly in either language without double entry.
+    const title = $('nm-title').value.trim();
     const data = {
-      title_ar: $('nm-title-ar').value.trim(),
-      title_en: $('nm-title-en').value.trim(),
+      title_ar: title,
+      title_en: title,
       meeting_date: $('nm-date').value,
       meeting_time: $('nm-time').value,
       duration_mins: $('nm-dur').value,
@@ -878,8 +990,31 @@ const Schedule = {
       $('sched-toast').style.display = 'flex'; setTimeout(() => $('sched-toast').style.display = 'none', 2500);
       await renderSchedule();
       await loadBadges();
-      ['nm-title-ar', 'nm-title-en', 'nm-att', 'nm-agenda-ar', 'nm-agenda-en'].forEach(id => $(id).value = '');
+      ['nm-title', 'nm-att', 'nm-agenda-ar', 'nm-agenda-en'].forEach(id => $(id).value = '');
     } catch (e) { alert(e.message); }
+  },
+
+  async edit(id) {
+    const l = App.lang;
+    try {
+      const items = await api('/api/schedule');
+      const s = items.find(x => x.id === id);
+      if (!s) return;
+      const title = prompt(l==='ar' ? 'عنوان الاجتماع:' : 'Meeting title:', s.title_ar || '');
+      if (title === null) return;
+      const date = prompt(l==='ar' ? 'التاريخ (YYYY-MM-DD):' : 'Date (YYYY-MM-DD):', (s.meeting_date||'').substring(0,10));
+      if (date === null) return;
+      const time = prompt(l==='ar' ? 'الوقت (HH:MM):' : 'Time (HH:MM):', (s.meeting_time||'').substring(0,5));
+      if (time === null) return;
+      const attendees = prompt(l==='ar' ? 'المشاركون (أسماء، إيميلات، أرقام جوال):' : 'Attendees (names, emails, phones):', s.attendees || '');
+      if (attendees === null) return;
+      const t = title.trim();
+      await api('/api/schedule/' + id, { method: 'PATCH', body: JSON.stringify({
+        title_ar: t, title_en: t, meeting_date: date.trim(), meeting_time: time.trim(), attendees: attendees.trim()
+      }) });
+      await renderSchedule();
+      await loadBadges();
+    } catch (e) { alert((l==='ar'?'تعذّر التعديل: ':'Could not edit: ') + e.message); }
   },
   async delete(id) {
     if (!confirm(App.lang === 'ar' ? 'حذف هذا الاجتماع من الجدول؟' : 'Remove from schedule?')) return;
@@ -932,6 +1067,7 @@ async function renderSchedule() {
         </div>
         <div style="display:flex;gap:6px;margin-top:8px">
           <button class="btn-ghost btn-sm" onclick="${reminderCall}" style="font-size:11px">📧 ${l==='ar'?'إرسال تذكير':'Send Reminder'}</button>
+          <button class="btn-ghost btn-sm" onclick="Schedule.edit(${s.id})" style="font-size:11px">✏️ ${l==='ar'?'تعديل':'Edit'}</button>
           <button class="btn-ghost btn-sm" onclick="Schedule.delete(${s.id})" style="font-size:11px;color:var(--red)">✕ ${l==='ar'?'حذف':'Delete'}</button>
         </div>
       </div>`;
@@ -1234,16 +1370,15 @@ async function renderOverview() {
       return { name: l==='ar' ? m.name_ar : (m.name_en || m.name_ar), total: mt.length, done, pct: mt.length ? Math.round(done/mt.length*100) : 0 };
     }).filter(x => x.total > 0).sort((a,b) => b.total - a.total);
 
-    body.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+    const statsHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
         ${statCards.map(s => `<div class="card stat-clickable" style="text-align:center;padding:18px 10px;cursor:pointer" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
           <div style="font-size:26px;margin-bottom:4px">${s.icon}</div>
           <div style="font-size:28px;font-weight:800;color:${s.color}">${s.val}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${s.label}</div>
         </div>`).join('')}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        <div class="card">
+      </div>`;
+
+    const teamHtml = `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('team')" title="${lbl('فتح الفريق','Open team')}">
           <div class="ct" style="margin-bottom:12px">👥 ${lbl('أداء الفريق','Team Performance')}</div>
           ${memberBreakdown.length ? memberBreakdown.map(m => `
             <div style="margin-bottom:10px">
@@ -1255,8 +1390,9 @@ async function renderOverview() {
                 <div style="height:100%;background:${m.pct===100?'var(--green)':m.pct>50?'var(--gold)':'var(--amber)'};width:${m.pct}%;border-radius:6px;transition:.4s"></div>
               </div>
             </div>`).join('') : `<div style="font-size:12px;color:var(--text3)">${lbl('لا توجد مهام مسندة','No tasks assigned')}</div>`}
-        </div>
-        <div class="card">
+        </div>`;
+
+    const upcomingHtml = `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')" title="${lbl('فتح الجدول','Open schedule')}">
           <div class="ct" style="margin-bottom:12px">📅 ${lbl('الاجتماعات القادمة','Upcoming Meetings')}</div>
           ${upcoming.length ? upcoming.slice(0,5).map(s => `
             <div style="padding:8px 0;border-bottom:.5px solid var(--border2)">
@@ -1264,13 +1400,14 @@ async function renderOverview() {
               <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${esc(s.meeting_date||'')} ${s.meeting_time?'🕐 '+esc(s.meeting_time):''} · ${esc(s.platform||'')}</div>
             </div>`).join('')
           : `<div style="font-size:12px;color:var(--text3)">${lbl('لا اجتماعات قادمة','No upcoming meetings')}</div>`}
-        </div>
-      </div>
-      ${tasks.filter(t=>t.status==='overdue').length ? `
-      <div class="card" style="margin-top:14px">
+        </div>`;
+
+    const overdueList = tasks.filter(t=>t.status==='overdue');
+    const overdueHtml = overdueList.length ? `
+      <div class="card stat-clickable" style="margin-top:14px;cursor:pointer" onclick="Panels.load('tasks')" title="${lbl('فتح المهام','Open tasks')}">
         <div class="ct" style="color:var(--red);margin-bottom:10px">⚠ ${lbl('المهام المتأخرة الفورية','Urgent Overdue Tasks')}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px">
-          ${tasks.filter(t=>t.status==='overdue').slice(0,6).map(t => `
+          ${overdueList.slice(0,6).map(t => `
             <div style="background:var(--navy3);border-radius:8px;padding:10px;border:1px solid rgba(224,90,90,.2)">
               <div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</div>
               <div style="display:flex;gap:5px;flex-wrap:wrap">
@@ -1279,9 +1416,45 @@ async function renderOverview() {
               </div>
             </div>`).join('')}
         </div>
-      </div>` : ''}`;
+      </div>` : '';
+
+    const dash = Dash.get();
+    const sec = (k, html) => dash[k] === false ? '' : html;
+    const twoCol = [sec('team', teamHtml), sec('upcoming', upcomingHtml)].filter(Boolean).join('');
+    body.innerHTML = `
+      ${Dash.bar(l)}
+      ${sec('stats', statsHtml)}
+      ${twoCol ? `<div style="display:grid;grid-template-columns:${sec('team',teamHtml)&&sec('upcoming',upcomingHtml)?'1fr 1fr':'1fr'};gap:14px">${twoCol}</div>` : ''}
+      ${sec('overdue', overdueHtml)}`;
   } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
+
+// ══ Dashboard Customizer (persists which widgets are visible) ═══════════════════
+const Dash = {
+  key: 'ameen_dash_cfg',
+  defaults: { stats: true, team: true, upcoming: true, overdue: true },
+  get() {
+    try { return { ...this.defaults, ...JSON.parse(localStorage.getItem(this.key) || '{}') }; }
+    catch { return { ...this.defaults }; }
+  },
+  set(k, v) {
+    const c = this.get(); c[k] = v;
+    localStorage.setItem(this.key, JSON.stringify(c));
+    renderOverview();
+  },
+  bar(l) {
+    const c = this.get();
+    const item = (k, ar, en) => `<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer">
+      <input type="checkbox" ${c[k] !== false ? 'checked' : ''} onchange="Dash.set('${k}', this.checked)" style="width:15px;height:15px;accent-color:var(--gold)">${l === 'ar' ? ar : en}</label>`;
+    return `<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:10px 14px">
+      <span style="font-size:11px;font-weight:700;color:var(--text)">⚙️ ${l === 'ar' ? 'تخصيص اللوحة' : 'Customize Dashboard'}</span>
+      ${item('stats', 'الإحصائيات', 'Stats')}
+      ${item('team', 'أداء الفريق', 'Team Performance')}
+      ${item('upcoming', 'الاجتماعات القادمة', 'Upcoming')}
+      ${item('overdue', 'المهام المتأخرة', 'Overdue')}
+    </div>`;
+  }
+};
 
 // ══ Textarea auto-resize ══════════════════════════════════════════════════════
 $('ci').addEventListener('input', function () {

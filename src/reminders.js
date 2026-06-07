@@ -5,10 +5,6 @@ const db = require('./db/database');
 const { sendEmail } = require('./utils/replitmail');
 const notify = require('./utils/notify');
 
-// Default test recipient (per project requirement). Replit Mail routes to the
-// owner's verified email regardless, but we keep the intended recipient on the
-// message for transparency.
-const TEST_RECIPIENT = 'anas@ameen-ai.sa';
 const LEAD_MINUTES = 30;
 
 function meetingDateTime(row) {
@@ -46,8 +42,11 @@ async function checkAndSend() {
     // Send once the meeting is within the lead window but hasn't started yet.
     if (minutesUntil <= LEAD_MINUTES && minutesUntil > 0) {
       const channel = ['email', 'whatsapp', 'both'].includes(row.reminder_channel) ? row.reminder_channel : 'email';
-      const emails = [...new Set([TEST_RECIPIENT, ...extractEmails(row.attendees)])];
+      // Reminders go only to the meeting's actual attendees (emails/phones
+      // parsed from the attendees field) — no hardcoded test recipient.
+      const emails = [...new Set(extractEmails(row.attendees))];
       const phones = extractPhones(row.attendees);
+      if (!emails.length && !phones.length) continue;
       const timeStr = (row.meeting_time || '').substring(0, 5);
       const subject = `تذكير: ${row.title_ar} — ${timeStr} | Reminder: ${row.title_en || row.title_ar}`;
       const body =
@@ -69,7 +68,9 @@ async function checkAndSend() {
       try {
         const wantEmail = channel === 'email' || channel === 'both';
         const wantWa = channel === 'whatsapp' || channel === 'both';
-        if (wantEmail) {
+        // Only attempt a channel when there are actual recipients for it, so a
+        // missing email (phones-only attendee) never blocks the WhatsApp send.
+        if (wantEmail && emails.length) {
           await notify.sendEmail({ to: emails, subject, text: body });
         }
         if (wantWa && phones.length) {
