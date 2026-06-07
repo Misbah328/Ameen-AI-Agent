@@ -36,15 +36,34 @@ function connectorToken(settings) {
 }
 
 // ── Email via Resend ─────────────────────────────────────────────────────────
-async function sendViaResend({ to, subject, text, html }) {
+// Resolve Resend credentials. Prefer explicit secrets (RESEND_API_KEY /
+// RESEND_FROM_EMAIL) over the connector, so a valid key can be supplied directly
+// when the connector holds a stale/invalid value.
+async function resolveResend() {
+  if (process.env.RESEND_API_KEY) {
+    return {
+      apiKey: process.env.RESEND_API_KEY,
+      from:
+        process.env.RESEND_FROM_EMAIL ||
+        process.env.MAIL_FROM ||
+        'Ameen Secretary <onboarding@resend.dev>',
+    };
+  }
   const settings = await getConnectorSettings('resend');
   const apiKey = connectorToken(settings);
   if (!apiKey) throw new Error('Resend API key not found in connector settings');
-  const from =
-    settings.from_email ||
-    settings.from ||
-    process.env.MAIL_FROM ||
-    'Ameen Secretary <onboarding@resend.dev>';
+  return {
+    apiKey,
+    from:
+      settings.from_email ||
+      settings.from ||
+      process.env.MAIL_FROM ||
+      'Ameen Secretary <onboarding@resend.dev>',
+  };
+}
+
+async function sendViaResend({ to, subject, text, html }) {
+  const { apiKey, from } = await resolveResend();
   const recipients = Array.isArray(to) ? to : [to];
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -77,7 +96,17 @@ async function sendEmail({ to, subject, text, html }) {
 async function sendWhatsApp({ to, body }) {
   const numbers = (Array.isArray(to) ? to : [to]).map(normalizePhone).filter(Boolean);
   if (!numbers.length) throw new Error('No WhatsApp recipients');
-  const settings = await getConnectorSettings('twilio');
+  // Prefer explicit secrets over the connector, so valid Twilio credentials can
+  // be supplied directly when the connector holds a stale/invalid value.
+  const settings = process.env.TWILIO_ACCOUNT_SID
+    ? {
+        account_sid: process.env.TWILIO_ACCOUNT_SID,
+        api_key: process.env.TWILIO_API_KEY,
+        api_key_secret: process.env.TWILIO_API_KEY_SECRET,
+        auth_token: process.env.TWILIO_AUTH_TOKEN,
+        phone_number: process.env.TWILIO_WHATSAPP_FROM,
+      }
+    : await getConnectorSettings('twilio');
   const accountSid = settings.account_sid || settings.accountSid || settings.sid;
   // Twilio connector uses API Key auth: username = api_key (SK...), password = api_key_secret.
   // Fall back to classic account_sid + auth_token if those are what's present.
