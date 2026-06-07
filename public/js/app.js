@@ -331,6 +331,9 @@ const Rec = {
     if (this.currentMeetingId && this.fullTranscript) {
       const dur = Math.floor((Date.now() - this.startTime) / 1000);
       await api(`/api/meetings/${this.currentMeetingId}`, { method: 'PATCH', body: JSON.stringify({ transcript: this.fullTranscript, duration: dur }) });
+      // Data passthrough: immediately hand the full transcript to the hidden
+      // Processing Agent (extraction + scheduling) instead of waiting for a click.
+      this.processAI();
     }
   },
 
@@ -763,6 +766,7 @@ async function renderTasks() {
             <div style="font-size:13px;color:var(--text);${isDone?'text-decoration:line-through;color:var(--text3)':''}">${esc(text)}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
               ${owner ? `<span class="tag tgold">${esc(owner)}</span>` : ''}
+              ${t.needs_review ? `<span class="tag" style="background:#7c5e10;color:#ffd969" title="${l==='ar'?'بحاجة لمراجعة — المساعد لم يكن متأكداً':'AI was unsure — please verify'}">⚑ ${l==='ar'?'بحاجة لمراجعة':'Pending Review'}</span>` : ''}
               ${isOverdue ? `<span class="tag tr">${l==='ar'?'متأخرة':'Overdue'}</span>` : ''}
               ${t.priority==='urgent' ? `<span class="tag tr">${l==='ar'?'عاجل':'Urgent'}</span>` : ''}
               ${t.due_date ? `<span class="tag" style="background:var(--navy4)">${esc(t.due_date)}</span>` : ''}
@@ -994,6 +998,33 @@ const Schedule = {
     } catch (e) { alert(e.message); }
   },
 
+  async confirm(id, force) {
+    const l = App.lang;
+    try {
+      const res = await fetch('/api/schedule/' + id + '/confirm', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: !!force })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        // Conflict: surface the overlapping confirmed meeting(s) and let the
+        // coordinator force it through if they really want a double-booking.
+        const list = (data.conflicts || []).map(c =>
+          `• ${l==='ar' ? c.title_ar : (c.title_en || c.title_ar)} — ${(c.meeting_date||'').substring(0,10)} ${c.meeting_time||''}`
+        ).join('\n');
+        const msg = (l==='ar'
+          ? 'يتعارض هذا الموعد مع اجتماع مؤكَّد:\n\n' + list + '\n\nهل تريد التأكيد رغم التعارض؟'
+          : 'This time overlaps a confirmed meeting:\n\n' + list + '\n\nConfirm anyway?');
+        if (confirm(msg)) return this.confirm(id, true);
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || data.error || 'Error');
+      await renderSchedule();
+      await loadBadges();
+    } catch (e) { alert((l==='ar'?'تعذّر التأكيد: ':'Could not confirm: ') + e.message); }
+  },
+
   async edit(id) {
     const l = App.lang;
     try {
@@ -1049,9 +1080,10 @@ async function renderSchedule() {
     el.innerHTML = items.map(s => {
       const title = l==='ar' ? s.title_ar : (s.title_en || s.title_ar);
       const isUpcoming = s.meeting_date >= today;
+      const isDraft = s.status === 'draft';
       const agenda = l==='ar' ? (s.agenda_ar || s.agenda_en) : (s.agenda_en || s.agenda_ar);
       const reminderCall = `Schedule.openReminder(${s.id},${JSON.stringify(s.title_ar)},${JSON.stringify(s.title_en||'')},${JSON.stringify(s.meeting_date||'')},${JSON.stringify(s.meeting_time||'')},${JSON.stringify(s.platform||'')},${JSON.stringify(s.attendees||'')},${JSON.stringify(s.agenda_ar||'')},${JSON.stringify(s.agenda_en||'')})`;
-      return `<div style="padding:13px 0;border-bottom:1px solid var(--border2)">
+      return `<div style="padding:13px 0;border-bottom:1px solid var(--border2);${isDraft?'background:linear-gradient(90deg,rgba(124,94,16,.10),transparent);border-inline-start:3px solid #d4a017;padding-inline-start:10px':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
@@ -1060,12 +1092,14 @@ async function renderSchedule() {
             </div>
             ${s.attendees ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">👥 ${esc(s.attendees)}</div>` : ''}
             ${agenda ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">📋 ${esc(agenda.substring(0,80))}${agenda.length>80?'…':''}</div>` : ''}
+            ${isDraft && s.source_meeting_id ? `<div style="font-size:10px;color:#d4a017;margin-top:3px">🤖 ${l==='ar'?'مُقترح تلقائياً من نص اجتماع':'Auto-suggested from a meeting transcript'}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
-            ${isUpcoming ? `<span class="tag tg" style="font-size:10px">${l==='ar'?'قادم':'Upcoming'}</span>` : `<span class="tag" style="background:var(--navy4);font-size:10px">${l==='ar'?'مضى':'Past'}</span>`}
+            ${isDraft ? `<span class="tag" style="background:#7c5e10;color:#ffd969;font-size:10px">📝 ${l==='ar'?'مسودة':'Draft'}</span>` : (isUpcoming ? `<span class="tag tg" style="font-size:10px">${l==='ar'?'قادم':'Upcoming'}</span>` : `<span class="tag" style="background:var(--navy4);font-size:10px">${l==='ar'?'مضى':'Past'}</span>`)}
           </div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:8px">
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          ${isDraft ? `<button class="btn-sm" onclick="Schedule.confirm(${s.id})" style="font-size:11px;background:#d4a017;color:#1a1a1a;border:none;border-radius:6px;padding:5px 10px;font-weight:600;cursor:pointer">✔ ${l==='ar'?'تأكيد الموعد':'Confirm Meeting'}</button>` : ''}
           <button class="btn-ghost btn-sm" onclick="${reminderCall}" style="font-size:11px">📧 ${l==='ar'?'إرسال تذكير':'Send Reminder'}</button>
           <button class="btn-ghost btn-sm" onclick="Schedule.edit(${s.id})" style="font-size:11px">✏️ ${l==='ar'?'تعديل':'Edit'}</button>
           <button class="btn-ghost btn-sm" onclick="Schedule.delete(${s.id})" style="font-size:11px;color:var(--red)">✕ ${l==='ar'?'حذف':'Delete'}</button>

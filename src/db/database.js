@@ -143,6 +143,11 @@ ensureColumn('tasks', 'confirmed', 'INTEGER DEFAULT 0');
 ensureColumn('tasks', 'confirmed_at', 'DATETIME');
 ensureColumn('tasks', 'assignee_email', 'TEXT');
 ensureColumn('tasks', 'assignee_phone', 'TEXT');
+// Pending-Review flag for AI-extracted tasks the model was unsure about.
+ensureColumn('tasks', 'needs_review', 'INTEGER DEFAULT 0');
+// Draft vs confirmed scheduling, and the meeting a draft was auto-created from.
+ensureColumn('schedule', 'status', "TEXT DEFAULT 'confirmed'");
+ensureColumn('schedule', 'source_meeting_id', 'INTEGER');
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`

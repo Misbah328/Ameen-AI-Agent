@@ -4,6 +4,9 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { sendEmail } = require('../utils/replitmail');
 const notify = require('../utils/notify');
+const { callClaude, setSessionKey } = require('../utils/claude');
+const { processMeeting, findConflicts } = require('../services/pipeline');
+const { readRecent } = require('../utils/ailog');
 
 // ── Plan helpers ────────────────────────────────────────────────────────────
 function getPlan() {
@@ -23,33 +26,11 @@ function baseUrl(req) {
   return `${proto}://${req.get('host')}`;
 }
 
-// ── In-memory API key store (per user session) ─────────────────────────────
-const sessionKeys = {};
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-async function callClaude(messages, system = '', maxTokens = 1000, userId = null) {
-  const key = (userId && sessionKeys[userId]) || process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error('NO_API_KEY');
-  const model = process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20241022';
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error('API_ERROR: ' + (data.error.message || JSON.stringify(data.error)));
-  return data.content.map(b => b.text || '').join('');
-}
-
 // ── Set API key (session-level) ────────────────────────────────────────────
 router.post('/ai/setkey', auth, (req, res) => {
   const { key } = req.body;
   if (key && key.startsWith('sk-ant')) {
-    sessionKeys[req.user.id] = key;
+    setSessionKey(req.user.id, key);
     res.json({ success: true });
   } else {
     res.status(400).json({ error: 'Invalid key format' });
@@ -185,132 +166,20 @@ router.delete('/meetings/:id', auth, (req, res) => {
 
 // ── AI: Process Meeting ───────────────────────────────────────────────────────
 router.post('/meetings/:id/process', auth, async (req, res) => {
-  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
-
-  const members = db.prepare('SELECT name_ar, name_en FROM users').all();
-  const memberNames = members.map(m => `${m.name_ar} / ${m.name_en}`).join(', ');
-
-  const system = `أنت أمين، مساعد ذكي تنفيذي متخصص في تحليل اجتماعات مجالس الإدارة (بأسلوب Gemini in Meet).
-أعضاء الفريق الحاليون: ${memberNames}
-حلّل نص الاجتماع بدقة: تعرّف على المتحدثين بالاسم من خلال سياق الحوار والأسماء المذكورة، واستخرج المهام منسوبةً لأصحابها بالاسم، والقرارات، ومحضراً رسمياً.
-إن لم يكن للاجتماع عنوان واضح، فولّد عنواناً موجزاً ومعبّراً من المحتوى.
-أرجع JSON فقط بدون markdown. الهيكل المطلوب:
-{
-  "title_ar": "عنوان موجز مولّد من المحتوى بالعربية",
-  "title_en": "Concise generated title in English",
-  "summary_ar": "ملخص عربي مفصل للاجتماع",
-  "summary_en": "Detailed English meeting summary",
-  "minutes_ar": "محضر اجتماع رسمي منظم بالعربية (الحضور، البنود، النقاش، القرارات، المهام)",
-  "minutes_en": "Formal structured meeting minutes in English",
-  "speaker_transcript": [{"speaker":"اسم المتحدث","text_ar":"ما قاله بالعربية","text_en":"what they said in English"}],
-  "tasks": [{"text_ar":"...","text_en":"...","owner_ar":"اسم المسؤول بالعربي","owner_en":"Owner name in English","due":"YYYY-MM-DD or empty string","priority":"urgent|normal"}],
-  "decisions": [{"text_ar":"...","text_en":"..."}],
-  "reminders": [{"text_ar":"...","text_en":"..."}],
-  "followups": [{"text_ar":"نقطة متابعة","text_en":"Follow-up point"}],
-  "sentiment": "positive|neutral|tense",
-  "speakers": ["name1","name2"],
-  "key_topics_ar": ["موضوع1"],
-  "key_topics_en": ["topic1"]
-}`;
-
-  const UNTITLED = ['اجتماع بدون عنوان', 'Untitled Meeting', 'اجتماع جديد', 'New Meeting', ''];
-  const needsTitle = !meeting.title_ar || UNTITLED.includes((meeting.title_ar || '').trim());
-
   try {
-    const text = await callClaude([{
-      role: 'user',
-      content: `عنوان الاجتماع: ${needsTitle ? '(بدون عنوان — يرجى توليد عنوان مناسب)' : meeting.title_ar}\nالتاريخ: ${meeting.meeting_date}\nالنص:\n${meeting.transcript}`
-    }], system, 4000, req.user.id);
-
-    let result;
-    try { result = JSON.parse(text.replace(/```json|```/g, '').trim()); }
-    catch { result = buildDemoResult(meeting); }
-
-    // Auto-generated title when none was provided
-    let finalTitleAr = meeting.title_ar;
-    let finalTitleEn = meeting.title_en || meeting.title_ar;
-    if (needsTitle && result.title_ar) {
-      finalTitleAr = result.title_ar;
-      finalTitleEn = result.title_en || result.title_ar;
-      db.prepare('UPDATE meetings SET title_ar=?, title_en=? WHERE id=?').run(finalTitleAr, finalTitleEn, meeting.id);
-    }
-
-    db.prepare(`
-      UPDATE meetings SET
-        ai_summary_ar=?, ai_summary_en=?,
-        ai_tasks=?, ai_decisions=?,
-        ai_reminders=?, ai_followups=?,
-        ai_sentiment=?, speakers=?,
-        ai_minutes_ar=?, ai_minutes_en=?, speaker_transcript=?,
-        status='processed'
-      WHERE id=?
-    `).run(
-      result.summary_ar, result.summary_en,
-      JSON.stringify(result.tasks || []),
-      JSON.stringify(result.decisions || []),
-      JSON.stringify(result.reminders || []),
-      JSON.stringify(result.followups || []),
-      result.sentiment || 'neutral',
-      JSON.stringify(result.speakers || []),
-      result.minutes_ar || '', result.minutes_en || '',
-      JSON.stringify(result.speaker_transcript || []),
-      meeting.id
-    );
-
-    result.title_ar = finalTitleAr;
-    result.title_en = finalTitleEn;
-
-    const insertTask = db.prepare(`
-      INSERT INTO tasks (text_ar, text_en, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    (result.tasks || []).forEach(t => {
-      const u = t.owner_ar ? db.prepare("SELECT id FROM users WHERE name_ar LIKE ? OR name_en LIKE ?").get(`%${t.owner_ar}%`, `%${(t.owner_en || '')}%`) : null;
-      insertTask.run(t.text_ar, t.text_en || t.text_ar, t.owner_ar || '', t.owner_en || '', t.due || '', t.priority || 'normal', meeting.id, meeting.title_ar, meeting.title_en || meeting.title_ar, req.user.id);
-    });
-
-    const insertDecision = db.prepare(`INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en) VALUES (?, ?, ?, ?, ?)`);
-    (result.decisions || []).forEach(d => {
-      insertDecision.run(d.text_ar, d.text_en || d.text_ar, meeting.id, meeting.title_ar, meeting.title_en || meeting.title_ar);
-    });
-
-    res.json({ success: true, result });
+    const out = await processMeeting({ meetingId: meeting.id, userId: req.user.id });
+    res.json({ success: true, ...out });
   } catch (e) {
-    const result = buildDemoResult(meeting);
-    if (needsTitle && result.title_ar) {
-      db.prepare('UPDATE meetings SET title_ar=?, title_en=? WHERE id=?').run(result.title_ar, result.title_en, meeting.id);
-    }
-    db.prepare(`UPDATE meetings SET ai_summary_ar=?, ai_summary_en=?, ai_tasks=?, ai_decisions=?, ai_minutes_ar=?, ai_minutes_en=?, speaker_transcript=?, status='processed' WHERE id=?`)
-      .run(result.summary_ar, result.summary_en, JSON.stringify(result.tasks), JSON.stringify(result.decisions), result.minutes_ar || '', result.minutes_en || '', JSON.stringify(result.speaker_transcript || []), meeting.id);
-    res.json({ success: true, result, demo: true, _err: e.message });
+    res.status(500).json({ error: e.message });
   }
 });
 
-function buildDemoResult(meeting) {
-  const titleAr = meeting.title_ar || 'اجتماع تنفيذي';
-  const titleEn = meeting.title_en || meeting.title_ar || 'Executive Meeting';
-  return {
-    title_ar: titleAr,
-    title_en: titleEn,
-    summary_ar: `تمت مناقشة ${titleAr} بنجاح. تم تحديد المهام والقرارات الرئيسية لجميع أعضاء الفريق.`,
-    summary_en: `${titleEn} completed successfully. Key tasks and decisions identified for all team members.`,
-    minutes_ar: `محضر اجتماع: ${titleAr}\nالتاريخ: ${(meeting.meeting_date || '').substring(0,10)}\n\nالبنود:\n- مراجعة الأداء العام\n- متابعة المهام السابقة\n\nالقرارات:\n- اعتماد بنود الاجتماع والمضي في التنفيذ`,
-    minutes_en: `Meeting Minutes: ${titleEn}\nDate: ${(meeting.meeting_date || '').substring(0,10)}\n\nItems:\n- General performance review\n- Follow-up on previous tasks\n\nDecisions:\n- Meeting items approved for implementation`,
-    speaker_transcript: [],
-    tasks: [
-      { text_ar: 'مراجعة تقرير الأداء وإعداد الملاحظات', text_en: 'Review performance report and prepare notes', owner_ar: 'المدير التنفيذي', owner_en: 'Managing Director', due: '', priority: 'normal' },
-      { text_ar: 'متابعة بنود الاجتماع مع الفريق', text_en: 'Follow up on meeting items with the team', owner_ar: 'مدير العمليات', owner_en: 'Operations Manager', due: '', priority: 'normal' }
-    ],
-    decisions: [{ text_ar: 'اعتماد بنود الاجتماع والمضي في التنفيذ', text_en: 'Meeting items approved for implementation' }],
-    reminders: [{ text_ar: 'متابعة في الاجتماع القادم', text_en: 'Follow up in next meeting' }],
-    followups: [],
-    sentiment: 'positive',
-    speakers: [],
-    key_topics_ar: ['اجتماع عام'],
-    key_topics_en: ['General meeting']
-  };
-}
+// ── Deep Log Debugger: recent AI pipeline trace (what the AI "saw" + did) ──────
+router.get('/ai/debug-log', auth, (req, res) => {
+  res.json({ entries: readRecent(Number(req.query.limit) || 200) });
+});
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 router.get('/tasks', auth, (req, res) => {
@@ -368,15 +237,42 @@ router.get('/schedule', auth, (req, res) => {
   res.json(db.prepare('SELECT s.*, u.name_ar as creator_ar, u.name_en as creator_en FROM schedule s LEFT JOIN users u ON s.created_by=u.id ORDER BY meeting_date ASC, meeting_time ASC').all());
 });
 
+function conflictPayload(conflicts) {
+  return {
+    error: 'CONFLICT',
+    message: 'يتعارض هذا الموعد مع اجتماع مؤكَّد آخر / This time overlaps a confirmed meeting',
+    conflicts: conflicts.map(c => ({ id: c.id, title_ar: c.title_ar, title_en: c.title_en, meeting_date: c.meeting_date, meeting_time: c.meeting_time, duration_mins: c.duration_mins }))
+  };
+}
+
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, force } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
+  // Conflict check before finalizing — overlap with any confirmed meeting blocks
+  // creation unless the coordinator explicitly forces it.
+  const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
+  if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
   const row = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)
   `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id);
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
+});
+
+// ── Confirm a Draft meeting (finalize): runs the conflict check, then arms the
+// 15-minute reminder by clearing reminder_sent. Drafts are created automatically
+// from transcript scheduling intents. ───────────────────────────────────────────
+router.patch('/schedule/:id/confirm', auth, (req, res) => {
+  const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (!row.meeting_date || !row.meeting_time) {
+    return res.status(400).json({ error: 'MISSING_DATETIME', message: 'حدّد التاريخ والوقت قبل التأكيد / Set a date and time before confirming' });
+  }
+  const conflicts = findConflicts({ date: row.meeting_date, time: row.meeting_time, durationMins: row.duration_mins, excludeId: row.id });
+  if (conflicts.length && !req.body.force) return res.status(409).json(conflictPayload(conflicts));
+  db.prepare("UPDATE schedule SET status='confirmed', reminder_sent=0 WHERE id=?").run(row.id);
+  res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.id));
 });
 
 router.patch('/schedule/:id', auth, (req, res) => {

@@ -1,11 +1,11 @@
-// Background scheduler — sends email reminders ~30 minutes before each scheduled
+// Background scheduler — sends email reminders ~15 minutes before each scheduled
 // meeting. Uses Replit Mail (blueprint:replitmail), delivered to the workspace
 // owner's verified Replit email. No SMTP credentials required.
 const db = require('./db/database');
 const { sendEmail } = require('./utils/replitmail');
 const notify = require('./utils/notify');
 
-const LEAD_MINUTES = 30;
+const LEAD_MINUTES = 15;
 
 function meetingDateTime(row) {
   // meeting_date may be a full ISO string or YYYY-MM-DD; take the date part.
@@ -30,7 +30,9 @@ function extractPhones(attendees) {
 async function checkAndSend() {
   let rows;
   try {
-    rows = db.prepare('SELECT * FROM schedule WHERE reminder_sent IS NULL OR reminder_sent=0').all();
+    // Only confirmed meetings arm reminders — drafts (auto-created from transcript
+    // scheduling intents) must be confirmed first. Legacy rows have status NULL.
+    rows = db.prepare("SELECT * FROM schedule WHERE (reminder_sent IS NULL OR reminder_sent=0) AND (status IS NULL OR status='confirmed')").all();
   } catch (e) {
     return;
   }
@@ -90,7 +92,7 @@ function startReminderScheduler() {
   setInterval(() => { checkAndSend().catch(() => {}); }, 60 * 1000);
   // Initial run shortly after boot.
   setTimeout(() => { checkAndSend().catch(() => {}); }, 5000);
-  console.log('✓ Meeting reminder scheduler started (checks every minute, sends ~30 min before)');
+  console.log('✓ Meeting reminder scheduler started (checks every minute, sends ~15 min before)');
 }
 
 module.exports = { startReminderScheduler, checkAndSend };
