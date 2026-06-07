@@ -1290,4 +1290,5 @@ $('ci').addEventListener('input', function () {
 });
 
 // ══ Bootstrap ══════════════════════════════════════════════════════════════════
+window.__AMEEN_READY = true;
 App.init();

@@ -2,6 +2,38 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8"/>
+<script>
+/* Resilience: the app script (/js/app.js) is occasionally fetched truncated by the
+   preview/artifact iframe when the dev server restarts mid-load. A truncated script
+   raises an uncaught "Unexpected end of input" SyntaxError. We detect that case and
+   the case where the script never finished executing, then reload exactly once. */
+(function () {
+  function recoverOnce() {
+    try {
+      if (!sessionStorage.getItem('ameen_recovered')) {
+        sessionStorage.setItem('ameen_recovered', '1');
+        location.reload();
+      }
+    } catch (_) {}
+  }
+  window.addEventListener('error', function (e) {
+    var fromApp = !e.filename || /\/js\/app\.js/.test(e.filename);
+    if (e && e.message && /Unexpected end of input/.test(e.message) && fromApp) {
+      if (e.preventDefault) e.preventDefault();
+      recoverOnce();
+    }
+  });
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (!window.__AMEEN_READY) {
+        recoverOnce();
+      } else {
+        try { sessionStorage.removeItem('ameen_recovered'); } catch (_) {}
+      }
+    }, 1000);
+  });
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Ameen Secretary</title>
 <link rel="icon" href="/logo.png"/>
