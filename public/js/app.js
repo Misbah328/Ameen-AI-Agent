@@ -325,7 +325,7 @@ const Panels = {
     switch (name) {
       case 'transcripts': await renderTranscripts(); break;
       case 'tasks': await renderTasks(); break;
-      case 'schedule': await renderSchedule(); renderTemplates().catch(()=>{}); break;
+      case 'schedule': await renderSchedule(); renderTemplates().catch(e => showToast((App.lang==='ar'?'تعذّر تحميل القوالب: ':'Could not load templates: ')+e.message,'error')); break;
       case 'overview': await renderOverview(); break;
       case 'analytics': await renderAnalytics(); break;
       case 'team': await Team.load(); break;

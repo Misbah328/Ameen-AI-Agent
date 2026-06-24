@@ -570,25 +570,25 @@ function conflictPayload(conflicts) {
   };
 }
 
-function addRecurrencePeriod(dateStr, recurrence) {
-  const [y, m, dayOfMonth] = dateStr.split('-').map(Number);
+function addNPeriods(originDateStr, recurrence, n) {
+  const [y, m, dayOfMonth] = originDateStr.split('-').map(Number);
+  const pad = v => String(v).padStart(2, '0');
   if (recurrence === 'weekly') {
     const d = new Date(Date.UTC(y, m - 1, dayOfMonth));
-    d.setUTCDate(d.getUTCDate() + 7);
+    d.setUTCDate(d.getUTCDate() + 7 * n);
     return d.toISOString().substring(0, 10);
   }
   if (recurrence === 'biweekly') {
     const d = new Date(Date.UTC(y, m - 1, dayOfMonth));
-    d.setUTCDate(d.getUTCDate() + 14);
+    d.setUTCDate(d.getUTCDate() + 14 * n);
     return d.toISOString().substring(0, 10);
   }
-  const addMonths = recurrence === 'monthly' ? 1 : 3;
-  const newMonth = m - 1 + addMonths;
-  const newYear = y + Math.floor(newMonth / 12);
-  const normMonth = ((newMonth % 12) + 12) % 12;
+  const monthsToAdd = (recurrence === 'monthly' ? 1 : 3) * n;
+  const rawMonth = m - 1 + monthsToAdd;
+  const newYear = y + Math.floor(rawMonth / 12);
+  const normMonth = ((rawMonth % 12) + 12) % 12;
   const daysInMonth = new Date(Date.UTC(newYear, normMonth + 1, 0)).getUTCDate();
   const clampedDay = Math.min(dayOfMonth, daysInMonth);
-  const pad = n => String(n).padStart(2, '0');
   return `${newYear}-${pad(normMonth + 1)}-${pad(clampedDay)}`;
 }
 
@@ -609,9 +609,8 @@ router.post('/schedule', auth, (req, res) => {
   const dur = duration_mins || 60;
   const row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId);
   if (rec !== 'none') {
-    let nextDate = meeting_date;
-    for (let i = 0; i < 3; i++) {
-      nextDate = addRecurrencePeriod(nextDate, rec);
+    for (let i = 1; i <= 3; i++) {
+      const nextDate = addNPeriods(meeting_date, rec, i);
       insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId);
     }
   }
