@@ -274,12 +274,24 @@ async function loadDocMeetings() {
   } catch (e) {}
 }
 
+// Six accent colours cycling through meeting attendees in the speaker bar.
+const SPEAKER_PALETTE = [
+  { bg:'rgba(201,168,76,.13)',  border:'rgba(201,168,76,.28)',  fg:'#C9A84C' },
+  { bg:'rgba(46,204,138,.12)',  border:'rgba(46,204,138,.30)',  fg:'#2ECC8A' },
+  { bg:'rgba(91,155,214,.12)',  border:'rgba(91,155,214,.30)',  fg:'#5B9BD6' },
+  { bg:'rgba(224,90,90,.12)',   border:'rgba(224,90,90,.30)',   fg:'#E05A5A' },
+  { bg:'rgba(239,168,39,.12)',  border:'rgba(239,168,39,.30)',  fg:'#EFA827' },
+  { bg:'rgba(147,112,219,.13)', border:'rgba(147,112,219,.30)', fg:'#9370DB' },
+];
+
 // ══ Recording ═════════════════════════════════════════════════════════════════
 const Rec = {
   mediaRec: null, audioChunks: [], isRecording: false,
   startTime: null, timerInt: null,
   speechRec: null, fullTranscript: '',
   currentMeetingId: null,
+  // Speaker identification state
+  currentSpeaker: null, speakerColors: {}, _newSpeakerTurn: false,
 
   async toggle() {
     if (this.isRecording) { await this.stop(); }
@@ -330,6 +342,12 @@ const Rec = {
     // recording, so the spoken record is never lost if the tab dies mid-meeting.
     // (Previously the transcript was only saved once, at stop().)
     this.saveInt = setInterval(() => { this.persistTranscript(); }, 12000);
+
+    // Reset speaker state and build the attendee bar for this session.
+    this.currentSpeaker = null;
+    this.speakerColors = {};
+    this._newSpeakerTurn = false;
+    this.buildSpeakerBar();
 
     this.startWaveform();
     this.startSpeechRec();
@@ -384,6 +402,9 @@ const Rec = {
     clearInterval(this.saveInt);
     if (this.speechRec) { try { this.speechRec.stop(); } catch(e){} this.speechRec = null; }
     const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? 'اضغط للبدء' : 'Tap to start';
+    clearInterval(this._recWatch);
+    const sb = $('speaker-bar'); if (sb) sb.style.display = 'none';
+    this.currentSpeaker = null;
 
     // If the coordinator edited the transcript live (Pro), keep their version.
     const box = $('live-tr');
@@ -423,16 +444,26 @@ const Rec = {
         if (e.results[i].isFinal) { final += e.results[i][0].transcript + ' '; }
         else { int += e.results[i][0].transcript; }
       }
-      if (final) { this.fullTranscript += final; this.scanTranscript(final); }
+      if (final) {
+        // Tag the segment with the active speaker when the coordinator set one.
+        if (this.currentSpeaker && this._newSpeakerTurn) {
+          const sep = this.fullTranscript.length > 0 ? '\n' : '';
+          this.fullTranscript += sep + '[' + this.currentSpeaker + ']: ' + final;
+          this._newSpeakerTurn = false;
+        } else {
+          this.fullTranscript += final;
+        }
+        this.scanTranscript(final);
+      }
       const box = $('live-tr');
       if (!box) return;
-      // In Pro edit mode, don't clobber the coordinator's edits/cursor — only
-      // append newly finalized speech; skip interim repainting.
+      // In Pro edit mode: keep raw innerText (speaker tags visible/editable).
       if (App.isPro() && box.getAttribute('contenteditable') === 'true') {
         if (final && !this._userEdited) { box.innerText = this.fullTranscript; }
         else if (final) { box.innerText = box.innerText + final; this.fullTranscript = box.innerText; }
       } else {
-        box.textContent = this.fullTranscript + int;
+        // Render coloured speaker blocks in normal mode.
+        box.innerHTML = this.renderTranscriptHTML(int);
       }
     };
 
@@ -482,6 +513,96 @@ const Rec = {
         setTimeout(() => { if (this.isRecording && !this._recFatal) this._restartRec(); }, 500);
       }
     }
+  },
+
+  // ── Speaker identification ────────────────────────────────────────────────
+
+  // Build the speaker bar from the current team roster (App._members).
+  buildSpeakerBar() {
+    const bar = $('spk-avatars');
+    if (!bar) return;
+    bar.innerHTML = '';
+    const members = App._members || [];
+    const lbl = $('spk-label');
+    if (!members.length) {
+      if (lbl) lbl.textContent = App.lang === 'ar' ? 'لا يوجد أعضاء فريق — أضف أعضاء لتفعيل تحديد المتحدثين' : 'No team members — add members to enable speaker ID';
+      const sb = $('speaker-bar'); if (sb) sb.style.display = '';
+      return;
+    }
+    if (lbl) lbl.textContent = App.lang === 'ar' ? '👆 اضغط لتحديد المتحدث الحالي' : '👆 Tap to set the active speaker';
+    const l = App.lang;
+    // "Unknown / no speaker" button (tap to clear active speaker)
+    const noneBtn = document.createElement('button');
+    noneBtn.className = 'spk-btn';
+    noneBtn.innerHTML = `<div class="spk-av" style="background:var(--navy4);border-color:var(--border2);color:var(--text3);font-size:16px;border:2px solid var(--border2)">•</div><div class="spk-nm">—</div>`;
+    noneBtn.onclick = () => this.setSpeaker(null);
+    bar.appendChild(noneBtn);
+    members.forEach(m => {
+      const name = l === 'ar' ? (m.name_ar || m.name_en || '') : (m.name_en || m.name_ar || '');
+      if (!name) return;
+      const color = this.getSpeakerColor(name);
+      const initials = name.split(/[\s\.]+/).filter(Boolean).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+      const shortName = name.split(/\s+/)[0] || name;
+      const btn = document.createElement('button');
+      btn.className = 'spk-btn';
+      btn.dataset.speaker = name;
+      btn.title = name;
+      btn.innerHTML = `<div class="spk-av" style="background:${color.bg};border-color:${color.border};color:${color.fg}">${esc(initials)}</div><div class="spk-nm">${esc(shortName)}</div>`;
+      btn.onclick = () => this.setSpeaker(name);
+      bar.appendChild(btn);
+    });
+    const sb = $('speaker-bar'); if (sb) sb.style.display = '';
+  },
+
+  // Set the active speaker. Passing null clears the speaker.
+  setSpeaker(name) {
+    this.currentSpeaker = name || null;
+    this._newSpeakerTurn = !!name; // only start a new turn if a real speaker was selected
+    const bar = $('spk-avatars');
+    if (!bar) return;
+    bar.querySelectorAll('.spk-btn').forEach(btn => {
+      const isSel = name ? btn.dataset.speaker === name : !btn.dataset.speaker;
+      btn.classList.toggle('spk-active', isSel);
+    });
+  },
+
+  // Return (and lazily assign) a colour from the palette for a given speaker name.
+  getSpeakerColor(name) {
+    if (!name) return SPEAKER_PALETTE[0];
+    if (!this.speakerColors[name]) {
+      const idx = Object.keys(this.speakerColors).length % SPEAKER_PALETTE.length;
+      this.speakerColors[name] = SPEAKER_PALETTE[idx];
+    }
+    return this.speakerColors[name];
+  },
+
+  // Render this.fullTranscript as coloured speaker blocks (with `interim` text
+  // appended as a faint in-progress span). Falls back to plain text when no
+  // [Speaker]: tags are present so old meetings display correctly.
+  renderTranscriptHTML(interim) {
+    const text = this.fullTranscript;
+    if (!text && !interim) return '';
+    // Split on [Name]: markers; capturing group interleaves name/content pairs.
+    const segments = (text || '').split(/\n?\[([^\]]+)\]:\s*/);
+    if (segments.length <= 1) {
+      return `<span style="color:var(--text);white-space:pre-wrap">${esc(text)}</span>` +
+        (interim ? `<span style="color:var(--text3);font-style:italic"> ${esc(interim)}</span>` : '');
+    }
+    let html = '';
+    const preamble = (segments[0] || '').trim();
+    if (preamble) html += `<div style="color:var(--text);font-size:12px;padding-bottom:5px;white-space:pre-wrap">${esc(preamble)}</div>`;
+    for (let i = 1; i < segments.length; i += 2) {
+      const speaker = (segments[i] || '').trim();
+      const content = ((segments[i + 1] || '')).trim();
+      const color = this.getSpeakerColor(speaker);
+      const initials = speaker.split(/[\s\.]+/).filter(Boolean).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+      html += `<div style="display:flex;gap:7px;align-items:flex-start;padding:5px 0;border-bottom:.5px solid var(--border2)">` +
+        `<div style="width:24px;height:24px;border-radius:50%;background:${color.bg};border:1px solid ${color.border};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${color.fg};flex-shrink:0;margin-top:2px">${esc(initials)}</div>` +
+        `<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:${color.fg};margin-bottom:1px">${esc(speaker)}</div>` +
+        `<div style="font-size:12px;color:var(--text);line-height:1.6">${esc(content)}</div></div></div>`;
+    }
+    if (interim) html += `<div style="padding:3px 0 3px 31px;color:var(--text3);font-style:italic;font-size:12px">${esc(interim)}</div>`;
+    return html;
   },
 
   scanTranscript(text) {

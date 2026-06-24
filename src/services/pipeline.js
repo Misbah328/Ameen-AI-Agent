@@ -10,6 +10,23 @@ const { correctNames } = require('../utils/nameCorrect');
 
 const UNTITLED = ['اجتماع بدون عنوان', 'Untitled Meeting', 'اجتماع جديد', 'New Meeting', ''];
 
+// Parse explicit [Speaker Name]: text tags that the coordinator placed during
+// recording. Returns an array of {speaker,text_ar,text_en} segments, or [] if
+// the transcript has no such tags (AI-generated speaker_transcript is used instead).
+function parseTaggedSpeakers(text) {
+  if (!text || !/\[[^\]]+\]:/.test(text)) return [];
+  const segments = text.split(/\n?\[([^\]]+)\]:\s*/);
+  const result = [];
+  const preamble = (segments[0] || '').trim();
+  if (preamble) result.push({ speaker: '', text_ar: preamble, text_en: preamble });
+  for (let i = 1; i + 1 < segments.length; i += 2) {
+    const speaker = (segments[i] || '').trim();
+    const content = (segments[i + 1] || '').trim();
+    if (speaker || content) result.push({ speaker, text_ar: content, text_en: content });
+  }
+  return result;
+}
+
 // Keywords that signal an action item / a scheduling request. Used purely for the
 // Deep Log so that when extraction yields nothing we can record WHY.
 const ACTION_KW = ['يجب', 'سيتولى', 'سيقوم', 'مسؤول', 'مطلوب', 'بحلول', 'موعد', 'كلّف', 'نكلف',
@@ -64,6 +81,7 @@ function buildSystemPrompt(memberNames, meetingDate) {
 3) استخرج التواريخ المحددة لكل مهمة (YYYY-MM-DD). حوّل العبارات النسبية مثل "الأسبوع القادم" أو "يوم الثلاثاء" إلى تاريخ مطلق بالاعتماد على تاريخ الاجتماع المرجعي.
 4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة، أو كانت مجرد اقتراح/سؤال) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين.
 5) تعرّف على نوايا الجدولة: عبارات مثل "لنجتمع الثلاثاء القادم" أو "حدد اجتماع متابعة" يجب أن تُنتج عنصراً في scheduling_intents بتاريخ ووقت مطلقين متى أمكن.
+6) إذا كان النص يحتوي على بوادئ بالشكل [اسم]: فهذه علامات متحدث فعلية مُعيَّنة يدوياً من المنسّق — اعتمد عليها مصدراً رئيسياً لحقل speaker_transcript وللنسب الصحيحة للمهام.
 
 أرجع JSON فقط بدون أي markdown أو شرح. الهيكل:
 {
@@ -151,6 +169,19 @@ async function processMeeting({ meetingId, userId = null }) {
   }
 
   // ── Persist AI fields on the meeting ──────────────────────────────────────
+  // If the coordinator tagged speakers during recording, parse those [Name]: markers
+  // as the authoritative speaker_transcript rather than relying on AI guessing.
+  const parsedSpeakers = parseTaggedSpeakers(transcript);
+  const finalSpeakerTr = parsedSpeakers.length
+    ? parsedSpeakers
+    : (result.speaker_transcript || []);
+  const finalSpeakers = parsedSpeakers.length
+    ? [...new Set(parsedSpeakers.map(s => s.speaker).filter(Boolean))]
+    : (result.speakers || []);
+  if (parsedSpeakers.length) {
+    aiLog('process:speaker-tags-parsed', { meetingId, count: parsedSpeakers.length });
+  }
+
   db.prepare(`
     UPDATE meetings SET
       ai_summary_ar=?, ai_summary_en=?,
@@ -167,9 +198,9 @@ async function processMeeting({ meetingId, userId = null }) {
     JSON.stringify(result.reminders || []),
     JSON.stringify(result.followups || []),
     result.sentiment || 'neutral',
-    JSON.stringify(result.speakers || []),
+    JSON.stringify(finalSpeakers),
     result.minutes_ar || '', result.minutes_en || '',
-    JSON.stringify(result.speaker_transcript || []),
+    JSON.stringify(finalSpeakerTr),
     meeting.id
   );
 
