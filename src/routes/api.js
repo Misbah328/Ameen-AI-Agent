@@ -42,12 +42,41 @@ async function extractFileText(filePath, originalname) {
       const buf = fs.readFileSync(filePath);
       const result = await pdfParse(buf);
       return (result.text || '').slice(0, 8000);
-    } else if (ext === '.docx' || ext === '.pptx') {
+    } else if (ext === '.docx') {
       const mammoth = require('mammoth');
       const result = await mammoth.extractRawText({ path: filePath });
       return (result.value || '').slice(0, 8000);
     } else if (ext === '.txt') {
       return fs.readFileSync(filePath, 'utf8').slice(0, 8000);
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      const XLSX = require('xlsx');
+      const wb = XLSX.readFile(filePath);
+      const lines = [];
+      wb.SheetNames.forEach(name => {
+        const ws = wb.Sheets[name];
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        if (csv.trim()) lines.push(`[Sheet: ${name}]\n${csv}`);
+      });
+      return lines.join('\n\n').slice(0, 8000);
+    } else if (ext === '.pptx') {
+      const JSZip = require('jszip');
+      const buf = fs.readFileSync(filePath);
+      const zip = await JSZip.loadAsync(buf);
+      const slideFiles = Object.keys(zip.files)
+        .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+        .sort((a, b) => {
+          const na = parseInt(a.match(/\d+/)?.[0] || 0);
+          const nb = parseInt(b.match(/\d+/)?.[0] || 0);
+          return na - nb;
+        });
+      const texts = [];
+      for (const sf of slideFiles) {
+        const xml = await zip.files[sf].async('string');
+        const matches = xml.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) || [];
+        const slideText = matches.map(m => m.replace(/<[^>]+>/g, '')).join(' ').trim();
+        if (slideText) texts.push(slideText);
+      }
+      return texts.join('\n').slice(0, 8000);
     }
   } catch {}
   return '';
@@ -290,6 +319,15 @@ ${text.slice(0, 3500)}
 // ── Documents for a specific meeting ──────────────────────────────────────────
 router.get('/meetings/:id/documents', auth, (req, res) => {
   res.json(db.prepare("SELECT * FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!='' ORDER BY id DESC").all(req.params.id));
+});
+
+// ── Document summary by ID ─────────────────────────────────────────────────────
+router.get('/documents/:id/summary', auth, (req, res) => {
+  const doc = db.prepare('SELECT id, title, doc_type, doc_classification, ai_summary, ai_key_points, upload_date, uploaded_by, file_path, file_size, meeting_id FROM meeting_documents WHERE id=?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  let key_points = [];
+  try { key_points = JSON.parse(doc.ai_key_points || '[]'); } catch {}
+  res.json({ ...doc, key_points });
 });
 
 // ── Document Library (all uploaded files) ─────────────────────────────────────
@@ -543,11 +581,12 @@ router.post('/ai/chat', auth, async (req, res) => {
   const riskLines = risks.flatMap(m => { try { return JSON.parse(m.ai_risks).map(r => `- [${m.title_ar}] ${r.text_ar} (${r.severity||'medium'})`); } catch { return []; } });
 
   const docRows = db.prepare(`SELECT md.title, md.ai_summary, md.doc_classification, m.title_ar as mtg_title
-    FROM meeting_documents md LEFT JOIN meetings m ON md.meeting_id=m.id
+    FROM meeting_documents md INNER JOIN meetings m ON md.meeting_id=m.id
     WHERE md.ai_summary IS NOT NULL AND md.ai_summary!='' AND md.file_path IS NOT NULL AND md.file_path!=''
-    ORDER BY md.id DESC LIMIT 8`).all();
+      AND m.id IN (SELECT id FROM meetings ORDER BY meeting_date DESC LIMIT 3)
+    ORDER BY m.meeting_date DESC, md.id DESC`).all();
   const docContext = docRows.length
-    ? '\n\nوثائق الاجتماعات المرفوعة (ملخصات ذكاء اصطناعي):\n' +
+    ? '\n\nوثائق الاجتماعات المرفوعة (ملخصات ذكاء اصطناعي) من آخر 3 اجتماعات:\n' +
       docRows.map(d => `• [${d.mtg_title || ''}] ${d.title} (${d.doc_classification || ''}): ${d.ai_summary}`).join('\n')
     : '';
 
@@ -638,6 +677,20 @@ router.post('/ai/document', auth, requirePro, async (req, res) => {
       ).join('\n')
     : '';
   meetingContext += perPersonContext;
+
+  // Append uploaded document summaries scoped to the selected meeting(s)
+  const uploadedDocRows = (meeting_id && meeting_id !== 'all')
+    ? db.prepare("SELECT title, ai_summary, ai_key_points, doc_classification FROM meeting_documents WHERE meeting_id=? AND ai_summary IS NOT NULL AND ai_summary!='' AND file_path IS NOT NULL AND file_path!=''").all(meeting_id)
+    : db.prepare("SELECT md.title, md.ai_summary, md.ai_key_points, md.doc_classification FROM meeting_documents md INNER JOIN meetings m ON md.meeting_id=m.id WHERE md.ai_summary IS NOT NULL AND md.ai_summary!='' AND md.file_path IS NOT NULL AND md.file_path!='' ORDER BY m.meeting_date DESC LIMIT 10").all();
+  if (uploadedDocRows.length) {
+    meetingContext += '\n\nوثائق الاجتماع المرفوعة / Uploaded Board Papers:\n' +
+      uploadedDocRows.map(d => {
+        let kp = [];
+        try { kp = JSON.parse(d.ai_key_points || '[]'); } catch {}
+        return `• ${d.title}${d.doc_classification ? ' [' + d.doc_classification + ']' : ''}\n  الملخص: ${d.ai_summary}` +
+          (kp.length ? '\n  النقاط الرئيسية: ' + kp.join(' | ') : '');
+      }).join('\n\n');
+  }
 
   const docTypeLabels = {
     minutes_ar: 'محضر اجتماع رسمي بالعربية',
