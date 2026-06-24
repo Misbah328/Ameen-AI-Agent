@@ -256,11 +256,17 @@ async function loadBadges() {
 // ══ Load select dropdowns ═════════════════════════════════════════════════════
 async function loadSelectLists() {
   try {
-    const users = await api('/api/members');
+    const [users, bc] = await Promise.all([
+      api('/api/members'),
+      api('/api/gov/boards-and-committees').catch(() => ({ boards: [], committees: [] })),
+    ]);
     App._members = users;
+    App._boards = bc.boards || [];
+    App._committees = bc.committees || [];
     const l = App.lang;
     const opts = users.map(u => `<option value="${u.id}">${esc(l === 'ar' ? u.name_ar : (u.name_en || u.name_ar))}</option>`).join('');
     const ownerSel = $('nt-owner'); if (ownerSel) ownerSel.innerHTML = `<option value="">-- ${l === 'ar' ? 'اختر' : 'Select'} --</option>${opts}`;
+    Schedule._populateBoardSelects();
   } catch (e) {}
 }
 
@@ -954,6 +960,8 @@ async function renderLastMeeting() {
             <div style="display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap">
               <div style="font-size:12px;color:var(--text3)">📅 ${esc((m.meeting_date||'').substring(0,10))}</div>
               ${meetingTypeLbl ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(meetingTypeLbl)}</span>` : ''}
+              ${m.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l==='ar'?m.board_name_ar:(m.board_name_en||m.board_name_ar))}</span>` : ''}
+              ${m.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l==='ar'?m.committee_name_ar:(m.committee_name_en||m.committee_name_ar))}</span>` : ''}
             </div>
           </div>
           <button class="btn-gold btn-sm" onclick="pushLastMeetingWhatsApp(${m.id})">📲 ${lbl('إرسال عبر واتساب','Push to WhatsApp')}</button>
@@ -1264,9 +1272,26 @@ const DocGen = {
 
 // ══ Schedule ══════════════════════════════════════════════════════════════════
 const Schedule = {
+  _populateBoardSelects() {
+    const l = App.lang;
+    const boards = App._boards || [];
+    const sel = $('nm-board');
+    if (!sel) return;
+    sel.innerHTML = `<option value="">— ${l==='ar'?'بدون مجلس':'No board'} —</option>` +
+      boards.map(b => `<option value="${b.id}">${esc(l==='ar'?b.name_ar:(b.name_en||b.name_ar))}</option>`).join('');
+    this.onBoardChange();
+  },
+  onBoardChange() {
+    const boardId = parseInt($('nm-board')?.value) || 0;
+    const l = App.lang;
+    const all = App._committees || [];
+    const committees = boardId ? all.filter(c => c.board_id === boardId) : all;
+    const csel = $('nm-committee');
+    if (!csel) return;
+    csel.innerHTML = `<option value="">— ${l==='ar'?'بدون لجنة':'No committee'} —</option>` +
+      committees.map(c => `<option value="${c.id}">${esc(l==='ar'?c.name_ar:(c.name_en||c.name_ar))}</option>`).join('');
+  },
   async add() {
-    // Unified smart title — one field stored in both AR and EN columns so the
-    // schedule reads correctly in either language without double entry.
     const title = $('nm-title').value.trim();
     const data = {
       title_ar: title,
@@ -1280,6 +1305,8 @@ const Schedule = {
       agenda_en: $('nm-agenda-en').value,
       reminder_channel: ($('nm-channel') && $('nm-channel').value) || 'email',
       meeting_type: ($('nm-type') && $('nm-type').value) || '',
+      board_id: parseInt($('nm-board')?.value) || null,
+      committee_id: parseInt($('nm-committee')?.value) || null,
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
       alert(App.lang === 'ar' ? 'يرجى إدخال العنوان والتاريخ والوقت' : 'Please enter title, date and time');
@@ -1292,6 +1319,8 @@ const Schedule = {
       await loadBadges();
       ['nm-title', 'nm-att', 'nm-agenda-ar', 'nm-agenda-en'].forEach(id => $(id).value = '');
       if ($('nm-type')) $('nm-type').value = '';
+      if ($('nm-board')) $('nm-board').value = '';
+      if ($('nm-committee')) $('nm-committee').value = '';
     } catch (e) { alert(e.message); }
   },
 
@@ -1405,6 +1434,8 @@ async function renderSchedule() {
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
               ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(mtLabel(s.meeting_type, l))}</span>` : ''}
+              ${s.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l==='ar'?s.board_name_ar:(s.board_name_en||s.board_name_ar))}</span>` : ''}
+              ${s.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l==='ar'?s.committee_name_ar:(s.committee_name_en||s.committee_name_ar))}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">
               📅 ${esc(s.meeting_date||'')} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ''} · ${s.duration_mins||60} ${l==='ar'?'د':'min'} · ${esc(s.platform||'')}

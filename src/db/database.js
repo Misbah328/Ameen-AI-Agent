@@ -152,6 +152,10 @@ ensureColumn('meetings', 'meeting_type', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'meeting_type', "TEXT DEFAULT ''");
 ensureColumn('meeting_attendees', 'role', "TEXT DEFAULT 'Member'");
 ensureColumn('meeting_attendees', 'attendance_status', "TEXT DEFAULT 'pending'");
+ensureColumn('meetings', 'board_id', 'INTEGER');
+ensureColumn('meetings', 'committee_id', 'INTEGER');
+ensureColumn('schedule', 'board_id', 'INTEGER');
+ensureColumn('schedule', 'committee_id', 'INTEGER');
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`
@@ -235,6 +239,32 @@ db.exec(`
     notes TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(resolution_id) REFERENCES resolutions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS boards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name_ar TEXT NOT NULL,
+    name_en TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    chairperson TEXT DEFAULT '',
+    members TEXT DEFAULT '[]',
+    total_members INTEGER DEFAULT 0,
+    default_quorum INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS committees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER,
+    name_ar TEXT NOT NULL,
+    name_en TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    chairperson TEXT DEFAULT '',
+    members TEXT DEFAULT '[]',
+    total_members INTEGER DEFAULT 0,
+    default_quorum INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(board_id) REFERENCES boards(id)
   );
 `);
 
@@ -338,6 +368,33 @@ if (userCount.c === 0) {
   insertSchedule.run('جلسة مراجعة الشراكة الخليجية', 'Gulf Partnership Review Session', '2026-05-28', '11:00', 45, 'Teams', 'م. أحمد، م. سارة', 'المراجعة القانونية للعقد، التفاصيل المالية', 'Legal review of contract, financial details', u2, 'Committee Meeting');
 
   console.log('✓ Database seeded with demo data');
+}
+
+// Seed boards and committees (runs independently of user seed)
+if (db.prepare('SELECT COUNT(*) as c FROM boards').get().c === 0) {
+  const iBoard = db.prepare(`INSERT INTO boards (name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?)`);
+  const b1 = iBoard.run(
+    'مجلس الإدارة', 'Board of Directors',
+    'الهيئة الحاكمة العليا للشركة — مسؤولة عن الاستراتيجية الكبرى والرقابة',
+    'م. أحمد العمراني',
+    JSON.stringify(['م. أحمد العمراني','م. سارة الزهراني','م. خالد المنصور','م. نورة الراشد']),
+    4, 3
+  ).lastInsertRowid;
+
+  const iCom = db.prepare(`INSERT INTO committees (board_id,name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?,?)`);
+  iCom.run(b1,'لجنة المراجعة والتدقيق','Audit Committee',
+    'مراجعة البيانات المالية والتحقق من سلامة الضوابط الداخلية',
+    'م. خالد المنصور',
+    JSON.stringify(['م. خالد المنصور','م. نورة الراشد','مستشار خارجي']),3,2);
+  iCom.run(b1,'لجنة المخاطر','Risk Committee',
+    'تحديد ومراقبة وإدارة المخاطر التشغيلية والمالية والاستراتيجية',
+    'م. سارة الزهراني',
+    JSON.stringify(['م. سارة الزهراني','م. أحمد العمراني','م. خالد المنصور']),3,2);
+  iCom.run(b1,'اللجنة التنفيذية','Executive Committee',
+    'تنفيذ القرارات الاستراتيجية ومتابعة الأداء التشغيلي اليومي',
+    'م. أحمد العمراني',
+    JSON.stringify(['م. أحمد العمراني','م. سارة الزهراني','م. نورة الراشد','م. خالد المنصور']),4,3);
+  console.log('✓ Boards and committees seeded');
 }
 
 module.exports = db;

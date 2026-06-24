@@ -201,4 +201,92 @@ router.delete('/followups/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Boards ────────────────────────────────────────────────────────────────────
+
+router.get('/boards', auth, (req, res) => {
+  const boards = db.prepare('SELECT * FROM boards ORDER BY id').all();
+  const committees = db.prepare('SELECT * FROM committees ORDER BY board_id, id').all();
+  res.json(boards.map(b => ({
+    ...b,
+    members: (() => { try { return JSON.parse(b.members || '[]'); } catch { return []; } })(),
+    committees: committees.filter(c => c.board_id === b.id).map(c => ({
+      ...c,
+      members: (() => { try { return JSON.parse(c.members || '[]'); } catch { return []; } })(),
+    })),
+  })));
+});
+
+router.post('/boards', auth, (req, res) => {
+  const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
+  if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
+  const row = db.prepare(`INSERT INTO boards (name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?)`)
+    .run(name_ar, name_en||name_ar, description||'', chairperson||'', JSON.stringify(members||[]), total_members||0, default_quorum||0);
+  res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.patch('/boards/:id', auth, (req, res) => {
+  const existing = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
+  db.prepare(`UPDATE boards SET
+    name_ar=COALESCE(?,name_ar), name_en=COALESCE(?,name_en),
+    description=COALESCE(?,description), chairperson=COALESCE(?,chairperson),
+    members=COALESCE(?,members), total_members=COALESCE(?,total_members),
+    default_quorum=COALESCE(?,default_quorum) WHERE id=?`)
+    .run(name_ar, name_en, description, chairperson,
+      members !== undefined ? JSON.stringify(members) : null,
+      total_members, default_quorum, req.params.id);
+  res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id));
+});
+
+router.delete('/boards/:id', auth, (req, res) => {
+  db.prepare('UPDATE committees SET board_id=NULL WHERE board_id=?').run(req.params.id);
+  db.prepare('DELETE FROM boards WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Committees ────────────────────────────────────────────────────────────────
+
+router.get('/committees', auth, (req, res) => {
+  const { boardId } = req.query;
+  const rows = boardId
+    ? db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id WHERE c.board_id=? ORDER BY c.id').all(boardId)
+    : db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id ORDER BY c.board_id, c.id').all();
+  res.json(rows.map(c => ({ ...c, members: (() => { try { return JSON.parse(c.members||'[]'); } catch { return []; } })() })));
+});
+
+router.post('/committees', auth, (req, res) => {
+  const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
+  if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
+  const row = db.prepare(`INSERT INTO committees (board_id,name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(board_id||null, name_ar, name_en||name_ar, description||'', chairperson||'', JSON.stringify(members||[]), total_members||0, default_quorum||0);
+  res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.patch('/committees/:id', auth, (req, res) => {
+  if (!db.prepare('SELECT id FROM committees WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
+  db.prepare(`UPDATE committees SET
+    board_id=COALESCE(?,board_id), name_ar=COALESCE(?,name_ar), name_en=COALESCE(?,name_en),
+    description=COALESCE(?,description), chairperson=COALESCE(?,chairperson),
+    members=COALESCE(?,members), total_members=COALESCE(?,total_members),
+    default_quorum=COALESCE(?,default_quorum) WHERE id=?`)
+    .run(board_id, name_ar, name_en, description, chairperson,
+      members !== undefined ? JSON.stringify(members) : null,
+      total_members, default_quorum, req.params.id);
+  res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(req.params.id));
+});
+
+router.delete('/committees/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM committees WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Combined dropdown feed (boards + all their committees) ────────────────────
+router.get('/boards-and-committees', auth, (req, res) => {
+  const boards = db.prepare('SELECT id,name_ar,name_en,chairperson,default_quorum FROM boards ORDER BY id').all();
+  const committees = db.prepare('SELECT id,board_id,name_ar,name_en,chairperson,default_quorum FROM committees ORDER BY board_id,id').all();
+  res.json({ boards, committees });
+});
+
 module.exports = router;

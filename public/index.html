@@ -494,6 +494,18 @@
             <input class="fi" id="nm-att" data-ph-ar="م. أحمد، sara@x.com، ‎+9665..." data-ph-en="Ahmed, sara@x.com, +9665..." placeholder="المشاركون"/>
           </div>
           <div class="frow">
+            <div class="fl" data-ar="المجلس" data-en="Board">المجلس</div>
+            <select class="fi" id="nm-board" onchange="Schedule.onBoardChange()">
+              <option value="">— <span data-ar="بدون مجلس" data-en="No board">بدون مجلس</span> —</option>
+            </select>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="اللجنة" data-en="Committee">اللجنة</div>
+            <select class="fi" id="nm-committee">
+              <option value="">— <span data-ar="بدون لجنة" data-en="No committee">بدون لجنة</span> —</option>
+            </select>
+          </div>
+          <div class="frow">
             <div class="fl" data-ar="قناة التذكير" data-en="Reminder Channel">قناة التذكير</div>
             <select class="fi" id="nm-channel">
               <option value="email" data-ar="بريد إلكتروني" data-en="Email">بريد إلكتروني / Email</option>

@@ -47,32 +47,47 @@ const Gov = {
   source: 'meeting',
   _meetings: [],
   _schedule: [],
+  _boards: [],
   _qTimer: null,
 
   lbl(ar, en) { return App.lang === 'ar' ? ar : en; },
 
-  // ── Init: load meeting lists, render selector ──────────────────────────────
+  // ── Init: load meeting lists + boards, render all ─────────────────────────
   async init() {
     const body = $('gov-body');
     if (!body) return;
     body.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
-      const [meetings, schedule] = await Promise.all([
+      const [meetings, schedule, boards] = await Promise.all([
         api('/api/meetings').catch(() => []),
         api('/api/schedule').catch(() => []),
+        api('/api/gov/boards').catch(() => []),
       ]);
       this._meetings = meetings || [];
       this._schedule = schedule || [];
-      this._renderSelector();
+      this._boards = boards || [];
+      this._renderAll();
     } catch (e) {
       body.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">${esc(e.message)}</div>`;
     }
   },
 
-  _renderSelector() {
-    const l = App.lang;
+  _renderAll() {
     const body = $('gov-body');
     if (!body) return;
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        ${this._sBoardsSection(this._boards)}
+        <div id="gov-meeting-selector"></div>
+        <div id="gov-sections" style="display:flex;flex-direction:column;gap:14px"></div>
+      </div>`;
+    this._renderSelector();
+  },
+
+  _renderSelector() {
+    const l = App.lang;
+    const wrap = $('gov-meeting-selector');
+    if (!wrap) return;
 
     const mOpts = this._meetings.map(m =>
       `<option value="meeting:${m.id}">${esc(l==='ar'?m.title_ar:(m.title_en||m.title_ar))}${m.meeting_date?' — '+(m.meeting_date||'').substring(0,10):''}</option>`
@@ -83,21 +98,179 @@ const Gov = {
 
     const curVal = this.meetingId ? `meeting:${this.meetingId}` : this.scheduleId ? `schedule:${this.scheduleId}` : '';
 
-    body.innerHTML = `
+    wrap.innerHTML = `
       <div class="card">
-        <div class="ch"><div class="ct">📋 ${this.lbl('اختر الاجتماع','Select Meeting')}</div></div>
+        <div class="ch"><div class="ct">📋 ${this.lbl('ربط الاجتماع','Link a Meeting')}</div></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${this.lbl('اختر اجتماعاً لعرض وإدارة بنوده الحوكمية','Select a meeting to view and manage its governance items')}</div>
         <select class="fi" id="gov-sel" onchange="Gov.onSelect(this.value)" style="font-size:13px">
           <option value="">— ${this.lbl('اختر اجتماعاً...','Choose a meeting...')} —</option>
           ${mOpts ? `<optgroup label="${this.lbl('الاجتماعات المسجلة','Recorded Meetings')}">${mOpts}</optgroup>` : ''}
           ${sOpts ? `<optgroup label="${this.lbl('الاجتماعات المجدولة','Scheduled Meetings')}">${sOpts}</optgroup>` : ''}
         </select>
-      </div>
-      <div id="gov-sections" style="display:flex;flex-direction:column;gap:14px"></div>`;
+      </div>`;
 
     if (curVal) {
       const sel = $('gov-sel');
       if (sel) { sel.value = curVal; this._loadSections(); }
     }
+  },
+
+  // ── Boards & Committees section ────────────────────────────────────────────
+  _sBoardsSection(boards) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    return `<div class="card" id="sec-boards">
+      <div class="ch">
+        <div>
+          <div class="ct">🏛 ${lbl('المجالس واللجان','Boards & Committees')}</div>
+          <div class="ctsub">${lbl('الهيئات الحاكمة المرتبطة بالاجتماعات','Governing bodies linked to meetings')}</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="Gov._showForm('board-add-form')">+ ${lbl('إضافة مجلس','Add Board')}</button>
+      </div>
+
+      <div id="board-add-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
+        <div class="fs" style="gap:8px">
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('الاسم (عربي)','Name (Arabic)')} *</div><input class="fi" id="b-name-ar" placeholder="${lbl('مجلس الإدارة','Board of Directors')}"/></div>
+            <div class="frow"><div class="fl">Name (English)</div><input class="fi" id="b-name-en" placeholder="Board of Directors" dir="ltr" style="text-align:left"/></div>
+          </div>
+          <div class="frow"><div class="fl">${lbl('الوصف','Description')}</div><input class="fi" id="b-desc" placeholder="${lbl('وصف المجلس...','Board description...')}"/></div>
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('الرئيس','Chairperson')}</div><input class="fi" id="b-chair" placeholder="${lbl('اسم الرئيس','Chair name')}"/></div>
+            <div class="frow"><div class="fl">${lbl('إجمالي الأعضاء','Total Members')}</div><input class="fi" type="number" id="b-total" value="0" min="0"/></div>
+          </div>
+          <div class="frow"><div class="fl">${lbl('النصاب الافتراضي','Default Quorum')}</div><input class="fi" type="number" id="b-quorum" value="0" min="0"/></div>
+          <div class="fa">
+            <button class="btn-gold btn-sm" onclick="Gov.addBoard()">✓ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('board-add-form')">✕</button>
+          </div>
+        </div>
+      </div>
+
+      ${boards.length ? boards.map(b => this._renderBoardRow(b)).join('') : `
+        <div class="es" style="padding:16px">
+          <div class="es-icon">🏛</div>
+          <div style="font-size:12px">${lbl('لا توجد مجالس بعد — أضف مجلساً للبدء','No boards yet — add one to get started')}</div>
+        </div>`}
+    </div>`;
+  },
+
+  _renderBoardRow(b) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const name = l==='ar' ? b.name_ar : (b.name_en||b.name_ar);
+    const coms = b.committees || [];
+    return `<div style="background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:10px;border:1px solid var(--border2)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">🏛 ${esc(name)}</div>
+          ${b.description ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(b.description)}</div>` : ''}
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
+            ${b.chairperson ? `<span class="tag tgold" style="font-size:10px">👤 ${esc(b.chairperson)}</span>` : ''}
+            ${b.total_members ? `<span class="tag" style="background:var(--navy4);font-size:10px">👥 ${b.total_members} ${lbl('عضو','members')}</span>` : ''}
+            ${b.default_quorum ? `<span class="tag tb" style="font-size:10px">🏛 ${lbl('نصاب:','Quorum:')} ${b.default_quorum}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button class="btn-ghost btn-sm" onclick="Gov._showForm('com-add-form-${b.id}')" style="font-size:10px">+ ${lbl('لجنة','Committee')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov.delBoard(${b.id})" style="color:var(--red);font-size:10px">✕</button>
+        </div>
+      </div>
+
+      <div id="com-add-form-${b.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:10px;margin-top:10px">
+        <div class="fs" style="gap:7px">
+          <div class="fr2">
+            <div class="frow"><div class="fl" style="font-size:11px">${lbl('الاسم (عربي)','Name (Arabic)')} *</div><input class="fi" id="c-name-ar-${b.id}" placeholder="${lbl('اللجنة التنفيذية','Executive Committee')}"/></div>
+            <div class="frow"><div class="fl" style="font-size:11px">Name (English)</div><input class="fi" id="c-name-en-${b.id}" placeholder="Executive Committee" dir="ltr" style="text-align:left"/></div>
+          </div>
+          <div class="fr2">
+            <div class="frow"><div class="fl" style="font-size:11px">${lbl('الرئيس','Chairperson')}</div><input class="fi" id="c-chair-${b.id}" placeholder="${lbl('الاسم','Name')}"/></div>
+            <div class="frow"><div class="fl" style="font-size:11px">${lbl('الأعضاء','Total Members')}</div><input class="fi" type="number" id="c-total-${b.id}" value="0" min="0"/></div>
+          </div>
+          <div class="frow"><div class="fl" style="font-size:11px">${lbl('الوصف','Description')}</div><input class="fi" id="c-desc-${b.id}" placeholder="${lbl('وصف اللجنة...','Committee description...')}"/></div>
+          <div class="fa">
+            <button class="btn-gold btn-sm" onclick="Gov.addCommittee(${b.id})">✓ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('com-add-form-${b.id}')">✕</button>
+          </div>
+        </div>
+      </div>
+
+      ${coms.length ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
+        ${coms.map(c => {
+          const cname = l==='ar'?c.name_ar:(c.name_en||c.name_ar);
+          return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--navy4);border-radius:8px">
+            <div style="font-size:13px">⚙️</div>
+            <div style="flex:1">
+              <div style="font-size:12px;font-weight:600;color:var(--text2)">${esc(cname)}</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
+                ${c.chairperson ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:10px">👤 ${esc(c.chairperson)}</span>` : ''}
+                ${c.total_members ? `<span class="tag" style="background:var(--navy3);font-size:10px">👥 ${c.total_members}</span>` : ''}
+                ${c.description ? `<span style="font-size:10px;color:var(--text3)">${esc(c.description.substring(0,50))}${c.description.length>50?'…':''}</span>` : ''}
+              </div>
+            </div>
+            <button class="btn-ghost btn-sm" onclick="Gov.delCommittee(${c.id})" style="color:var(--red);font-size:10px;flex-shrink:0">✕</button>
+          </div>`;
+        }).join('')}
+      </div>` : `<div style="font-size:11px;color:var(--text3);margin-top:8px;padding-inline-start:4px">↳ ${lbl('لا توجد لجان — اضغط + لجنة لإضافة','No committees — press + Committee to add')}</div>`}
+    </div>`;
+  },
+
+  async addBoard() {
+    const ar = $('b-name-ar')?.value.trim();
+    if (!ar) { showToast(this.lbl('يرجى إدخال اسم المجلس','Please enter a board name'), 'error'); return; }
+    try {
+      await api('/api/gov/boards', { method:'POST', body: JSON.stringify({
+        name_ar: ar, name_en: $('b-name-en')?.value.trim()||ar,
+        description: $('b-desc')?.value.trim()||'',
+        chairperson: $('b-chair')?.value.trim()||'',
+        total_members: parseInt($('b-total')?.value)||0,
+        default_quorum: parseInt($('b-quorum')?.value)||0,
+      })});
+      // Reload boards + refresh App cache
+      await this._reloadBoards();
+      showToast(this.lbl('تم إضافة المجلس','Board added'), 'success');
+    } catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async delBoard(id) {
+    if (!confirm(this.lbl('حذف هذا المجلس؟ سيتم فصل اللجان عنه.','Delete this board? Committees will be unlinked.'))) return;
+    try { await api(`/api/gov/boards/${id}`, { method:'DELETE' }); await this._reloadBoards(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async addCommittee(boardId) {
+    const ar = $(`c-name-ar-${boardId}`)?.value.trim();
+    if (!ar) { showToast(this.lbl('يرجى إدخال اسم اللجنة','Please enter a committee name'), 'error'); return; }
+    try {
+      await api('/api/gov/committees', { method:'POST', body: JSON.stringify({
+        board_id: boardId,
+        name_ar: ar, name_en: $(`c-name-en-${boardId}`)?.value.trim()||ar,
+        description: $(`c-desc-${boardId}`)?.value.trim()||'',
+        chairperson: $(`c-chair-${boardId}`)?.value.trim()||'',
+        total_members: parseInt($(`c-total-${boardId}`)?.value)||0,
+      })});
+      await this._reloadBoards();
+      showToast(this.lbl('تم إضافة اللجنة','Committee added'), 'success');
+    } catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async delCommittee(id) {
+    if (!confirm(this.lbl('حذف هذه اللجنة؟','Delete this committee?'))) return;
+    try { await api(`/api/gov/committees/${id}`, { method:'DELETE' }); await this._reloadBoards(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async _reloadBoards() {
+    const boards = await api('/api/gov/boards').catch(() => []);
+    this._boards = boards || [];
+    // Also refresh App-level cache so board/committee dropdowns update
+    const bc = await api('/api/gov/boards-and-committees').catch(() => ({ boards: [], committees: [] }));
+    App._boards = bc.boards || [];
+    App._committees = bc.committees || [];
+    Schedule._populateBoardSelects();
+    // Re-render just the boards card in-place
+    const el = $('sec-boards');
+    if (el) el.outerHTML = this._sBoardsSection(this._boards);
   },
 
   onSelect(val) {

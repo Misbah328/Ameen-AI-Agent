@@ -99,8 +99,13 @@ router.delete('/members/:id', auth, (req, res) => {
 // ── Meetings ─────────────────────────────────────────────────────────────────
 router.get('/meetings', auth, (req, res) => {
   const meetings = db.prepare(`
-    SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en
-    FROM meetings m LEFT JOIN users u ON m.recorded_by = u.id
+    SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
+      b.name_ar as board_name_ar, b.name_en as board_name_en,
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en
+    FROM meetings m
+    LEFT JOIN users u ON m.recorded_by = u.id
+    LEFT JOIN boards b ON m.board_id = b.id
+    LEFT JOIN committees c ON m.committee_id = c.id
     ORDER BY m.meeting_date DESC
   `).all();
   res.json(meetings);
@@ -108,8 +113,13 @@ router.get('/meetings', auth, (req, res) => {
 
 router.get('/meetings/:id', auth, (req, res) => {
   const m = db.prepare(`
-    SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en
-    FROM meetings m LEFT JOIN users u ON m.recorded_by = u.id
+    SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
+      b.name_ar as board_name_ar, b.name_en as board_name_en,
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en
+    FROM meetings m
+    LEFT JOIN users u ON m.recorded_by = u.id
+    LEFT JOIN boards b ON m.board_id = b.id
+    LEFT JOIN committees c ON m.committee_id = c.id
     WHERE m.id=?
   `).get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Not found' });
@@ -249,7 +259,16 @@ router.delete('/decisions/:id', auth, (req, res) => {
 
 // ── Schedule ─────────────────────────────────────────────────────────────────
 router.get('/schedule', auth, (req, res) => {
-  res.json(db.prepare('SELECT s.*, u.name_ar as creator_ar, u.name_en as creator_en FROM schedule s LEFT JOIN users u ON s.created_by=u.id ORDER BY meeting_date ASC, meeting_time ASC').all());
+  res.json(db.prepare(`
+    SELECT s.*, u.name_ar as creator_ar, u.name_en as creator_en,
+      b.name_ar as board_name_ar, b.name_en as board_name_en,
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en
+    FROM schedule s
+    LEFT JOIN users u ON s.created_by=u.id
+    LEFT JOIN boards b ON s.board_id=b.id
+    LEFT JOIN committees c ON s.committee_id=c.id
+    ORDER BY meeting_date ASC, meeting_time ASC
+  `).all());
 });
 
 function conflictPayload(conflicts) {
@@ -261,17 +280,15 @@ function conflictPayload(conflicts) {
 }
 
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, force } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, force } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
-  // Conflict check before finalizing — overlap with any confirmed meeting blocks
-  // creation unless the coordinator explicitly forces it.
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
   const row = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)
-  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '');
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?)
+  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null);
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -293,23 +310,26 @@ router.patch('/schedule/:id/confirm', auth, (req, res) => {
 router.patch('/schedule/:id', auth, (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id } = req.body;
   const chan = reminder_channel !== undefined
     ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
     : row.reminder_channel;
-  // Editing the schedule re-arms the reminder so changed attendees get notified.
   db.prepare(`UPDATE schedule SET
       title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
       meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
       duration_mins=COALESCE(?,duration_mins), platform=COALESCE(?,platform),
       attendees=COALESCE(?,attendees), agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
-      reminder_channel=?, meeting_type=COALESCE(?,meeting_type), reminder_sent=0
+      reminder_channel=?, meeting_type=COALESCE(?,meeting_type),
+      board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id), reminder_sent=0
     WHERE id=?`)
     .run(
       title_ar, title_en !== undefined ? (title_en || title_ar) : null,
       meeting_date, meeting_time, duration_mins, platform,
       attendees, agenda_ar, agenda_en, chan,
-      meeting_type !== undefined ? (meeting_type || null) : null, req.params.id
+      meeting_type !== undefined ? (meeting_type || null) : null,
+      board_id !== undefined ? (board_id || null) : null,
+      committee_id !== undefined ? (committee_id || null) : null,
+      req.params.id
     );
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
 });
