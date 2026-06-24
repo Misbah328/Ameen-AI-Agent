@@ -224,6 +224,7 @@ const Panels = {
       case 'team': await Team.load(); break;
       case 'documents': await loadDocMeetings(); break;
       case 'lastmeeting': await renderLastMeeting(); break;
+      case 'governance': await Gov.init(); break;
     }
     this._startPolling();
   },
@@ -1078,21 +1079,17 @@ const Tasks = {
     const l = App.lang;
     const t = (App.tasksCache || []).find(x => x.id === id);
     if (!t) return;
-    const curText = l === 'ar' ? (t.text_ar || '') : (t.text_en || t.text_ar || '');
-    const text = prompt(l === 'ar' ? 'نص المهمة:' : 'Task text:', curText);
-    if (text === null) return;
-    const due = prompt(l === 'ar' ? 'تاريخ الاستحقاق (YYYY-MM-DD أو فارغ):' : 'Due date (YYYY-MM-DD or empty):', t.due_date || '');
-    if (due === null) return;
-    const tt = text.trim();
-    if (!tt) { alert(l === 'ar' ? 'لا يمكن ترك النص فارغاً' : 'Text cannot be empty'); return; }
-    // Edit both languages together so the task stays consistent regardless of UI language.
-    const body = { text_ar: tt, text_en: tt, due_date: due.trim() };
-    try {
-      await api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      await renderTasks();
-      await loadBadges();
-      showToast(l === 'ar' ? 'تم تحديث المهمة' : 'Task updated', 'success');
-    } catch (e) { showToast(e.message, 'error'); }
+    // Pre-fill the modal and open in edit mode (no browser prompt).
+    Modals._editingId = id;
+    const titleEl = $('modal-title-txt');
+    if (titleEl) titleEl.textContent = l === 'ar' ? 'تعديل المهمة' : 'Edit Task';
+    $('nt-ar').value = t.text_ar || '';
+    $('nt-en').value = t.text_en || t.text_ar || '';
+    $('nt-due').value = t.due_date || '';
+    $('nt-priority').value = t.priority || 'normal';
+    const ownerSel = $('nt-owner');
+    if (ownerSel && t.owner_id) ownerSel.value = String(t.owner_id);
+    $('modal-task').classList.add('open');
   },
   async delete(id) {
     if (!confirm(App.lang === 'ar' ? 'حذف هذه المهمة؟' : 'Delete this task?')) return;
@@ -1112,23 +1109,44 @@ const Tasks = {
 
 // ══ Task Modal ════════════════════════════════════════════════════════════════
 const Modals = {
-  addTask() { $('modal-task').classList.add('open'); },
-  close() { $('modal-task').classList.remove('open'); },
+  _editingId: null,
+  _resetTitle() {
+    const el = $('modal-title-txt');
+    if (el) { el.dataset.ar = 'إضافة مهمة جديدة'; el.dataset.en = 'Add New Task'; el.textContent = App.lang === 'ar' ? 'إضافة مهمة جديدة' : 'Add New Task'; }
+  },
+  addTask() {
+    this._editingId = null;
+    this._resetTitle();
+    ['nt-ar', 'nt-en', 'nt-due'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    const p = $('nt-priority'); if (p) p.value = 'normal';
+    const o = $('nt-owner'); if (o) o.value = '';
+    $('modal-task').classList.add('open');
+  },
+  close() {
+    $('modal-task').classList.remove('open');
+    this._editingId = null;
+    this._resetTitle();
+  },
   async saveTask() {
+    const l = App.lang;
     const data = {
       text_ar: $('nt-ar').value.trim(),
-      text_en: $('nt-en').value.trim(),
+      text_en: $('nt-en').value.trim() || $('nt-ar').value.trim(),
       owner_id: $('nt-owner').value || null,
       due_date: $('nt-due').value,
       priority: $('nt-priority').value,
     };
-    if (!data.text_ar) { alert(App.lang === 'ar' ? 'أدخل نص المهمة' : 'Enter task text'); return; }
+    if (!data.text_ar) { alert(l === 'ar' ? 'أدخل نص المهمة' : 'Enter task text'); return; }
     try {
-      await api('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
+      if (this._editingId) {
+        await api(`/api/tasks/${this._editingId}`, { method: 'PATCH', body: JSON.stringify(data) });
+        showToast(l === 'ar' ? 'تم تحديث المهمة' : 'Task updated', 'success');
+      } else {
+        await api('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
+      }
       this.close();
       await renderTasks();
       await loadBadges();
-      ['nt-ar', 'nt-en', 'nt-due'].forEach(id => $(id).value = '');
     } catch (e) { alert(e.message); }
   }
 };

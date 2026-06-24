@@ -119,6 +119,11 @@
     <span class="nb-icon">📈</span>
     <span class="nb-label" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</span>
   </button>
+  <div class="nsec" data-ar="الحوكمة" data-en="Governance">الحوكمة</div>
+  <button class="nb" data-p="governance">
+    <span class="nb-icon">⚖️</span>
+    <span class="nb-label" data-ar="حوكمة الاجتماعات" data-en="Meeting Governance">حوكمة الاجتماعات</span>
+  </button>
   <div class="sf">
     <div class="urow">
       <div class="uav" id="u-av">م.أ</div>
@@ -546,13 +551,29 @@
   </div>
 </section>
 
+<!-- ══ GOVERNANCE ════════════════════════════════════════════ -->
+<section class="panel" id="panel-governance">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="حوكمة الاجتماعات" data-en="Meeting Governance">حوكمة الاجتماعات</div>
+        <div class="ptitle-sub" data-ar="جدول الأعمال · الحضور · النصاب · القرارات · التصويت · الوثائق" data-en="Agenda · Attendance · Quorum · Resolutions · Voting · Documents">جدول الأعمال · الحضور · النصاب · القرارات · التصويت · الوثائق</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="Gov.init()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="gov-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
 </main>
 </div>
 
 <!-- ══ MODAL: ADD TASK ════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
-    <div class="modal-title" data-ar="إضافة مهمة جديدة" data-en="Add New Task">إضافة مهمة جديدة</div>
+    <div class="modal-title"><span id="modal-title-txt" data-ar="إضافة مهمة جديدة" data-en="Add New Task">إضافة مهمة جديدة</span></div>
     <div class="fs">
       <div class="frow">
         <div class="fl" data-ar="نص المهمة (عربي)" data-en="Task (Arabic)">نص المهمة (عربي)</div>
@@ -720,5 +741,6 @@
 </div>
 
 <script src="/js/app.js"></script>
+<script src="/js/governance.js"></script>
 </body>
 </html>

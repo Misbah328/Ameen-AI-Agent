@@ -19,6 +19,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));
+app.use('/api/gov', require('./src/routes/governance'));
 
 // Public attendee confirmation page (token-gated, no login)
 app.get('/m/:token', (req, res) => {

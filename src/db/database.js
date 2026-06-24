@@ -150,6 +150,8 @@ ensureColumn('schedule', 'status', "TEXT DEFAULT 'confirmed'");
 ensureColumn('schedule', 'source_meeting_id', 'INTEGER');
 ensureColumn('meetings', 'meeting_type', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'meeting_type', "TEXT DEFAULT ''");
+ensureColumn('meeting_attendees', 'role', "TEXT DEFAULT 'Member'");
+ensureColumn('meeting_attendees', 'attendance_status', "TEXT DEFAULT 'pending'");
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`
@@ -172,6 +174,67 @@ db.exec(`
     responded_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(meeting_id) REFERENCES meetings(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS agenda_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER,
+    schedule_id INTEGER,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    presenter TEXT DEFAULT '',
+    expected_outcome TEXT DEFAULT '',
+    duration_mins INTEGER DEFAULT 15,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS meeting_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER,
+    schedule_id INTEGER,
+    agenda_item_id INTEGER,
+    title TEXT NOT NULL,
+    doc_type TEXT DEFAULT 'document',
+    notes TEXT DEFAULT '',
+    is_mock INTEGER DEFAULT 1,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS meeting_quorum (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER,
+    schedule_id INTEGER,
+    required_members INTEGER DEFAULT 0,
+    present_members INTEGER DEFAULT 0,
+    quorum_achieved INTEGER DEFAULT 0,
+    notes TEXT DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS resolutions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER,
+    schedule_id INTEGER,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending',
+    votes_approve INTEGER DEFAULT 0,
+    votes_reject INTEGER DEFAULT 0,
+    votes_abstain INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS resolution_followups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    resolution_id INTEGER NOT NULL,
+    owner TEXT DEFAULT '',
+    due_date TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending',
+    notes TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(resolution_id) REFERENCES resolutions(id)
   );
 `);
 

@@ -1,0 +1,524 @@
+'use strict';
+// ══ Governance Module ══════════════════════════════════════════════════════════
+// Loaded after app.js — uses $(), esc(), api(), App, showToast() from there.
+
+const ATTENDEE_ROLES = {
+  'Chairperson':  { ar: 'رئيس الجلسة',  en: 'Chairperson' },
+  'Board Member': { ar: 'عضو مجلس',     en: 'Board Member' },
+  'Executive':    { ar: 'تنفيذي',        en: 'Executive' },
+  'Presenter':    { ar: 'مُقدِّم',        en: 'Presenter' },
+  'Consultant':   { ar: 'مستشار',        en: 'Consultant' },
+  'Observer':     { ar: 'مراقب',         en: 'Observer' },
+  'Secretary':    { ar: 'أمين السر',     en: 'Secretary' },
+};
+
+const ATTENDANCE_ST = {
+  present: { ar: 'حاضر',   en: 'Present',  c: 'var(--green)' },
+  absent:  { ar: 'غائب',   en: 'Absent',   c: 'var(--red)' },
+  excused: { ar: 'معتذر',  en: 'Excused',  c: 'var(--amber)' },
+  pending: { ar: '—',       en: '—',        c: 'var(--text3)' },
+};
+
+const RESOLUTION_ST = {
+  pending:  { ar: 'قيد النظر', en: 'Pending',  c: 'var(--text3)' },
+  approved: { ar: 'مُقرَّر',   en: 'Approved', c: 'var(--green)' },
+  rejected: { ar: 'مرفوض',    en: 'Rejected', c: 'var(--red)' },
+  deferred: { ar: 'مُؤجَّل',   en: 'Deferred', c: 'var(--amber)' },
+};
+
+const FOLLOWUP_ST = {
+  pending:     { ar: 'معلق',    en: 'Pending' },
+  in_progress: { ar: 'جارٍ',   en: 'In Progress' },
+  completed:   { ar: 'مكتمل',  en: 'Completed' },
+};
+
+const DOC_TYPES = {
+  document:     { ar: 'وثيقة',          en: 'Document' },
+  presentation: { ar: 'عرض تقديمي',    en: 'Presentation' },
+  report:       { ar: 'تقرير',          en: 'Report' },
+  agenda:       { ar: 'جدول أعمال',    en: 'Agenda' },
+  minutes:      { ar: 'محضر',           en: 'Minutes' },
+  other:        { ar: 'أخرى',           en: 'Other' },
+};
+
+const Gov = {
+  meetingId: null,
+  scheduleId: null,
+  source: 'meeting',
+  _meetings: [],
+  _schedule: [],
+  _qTimer: null,
+
+  lbl(ar, en) { return App.lang === 'ar' ? ar : en; },
+
+  // ── Init: load meeting lists, render selector ──────────────────────────────
+  async init() {
+    const body = $('gov-body');
+    if (!body) return;
+    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const [meetings, schedule] = await Promise.all([
+        api('/api/meetings').catch(() => []),
+        api('/api/schedule').catch(() => []),
+      ]);
+      this._meetings = meetings || [];
+      this._schedule = schedule || [];
+      this._renderSelector();
+    } catch (e) {
+      body.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">${esc(e.message)}</div>`;
+    }
+  },
+
+  _renderSelector() {
+    const l = App.lang;
+    const body = $('gov-body');
+    if (!body) return;
+
+    const mOpts = this._meetings.map(m =>
+      `<option value="meeting:${m.id}">${esc(l==='ar'?m.title_ar:(m.title_en||m.title_ar))}${m.meeting_date?' — '+(m.meeting_date||'').substring(0,10):''}</option>`
+    ).join('');
+    const sOpts = this._schedule.map(s =>
+      `<option value="schedule:${s.id}">${esc(l==='ar'?s.title_ar:(s.title_en||s.title_ar))}${s.meeting_date?' — '+s.meeting_date:''}</option>`
+    ).join('');
+
+    const curVal = this.meetingId ? `meeting:${this.meetingId}` : this.scheduleId ? `schedule:${this.scheduleId}` : '';
+
+    body.innerHTML = `
+      <div class="card">
+        <div class="ch"><div class="ct">📋 ${this.lbl('اختر الاجتماع','Select Meeting')}</div></div>
+        <select class="fi" id="gov-sel" onchange="Gov.onSelect(this.value)" style="font-size:13px">
+          <option value="">— ${this.lbl('اختر اجتماعاً...','Choose a meeting...')} —</option>
+          ${mOpts ? `<optgroup label="${this.lbl('الاجتماعات المسجلة','Recorded Meetings')}">${mOpts}</optgroup>` : ''}
+          ${sOpts ? `<optgroup label="${this.lbl('الاجتماعات المجدولة','Scheduled Meetings')}">${sOpts}</optgroup>` : ''}
+        </select>
+      </div>
+      <div id="gov-sections" style="display:flex;flex-direction:column;gap:14px"></div>`;
+
+    if (curVal) {
+      const sel = $('gov-sel');
+      if (sel) { sel.value = curVal; this._loadSections(); }
+    }
+  },
+
+  onSelect(val) {
+    const sec = $('gov-sections');
+    if (!val) { if (sec) sec.innerHTML = ''; this.meetingId = null; this.scheduleId = null; return; }
+    const [src, id] = val.split(':');
+    this.source = src;
+    if (src === 'meeting') { this.meetingId = parseInt(id); this.scheduleId = null; }
+    else { this.scheduleId = parseInt(id); this.meetingId = null; }
+    this._loadSections();
+  },
+
+  _qParam() { return this.meetingId ? `meetingId=${this.meetingId}` : `scheduleId=${this.scheduleId}`; },
+
+  async _loadSections() {
+    const el = $('gov-sections');
+    if (!el) return;
+    el.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const q = this._qParam();
+      const [agenda, docs, quorum, resolutions, attendance] = await Promise.all([
+        api(`/api/gov/agenda?${q}`),
+        api(`/api/gov/documents?${q}`),
+        api(`/api/gov/quorum?${q}`).catch(() => null),
+        api(`/api/gov/resolutions?${q}`),
+        this.meetingId ? api(`/api/gov/attendance?meetingId=${this.meetingId}`) : Promise.resolve([]),
+      ]);
+      el.innerHTML = [
+        this._sAgenda(agenda),
+        this._sAttendance(attendance),
+        this._sQuorum(quorum),
+        this._sResolutions(resolutions),
+        this._sDocs(docs),
+      ].join('');
+    } catch (e) {
+      el.innerHTML = `<div style="color:var(--red);padding:10px;font-size:12px">${esc(e.message)}</div>`;
+    }
+  },
+
+  // ── Agenda section ─────────────────────────────────────────────────────────
+  _sAgenda(items) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const total = items.reduce((s, i) => s + (i.duration_mins || 0), 0);
+    return `<div class="card" id="sec-agenda">
+      <div class="ch">
+        <div>
+          <div class="ct">📋 ${lbl('جدول الأعمال','Agenda')}</div>
+          ${total ? `<div class="ctsub">${total} ${lbl('دقيقة إجمالاً','min total')}</div>` : ''}
+        </div>
+        <button class="btn-ghost btn-sm" onclick="Gov._showForm('agenda-form')">+ ${lbl('إضافة بند','Add Item')}</button>
+      </div>
+      <div id="agenda-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
+        <div class="fs" style="gap:8px">
+          <div class="frow"><div class="fl">${lbl('العنوان','Title')} *</div><input class="fi" id="ai-title" placeholder="${lbl('عنوان البند','Agenda item title')}"/></div>
+          <div class="frow"><div class="fl">${lbl('الوصف','Description')}</div><textarea class="fi" id="ai-desc" rows="2" placeholder="${lbl('تفاصيل البند...','Details...')}"></textarea></div>
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('المُقدِّم','Presenter')}</div><input class="fi" id="ai-pres" placeholder="${lbl('اسم المُقدِّم','Presenter name')}"/></div>
+            <div class="frow"><div class="fl">${lbl('المدة (دقيقة)','Duration (min)')}</div><input class="fi" type="number" id="ai-dur" value="15" min="1"/></div>
+          </div>
+          <div class="frow"><div class="fl">${lbl('النتيجة المتوقعة','Expected Outcome')}</div><input class="fi" id="ai-out" placeholder="${lbl('ما الذي نريد تحقيقه؟','What outcome is expected?')}"/></div>
+          <div class="fa">
+            <button class="btn-gold btn-sm" onclick="Gov.addAgendaItem()">✓ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('agenda-form')">✕</button>
+          </div>
+        </div>
+      </div>
+      ${items.length
+        ? items.map((item, idx) => `
+          <div style="padding:10px 0;border-bottom:.5px solid var(--border2)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${idx+1}. ${esc(item.title)}</div>
+                ${item.description ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(item.description)}</div>` : ''}
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+                  ${item.presenter ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:10px">👤 ${esc(item.presenter)}</span>` : ''}
+                  ${item.duration_mins ? `<span class="tag" style="background:var(--navy4);font-size:10px">⏱ ${item.duration_mins} ${lbl('د','min')}</span>` : ''}
+                  ${item.expected_outcome ? `<span class="tag tb" style="font-size:10px">🎯 ${esc(item.expected_outcome.substring(0,40))}${item.expected_outcome.length>40?'…':''}</span>` : ''}
+                </div>
+              </div>
+              <button class="btn-ghost btn-sm" onclick="Gov.delAgendaItem(${item.id})" style="color:var(--red);font-size:11px">✕</button>
+            </div>
+          </div>`).join('')
+        : `<div class="es" style="padding:16px"><div class="es-icon">📋</div><div style="font-size:12px">${lbl('لا توجد بنود بعد','No agenda items yet')}</div></div>`}
+    </div>`;
+  },
+
+  async addAgendaItem() {
+    const t = $('ai-title')?.value.trim();
+    if (!t) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
+    const body = { title: t, description: $('ai-desc')?.value.trim() || '',
+      presenter: $('ai-pres')?.value.trim() || '', duration_mins: parseInt($('ai-dur')?.value)||15,
+      expected_outcome: $('ai-out')?.value.trim() || '' };
+    if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+    try { await api('/api/gov/agenda', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async delAgendaItem(id) {
+    if (!confirm(this.lbl('حذف هذا البند؟','Delete this agenda item?'))) return;
+    try { await api(`/api/gov/agenda/${id}`, { method:'DELETE' }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  // ── Attendance section ─────────────────────────────────────────────────────
+  _sAttendance(attendees) {
+    if (!this.meetingId) return '';
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const roleOpts = Object.keys(ATTENDEE_ROLES).map(k =>
+      `<option value="${k}">${esc((ATTENDEE_ROLES[k]||{})[l]||k)}</option>`).join('');
+    return `<div class="card" id="sec-attendance">
+      <div class="ch">
+        <div>
+          <div class="ct">👥 ${lbl('الحضور والأدوار','Attendance & Roles')}</div>
+          <div class="ctsub">${attendees.length} ${lbl('مشارك','participant(s)')}</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="Gov._showForm('att-form')">+ ${lbl('إضافة','Add')}</button>
+      </div>
+      <div id="att-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
+        <div class="fs" style="gap:8px">
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('الاسم','Name')} *</div><input class="fi" id="att-name" placeholder="${lbl('اسم المشارك','Attendee name')}"/></div>
+            <div class="frow"><div class="fl">${lbl('الدور','Role')}</div>
+              <select class="fi" id="att-role"><option value="Member">${lbl('عضو','Member')}</option>${roleOpts}</select>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('الحضور','Status')}</div>
+              <select class="fi" id="att-status">
+                <option value="present">${lbl('حاضر','Present')}</option>
+                <option value="absent">${lbl('غائب','Absent')}</option>
+                <option value="excused">${lbl('معتذر','Excused')}</option>
+                <option value="pending">${lbl('غير محدد','—')}</option>
+              </select>
+            </div>
+            <div class="frow"><div class="fl">${lbl('البريد','Email')}</div><input class="fi" type="email" id="att-email" placeholder="email@example.com" dir="ltr" style="text-align:left"/></div>
+          </div>
+          <div class="fa">
+            <button class="btn-gold btn-sm" onclick="Gov.addAttendee()">✓ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('att-form')">✕</button>
+          </div>
+        </div>
+      </div>
+      ${attendees.length
+        ? `<div style="display:flex;flex-direction:column;gap:5px">
+          ${attendees.map(a => {
+            const st = ATTENDANCE_ST[a.attendance_status||'pending']||ATTENDANCE_ST.pending;
+            const role = (ATTENDEE_ROLES[a.role]||{})[l] || a.role || '';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--navy3);border-radius:8px">
+              <div style="flex:1">
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(a.name)}</div>
+                ${role ? `<div style="font-size:10px;color:var(--text3)">${esc(role)}</div>` : ''}
+              </div>
+              <select style="font-size:11px;padding:3px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--navy4);color:var(--text2);cursor:pointer"
+                onchange="Gov.updateAttStatus(${a.id},this.value)">
+                <option value="present" ${a.attendance_status==='present'?'selected':''}>${lbl('حاضر','Present')}</option>
+                <option value="absent" ${a.attendance_status==='absent'?'selected':''}>${lbl('غائب','Absent')}</option>
+                <option value="excused" ${a.attendance_status==='excused'?'selected':''}>${lbl('معتذر','Excused')}</option>
+                <option value="pending" ${!a.attendance_status||a.attendance_status==='pending'?'selected':''}>${lbl('—','—')}</option>
+              </select>
+              <span style="font-size:10px;font-weight:600;color:${st.c};min-width:36px;text-align:center">${st[l]}</span>
+              <button class="btn-ghost btn-sm" onclick="Gov.delAttendee(${a.id})" style="color:var(--red);font-size:10px">✕</button>
+            </div>`;
+          }).join('')}
+        </div>`
+        : `<div class="es" style="padding:12px"><div class="es-icon">👥</div><div style="font-size:12px">${lbl('لا يوجد حضور مسجل','No attendance records yet')}</div></div>`}
+    </div>`;
+  },
+
+  async addAttendee() {
+    const name = $('att-name')?.value.trim();
+    if (!name) { showToast(this.lbl('يرجى إدخال الاسم','Please enter a name'), 'error'); return; }
+    try {
+      await api('/api/gov/attendance', { method:'POST', body: JSON.stringify({
+        meeting_id: this.meetingId, name,
+        email: $('att-email')?.value.trim()||'',
+        role: $('att-role')?.value||'Member',
+        attendance_status: $('att-status')?.value||'pending',
+      })});
+      await this._loadSections();
+    } catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async updateAttStatus(id, status) {
+    try { await api(`/api/gov/attendance/${id}`, { method:'PATCH', body: JSON.stringify({ attendance_status: status }) }); }
+    catch (e) { /* silent — dropdown already changed visually */ }
+  },
+
+  async delAttendee(id) {
+    if (!confirm(this.lbl('حذف هذا الحاضر؟','Remove this attendee?'))) return;
+    try { await api(`/api/gov/attendance/${id}`, { method:'DELETE' }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  // ── Quorum section ─────────────────────────────────────────────────────────
+  _sQuorum(quorum) {
+    const lbl = this.lbl.bind(this);
+    const q = quorum || { required_members:0, present_members:0, quorum_achieved:0, notes:'' };
+    const achieved = q.quorum_achieved;
+    return `<div class="card" id="sec-quorum">
+      <div class="ch">
+        <div><div class="ct">🏛 ${lbl('النصاب القانوني','Quorum')}</div></div>
+        ${q.required_members > 0
+          ? `<span class="tag ${achieved?'tg':'tr'}" style="font-size:11px">${achieved ? lbl('✓ مكتمل','✓ Achieved') : lbl('✗ غير مكتمل','✗ Not Met')}</span>`
+          : ''}
+      </div>
+      <div class="fs" style="gap:10px">
+        <div class="fr2">
+          <div class="frow"><div class="fl">${lbl('الأعضاء المطلوبون','Required Members')}</div>
+            <input class="fi" type="number" id="q-req" value="${q.required_members||0}" min="0" onchange="Gov._autoSaveQuorum()"/></div>
+          <div class="frow"><div class="fl">${lbl('الحاضرون فعلياً','Present Members')}</div>
+            <input class="fi" type="number" id="q-pres" value="${q.present_members||0}" min="0" onchange="Gov._autoSaveQuorum()"/></div>
+        </div>
+        <div class="frow"><div class="fl">${lbl('ملاحظات','Notes')}</div>
+          <input class="fi" id="q-notes" value="${esc(q.notes||'')}" placeholder="${lbl('ملاحظات...','Notes...')}" onblur="Gov._autoSaveQuorum()"/></div>
+        <button class="btn-gold btn-sm" onclick="Gov.saveQuorum()">✓ ${lbl('حفظ النصاب','Save Quorum')}</button>
+      </div>
+    </div>`;
+  },
+
+  _autoSaveQuorum() { clearTimeout(this._qTimer); this._qTimer = setTimeout(() => this.saveQuorum(), 900); },
+
+  async saveQuorum() {
+    const body = { required_members: parseInt($('q-req')?.value)||0, present_members: parseInt($('q-pres')?.value)||0, notes: $('q-notes')?.value.trim()||'' };
+    if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+    try {
+      await api('/api/gov/quorum', { method:'PUT', body: JSON.stringify(body) });
+      const fresh = await api(`/api/gov/quorum?${this._qParam()}`).catch(() => null);
+      const el = $('sec-quorum');
+      if (el) el.outerHTML = this._sQuorum(fresh);
+    } catch (e) { /* silent auto-save */ }
+  },
+
+  // ── Resolutions section ────────────────────────────────────────────────────
+  _sResolutions(resolutions) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const stBadge = s => {
+      const st = RESOLUTION_ST[s]||RESOLUTION_ST.pending;
+      return `<span class="tag" style="font-size:10px;background:transparent;border:1px solid ${st.c};color:${st.c}">${st[l]||s}</span>`;
+    };
+    return `<div class="card" id="sec-resolutions">
+      <div class="ch">
+        <div>
+          <div class="ct">⚖️ ${lbl('القرارات والتصويت','Resolutions & Voting')}</div>
+          <div class="ctsub">${resolutions.length} ${lbl('قرار','resolution(s)')}</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="Gov._showForm('res-form')">+ ${lbl('إضافة قرار','Add Resolution')}</button>
+      </div>
+      <div id="res-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
+        <div class="fs" style="gap:8px">
+          <div class="frow"><div class="fl">${lbl('عنوان القرار','Resolution Title')} *</div><input class="fi" id="res-title" placeholder="${lbl('عنوان القرار...','Resolution title...')}"/></div>
+          <div class="frow"><div class="fl">${lbl('الوصف','Description')}</div><textarea class="fi" id="res-desc" rows="2" placeholder="${lbl('وصف القرار...','Describe the resolution...')}"></textarea></div>
+          <div class="fa">
+            <button class="btn-gold btn-sm" onclick="Gov.addResolution()">✓ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('res-form')">✕</button>
+          </div>
+        </div>
+      </div>
+      ${resolutions.length
+        ? resolutions.map(r => `
+          <div style="background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:10px;border:1px solid var(--border2)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(r.title)}</div>
+                ${r.description ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(r.description)}</div>` : ''}
+              </div>
+              <div style="display:flex;gap:5px;align-items:center">
+                ${stBadge(r.status)}
+                <button class="btn-ghost btn-sm" onclick="Gov.delResolution(${r.id})" style="color:var(--red);font-size:10px">✕</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;align-items:center">
+              <span style="font-size:11px;color:var(--text3)">${lbl('التصويت:','Voting:')}</span>
+              <button onclick="Gov.vote(${r.id},'approve')" style="background:var(--green2);color:var(--green);border:1px solid rgba(46,204,138,.3);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer;font-weight:600">
+                ✓ ${lbl('موافق','Approve')} (${r.votes_approve})
+              </button>
+              <button onclick="Gov.vote(${r.id},'reject')" style="background:var(--red2);color:var(--red);border:1px solid rgba(224,90,90,.3);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer;font-weight:600">
+                ✕ ${lbl('رفض','Reject')} (${r.votes_reject})
+              </button>
+              <button onclick="Gov.vote(${r.id},'abstain')" style="background:var(--navy4);color:var(--text3);border:1px solid var(--border2);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer">
+                ◎ ${lbl('امتناع','Abstain')} (${r.votes_abstain})
+              </button>
+            </div>
+            <div style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                <span style="font-size:11px;font-weight:600;color:var(--text2)">📌 ${lbl('المتابعة','Follow-up')}</span>
+                <button class="btn-ghost btn-sm" onclick="Gov._showForm('fu-form-${r.id}')" style="font-size:10px">+ ${lbl('إضافة','Add')}</button>
+              </div>
+              <div id="fu-form-${r.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:10px;margin-bottom:7px">
+                <div class="fs" style="gap:6px">
+                  <div class="fr2">
+                    <div class="frow"><div class="fl" style="font-size:11px">${lbl('المسؤول','Owner')}</div><input class="fi" id="fu-owner-${r.id}" placeholder="${lbl('الاسم','Name')}"/></div>
+                    <div class="frow"><div class="fl" style="font-size:11px">${lbl('الموعد','Due Date')}</div><input class="fi" type="date" id="fu-due-${r.id}"/></div>
+                  </div>
+                  <div class="frow"><div class="fl" style="font-size:11px">${lbl('ملاحظات','Notes')}</div><input class="fi" id="fu-notes-${r.id}" placeholder="${lbl('ملاحظات...','Notes...')}"/></div>
+                  <div class="fa">
+                    <button class="btn-gold btn-sm" onclick="Gov.addFollowup(${r.id})">✓ ${lbl('حفظ','Save')}</button>
+                    <button class="btn-ghost btn-sm" onclick="Gov._hideForm('fu-form-${r.id}')">✕</button>
+                  </div>
+                </div>
+              </div>
+              ${(r.followups||[]).length
+                ? r.followups.map(f => `
+                  <div style="display:flex;gap:7px;align-items:center;padding:5px 8px;background:var(--navy4);border-radius:7px;margin-bottom:4px;font-size:11px">
+                    <div style="flex:1">
+                      <span style="color:var(--gold);font-weight:600">${esc(f.owner||'—')}</span>
+                      ${f.due_date ? `<span style="color:var(--text3)"> · 📅 ${esc(f.due_date)}</span>` : ''}
+                      ${f.notes ? `<span style="color:var(--text2)"> · ${esc(f.notes)}</span>` : ''}
+                    </div>
+                    <select style="font-size:10px;padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2)"
+                      onchange="Gov.updateFollowup(${f.id},this.value)">
+                      ${Object.keys(FOLLOWUP_ST).map(k => `<option value="${k}" ${f.status===k?'selected':''}>${esc((FOLLOWUP_ST[k]||{})[l]||k)}</option>`).join('')}
+                    </select>
+                    <button onclick="Gov.delFollowup(${f.id})" style="color:var(--red);background:none;border:none;cursor:pointer;font-size:11px">✕</button>
+                  </div>`).join('')
+                : `<div style="font-size:11px;color:var(--text3)">${lbl('لا توجد متابعات','No follow-ups yet')}</div>`}
+            </div>
+          </div>`).join('')
+        : `<div class="es" style="padding:16px"><div class="es-icon">⚖️</div><div style="font-size:12px">${lbl('لا توجد قرارات بعد','No resolutions yet')}</div></div>`}
+    </div>`;
+  },
+
+  async addResolution() {
+    const title = $('res-title')?.value.trim();
+    if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
+    const body = { title, description: $('res-desc')?.value.trim()||'' };
+    if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+    try { await api('/api/gov/resolutions', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async vote(resId, vote) {
+    try { await api(`/api/gov/resolutions/${resId}/vote`, { method:'POST', body: JSON.stringify({ vote }) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async delResolution(id) {
+    if (!confirm(this.lbl('حذف هذا القرار؟','Delete this resolution?'))) return;
+    try { await api(`/api/gov/resolutions/${id}`, { method:'DELETE' }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async addFollowup(resId) {
+    const body = { owner: $(`fu-owner-${resId}`)?.value.trim()||'', due_date: $(`fu-due-${resId}`)?.value||'', notes: $(`fu-notes-${resId}`)?.value.trim()||'', status:'pending' };
+    try { await api(`/api/gov/resolutions/${resId}/followups`, { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async updateFollowup(id, status) {
+    try { await api(`/api/gov/followups/${id}`, { method:'PATCH', body: JSON.stringify({ status }) }); }
+    catch (e) { /* silent */ }
+  },
+
+  async delFollowup(id) {
+    try { await api(`/api/gov/followups/${id}`, { method:'DELETE' }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  // ── Documents section ──────────────────────────────────────────────────────
+  _sDocs(docs) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const typeOpts = Object.keys(DOC_TYPES).map(k =>
+      `<option value="${k}">${esc((DOC_TYPES[k]||{})[l]||k)}</option>`).join('');
+    const icon = t => ({'presentation':'📊','report':'📋','minutes':'📝','agenda':'📋'}[t]||'📄');
+    return `<div class="card" id="sec-docs">
+      <div class="ch">
+        <div>
+          <div class="ct">📁 ${lbl('وثائق الاجتماع','Meeting Documents')}</div>
+          <div class="ctsub">${lbl('المستندات والتقارير والعروض','Documents, reports and presentations')}</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="Gov._showForm('doc-form')">+ ${lbl('إضافة وثيقة','Add Document')}</button>
+      </div>
+      <div id="doc-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
+        <div class="fs" style="gap:8px">
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('العنوان','Title')} *</div><input class="fi" id="doc-title" placeholder="${lbl('اسم الوثيقة','Document name')}"/></div>
+            <div class="frow"><div class="fl">${lbl('النوع','Type')}</div><select class="fi" id="doc-type">${typeOpts}</select></div>
+          </div>
+          <div class="frow"><div class="fl">${lbl('ملاحظات','Notes')}</div><input class="fi" id="doc-notes" placeholder="${lbl('وصف الوثيقة...','Description...')}"/></div>
+          <div class="fa">
+            <button class="btn-gold btn-sm" onclick="Gov.addDocument()">✓ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('doc-form')">✕</button>
+          </div>
+        </div>
+      </div>
+      ${docs.length
+        ? `<div style="display:flex;flex-direction:column;gap:5px">
+          ${docs.map(d => `
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--navy3);border-radius:8px">
+              <div style="font-size:18px">${icon(d.doc_type)}</div>
+              <div style="flex:1">
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</div>
+                <div style="font-size:10px;color:var(--text3)">${esc((DOC_TYPES[d.doc_type]||{})[l]||d.doc_type||'')}${d.notes?' · '+esc(d.notes):''}</div>
+              </div>
+              ${d.is_mock ? `<span class="tag ta" style="font-size:10px">${lbl('نموذج','Sample')}</span>` : ''}
+              <button class="btn-ghost btn-sm" onclick="Gov.delDocument(${d.id})" style="color:var(--red);font-size:10px">✕</button>
+            </div>`).join('')}
+        </div>`
+        : `<div class="es" style="padding:12px"><div class="es-icon">📁</div><div style="font-size:12px">${lbl('لا توجد وثائق','No documents yet')}</div></div>`}
+    </div>`;
+  },
+
+  async addDocument() {
+    const title = $('doc-title')?.value.trim();
+    if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
+    const body = { title, doc_type: $('doc-type')?.value||'document', notes: $('doc-notes')?.value.trim()||'' };
+    if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+    try { await api('/api/gov/documents', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async delDocument(id) {
+    if (!confirm(this.lbl('حذف هذه الوثيقة؟','Delete this document?'))) return;
+    try { await api(`/api/gov/documents/${id}`, { method:'DELETE' }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  _showForm(id) { const el = $(id); if (el) el.style.display = ''; },
+  _hideForm(id) { const el = $(id); if (el) el.style.display = 'none'; },
+};
