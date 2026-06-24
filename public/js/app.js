@@ -1916,6 +1916,8 @@ const Team = {
   async load() {
     const body = $('team-body');
     body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    const addBtn = $('btn-add-member');
+    if (addBtn) addBtn.style.display = App.systemRole === 'Admin' ? '' : 'none';
     try {
       const [members, tasks] = await Promise.all([api('/api/members'), api('/api/tasks')]);
       body.innerHTML = this.render(members, tasks);
@@ -1924,6 +1926,7 @@ const Team = {
 
   render(members, tasks) {
     const l = App.lang;
+    const canManage = App.systemRole === 'Admin';
     if (!members.length) return `<div class="es"><div class="es-icon">👥</div><div>${l==='ar'?'لا يوجد أعضاء فريق — اضغط إضافة عضو':'No team members — click Add Member'}</div></div>`;
 
     return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px">
@@ -1961,10 +1964,10 @@ const Team = {
             ${doneTasks ? `<span class="tag tg">${doneTasks} ${l==='ar'?'مكتملة':'done'}</span>` : ''}
             ${!memberTasks.length ? `<span class="tag" style="background:var(--navy4);font-size:10px">${l==='ar'?'لا مهام مسندة':'No tasks assigned'}</span>` : ''}
           </div>
-          <div style="display:flex;gap:7px;border-top:1px solid var(--border2);padding-top:10px">
+          ${canManage ? `<div style="display:flex;gap:7px;border-top:1px solid var(--border2);padding-top:10px">
             <button class="btn-ghost btn-sm" onclick="Team.edit(${m.id})" style="flex:1;font-size:11px">✏️ ${l==='ar'?'تعديل':'Edit'}</button>
             <button class="btn-ghost btn-sm" onclick="Team.delete(${m.id})" style="color:var(--red);font-size:11px">✕ ${l==='ar'?'حذف':'Delete'}</button>
-          </div>
+          </div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
@@ -2038,9 +2041,9 @@ async function renderOverview() {
   const body = $('overview-body');
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const [stats, tasks, meetings, schedule, members] = await Promise.all([
+    const [stats, tasks, meetings, schedule, members, decisions] = await Promise.all([
       api('/api/stats'), api('/api/tasks'), api('/api/meetings'),
-      api('/api/schedule'), api('/api/members')
+      api('/api/schedule'), api('/api/members'), api('/api/decisions')
     ]);
     const l = App.lang;
     const lbl = (ar, en) => l === 'ar' ? ar : en;
@@ -2141,6 +2144,64 @@ async function renderOverview() {
         </div>
       </div>` : '';
 
+    // ── Board Member: governance/resolutions-focused section ──────────────────
+    const boardGovHtml = (role === 'Board Member') ? (() => {
+      const recentDec = decisions.slice(0, 8);
+      const openDec = decisions.filter(d => d.status !== 'implemented').length;
+      return `<div class="card" style="margin-top:14px">
+        <div class="ct" style="margin-bottom:12px;color:var(--blue)">⚖️ ${lbl('قرارات مجلس الإدارة','Board Resolutions')}</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="background:rgba(91,155,214,.1);border:1px solid rgba(91,155,214,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--blue)">
+            ${decisions.length} ${lbl('قرار إجمالي','total decisions')}
+          </span>
+          <span style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--amber)">
+            ${openDec} ${lbl('قيد التنفيذ','pending implementation')}
+          </span>
+        </div>
+        ${recentDec.length ? recentDec.map(d => `
+          <div style="padding:9px 0;border-bottom:.5px solid var(--border2);display:flex;align-items:flex-start;gap:10px">
+            <span style="font-size:10px;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap;background:${d.status==='implemented'?'rgba(46,204,113,.15)':'rgba(255,193,7,.15)'};color:${d.status==='implemented'?'var(--green)':'var(--amber)'}">
+              ${esc(lbl(d.status==='implemented'?'منفَّذ':'قيد التنفيذ', d.status==='implemented'?'Implemented':'Pending'))}
+            </span>
+            <div style="font-size:12px;color:var(--text)">${esc(l==='ar'?d.text_ar:(d.text_en||d.text_ar))}</div>
+          </div>`).join('')
+        : `<div style="font-size:12px;color:var(--text3)">${lbl('لا قرارات مسجلة','No decisions recorded yet')}</div>`}
+        ${decisions.length > 8 ? `<div style="text-align:center;margin-top:10px"><button class="btn-ghost btn-sm" onclick="Panels.load('governance')" style="font-size:11px">${lbl('عرض كل القرارات','View all decisions')}</button></div>` : ''}
+      </div>`;
+    })() : '';
+
+    // ── Committee Member: scoped task + schedule section ──────────────────────
+    const committeeHtml = (role === 'Committee Member') ? (() => {
+      const myTasks = tasks.filter(t => t.owner_id === (App.user && App.user.id));
+      const myOpen = myTasks.filter(t => t.status !== 'done');
+      const myOverdue = myTasks.filter(t => t.status === 'overdue');
+      const upcomingCom = upcoming.slice(0, 4);
+      return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+        <div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('tasks')">
+          <div class="ct" style="margin-bottom:12px;color:var(--green)">✅ ${lbl('مهامي','My Tasks')}</div>
+          ${myOpen.length ? myOpen.slice(0,5).map(t => `
+            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;color:var(--text)">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</div>
+              <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
+                ${t.due_date?`<span class="tag ${t.status==='overdue'?'tr':'ta'}" style="font-size:10px">${esc(t.due_date)}</span>`:''}
+                <span class="tag" style="font-size:10px;background:var(--navy4)">${esc(t.status)}</span>
+              </div>
+            </div>`).join('')
+          : `<div style="font-size:12px;color:var(--green)">✓ ${lbl('كل المهام مكتملة','All tasks complete')}</div>`}
+          ${myOverdue.length ? `<div style="margin-top:8px;font-size:11px;color:var(--red)">⚠ ${myOverdue.length} ${lbl('مهمة متأخرة','overdue')}</div>` : ''}
+        </div>
+        <div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')">
+          <div class="ct" style="margin-bottom:12px;color:var(--gold)">📅 ${lbl('الاجتماعات القادمة','Upcoming Meetings')}</div>
+          ${upcomingCom.length ? upcomingCom.map(s => `
+            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l==='ar'?s.title_ar:(s.title_en||s.title_ar))}</div>
+              <div style="font-size:11px;color:var(--text3)">📅 ${esc(s.meeting_date||'')} ${s.meeting_time?'🕐 '+esc(s.meeting_time):''}</div>
+            </div>`).join('')
+          : `<div style="font-size:12px;color:var(--text3)">${lbl('لا اجتماعات قادمة','No upcoming meetings')}</div>`}
+        </div>
+      </div>`;
+    })() : '';
+
     const dash = Dash.get();
     const sec = (k, html) => dash[k] === false ? '' : html;
     const showTeam = ROLE_ACCESS[role]?.has('team') !== false;
@@ -2150,7 +2211,9 @@ async function renderOverview() {
       ${Dash.bar(l)}
       ${sec('stats', statsHtml)}
       ${twoCol ? `<div style="display:grid;grid-template-columns:${showTeam&&sec('team',teamHtml)&&sec('upcoming',upcomingHtml)?'1fr 1fr':'1fr'};gap:14px">${twoCol}</div>` : ''}
-      ${sec('overdue', overdueHtml)}`;
+      ${sec('overdue', overdueHtml)}
+      ${boardGovHtml}
+      ${committeeHtml}`;
   } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
 
