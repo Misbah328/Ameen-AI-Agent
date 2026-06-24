@@ -571,12 +571,25 @@ function conflictPayload(conflicts) {
 }
 
 function addRecurrencePeriod(dateStr, recurrence) {
-  const d = new Date(dateStr + 'T00:00:00Z');
-  if (recurrence === 'weekly')     d.setUTCDate(d.getUTCDate() + 7);
-  else if (recurrence === 'biweekly')  d.setUTCDate(d.getUTCDate() + 14);
-  else if (recurrence === 'monthly')   d.setUTCMonth(d.getUTCMonth() + 1);
-  else if (recurrence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
-  return d.toISOString().substring(0, 10);
+  const [y, m, dayOfMonth] = dateStr.split('-').map(Number);
+  if (recurrence === 'weekly') {
+    const d = new Date(Date.UTC(y, m - 1, dayOfMonth));
+    d.setUTCDate(d.getUTCDate() + 7);
+    return d.toISOString().substring(0, 10);
+  }
+  if (recurrence === 'biweekly') {
+    const d = new Date(Date.UTC(y, m - 1, dayOfMonth));
+    d.setUTCDate(d.getUTCDate() + 14);
+    return d.toISOString().substring(0, 10);
+  }
+  const addMonths = recurrence === 'monthly' ? 1 : 3;
+  const newMonth = m - 1 + addMonths;
+  const newYear = y + Math.floor(newMonth / 12);
+  const normMonth = ((newMonth % 12) + 12) % 12;
+  const daysInMonth = new Date(Date.UTC(newYear, normMonth + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(dayOfMonth, daysInMonth);
+  const pad = n => String(n).padStart(2, '0');
+  return `${newYear}-${pad(normMonth + 1)}-${pad(clampedDay)}`;
 }
 
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];

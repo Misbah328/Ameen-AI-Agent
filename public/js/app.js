@@ -2057,7 +2057,7 @@ const Schedule = {
       if ($('nm-dur')) $('nm-dur').value = tpl.duration_mins || 60;
       if ($('nm-att')) $('nm-att').value = tpl.attendees || '';
       showToast(l === 'ar' ? '✓ تم تطبيق القالب' : '✓ Template applied');
-    } catch(e) {}
+    } catch(e) { showToast((l==='ar'?'تعذّر تحميل القالب: ':'Could not load template: ') + e.message, 'error'); }
   },
 
   async saveAsTemplate() {
