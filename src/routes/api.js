@@ -543,6 +543,65 @@ function generateDemoDoc(type, lang, ctx) {
   return `محضر اجتماع\n${date}\n\nالحضور: م. أحمد العمراني (CEO)، م. سارة الزهراني (MD)، م. خالد المنصور (CFO)، م. نورة الراشد (COO)\n\nبنود الاجتماع:\n1. مراجعة الربع الثاني — نمو 18%\n2. توسعة الفريق — الموافقة على 5 موظفين\n3. عقد الشراكة الخليجية — إحالة للمراجعة القانونية\n\nالقرارات:\n✓ توسعة الفريق: 5 موظفين معتمدون\n✓ العقد الخليجي: قيد المراجعة القانونية\n\nالمهام:\n→ م. سارة: المراجعة القانونية للعقد بحلول 22 مايو\n→ م. خالد: خطة التوظيف بحلول 19 مايو\n→ م. أحمد: دراسة الفرصة الاستثمارية بحلول 26 مايو\n\n---\nوُثّق بواسطة أمين للذكاء الاصطناعي`;
 }
 
+// ── Analytics ──────────────────────────────────────────────────────────────
+router.get('/analytics', auth, (req, res) => {
+  const tasksByWeek = db.prepare(`
+    SELECT date(created_at,'weekday 1','-6 days') as week_start,
+      COUNT(*) as total,
+      SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done,
+      SUM(CASE WHEN status!='done' THEN 1 ELSE 0 END) as open
+    FROM tasks WHERE created_at >= date('now','-56 days')
+    GROUP BY week_start ORDER BY week_start
+  `).all();
+
+  const meetingsByMonth = db.prepare(`
+    SELECT strftime('%Y-%m', meeting_date) as month, COUNT(*) as count
+    FROM meetings WHERE meeting_date >= date('now','-6 months')
+    GROUP BY month ORDER BY month
+  `).all();
+
+  const memberCompletion = db.prepare(`
+    SELECT owner_name_ar, owner_name_en,
+      COUNT(*) as total,
+      SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done
+    FROM tasks WHERE owner_name_ar IS NOT NULL AND owner_name_ar!=''
+    GROUP BY owner_name_ar ORDER BY total DESC LIMIT 10
+  `).all().map(r => ({ ...r, pct: r.total > 0 ? Math.round(r.done / r.total * 100) : 0 }));
+
+  const decisionStatus = db.prepare(
+    `SELECT status, COUNT(*) as count FROM decisions GROUP BY status`
+  ).all();
+
+  const attendanceRates = db.prepare(`
+    SELECT m.title_ar, m.title_en, m.meeting_date,
+      COUNT(ma.id) as invited,
+      SUM(CASE WHEN ma.confirmed=1 THEN 1 ELSE 0 END) as attended
+    FROM meetings m LEFT JOIN meeting_attendees ma ON ma.meeting_id=m.id
+    GROUP BY m.id HAVING COUNT(ma.id) > 0
+    ORDER BY m.meeting_date DESC LIMIT 10
+  `).all().map(r => ({ ...r, rate: r.invited > 0 ? Math.round(r.attended / r.invited * 100) : 0 })).reverse();
+
+  const durationTrend = db.prepare(`
+    SELECT strftime('%Y-%m', meeting_date) as month, ROUND(AVG(duration),0) as avg_mins
+    FROM meetings WHERE duration > 0
+    GROUP BY month ORDER BY month DESC LIMIT 6
+  `).all().reverse();
+
+  const overdueByOwner = db.prepare(`
+    SELECT owner_name_ar, owner_name_en, COUNT(*) as count
+    FROM tasks WHERE status='overdue' AND owner_name_ar IS NOT NULL AND owner_name_ar!=''
+    GROUP BY owner_name_ar ORDER BY count DESC LIMIT 8
+  `).all();
+
+  const decisionsByType = db.prepare(`
+    SELECT COALESCE(NULLIF(m.meeting_type,''),'Other') as meeting_type, COUNT(d.id) as count
+    FROM decisions d LEFT JOIN meetings m ON d.meeting_id=m.id
+    GROUP BY meeting_type ORDER BY count DESC
+  `).all();
+
+  res.json({ tasksByWeek, meetingsByMonth, memberCompletion, decisionStatus, attendanceRates, durationTrend, overdueByOwner, decisionsByType });
+});
+
 // ── Dashboard Stats ────────────────────────────────────────────────────────
 router.get('/stats', auth, (req, res) => {
   const meetings = db.prepare('SELECT COUNT(*) as c FROM meetings').get().c;

@@ -7,12 +7,12 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString(App.lang === 'ar' ? 'ar-
 
 // ══ RBAC ═══════════════════════════════════════════════════════════════════════
 const ROLE_ACCESS = {
-  'Admin':            new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','team','overview','governance','admin']),
-  'CEO':              new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','team','overview','governance']),
-  'Board Member':     new Set(['transcripts','lastmeeting','tasks','ask','documents','schedule','overview','governance']),
+  'Admin':            new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','team','overview','analytics','governance','admin']),
+  'CEO':              new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','team','overview','analytics','governance']),
+  'Board Member':     new Set(['transcripts','lastmeeting','tasks','ask','documents','schedule','overview','analytics','governance']),
   'Committee Member': new Set(['transcripts','tasks','ask','schedule','overview','governance']),
-  'Executive':        new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','overview']),
-  'Manager':          new Set(['record','transcripts','tasks','ask','documents','schedule','team','overview']),
+  'Executive':        new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','overview','analytics']),
+  'Manager':          new Set(['record','transcripts','tasks','ask','documents','schedule','team','overview','analytics']),
   'Employee':         new Set(['record','transcripts','tasks','ask']),
   'Observer':         new Set(['transcripts','lastmeeting','overview']),
 };
@@ -27,6 +27,47 @@ const ROLE_COLORS = {
   'Employee':         '#888',
   'Observer':         '#888',
 };
+
+// ══ Charts helper — wraps Chart.js; destroys stale instance before re-render ══
+const Charts = {
+  _i: {},
+  render(id, cfg) {
+    if (this._i[id]) { try { this._i[id].destroy(); } catch (_) {} delete this._i[id]; }
+    const el = $(id);
+    if (!el || !window.Chart) return null;
+    this._i[id] = new Chart(el, cfg);
+    return this._i[id];
+  },
+  destroyAll() {
+    Object.values(this._i).forEach(c => { try { c.destroy(); } catch (_) {} });
+    this._i = {};
+  }
+};
+
+function _chartBase(lang) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#a0a0b0', font: { size: 10 }, boxWidth: 11 } } },
+    scales: {
+      x: { ticks: { color: '#808090', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
+      y: { ticks: { color: '#808090', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' }, beginAtZero: true }
+    }
+  };
+}
+function _chartPie() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { color: '#a0a0b0', font: { size: 10 }, boxWidth: 11, padding: 8 } } }
+  };
+}
+function _monthLabel(m, lang) {
+  const [y, mo] = m.split('-');
+  return new Date(+y, +mo - 1, 1).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB', { month: 'short', year: '2-digit' });
+}
+function _weekLabel(w, lang) {
+  if (!w) return '';
+  return new Date(w).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB', { month: 'short', day: 'numeric' });
+}
 
 function applySidebarRoles() {
   const role = App.systemRole || 'Admin';
@@ -286,6 +327,7 @@ const Panels = {
       case 'tasks': await renderTasks(); break;
       case 'schedule': await renderSchedule(); break;
       case 'overview': await renderOverview(); break;
+      case 'analytics': await renderAnalytics(); break;
       case 'team': await Team.load(); break;
       case 'documents': await loadDocMeetings(); break;
       case 'lastmeeting': await renderLastMeeting(); break;
@@ -2041,9 +2083,9 @@ async function renderOverview() {
   const body = $('overview-body');
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const [stats, tasks, meetings, schedule, members, decisions] = await Promise.all([
+    const [stats, tasks, meetings, schedule, members, decisions, analytics] = await Promise.all([
       api('/api/stats'), api('/api/tasks'), api('/api/meetings'),
-      api('/api/schedule'), api('/api/members'), api('/api/decisions')
+      api('/api/schedule'), api('/api/members'), api('/api/decisions'), api('/api/analytics')
     ]);
     const l = App.lang;
     const lbl = (ar, en) => l === 'ar' ? ar : en;
@@ -2076,13 +2118,6 @@ async function renderOverview() {
     const statCards = allStatCards.filter(c => allowedKeys.has(c.key));
     const gridCols = statCards.length <= 3 ? statCards.length : statCards.length <= 4 ? 4 : statCards.length <= 7 ? 4 : 4;
 
-    // Task breakdown by member
-    const memberBreakdown = members.map(m => {
-      const mt = tasks.filter(t => t.owner_name_ar === m.name_ar);
-      const done = mt.filter(t => t.status === 'done').length;
-      return { name: l==='ar' ? m.name_ar : (m.name_en || m.name_ar), total: mt.length, done, pct: mt.length ? Math.round(done/mt.length*100) : 0 };
-    }).filter(x => x.total > 0).sort((a,b) => b.total - a.total);
-
     const roleColor = ROLE_COLORS[role] || 'var(--gold)';
     const roleHeader = (role !== 'Admin' && role !== 'CEO') ? `
       <div style="background:${roleColor}0d;border:1px solid ${roleColor}33;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
@@ -2101,19 +2136,14 @@ async function renderOverview() {
         </div>`).join('')}
       </div>`;
 
-    const teamHtml = `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('team')" title="${lbl('فتح الفريق','Open team')}">
-          <div class="ct" style="margin-bottom:12px">👥 ${lbl('أداء الفريق','Team Performance')}</div>
-          ${memberBreakdown.length ? memberBreakdown.map(m => `
-            <div style="margin-bottom:10px">
-              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text);margin-bottom:4px">
-                <span>${esc(m.name)}</span>
-                <span style="color:${m.pct===100?'var(--green)':m.pct>50?'var(--gold)':'var(--amber)'}">${m.done}/${m.total} (${m.pct}%)</span>
-              </div>
-              <div style="height:6px;background:var(--navy4);border-radius:6px;overflow:hidden">
-                <div style="height:100%;background:${m.pct===100?'var(--green)':m.pct>50?'var(--gold)':'var(--amber)'};width:${m.pct}%;border-radius:6px;transition:.4s"></div>
-              </div>
-            </div>`).join('') : `<div style="font-size:12px;color:var(--text3)">${lbl('لا توجد مهام مسندة','No tasks assigned')}</div>`}
-        </div>`;
+    const hasCharts = !!window.Chart;
+    const chartsGridHtml = hasCharts ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">📊 ${lbl('مسار المهام — 8 أسابيع','Task Trend — 8 Weeks')}</div><div style="position:relative;height:155px"><canvas id="cht-ov-tasks"></canvas></div></div>
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">🎙 ${lbl('نشاط الاجتماعات — 6 أشهر','Meeting Activity — 6 Months')}</div><div style="position:relative;height:155px"><canvas id="cht-ov-meetings"></canvas></div></div>
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">👥 ${lbl('أداء الفريق','Team Performance')}</div><div style="position:relative;height:155px"><canvas id="cht-ov-team"></canvas></div></div>
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">⚖️ ${lbl('حالة القرارات','Decision Status')}</div><div style="position:relative;height:155px"><canvas id="cht-ov-decisions"></canvas></div></div>
+      </div>` : '';
 
     const upcomingHtml = `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')" title="${lbl('فتح الجدول','Open schedule')}">
           <div class="ct" style="margin-bottom:12px">📅 ${lbl('الاجتماعات القادمة','Upcoming Meetings')}</div>
@@ -2204,16 +2234,69 @@ async function renderOverview() {
 
     const dash = Dash.get();
     const sec = (k, html) => dash[k] === false ? '' : html;
-    const showTeam = ROLE_ACCESS[role]?.has('team') !== false;
-    const twoCol = [showTeam ? sec('team', teamHtml) : '', sec('upcoming', upcomingHtml)].filter(Boolean).join('');
+    const showCharts = hasCharts && ROLE_ACCESS[role]?.has('analytics');
     body.innerHTML = `
       ${roleHeader}
       ${Dash.bar(l)}
       ${sec('stats', statsHtml)}
-      ${twoCol ? `<div style="display:grid;grid-template-columns:${showTeam&&sec('team',teamHtml)&&sec('upcoming',upcomingHtml)?'1fr 1fr':'1fr'};gap:14px">${twoCol}</div>` : ''}
+      ${showCharts ? sec('charts', chartsGridHtml) : ''}
+      ${sec('upcoming', `<div style="margin-bottom:14px">${upcomingHtml}</div>`)}
       ${sec('overdue', overdueHtml)}
       ${boardGovHtml}
       ${committeeHtml}`;
+
+    if (showCharts) {
+      const base = _chartBase(l);
+      const tw = analytics.tasksByWeek || [];
+      Charts.render('cht-ov-tasks', {
+        type: 'bar',
+        data: {
+          labels: tw.map(r => _weekLabel(r.week_start, l)),
+          datasets: [
+            { label: lbl('مكتملة','Done'), data: tw.map(r => r.done), backgroundColor: '#2ECC8A66', borderColor: '#2ECC8A', borderWidth: 1.5 },
+            { label: lbl('مفتوحة','Open'), data: tw.map(r => r.open), backgroundColor: '#EFA82766', borderColor: '#EFA827', borderWidth: 1.5 }
+          ]
+        },
+        options: { ...base, plugins: { ...base.plugins, legend: { ...base.plugins.legend, display: true } }, scales: { ...base.scales, y: { ...base.scales.y, stacked: false } } }
+      });
+
+      const mm = analytics.meetingsByMonth || [];
+      Charts.render('cht-ov-meetings', {
+        type: 'bar',
+        data: {
+          labels: mm.map(r => _monthLabel(r.month, l)),
+          datasets: [{ label: lbl('اجتماعات','Meetings'), data: mm.map(r => r.count), backgroundColor: '#C9A84C66', borderColor: '#C9A84C', borderWidth: 1.5 }]
+        },
+        options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...base.scales.y, ticks: { ...base.scales.y.ticks, stepSize: 1 } } } }
+      });
+
+      const mc = analytics.memberCompletion || [];
+      Charts.render('cht-ov-team', {
+        type: 'bar',
+        data: {
+          labels: mc.map(r => l === 'ar' ? r.owner_name_ar : (r.owner_name_en || r.owner_name_ar)),
+          datasets: [{
+            label: lbl('الإنجاز %','Completion %'), data: mc.map(r => r.pct),
+            backgroundColor: mc.map(r => r.pct === 100 ? '#2ECC8A66' : r.pct > 50 ? '#C9A84C66' : '#E05A5A66'),
+            borderColor: mc.map(r => r.pct === 100 ? '#2ECC8A' : r.pct > 50 ? '#C9A84C' : '#E05A5A'),
+            borderWidth: 1.5
+          }]
+        },
+        options: { ...base, indexAxis: 'y', plugins: { ...base.plugins, legend: { display: false } }, scales: { x: { ...base.scales.x, max: 100 }, y: { ticks: { color: '#808090', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.06)' } } } }
+      });
+
+      const ds = analytics.decisionStatus || [];
+      const dsColorMap = { active: '#EFA827', implemented: '#2ECC8A', pending: '#5B9BD6' };
+      const dsLabelMap = { active: lbl('نشط','Active'), implemented: lbl('منفَّذ','Implemented'), pending: lbl('معلق','Pending') };
+      Charts.render('cht-ov-decisions', {
+        type: 'doughnut',
+        data: {
+          labels: ds.map(r => dsLabelMap[r.status] || esc(r.status)),
+          datasets: [{ data: ds.map(r => r.count), backgroundColor: ds.map(r => (dsColorMap[r.status] || '#888') + 'bb'), borderColor: ds.map(r => dsColorMap[r.status] || '#888'), borderWidth: 2 }]
+        },
+        options: _chartPie()
+      });
+    }
   } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
 
@@ -2328,6 +2411,105 @@ const AdminPanel = {
     }
   }
 };
+
+// ══ Analytics Panel ════════════════════════════════════════════════════════════
+async function renderAnalytics() {
+  const body = $('analytics-body');
+  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+  try {
+    const data = await api('/api/analytics');
+    const l = App.lang;
+    const lbl = (ar, en) => l === 'ar' ? ar : en;
+
+    if (!window.Chart) {
+      body.innerHTML = `<div class="es" style="color:var(--amber)">⚠ ${lbl('لم يتم تحميل مكتبة الرسوم البيانية','Chart library not loaded')}</div>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="card">
+          <div class="ct" style="margin-bottom:10px;font-size:13px">📅 ${lbl('معدل حضور الاجتماعات','Meeting Attendance Rate')}</div>
+          <div style="position:relative;height:210px"><canvas id="cht-att-rate"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="ct" style="margin-bottom:10px;font-size:13px">⏱ ${lbl('متوسط مدة الاجتماعات','Avg Meeting Duration')}</div>
+          <div style="position:relative;height:210px"><canvas id="cht-duration"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="ct" style="margin-bottom:10px;font-size:13px">⚠️ ${lbl('المهام المتأخرة حسب المسؤول','Overdue Tasks by Owner')}</div>
+          <div style="position:relative;height:210px"><canvas id="cht-overdue-owner"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="ct" style="margin-bottom:10px;font-size:13px">⚖️ ${lbl('القرارات حسب نوع الاجتماع','Decisions by Meeting Type')}</div>
+          <div style="position:relative;height:210px"><canvas id="cht-dec-type"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="ct" style="margin-bottom:12px;font-size:13px">📊 ${lbl('ملخص التحليلات','Analytics Summary')}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;font-size:12px">
+          ${[
+            { icon:'📅', val: data.attendanceRates.length, label: lbl('اجتماعات بمعلومات حضور','Meetings with attendance data'), color:'var(--blue)' },
+            { icon:'⏱', val: data.durationTrend.length ? Math.round(data.durationTrend.reduce((s,r)=>s+r.avg_mins,0)/data.durationTrend.length) + ' ' + lbl('د','min') : '—', label: lbl('متوسط مدة الاجتماع','Avg meeting duration'), color:'var(--gold)' },
+            { icon:'⚠️', val: data.overdueByOwner.reduce((s,r)=>s+r.count,0), label: lbl('مهمة متأخرة إجمالاً','Total overdue tasks'), color:'var(--red)' },
+            { icon:'⚖️', val: data.decisionsByType.reduce((s,r)=>s+r.count,0), label: lbl('قرار مسجل','Total decisions'), color:'var(--green)' },
+          ].map(s=>`
+            <div class="card" style="text-align:center;padding:14px 10px">
+              <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
+              <div style="font-size:22px;font-weight:800;color:${s.color}">${s.val}</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:3px">${s.label}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    const base = _chartBase(l);
+
+    const att = data.attendanceRates;
+    Charts.render('cht-att-rate', {
+      type: 'bar',
+      data: {
+        labels: att.map(r => {
+          const t = l === 'ar' ? r.title_ar : (r.title_en || r.title_ar);
+          return t.length > 18 ? t.substring(0, 16) + '…' : t;
+        }),
+        datasets: [{ label: lbl('معدل الحضور %','Attendance %'), data: att.map(r => r.rate), backgroundColor: '#5B9BD666', borderColor: '#5B9BD6', borderWidth: 1.5 }]
+      },
+      options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...base.scales.y, max: 100 } } }
+    });
+
+    const dur = data.durationTrend;
+    Charts.render('cht-duration', {
+      type: 'line',
+      data: {
+        labels: dur.map(r => _monthLabel(r.month, l)),
+        datasets: [{ label: lbl('المدة (دقيقة)','Duration (min)'), data: dur.map(r => r.avg_mins), borderColor: '#C9A84C', backgroundColor: '#C9A84C22', borderWidth: 2, fill: true, tension: 0.3, pointBackgroundColor: '#C9A84C', pointRadius: 4 }]
+      },
+      options: { ...base, plugins: { ...base.plugins, legend: { display: false } } }
+    });
+
+    const ow = data.overdueByOwner;
+    Charts.render('cht-overdue-owner', {
+      type: 'bar',
+      data: {
+        labels: ow.map(r => l === 'ar' ? r.owner_name_ar : (r.owner_name_en || r.owner_name_ar)),
+        datasets: [{ label: lbl('مهام متأخرة','Overdue'), data: ow.map(r => r.count), backgroundColor: '#E05A5A66', borderColor: '#E05A5A', borderWidth: 1.5 }]
+      },
+      options: { ...base, indexAxis: 'y', plugins: { ...base.plugins, legend: { display: false } }, scales: { x: { ...base.scales.x, ticks: { ...base.scales.x.ticks, stepSize: 1 } }, y: { ticks: { color: '#808090', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.06)' } } } }
+    });
+
+    const dt = data.decisionsByType;
+    const pieColors = ['#C9A84C','#5B9BD6','#2ECC8A','#E05A5A','#9370DB','#EFA827','#888'];
+    Charts.render('cht-dec-type', {
+      type: 'pie',
+      data: {
+        labels: dt.map(r => r.meeting_type),
+        datasets: [{ data: dt.map(r => r.count), backgroundColor: dt.map((_,i) => pieColors[i % pieColors.length] + 'bb'), borderColor: dt.map((_,i) => pieColors[i % pieColors.length]), borderWidth: 2 }]
+      },
+      options: _chartPie()
+    });
+
+  } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
+}
 
 // ══ Textarea auto-resize ══════════════════════════════════════════════════════
 $('ci').addEventListener('input', function () {

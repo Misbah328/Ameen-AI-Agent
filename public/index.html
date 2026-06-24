@@ -45,6 +45,7 @@
 <title>Ameen Secretary</title>
 <link rel="icon" href="/logo.png"/>
 <link rel="stylesheet" href="/css/app.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -118,6 +119,10 @@
   <button class="nb" data-p="overview">
     <span class="nb-icon">📈</span>
     <span class="nb-label" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</span>
+  </button>
+  <button class="nb" data-p="analytics">
+    <span class="nb-icon">📊</span>
+    <span class="nb-label" data-ar="التحليلات" data-en="Analytics">التحليلات</span>
   </button>
   <div class="nsec" data-ar="الحوكمة" data-en="Governance">الحوكمة</div>
   <button class="nb" data-p="governance">
@@ -599,6 +604,22 @@
     </div>
   </div>
   <div class="pbody" id="gov-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
+<!-- ══ ANALYTICS ══════════════════════════════════════════════ -->
+<section class="panel" id="panel-analytics">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="التحليلات والإحصاءات" data-en="Analytics & Insights">التحليلات والإحصاءات</div>
+        <div class="ptitle-sub" data-ar="مؤشرات الأداء · معدلات الحضور · اتجاهات المهام والقرارات" data-en="Performance metrics · Attendance rates · Task and decision trends">مؤشرات الأداء · معدلات الحضور · اتجاهات المهام والقرارات</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="renderAnalytics()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="analytics-body">
     <div class="es"><div class="loading"></div></div>
   </div>
 </section>
