@@ -164,15 +164,6 @@ ensureColumn('meetings', 'ai_risks', "TEXT DEFAULT '[]'");
 ensureColumn('schedule', 'prev_meeting_id', 'INTEGER');
 ensureColumn('users', 'system_role', "TEXT DEFAULT 'Admin'");
 
-// Seed demo system_roles once (runs only on first boot after column added)
-if (!db.prepare("SELECT value FROM settings WHERE key='rbac_roles_seeded'").get()) {
-  db.prepare("UPDATE users SET system_role='Admin'       WHERE email='ahmed@ameen.ai'").run();
-  db.prepare("UPDATE users SET system_role='Executive'   WHERE email='sara@ameen.ai'").run();
-  db.prepare("UPDATE users SET system_role='Board Member' WHERE email='khalid@ameen.ai'").run();
-  db.prepare("UPDATE users SET system_role='Manager'     WHERE email='noura@ameen.ai'").run();
-  db.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES ('rbac_roles_seeded','1')").run();
-}
-
 // Key/value settings (e.g. subscription plan)
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -287,6 +278,15 @@ db.exec(`
 // Default plan = free
 if (!db.prepare('SELECT value FROM settings WHERE key=?').get('plan')) {
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('plan', 'free');
+}
+
+// Seed demo system_roles once — must run AFTER settings table is created
+if (!db.prepare("SELECT value FROM settings WHERE key='rbac_roles_seeded'").get()) {
+  db.prepare("UPDATE users SET system_role='Admin'        WHERE email='ahmed@ameen.ai'").run();
+  db.prepare("UPDATE users SET system_role='Executive'    WHERE email='sara@ameen.ai'").run();
+  db.prepare("UPDATE users SET system_role='Board Member' WHERE email='khalid@ameen.ai'").run();
+  db.prepare("UPDATE users SET system_role='Manager'      WHERE email='noura@ameen.ai'").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES ('rbac_roles_seeded','1')").run();
 }
 
 // Seed demo data if empty

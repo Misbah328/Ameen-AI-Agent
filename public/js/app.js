@@ -2243,7 +2243,7 @@ async function renderAdminPanel() {
 const AdminPanel = {
   async changeRole(userId, role) {
     try {
-      await api(`/api/members/${userId}/system-role`, { method:'PATCH', body:JSON.stringify({ system_role: role }) });
+      await api(`/api/members/${userId}/role`, { method:'PATCH', body:JSON.stringify({ system_role: role }) });
       const badge = $(`role-badge-${userId}`);
       if (badge) {
         const color = ROLE_COLORS[role] || 'var(--text3)';

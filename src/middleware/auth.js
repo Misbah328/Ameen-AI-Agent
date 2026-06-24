@@ -18,4 +18,22 @@ const auth = (req, res, next) => {
   next();
 };
 
+// Role-based access control middleware factory.
+// Usage: router.patch('/admin-only', auth, requireRole('Admin'), handler)
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    const user = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
+    const role = (user && user.system_role) || 'Admin';
+    if (!roles.includes(role)) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'هذا الإجراء يتطلب صلاحيات خاصة / Insufficient permissions for this action'
+      });
+    }
+    next();
+  };
+}
+
 module.exports = auth;
+module.exports.requireRole = requireRole;

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const db = require('../db/database');
 const auth = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 const { sendEmail } = require('../utils/replitmail');
 const notify = require('../utils/notify');
 const { callClaude, setSessionKey } = require('../utils/claude');
@@ -50,7 +51,7 @@ router.get('/members', auth, (req, res) => {
   res.json(members);
 });
 
-router.post('/members', auth, (req, res) => {
+router.post('/members', auth, requireRole('Admin','CEO','Manager'), (req, res) => {
   const { name_ar, name_en, email, role_ar, role_en, system_role } = req.body;
   if (!name_ar || !email) return res.status(400).json({ error: 'name_ar and email are required' });
   const bcrypt = require('bcryptjs');
@@ -68,7 +69,7 @@ router.post('/members', auth, (req, res) => {
   }
 });
 
-router.patch('/members/:id', auth, (req, res) => {
+router.patch('/members/:id', auth, requireRole('Admin','CEO','Manager'), (req, res) => {
   const { name_ar, name_en, email, role_ar, role_en } = req.body;
   const member = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
@@ -90,7 +91,7 @@ router.patch('/members/:id', auth, (req, res) => {
 });
 
 // ── System Role (RBAC) ────────────────────────────────────────────────────────
-router.patch('/members/:id/system-role', auth, (req, res) => {
+router.patch('/members/:id/role', auth, requireRole('Admin'), (req, res) => {
   const VALID_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
   const { system_role } = req.body;
   if (!VALID_ROLES.includes(system_role)) return res.status(400).json({ error: 'Invalid system_role' });
@@ -100,7 +101,7 @@ router.patch('/members/:id/system-role', auth, (req, res) => {
   res.json({ success: true, system_role });
 });
 
-router.delete('/members/:id', auth, (req, res) => {
+router.delete('/members/:id', auth, requireRole('Admin','CEO'), (req, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
   db.prepare('UPDATE tasks SET owner_id=NULL WHERE owner_id=?').run(req.params.id);
   db.prepare('DELETE FROM users WHERE id=?').run(req.params.id);
@@ -206,7 +207,12 @@ router.get('/ai/debug-log', auth, (req, res) => {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 router.get('/tasks', auth, (req, res) => {
-  const tasks = db.prepare("SELECT * FROM tasks ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'inprogress' THEN 2 WHEN 'new' THEN 3 ELSE 4 END, due_date ASC").all();
+  const user = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
+  const role = (user && user.system_role) || 'Admin';
+  const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'inprogress' THEN 2 WHEN 'new' THEN 3 ELSE 4 END, due_date ASC";
+  const tasks = (role === 'Employee')
+    ? db.prepare(`SELECT * FROM tasks WHERE owner_id=? ${ORDER}`).all(req.user.id)
+    : db.prepare(`SELECT * FROM tasks ${ORDER}`).all();
   res.json(tasks);
 });
 
@@ -557,7 +563,7 @@ router.get('/documents', auth, (req, res) => {
 router.get('/plan', auth, (req, res) => {
   res.json({ plan: getPlan() });
 });
-router.patch('/plan', auth, (req, res) => {
+router.patch('/plan', auth, requireRole('Admin','CEO'), (req, res) => {
   const plan = req.body.plan === 'pro' ? 'pro' : 'free';
   db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('plan', plan);
   res.json({ plan });
