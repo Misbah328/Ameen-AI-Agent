@@ -951,6 +951,7 @@ async function renderTranscripts() {
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
     const meetings = await api('/api/meetings');
+    App.meetingsCache = meetings;
     const l = App.lang;
     if (!meetings.length) {
       body.innerHTML = `<div class="es"><div class="es-icon">📝</div><div>${l==='ar'?'لا توجد اجتماعات مسجلة بعد':'No recorded meetings yet'}</div></div>`;
@@ -1024,6 +1025,7 @@ async function renderTranscripts() {
           </div>` : ''}
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l==='ar'?'تمت المشاركة':'Shared'}</span>` : ''}
+            <button class="btn-ghost btn-sm" onclick="TranscriptModal.open(${m.id})" title="${l==='ar'?'إضافة أو تعديل النص':'Add or edit transcript'}">✏️ ${l==='ar'?'إضافة نص':'Add Notes'}</button>
             ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l==='ar'?'مشاركة النتائج':'Share Outcomes'}${App.isPro()?'':' ⭐'}</button>` : ''}
             <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l==='ar'?'حذف':'Delete'}</button>
           </div>
@@ -1034,6 +1036,54 @@ async function renderTranscripts() {
 }
 
 function tryParse(s, def) { try { return JSON.parse(s || '[]'); } catch { return def; } }
+
+// ══ Transcript Notes Modal ═════════════════════════════════════════════════
+const TranscriptModal = {
+  _id: null,
+  open(id) {
+    this._id = id;
+    const m = (App.meetingsCache || []).find(x => x.id === id);
+    $('modal-transcript-text').value = (m && m.transcript) || '';
+    const l = App.lang;
+    const btn = $('modal-transcript-process-btn');
+    if (btn) {
+      const isProcessed = m && m.status === 'processed';
+      btn.innerHTML = `🤖 <span>${l==='ar'? (isProcessed?'إعادة المعالجة':'حفظ ومعالجة') : (isProcessed?'Re-process':'Save & Process with AI')}</span>`;
+    }
+    $('modal-transcript').classList.add('open');
+  },
+  close() {
+    $('modal-transcript').classList.remove('open');
+    this._id = null;
+  },
+  async saveOnly() {
+    if (!this._id) return;
+    const transcript = $('modal-transcript-text').value;
+    try {
+      await api('/api/meetings/' + this._id, { method: 'PATCH', body: JSON.stringify({ transcript }) });
+      if (App.meetingsCache) { const m = App.meetingsCache.find(x => x.id === this._id); if (m) m.transcript = transcript; }
+      this.close();
+      await renderTranscripts();
+    } catch (e) { alert((App.lang==='ar'?'خطأ: ':'Error: ') + e.message); }
+  },
+  async saveAndProcess() {
+    if (!this._id) return;
+    const transcript = $('modal-transcript-text').value.trim();
+    if (!transcript) { alert(App.lang==='ar' ? 'أدخل النص أولاً' : 'Please enter some text first'); return; }
+    const btn = $('modal-transcript-process-btn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = `<div class="loading" style="width:14px;height:14px;display:inline-block;margin-left:4px"></div>`; }
+    try {
+      await api('/api/meetings/' + this._id, { method: 'PATCH', body: JSON.stringify({ transcript }) });
+      await api('/api/meetings/' + this._id + '/process', { method: 'POST' });
+      this.close();
+      await renderTranscripts();
+      await loadBadges();
+    } catch (e) { alert((App.lang==='ar'?'خطأ: ':'Error: ') + e.message); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } }
+  }
+};
+$('modal-transcript')?.addEventListener('click', e => { if (e.target === $('modal-transcript')) TranscriptModal.close(); });
 
 async function editMeetingTitle(id, curAr, curEn) {
   const l = App.lang;
@@ -1215,12 +1265,21 @@ async function renderTasks() {
       const text = l==='ar' ? d.text_ar : (d.text_en || d.text_ar);
       const mtg = l==='ar' ? d.meeting_title_ar : (d.meeting_title_en || d.meeting_title_ar);
       const isImpl = d.status === 'implemented';
+      const decDate = d.created_at ? d.created_at.substring(0,10) : '';
+      const decidedBy = d.decided_by || '';
+      const notes = d.notes || '';
       return `<div class="trow">
         <div style="display:flex;gap:8px;align-items:flex-start">
           <input type="checkbox" class="tck" ${isImpl?'checked':''} onchange="Tasks.updateDecisionStatus(${d.id}, this.checked?'implemented':'active')"/>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;color:var(--text);${isImpl?'text-decoration:line-through;color:var(--text3)':''}">${esc(text)}</div>
-            ${mtg ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">📝 ${esc(mtg)}</div>` : ''}
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+              ${isImpl ? `<span class="tag tg" style="font-size:10px">✓ ${l==='ar'?'مُنفَّذ':'Implemented'}</span>` : `<span class="tag ta" style="font-size:10px">${l==='ar'?'نشط':'Active'}</span>`}
+              ${decDate ? `<span class="tag" style="background:var(--navy4);font-size:10px">📅 ${esc(decDate)}</span>` : ''}
+              ${decidedBy ? `<span class="tag tgold" style="font-size:10px">👤 ${esc(decidedBy)}</span>` : ''}
+              ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📝 ${esc(mtg)}</span>` : ''}
+            </div>
+            ${notes ? `<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;line-height:1.5">${esc(notes)}</div>` : ''}
           </div>
           <button onclick="Tasks.deleteDecision(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">✕</button>
         </div>
@@ -1447,6 +1506,21 @@ const Schedule = {
     sel.innerHTML = `<option value="">— ${l==='ar'?'بدون مجلس':'No board'} —</option>` +
       boards.map(b => `<option value="${b.id}">${esc(l==='ar'?b.name_ar:(b.name_en||b.name_ar))}</option>`).join('');
     this.onBoardChange();
+    this._populatePrevMeetings();
+  },
+  async _populatePrevMeetings() {
+    const sel = $('nm-prev');
+    if (!sel) return;
+    const l = App.lang;
+    try {
+      const meetings = await api('/api/meetings');
+      sel.innerHTML = `<option value="">— ${l==='ar'?'لا يوجد (اجتماع جديد)':'None (new meeting)'} —</option>` +
+        meetings.map(m => {
+          const title = l==='ar' ? m.title_ar : (m.title_en || m.title_ar);
+          const date = (m.meeting_date || '').substring(0,10);
+          return `<option value="${m.id}">${esc(title)}${date ? ' · ' + date : ''}</option>`;
+        }).join('');
+    } catch { }
   },
   onBoardChange() {
     const boardId = parseInt($('nm-board')?.value) || 0;
@@ -1474,6 +1548,7 @@ const Schedule = {
       meeting_type: ($('nm-type') && $('nm-type').value) || '',
       board_id: parseInt($('nm-board')?.value) || null,
       committee_id: parseInt($('nm-committee')?.value) || null,
+      prev_meeting_id: parseInt($('nm-prev')?.value) || null,
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
       alert(App.lang === 'ar' ? 'يرجى إدخال العنوان والتاريخ والوقت' : 'Please enter title, date and time');
@@ -1488,6 +1563,7 @@ const Schedule = {
       if ($('nm-type')) $('nm-type').value = '';
       if ($('nm-board')) $('nm-board').value = '';
       if ($('nm-committee')) $('nm-committee').value = '';
+      if ($('nm-prev')) $('nm-prev').value = '';
     } catch (e) { alert(e.message); }
   },
 

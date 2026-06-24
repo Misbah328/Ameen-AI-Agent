@@ -281,15 +281,15 @@ function conflictPayload(conflicts) {
 }
 
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, force } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, force } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
   const row = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?)
-  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null);
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?)
+  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null);
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -396,6 +396,9 @@ router.post('/ai/chat', auth, async (req, res) => {
   const schedule = db.prepare('SELECT * FROM schedule ORDER BY meeting_date ASC LIMIT 5').all();
   const users = db.prepare('SELECT name_ar, name_en, role_ar, role_en FROM users').all();
 
+  const risks = db.prepare("SELECT ai_risks, title_ar FROM meetings WHERE ai_risks IS NOT NULL AND ai_risks != '[]' ORDER BY meeting_date DESC LIMIT 3").all();
+  const riskLines = risks.flatMap(m => { try { return JSON.parse(m.ai_risks).map(r => `- [${m.title_ar}] ${r.text_ar} (${r.severity||'medium'})`); } catch { return []; } });
+
   const system = `أنت أمين، المساعد الذكي التنفيذي المتخصص لشركة أمين للذكاء الاصطناعي.
 أجب ${lang === 'en' ? 'in English only' : 'بالعربية الفصيحة فقط'} بأسلوب رسمي ومهني ومختصر وواضح.
 
@@ -406,7 +409,10 @@ router.post('/ai/chat', auth, async (req, res) => {
 ${tasks.map(t => `- ${t.text_ar} | ${t.owner_name_ar || 'غير محدد'} | ${t.status} | ${t.due_date || 'مفتوح'}`).join('\n') || 'لا توجد مهام مفتوحة'}
 
 قرارات المجلس النشطة:
-${decisions.map(d => `- ${d.text_ar} [${d.status}]`).join('\n') || 'لا توجد قرارات'}
+${decisions.map(d => `- ${d.text_ar} [${d.status}]${d.decided_by ? ' — ' + d.decided_by : ''}`).join('\n') || 'لا توجد قرارات'}
+
+المخاطر المكتشفة من الاجتماعات الأخيرة:
+${riskLines.join('\n') || 'لا توجد مخاطر مسجلة'}
 
 آخر الاجتماعات:
 ${meetings.map(m => `- ${m.title_ar} (${m.meeting_date?.substring(0,10)}): ${m.ai_summary_ar || 'لم يُعالج'}`).join('\n') || 'لا توجد اجتماعات'}
@@ -489,6 +495,7 @@ router.post('/ai/document', auth, requirePro, async (req, res) => {
     exec_summary: 'ملخص تنفيذي',
     action_plan: 'خطة العمل التفصيلية',
     decision_log: 'سجل القرارات الرسمي',
+    followup_report: 'تقرير نقاط المتابعة والإجراءات المفتوحة / Follow-up & Open Actions Report',
     kpi_report: 'تقرير مؤشرات الأداء الرئيسية',
     team_tasks: 'تقرير المهام لكل عضو في الفريق / Tasks-per-person report'
   };

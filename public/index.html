@@ -373,6 +373,7 @@
               <option value="exec_summary">ملخص تنفيذي · Executive Summary</option>
               <option value="action_plan">خطة العمل · Action Plan</option>
               <option value="decision_log">سجل القرارات · Decision Log</option>
+              <option value="followup_report">تقرير المتابعة · Follow-up Report</option>
               <option value="kpi_report">تقرير مؤشرات الأداء · KPI Report</option>
               <option value="team_tasks">المهام لكل عضو · Tasks per Person</option>
             </select>
@@ -522,6 +523,12 @@
               <option value="email" data-ar="بريد إلكتروني" data-en="Email">بريد إلكتروني / Email</option>
               <option value="whatsapp" data-ar="واتساب" data-en="WhatsApp">واتساب / WhatsApp</option>
               <option value="both" data-ar="بريد + واتساب" data-en="Email + WhatsApp">بريد + واتساب / Both</option>
+            </select>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="اجتماع مرجعي سابق" data-en="Previous Meeting Reference">اجتماع مرجعي سابق</div>
+            <select class="fi" id="nm-prev">
+              <option value="">— <span data-ar="لا يوجد (اجتماع جديد)" data-en="None (new meeting)">لا يوجد</span> —</option>
             </select>
           </div>
           <div class="frow">
@@ -729,6 +736,24 @@
         <button class="btn-gold" id="plan-upgrade-btn" onclick="App.setPlan('pro')">⭐ <span data-ar="الترقية إلى Pro" data-en="Upgrade to Pro">الترقية إلى Pro</span></button>
         <button class="btn-ghost" id="plan-downgrade-btn" onclick="App.setPlan('free')"><span data-ar="الرجوع إلى Free" data-en="Switch to Free">الرجوع إلى Free</span></button>
         <button class="btn-ghost" onclick="App.closePlan()"><span data-ar="إغلاق" data-en="Close">إغلاق</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: ADD / EDIT TRANSCRIPT NOTES ══════════════════════════════════ -->
+<div class="modal-overlay" id="modal-transcript">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">✏️ <span data-ar="إضافة نص / ملاحظات الاجتماع" data-en="Add Transcript / Meeting Notes">إضافة نص / ملاحظات الاجتماع</span></div>
+    <div class="fs">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:4px" data-ar="الصق نص الاجتماع أو التفريغ هنا. يدعم صيغة المتحدثين: «المتحدث 1: ...»" data-en="Paste the meeting transcript or notes. Supports speaker format: «Speaker 1: ...»">الصق نص الاجتماع أو التفريغ. يدعم صيغة «المتحدث 1: ...»</div>
+      <div class="frow">
+        <textarea class="fi" id="modal-transcript-text" rows="14" style="font-size:12px;line-height:1.7;resize:vertical;font-family:monospace" placeholder="المتحدث 1: نبدأ بمراجعة النقاط ...&#10;المتحدث 2: بالنسبة للميزانية ...&#10;&#10;Speaker 1: Let's review the agenda ..."></textarea>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" id="modal-transcript-process-btn" onclick="TranscriptModal.saveAndProcess()">🤖 <span data-ar="حفظ ومعالجة بالذكاء الاصطناعي" data-en="Save & Process with AI">حفظ ومعالجة</span></button>
+        <button class="btn-ghost" onclick="TranscriptModal.saveOnly()">💾 <span data-ar="حفظ فقط" data-en="Save Only">حفظ فقط</span></button>
+        <button class="btn-ghost" onclick="TranscriptModal.close()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
       </div>
     </div>
   </div>
