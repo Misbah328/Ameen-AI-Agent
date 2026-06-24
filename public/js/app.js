@@ -30,7 +30,7 @@ const ROLE_COLORS = {
 
 function applySidebarRoles() {
   const role = App.systemRole || 'Admin';
-  const allowed = ROLE_ACCESS[role] || ROLE_ACCESS['Admin'];
+  const allowed = ROLE_ACCESS[role] || ROLE_ACCESS['Employee'];
 
   document.querySelectorAll('.nb[data-p]').forEach(btn => {
     const p = btn.dataset.p;
@@ -78,7 +78,9 @@ const App = {
     await loadBadges();
     await loadSelectLists();
     Panels.init();
-    Panels.load('record');
+    const allowed = ROLE_ACCESS[this.systemRole] || ROLE_ACCESS['Employee'];
+    const firstPanel = [...allowed][0] || 'record';
+    Panels.load(firstPanel);
   },
 
   isPro() { return this.plan === 'pro'; },

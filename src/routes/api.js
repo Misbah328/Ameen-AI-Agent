@@ -51,9 +51,12 @@ router.get('/members', auth, (req, res) => {
   res.json(members);
 });
 
-router.post('/members', auth, requireRole('Admin','CEO','Manager'), (req, res) => {
+const VALID_SYSTEM_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
+
+router.post('/members', auth, requireRole('Admin'), (req, res) => {
   const { name_ar, name_en, email, role_ar, role_en, system_role } = req.body;
   if (!name_ar || !email) return res.status(400).json({ error: 'name_ar and email are required' });
+  if (system_role && !VALID_SYSTEM_ROLES.includes(system_role)) return res.status(400).json({ error: 'Invalid system_role' });
   const bcrypt = require('bcryptjs');
   const hash = bcrypt.hashSync('ameen2026', 10);
   try {
@@ -69,7 +72,7 @@ router.post('/members', auth, requireRole('Admin','CEO','Manager'), (req, res) =
   }
 });
 
-router.patch('/members/:id', auth, requireRole('Admin','CEO','Manager'), (req, res) => {
+router.patch('/members/:id', auth, requireRole('Admin'), (req, res) => {
   const { name_ar, name_en, email, role_ar, role_en } = req.body;
   const member = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
@@ -101,7 +104,7 @@ router.patch('/members/:id/role', auth, requireRole('Admin'), (req, res) => {
   res.json({ success: true, system_role });
 });
 
-router.delete('/members/:id', auth, requireRole('Admin','CEO'), (req, res) => {
+router.delete('/members/:id', auth, requireRole('Admin'), (req, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
   db.prepare('UPDATE tasks SET owner_id=NULL WHERE owner_id=?').run(req.params.id);
   db.prepare('DELETE FROM users WHERE id=?').run(req.params.id);
