@@ -124,12 +124,18 @@
     <span class="nb-icon">⚖️</span>
     <span class="nb-label" data-ar="حوكمة الاجتماعات" data-en="Meeting Governance">حوكمة الاجتماعات</span>
   </button>
+  <div class="nsec" id="nsec-admin" data-ar="النظام" data-en="System" style="display:none">النظام</div>
+  <button class="nb" data-p="admin" id="nav-admin" style="display:none">
+    <span class="nb-icon">👑</span>
+    <span class="nb-label" data-ar="إدارة الصلاحيات" data-en="Role Management">إدارة الصلاحيات</span>
+  </button>
   <div class="sf">
     <div class="urow">
       <div class="uav" id="u-av">م.أ</div>
-      <div>
+      <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:600;color:var(--text)" id="u-name">—</div>
         <div style="font-size:10px;color:var(--text3)" id="u-role">—</div>
+        <div id="u-sysrole" style="display:inline-block;margin-top:3px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;border:1px solid transparent"></div>
       </div>
     </div>
   </div>
@@ -593,6 +599,22 @@
     </div>
   </div>
   <div class="pbody" id="gov-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
+<!-- ══ ADMIN: ROLE MANAGEMENT ════════════════════════════════ -->
+<section class="panel" id="panel-admin">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="إدارة الصلاحيات" data-en="Role Management">إدارة الصلاحيات</div>
+        <div class="ptitle-sub" data-ar="تعيين أدوار النظام للمستخدمين وضبط مستويات الوصول" data-en="Assign system roles and configure access levels">تعيين أدوار النظام للمستخدمين وضبط مستويات الوصول</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="renderAdminPanel()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="admin-body">
     <div class="es"><div class="loading"></div></div>
   </div>
 </section>

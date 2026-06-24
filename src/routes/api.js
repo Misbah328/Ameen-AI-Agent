@@ -40,27 +40,27 @@ router.post('/ai/setkey', auth, (req, res) => {
 
 // ── Users / Auth ─────────────────────────────────────────────────────────────
 router.get('/users', auth, (req, res) => {
-  const users = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, created_at FROM users ORDER BY name_ar').all();
+  const users = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users ORDER BY name_ar').all();
   res.json(users);
 });
 
 // ── Team Members (CRUD) ───────────────────────────────────────────────────────
 router.get('/members', auth, (req, res) => {
-  const members = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, created_at FROM users ORDER BY name_ar').all();
+  const members = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users ORDER BY name_ar').all();
   res.json(members);
 });
 
 router.post('/members', auth, (req, res) => {
-  const { name_ar, name_en, email, role_ar, role_en } = req.body;
+  const { name_ar, name_en, email, role_ar, role_en, system_role } = req.body;
   if (!name_ar || !email) return res.status(400).json({ error: 'name_ar and email are required' });
   const bcrypt = require('bcryptjs');
   const hash = bcrypt.hashSync('ameen2026', 10);
   try {
     const row = db.prepare(`
-      INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(name_ar, name_en || name_ar, email, hash, role_ar || 'عضو', role_en || 'Member');
-    const member = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, created_at FROM users WHERE id=?').get(row.lastInsertRowid);
+      INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, system_role)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(name_ar, name_en || name_ar, email, hash, role_ar || 'عضو', role_en || 'Member', system_role || 'Employee');
+    const member = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users WHERE id=?').get(row.lastInsertRowid);
     res.json(member);
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
@@ -82,11 +82,22 @@ router.patch('/members/:id', auth, (req, res) => {
         role_en=COALESCE(?,role_en)
       WHERE id=?
     `).run(name_ar, name_en, email, role_ar, role_en, req.params.id);
-    res.json(db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, created_at FROM users WHERE id=?').get(req.params.id));
+    res.json(db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users WHERE id=?').get(req.params.id));
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already in use' });
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── System Role (RBAC) ────────────────────────────────────────────────────────
+router.patch('/members/:id/system-role', auth, (req, res) => {
+  const VALID_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
+  const { system_role } = req.body;
+  if (!VALID_ROLES.includes(system_role)) return res.status(400).json({ error: 'Invalid system_role' });
+  const member = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
+  if (!member) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE users SET system_role=? WHERE id=?').run(system_role, req.params.id);
+  res.json({ success: true, system_role });
 });
 
 router.delete('/members/:id', auth, (req, res) => {

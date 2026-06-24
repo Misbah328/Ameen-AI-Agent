@@ -5,11 +5,62 @@ const esc = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 const now = () => new Date().toLocaleTimeString(App.lang === 'ar' ? 'ar-SA' : 'en-GB', {hour:'2-digit',minute:'2-digit'});
 const fmtDate = d => d ? new Date(d).toLocaleDateString(App.lang === 'ar' ? 'ar-SA' : 'en-GB', {year:'numeric',month:'short',day:'numeric'}) : '—';
 
+// ══ RBAC ═══════════════════════════════════════════════════════════════════════
+const ROLE_ACCESS = {
+  'Admin':            new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','team','overview','governance','admin']),
+  'CEO':              new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','team','overview','governance']),
+  'Board Member':     new Set(['transcripts','lastmeeting','tasks','ask','documents','schedule','overview','governance']),
+  'Committee Member': new Set(['transcripts','tasks','ask','schedule','overview','governance']),
+  'Executive':        new Set(['record','transcripts','lastmeeting','tasks','ask','documents','schedule','overview']),
+  'Manager':          new Set(['record','transcripts','tasks','ask','documents','schedule','team','overview']),
+  'Employee':         new Set(['record','transcripts','tasks','ask']),
+  'Observer':         new Set(['transcripts','lastmeeting','overview']),
+};
+
+const ROLE_COLORS = {
+  'Admin':            '#e05a5a',
+  'CEO':              '#C9A84C',
+  'Board Member':     '#5B9BD6',
+  'Committee Member': '#2ECC8A',
+  'Executive':        '#9370DB',
+  'Manager':          '#EFA827',
+  'Employee':         '#888',
+  'Observer':         '#888',
+};
+
+function applySidebarRoles() {
+  const role = App.systemRole || 'Admin';
+  const allowed = ROLE_ACCESS[role] || ROLE_ACCESS['Admin'];
+
+  document.querySelectorAll('.nb[data-p]').forEach(btn => {
+    const p = btn.dataset.p;
+    if (p === 'admin') return;
+    btn.style.display = allowed.has(p) ? '' : 'none';
+  });
+
+  const adminNav = $('nav-admin');
+  const adminSec = $('nsec-admin');
+  if (adminNav) adminNav.style.display = role === 'Admin' ? '' : 'none';
+  if (adminSec) adminSec.style.display = role === 'Admin' ? '' : 'none';
+
+  document.querySelectorAll('.nsec').forEach(sec => {
+    if (sec.id === 'nsec-admin') return;
+    let next = sec.nextElementSibling;
+    let hasVisible = false;
+    while (next && !next.classList.contains('nsec') && !next.classList.contains('sf')) {
+      if (next.classList.contains('nb') && next.style.display !== 'none') { hasVisible = true; break; }
+      next = next.nextElementSibling;
+    }
+    sec.style.display = hasVisible ? '' : 'none';
+  });
+}
+
 // ══ App State ══════════════════════════════════════════════════════════════════
 const App = {
   lang: localStorage.getItem('lang') || 'ar',
   theme: localStorage.getItem('theme') || 'dark',
   user: null,
+  systemRole: 'Admin',
   plan: 'free',
   chatHistory: [],
 
@@ -18,10 +69,12 @@ const App = {
     try {
       const me = await api('/auth/me');
       this.user = me;
+      this.systemRole = me.system_role || 'Admin';
     } catch (e) { this.user = null; }
     await this.loadPlan();
     this.applyLang(this.lang);
     this.renderUser();
+    applySidebarRoles();
     await loadBadges();
     await loadSelectLists();
     Panels.init();
@@ -138,6 +191,16 @@ const App = {
     const uav = $('u-av'); if (uav) uav.textContent = initials;
     const uname = $('u-name'); if (uname) uname.textContent = name;
     const urole = $('u-role'); if (urole) urole.textContent = role;
+    const sysRole = this.systemRole || 'Admin';
+    const badge = $('u-sysrole');
+    if (badge) {
+      const color = ROLE_COLORS[sysRole] || 'var(--text3)';
+      badge.textContent = sysRole;
+      badge.style.color = color;
+      badge.style.borderColor = color + '44';
+      badge.style.background = color + '14';
+      badge.style.display = 'inline-block';
+    }
   },
 
   promptApiKey() {
@@ -225,6 +288,7 @@ const Panels = {
       case 'documents': await loadDocMeetings(); break;
       case 'lastmeeting': await renderLastMeeting(); break;
       case 'governance': await Gov.init(); break;
+      case 'admin': await renderAdminPanel(); break;
     }
     this._startPolling();
   },
@@ -1981,16 +2045,31 @@ async function renderOverview() {
     const today = new Date().toISOString().substring(0,10);
     const upcoming = schedule.filter(s => s.meeting_date >= today);
 
-    const statCards = [
-      { icon:'🎙', val: stats.meetings, label: lbl('اجتماع مسجل','Recorded Meetings'), color:'var(--gold)', go:'transcripts' },
-      { icon:'📋', val: stats.tasks_open, label: lbl('مهمة مفتوحة','Open Tasks'), color: stats.tasks_overdue>0?'var(--red)':'var(--amber)', go:'tasks' },
-      { icon:'⚠️', val: stats.tasks_overdue, label: lbl('مهمة متأخرة','Overdue Tasks'), color:'var(--red)', go:'tasks' },
-      { icon:'✓', val: stats.tasks_done, label: lbl('مهمة مكتملة','Completed Tasks'), color:'var(--green)', go:'tasks' },
-      { icon:'⚖️', val: stats.decisions, label: lbl('قرار مسجل','Decisions'), color:'var(--blue)', go:'transcripts' },
-      { icon:'📅', val: stats.schedule, label: lbl('اجتماع مجدول','Scheduled'), color:'var(--gold)', go:'schedule' },
-      { icon:'👥', val: stats.users, label: lbl('عضو فريق','Team Members'), color:'var(--text)', go:'team' },
-      { icon:'🎯', val: stats.completion+'%', label: lbl('نسبة الإنجاز','Completion Rate'), color: stats.completion>70?'var(--green)':stats.completion>40?'var(--amber)':'var(--red)', go:'tasks' },
+    const role = App.systemRole || 'Admin';
+    const allStatCards = [
+      { key:'meetings', icon:'🎙', val: stats.meetings, label: lbl('اجتماع مسجل','Recorded Meetings'), color:'var(--gold)', go:'transcripts' },
+      { key:'tasks_open', icon:'📋', val: stats.tasks_open, label: lbl('مهمة مفتوحة','Open Tasks'), color: stats.tasks_overdue>0?'var(--red)':'var(--amber)', go:'tasks' },
+      { key:'tasks_overdue', icon:'⚠️', val: stats.tasks_overdue, label: lbl('مهمة متأخرة','Overdue Tasks'), color:'var(--red)', go:'tasks' },
+      { key:'tasks_done', icon:'✓', val: stats.tasks_done, label: lbl('مهمة مكتملة','Completed Tasks'), color:'var(--green)', go:'tasks' },
+      { key:'decisions', icon:'⚖️', val: stats.decisions, label: lbl('قرار مسجل','Decisions'), color:'var(--blue)', go:'transcripts' },
+      { key:'schedule', icon:'📅', val: stats.schedule, label: lbl('اجتماع مجدول','Scheduled'), color:'var(--gold)', go:'schedule' },
+      { key:'users', icon:'👥', val: stats.users, label: lbl('عضو فريق','Team Members'), color:'var(--text)', go:'team' },
+      { key:'completion', icon:'🎯', val: stats.completion+'%', label: lbl('نسبة الإنجاز','Completion Rate'), color: stats.completion>70?'var(--green)':stats.completion>40?'var(--amber)':'var(--red)', go:'tasks' },
     ];
+
+    const ROLE_STAT_KEYS = {
+      'Admin':            ['meetings','tasks_open','tasks_overdue','tasks_done','decisions','schedule','users','completion'],
+      'CEO':              ['meetings','tasks_open','tasks_overdue','tasks_done','decisions','schedule','users','completion'],
+      'Board Member':     ['meetings','decisions','schedule','completion'],
+      'Committee Member': ['tasks_open','tasks_overdue','tasks_done','decisions'],
+      'Executive':        ['meetings','tasks_open','tasks_overdue','tasks_done','decisions','schedule','completion'],
+      'Manager':          ['meetings','tasks_open','tasks_overdue','tasks_done','users','completion'],
+      'Employee':         ['tasks_open','tasks_overdue','tasks_done'],
+      'Observer':         ['meetings','decisions','schedule'],
+    };
+    const allowedKeys = new Set(ROLE_STAT_KEYS[role] || ROLE_STAT_KEYS['Admin']);
+    const statCards = allStatCards.filter(c => allowedKeys.has(c.key));
+    const gridCols = statCards.length <= 3 ? statCards.length : statCards.length <= 4 ? 4 : statCards.length <= 7 ? 4 : 4;
 
     // Task breakdown by member
     const memberBreakdown = members.map(m => {
@@ -1999,7 +2078,17 @@ async function renderOverview() {
       return { name: l==='ar' ? m.name_ar : (m.name_en || m.name_ar), total: mt.length, done, pct: mt.length ? Math.round(done/mt.length*100) : 0 };
     }).filter(x => x.total > 0).sort((a,b) => b.total - a.total);
 
-    const statsHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+    const roleColor = ROLE_COLORS[role] || 'var(--gold)';
+    const roleHeader = (role !== 'Admin' && role !== 'CEO') ? `
+      <div style="background:${roleColor}0d;border:1px solid ${roleColor}33;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">👤</span>
+        <div>
+          <span style="color:${roleColor};font-weight:700;font-size:13px">${esc(role)}</span>
+          <span style="color:var(--text3);font-size:12px"> · ${l==='ar'?'لوحة التحكم مخصصة لدورك':'Dashboard customised for your role'}</span>
+        </div>
+      </div>` : '';
+
+    const statsHtml = `<div style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:12px;margin-bottom:16px">
         ${statCards.map(s => `<div class="card stat-clickable" style="text-align:center;padding:18px 10px;cursor:pointer" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
           <div style="font-size:26px;margin-bottom:4px">${s.icon}</div>
           <div style="font-size:28px;font-weight:800;color:${s.color}">${s.val}</div>
@@ -2052,11 +2141,13 @@ async function renderOverview() {
 
     const dash = Dash.get();
     const sec = (k, html) => dash[k] === false ? '' : html;
-    const twoCol = [sec('team', teamHtml), sec('upcoming', upcomingHtml)].filter(Boolean).join('');
+    const showTeam = ROLE_ACCESS[role]?.has('team') !== false;
+    const twoCol = [showTeam ? sec('team', teamHtml) : '', sec('upcoming', upcomingHtml)].filter(Boolean).join('');
     body.innerHTML = `
+      ${roleHeader}
       ${Dash.bar(l)}
       ${sec('stats', statsHtml)}
-      ${twoCol ? `<div style="display:grid;grid-template-columns:${sec('team',teamHtml)&&sec('upcoming',upcomingHtml)?'1fr 1fr':'1fr'};gap:14px">${twoCol}</div>` : ''}
+      ${twoCol ? `<div style="display:grid;grid-template-columns:${showTeam&&sec('team',teamHtml)&&sec('upcoming',upcomingHtml)?'1fr 1fr':'1fr'};gap:14px">${twoCol}</div>` : ''}
       ${sec('overdue', overdueHtml)}`;
   } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
@@ -2085,6 +2176,91 @@ const Dash = {
       ${item('upcoming', 'الاجتماعات القادمة', 'Upcoming')}
       ${item('overdue', 'المهام المتأخرة', 'Overdue')}
     </div>`;
+  }
+};
+
+// ══ Admin Panel (Role Management) ═════════════════════════════════════════════
+const SYSTEM_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
+
+async function renderAdminPanel() {
+  const body = $('admin-body');
+  if (!body) return;
+  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+  try {
+    const members = await api('/api/members');
+    const l = App.lang;
+    body.innerHTML = `
+      <div class="card">
+        <div class="ct" style="margin-bottom:6px">👑 ${l==='ar'?'إدارة صلاحيات المستخدمين':'User Role Management'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.6">${l==='ar'?'حدّد دور كل مستخدم في النظام. يتحكم الدور في اللوحات ومستوى الوصول المتاح.':'Assign each user a system role. Roles control which panels and features are accessible.'}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${members.map(m => {
+            const name = l==='ar' ? m.name_ar : (m.name_en || m.name_ar);
+            const jobRole = l==='ar' ? (m.role_ar||'') : (m.role_en||m.role_ar||'');
+            const initials = name.split(' ').slice(0,2).map(w=>w[0]||'').join('');
+            const sysRole = m.system_role || 'Admin';
+            const color = ROLE_COLORS[sysRole] || 'var(--text3)';
+            return `<div style="display:flex;align-items:center;gap:10px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;flex-wrap:wrap">
+              <div class="uav" style="width:36px;height:36px;font-size:13px;flex-shrink:0">${esc(initials)}</div>
+              <div style="flex:1;min-width:130px">
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(name)}</div>
+                <div style="font-size:10px;color:var(--text3)">${esc(jobRole)} · ${esc(m.email)}</div>
+              </div>
+              <select class="fi" style="width:auto;min-width:155px;font-size:12px;padding:6px 10px"
+                onchange="AdminPanel.changeRole(${m.id}, this.value)">
+                ${SYSTEM_ROLES.map(r=>`<option value="${r}" ${sysRole===r?'selected':''}>${r}</option>`).join('')}
+              </select>
+              <span id="role-badge-${m.id}" style="font-size:10px;padding:3px 9px;border-radius:12px;border:1px solid ${color}44;color:${color};background:${color}14;white-space:nowrap">${sysRole}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="ct" style="margin-bottom:10px">ℹ️ ${l==='ar'?'شرح الأدوار':'Role Descriptions'}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;font-size:11px">
+          ${[
+            ['Admin','#e05a5a',l==='ar'?'مدير النظام — وصول كامل + لوحة الإدارة':'System Admin — full access + admin panel'],
+            ['CEO','#C9A84C',l==='ar'?'الرئيس التنفيذي — وصول كامل':'CEO — full access'],
+            ['Board Member','#5B9BD6',l==='ar'?'عضو مجلس — محاضر وقرارات وحوكمة':'Board Member — transcripts, decisions & governance'],
+            ['Committee Member','#2ECC8A',l==='ar'?'عضو لجنة — مهام وقرارات واجتماعات اللجنة':'Committee Member — tasks & committee meetings'],
+            ['Executive','#9370DB',l==='ar'?'تنفيذي — تسجيل ومتابعة وتقارير':'Executive — record, tracking & reports'],
+            ['Manager','#EFA827',l==='ar'?'مدير — تسجيل وإدارة الفريق':'Manager — record & team management'],
+            ['Employee','#888',l==='ar'?'موظف — تسجيل ومهامه الخاصة':'Employee — record & own tasks'],
+            ['Observer','#888',l==='ar'?'مراقب — قراءة فقط':'Observer — read-only'],
+          ].map(([r,c,d])=>`
+            <div style="background:var(--navy3);border-radius:8px;padding:9px 11px;border-inline-start:3px solid ${c}">
+              <div style="color:${c};font-weight:700;margin-bottom:3px">${r}</div>
+              <div style="color:var(--text3)">${d}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+const AdminPanel = {
+  async changeRole(userId, role) {
+    try {
+      await api(`/api/members/${userId}/system-role`, { method:'PATCH', body:JSON.stringify({ system_role: role }) });
+      const badge = $(`role-badge-${userId}`);
+      if (badge) {
+        const color = ROLE_COLORS[role] || 'var(--text3)';
+        badge.textContent = role;
+        badge.style.color = color;
+        badge.style.borderColor = color + '44';
+        badge.style.background = color + '14';
+      }
+      if (App.user && userId == App.user.id) {
+        App.systemRole = role;
+        applySidebarRoles();
+        App.renderUser();
+      }
+      showToast(App.lang==='ar' ? `تم تحديث الدور إلى ${role}` : `Role updated to ${role}`);
+    } catch(e) {
+      showToast(e.message, 'error');
+    }
   }
 };
 

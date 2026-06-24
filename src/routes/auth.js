@@ -3,7 +3,7 @@ const db = require('../db/database');
 
 // GET /auth/me — returns the default user (no login required)
 router.get('/me', require('../middleware/auth'), (req, res) => {
-  const user = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref FROM users WHERE id=?').get(req.user.id);
+  const user = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id=?').get(req.user.id);
   res.json(user);
 });
 
