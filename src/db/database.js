@@ -156,6 +156,10 @@ ensureColumn('meetings', 'board_id', 'INTEGER');
 ensureColumn('meetings', 'committee_id', 'INTEGER');
 ensureColumn('schedule', 'board_id', 'INTEGER');
 ensureColumn('schedule', 'committee_id', 'INTEGER');
+ensureColumn('meeting_documents', 'uploaded_by', "TEXT DEFAULT ''");
+ensureColumn('meeting_documents', 'upload_date', "TEXT DEFAULT ''");
+ensureColumn('meeting_documents', 'description', "TEXT DEFAULT ''");
+ensureColumn('meeting_documents', 'status', "TEXT DEFAULT 'draft'");
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`
@@ -395,6 +399,49 @@ if (db.prepare('SELECT COUNT(*) as c FROM boards').get().c === 0) {
     'م. أحمد العمراني',
     JSON.stringify(['م. أحمد العمراني','م. سارة الزهراني','م. نورة الراشد','م. خالد المنصور']),4,3);
   console.log('✓ Boards and committees seeded');
+}
+
+// Seed agenda items + mock documents (runs independently)
+if (db.prepare('SELECT COUNT(*) as c FROM meeting_documents').get().c === 0) {
+  const _u1 = db.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get()?.id;
+  const _u2 = db.prepare('SELECT id FROM users ORDER BY id LIMIT 1 OFFSET 1').get()?.id || _u1;
+  const _u3 = db.prepare('SELECT id FROM users ORDER BY id LIMIT 1 OFFSET 2').get()?.id || _u1;
+  const _u4 = db.prepare('SELECT id FROM users ORDER BY id LIMIT 1 OFFSET 3').get()?.id || _u1;
+  const _m1 = db.prepare('SELECT id FROM meetings ORDER BY id LIMIT 1').get()?.id;
+  const _m2 = db.prepare('SELECT id FROM meetings ORDER BY id LIMIT 1 OFFSET 1').get()?.id;
+  if (_m1 && _u1) {
+    const iAg = db.prepare(`INSERT INTO agenda_items (meeting_id,title,description,presenter,expected_outcome,duration_mins,sort_order) VALUES (?,?,?,?,?,?,?)`);
+    const iDoc = db.prepare(`INSERT INTO meeting_documents (meeting_id,schedule_id,agenda_item_id,title,doc_type,description,uploaded_by,upload_date,status,is_mock,created_by) VALUES (?,?,?,?,?,?,?,?,?,1,?)`);
+
+    // Agenda items + docs for m1 (Board Meeting)
+    const _a1 = iAg.run(_m1,'مراجعة نتائج الربع الثاني','مراجعة مؤشرات الأداء ونتائج المبيعات للربع الثاني 2026','م. خالد المنصور','الموافقة على تقرير Q2',20,1).lastInsertRowid;
+    const _a2 = iAg.run(_m1,'قرار توسعة الفريق','النظر في طلب توظيف 5 موظفين جدد وتوزيع الأدوار','م. أحمد العمراني','اتخاذ قرار بالتوظيف',15,2).lastInsertRowid;
+    const _a3 = iAg.run(_m1,'عقد الشراكة الخليجية','مراجعة البنود القانونية وتحديد الموقف التفاوضي','م. سارة الزهراني','إحالة للمراجعة القانونية',25,3).lastInsertRowid;
+
+    // Meeting-level documents for m1
+    iDoc.run(_m1,null,null,'تقرير أداء الربع الثاني 2026','financial_report','ملخص مالي شامل لأداء الشركة خلال Q2','م. خالد المنصور','2026-05-14','approved',_u3);
+    iDoc.run(_m1,null,null,'جدول أعمال مجلس الإدارة — مايو','minutes','جدول أعمال الاجتماع المعتمد من رئيس المجلس','م. أحمد العمراني','2026-05-13','shared',_u1);
+    iDoc.run(_m1,null,null,'سياسة التوظيف المحدّثة','policy','النسخة المراجعة من سياسة التوظيف والتعيين','م. سارة الزهراني','2026-05-12','reviewed',_u2);
+
+    // Agenda-level documents for m1
+    iDoc.run(_m1,null,_a1,'تقرير المبيعات والإيرادات Q2','financial_report','تفاصيل مبيعات كل قسم وتحليل مقارن بالفترة السابقة','م. خالد المنصور','2026-05-13','approved',_u3);
+    iDoc.run(_m1,null,_a3,'مسودة عقد الشراكة الخليجية','legal','المسودة الثانية للعقد مع الملاحظات القانونية المضافة','مستشار قانوني','2026-05-14','draft',_u1);
+    iDoc.run(_m1,null,_a3,'دراسة الجدوى المالية للشراكة','proposal','تحليل العائد المتوقع وخارطة طريق الشراكة خلال 3 سنوات','م. سارة الزهراني','2026-05-14','shared',_u2);
+
+    if (_m2) {
+      // Agenda items + docs for m2 (Executive Meeting)
+      const _a4 = iAg.run(_m2,'تحديث حالة المشاريع','متابعة سير المشاريع الجارية وتحديد أي تعثرات','م. نورة الراشد','تحديث خطة المشاريع',15,1).lastInsertRowid;
+      const _a5 = iAg.run(_m2,'تقرير المساهمين الربعي','مناقشة إعداد وجدولة إرسال تقرير المساهمين','م. خالد المنصور','تحديد الموعد النهائي',10,2).lastInsertRowid;
+
+      // Meeting-level documents for m2
+      iDoc.run(_m2,null,null,'تقرير حالة المشاريع الأسبوعي','report','حالة كل مشروع: نسبة الإنجاز، الميزانية، المخاطر','م. نورة الراشد','2026-05-12','shared',_u4);
+      iDoc.run(_m2,null,null,'مسودة تقرير المساهمين Q2','proposal','مسودة أولية لتقرير المساهمين للربع الثاني','م. خالد المنصور','2026-05-11','draft',_u3);
+
+      // Agenda-level documents for m2
+      iDoc.run(_m2,null,_a4,'لوحة مؤشرات الأداء — مايو','presentation','عرض تقديمي لمؤشرات الأداء الرئيسية لشهر مايو','م. نورة الراشد','2026-05-11','shared',_u4);
+    }
+    console.log('✓ Agenda items and mock documents seeded');
+  }
 }
 
 module.exports = db;

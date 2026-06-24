@@ -262,7 +262,8 @@ router.get('/schedule', auth, (req, res) => {
   res.json(db.prepare(`
     SELECT s.*, u.name_ar as creator_ar, u.name_en as creator_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
-      c.name_ar as committee_name_ar, c.name_en as committee_name_en
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en,
+      (SELECT COUNT(*) FROM meeting_documents WHERE schedule_id=s.id) as doc_count
     FROM schedule s
     LEFT JOIN users u ON s.created_by=u.id
     LEFT JOIN boards b ON s.board_id=b.id

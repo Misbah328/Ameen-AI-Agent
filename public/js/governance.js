@@ -33,12 +33,22 @@ const FOLLOWUP_ST = {
 };
 
 const DOC_TYPES = {
-  document:     { ar: 'وثيقة',          en: 'Document' },
-  presentation: { ar: 'عرض تقديمي',    en: 'Presentation' },
-  report:       { ar: 'تقرير',          en: 'Report' },
-  agenda:       { ar: 'جدول أعمال',    en: 'Agenda' },
-  minutes:      { ar: 'محضر',           en: 'Minutes' },
-  other:        { ar: 'أخرى',           en: 'Other' },
+  board_paper:      { ar: 'ورقة مجلس',         en: 'Board Paper' },
+  financial_report: { ar: 'تقرير مالي',         en: 'Financial Report' },
+  legal:            { ar: 'وثيقة قانونية',      en: 'Legal Document' },
+  presentation:     { ar: 'عرض تقديمي',        en: 'Presentation' },
+  proposal:         { ar: 'مقترح',              en: 'Proposal' },
+  policy:           { ar: 'وثيقة سياسة',       en: 'Policy Document' },
+  minutes:          { ar: 'محضر اجتماع سابق',  en: 'Previous Meeting Minutes' },
+  report:           { ar: 'تقرير',              en: 'Report' },
+  other:            { ar: 'أخرى',               en: 'Other' },
+};
+
+const DOC_STATUS = {
+  draft:    { ar: 'مسودة',     en: 'Draft',     c: 'var(--text3)',  bg: 'var(--navy4)' },
+  shared:   { ar: 'مشترك',    en: 'Shared',    c: '#5B9BD6',       bg: 'rgba(91,155,214,.12)' },
+  reviewed: { ar: 'مُراجَع',  en: 'Reviewed',  c: 'var(--amber)',  bg: 'rgba(201,168,76,.12)' },
+  approved: { ar: 'مُعتمَد',  en: 'Approved',  c: 'var(--green)',  bg: 'rgba(46,204,138,.12)' },
 };
 
 const Gov = {
@@ -299,11 +309,11 @@ const Gov = {
         this.meetingId ? api(`/api/gov/attendance?meetingId=${this.meetingId}`) : Promise.resolve([]),
       ]);
       el.innerHTML = [
-        this._sAgenda(agenda),
+        this._sAgenda(agenda, docs),
         this._sAttendance(attendance),
         this._sQuorum(quorum),
         this._sResolutions(resolutions),
-        this._sDocs(docs),
+        this._sDocs(docs.filter(d => !d.agenda_item_id)),
       ].join('');
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);padding:10px;font-size:12px">${esc(e.message)}</div>`;
@@ -311,10 +321,13 @@ const Gov = {
   },
 
   // ── Agenda section ─────────────────────────────────────────────────────────
-  _sAgenda(items) {
+  _sAgenda(items, allDocs = []) {
     const l = App.lang;
     const lbl = this.lbl.bind(this);
     const total = items.reduce((s, i) => s + (i.duration_mins || 0), 0);
+    const typeOpts = Object.keys(DOC_TYPES).map(k => `<option value="${k}">${esc((DOC_TYPES[k]||{})[l]||k)}</option>`).join('');
+    const statusOpts = Object.keys(DOC_STATUS).map(k => `<option value="${k}">${esc((DOC_STATUS[k]||{})[l==='ar'?'ar':'en']||k)}</option>`).join('');
+    const dicon = t => ({board_paper:'🗂️',financial_report:'💰',legal:'⚖️',presentation:'📊',proposal:'💡',policy:'📜',minutes:'📝',report:'📋',other:'📄'}[t]||'📄');
     return `<div class="card" id="sec-agenda">
       <div class="ch">
         <div>
@@ -339,21 +352,47 @@ const Gov = {
         </div>
       </div>
       ${items.length
-        ? items.map((item, idx) => `
-          <div style="padding:10px 0;border-bottom:.5px solid var(--border2)">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-              <div style="flex:1">
-                <div style="font-size:13px;font-weight:600;color:var(--text)">${idx+1}. ${esc(item.title)}</div>
-                ${item.description ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(item.description)}</div>` : ''}
-                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
-                  ${item.presenter ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:10px">👤 ${esc(item.presenter)}</span>` : ''}
-                  ${item.duration_mins ? `<span class="tag" style="background:var(--navy4);font-size:10px">⏱ ${item.duration_mins} ${lbl('د','min')}</span>` : ''}
-                  ${item.expected_outcome ? `<span class="tag tb" style="font-size:10px">🎯 ${esc(item.expected_outcome.substring(0,40))}${item.expected_outcome.length>40?'…':''}</span>` : ''}
+        ? items.map((item, idx) => {
+            const itemDocs = allDocs.filter(d => d.agenda_item_id === item.id);
+            return `
+            <div style="padding:10px 0;border-bottom:.5px solid var(--border2)">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;color:var(--text)">${idx+1}. ${esc(item.title)}</div>
+                  ${item.description ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(item.description)}</div>` : ''}
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+                    ${item.presenter ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:10px">👤 ${esc(item.presenter)}</span>` : ''}
+                    ${item.duration_mins ? `<span class="tag" style="background:var(--navy4);font-size:10px">⏱ ${item.duration_mins} ${lbl('د','min')}</span>` : ''}
+                    ${item.expected_outcome ? `<span class="tag tb" style="font-size:10px">🎯 ${esc(item.expected_outcome.substring(0,40))}${item.expected_outcome.length>40?'…':''}</span>` : ''}
+                  </div>
+                  <div style="margin-top:7px;padding-inline-start:10px;border-inline-start:2px solid var(--border2)">
+                    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:${itemDocs.length?'5px':'0'}">
+                      ${itemDocs.length ? `<span style="font-size:10px;color:var(--text3)">📎 ${lbl('مرفقات','Attachments')}:</span>` : ''}
+                      ${itemDocs.map(d => { const st = DOC_STATUS[d.status]||DOC_STATUS.draft; return `<span class="tag" title="${esc(d.description||'')}" style="font-size:10px;background:${st.bg};color:${st.c}">${dicon(d.doc_type)} ${esc(d.title.substring(0,28))}${d.title.length>28?'…':''}</span>`; }).join('')}
+                      <button class="btn-ghost btn-sm" onclick="Gov._showForm('ai-doc-${item.id}')" style="font-size:10px">📎 ${lbl('إرفاق','Attach')}</button>
+                    </div>
+                    <div id="ai-doc-${item.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:10px;margin-top:4px">
+                      <div class="fs" style="gap:6px">
+                        <div class="fr2">
+                          <div class="frow"><div class="fl" style="font-size:11px">${lbl('العنوان','Title')} *</div><input class="fi" id="ai-doc-title-${item.id}" style="font-size:12px" placeholder="${lbl('اسم المستند','Document name')}"/></div>
+                          <div class="frow"><div class="fl" style="font-size:11px">${lbl('النوع','Type')}</div><select class="fi" id="ai-doc-type-${item.id}" style="font-size:12px">${typeOpts}</select></div>
+                        </div>
+                        <div class="fr2">
+                          <div class="frow"><div class="fl" style="font-size:11px">${lbl('رُفع بواسطة','Uploaded by')}</div><input class="fi" id="ai-doc-by-${item.id}" style="font-size:12px" placeholder="${lbl('الاسم','Name')}"/></div>
+                          <div class="frow"><div class="fl" style="font-size:11px">${lbl('الحالة','Status')}</div><select class="fi" id="ai-doc-status-${item.id}" style="font-size:12px">${statusOpts}</select></div>
+                        </div>
+                        <div class="fa">
+                          <button class="btn-gold btn-sm" onclick="Gov.addAgendaDoc(${item.id})">✓ ${lbl('إرفاق','Attach')}</button>
+                          <button class="btn-ghost btn-sm" onclick="Gov._hideForm('ai-doc-${item.id}')">✕</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+                <button class="btn-ghost btn-sm" onclick="Gov.delAgendaItem(${item.id})" style="color:var(--red);font-size:11px">✕</button>
               </div>
-              <button class="btn-ghost btn-sm" onclick="Gov.delAgendaItem(${item.id})" style="color:var(--red);font-size:11px">✕</button>
-            </div>
-          </div>`).join('')
+            </div>`;
+          }).join('')
         : `<div class="es" style="padding:16px"><div class="es-icon">📋</div><div style="font-size:12px">${lbl('لا توجد بنود بعد','No agenda items yet')}</div></div>`}
     </div>`;
   },
@@ -635,14 +674,14 @@ const Gov = {
   _sDocs(docs) {
     const l = App.lang;
     const lbl = this.lbl.bind(this);
-    const typeOpts = Object.keys(DOC_TYPES).map(k =>
-      `<option value="${k}">${esc((DOC_TYPES[k]||{})[l]||k)}</option>`).join('');
-    const icon = t => ({'presentation':'📊','report':'📋','minutes':'📝','agenda':'📋'}[t]||'📄');
+    const typeOpts = Object.keys(DOC_TYPES).map(k => `<option value="${k}">${esc((DOC_TYPES[k]||{})[l]||k)}</option>`).join('');
+    const statusOpts = Object.keys(DOC_STATUS).map(k => `<option value="${k}">${esc((DOC_STATUS[k]||{})[l==='ar'?'ar':'en']||k)}</option>`).join('');
+    const dicon = t => ({board_paper:'🗂️',financial_report:'💰',legal:'⚖️',presentation:'📊',proposal:'💡',policy:'📜',minutes:'📝',report:'📋',other:'📄'}[t]||'📄');
     return `<div class="card" id="sec-docs">
       <div class="ch">
         <div>
           <div class="ct">📁 ${lbl('وثائق الاجتماع','Meeting Documents')}</div>
-          <div class="ctsub">${lbl('المستندات والتقارير والعروض','Documents, reports and presentations')}</div>
+          <div class="ctsub">${docs.length} ${lbl('وثيقة على مستوى الاجتماع','meeting-level document(s)')}</div>
         </div>
         <button class="btn-ghost btn-sm" onclick="Gov._showForm('doc-form')">+ ${lbl('إضافة وثيقة','Add Document')}</button>
       </div>
@@ -652,7 +691,12 @@ const Gov = {
             <div class="frow"><div class="fl">${lbl('العنوان','Title')} *</div><input class="fi" id="doc-title" placeholder="${lbl('اسم الوثيقة','Document name')}"/></div>
             <div class="frow"><div class="fl">${lbl('النوع','Type')}</div><select class="fi" id="doc-type">${typeOpts}</select></div>
           </div>
-          <div class="frow"><div class="fl">${lbl('ملاحظات','Notes')}</div><input class="fi" id="doc-notes" placeholder="${lbl('وصف الوثيقة...','Description...')}"/></div>
+          <div class="frow"><div class="fl">${lbl('الوصف','Description')}</div><input class="fi" id="doc-desc" placeholder="${lbl('وصف مختصر للوثيقة','Brief document description')}"/></div>
+          <div class="fr2">
+            <div class="frow"><div class="fl">${lbl('رُفع بواسطة','Uploaded by')}</div><input class="fi" id="doc-by" placeholder="${lbl('الاسم','Name')}"/></div>
+            <div class="frow"><div class="fl">${lbl('تاريخ الرفع','Upload Date')}</div><input class="fi" type="date" id="doc-date"/></div>
+          </div>
+          <div class="frow"><div class="fl">${lbl('الحالة','Status')}</div><select class="fi" id="doc-status">${statusOpts}</select></div>
           <div class="fa">
             <button class="btn-gold btn-sm" onclick="Gov.addDocument()">✓ ${lbl('إضافة','Add')}</button>
             <button class="btn-ghost btn-sm" onclick="Gov._hideForm('doc-form')">✕</button>
@@ -660,28 +704,73 @@ const Gov = {
         </div>
       </div>
       ${docs.length
-        ? `<div style="display:flex;flex-direction:column;gap:5px">
-          ${docs.map(d => `
-            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--navy3);border-radius:8px">
-              <div style="font-size:18px">${icon(d.doc_type)}</div>
-              <div style="flex:1">
-                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</div>
-                <div style="font-size:10px;color:var(--text3)">${esc((DOC_TYPES[d.doc_type]||{})[l]||d.doc_type||'')}${d.notes?' · '+esc(d.notes):''}</div>
+        ? `<div style="display:flex;flex-direction:column;gap:6px">
+          ${docs.map(d => {
+            const st = DOC_STATUS[d.status] || DOC_STATUS.draft;
+            return `
+            <div style="padding:9px 11px;background:var(--navy3);border-radius:8px;border-inline-start:3px solid ${st.c}">
+              <div style="display:flex;align-items:flex-start;gap:9px">
+                <div style="font-size:18px;flex-shrink:0;margin-top:1px">${dicon(d.doc_type)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                    <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</div>
+                    <span class="tag" style="font-size:10px;background:${st.bg};color:${st.c}">${esc(st[l==='ar'?'ar':'en'])}</span>
+                    <span class="tag" style="font-size:10px;background:var(--navy4);color:var(--text3)">${esc((DOC_TYPES[d.doc_type]||{ar:'',en:''})[l]||d.doc_type||'')}</span>
+                    ${d.is_mock ? `<span class="tag ta" style="font-size:10px">${lbl('نموذج','Sample')}</span>` : ''}
+                  </div>
+                  ${d.description ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(d.description)}</div>` : ''}
+                  <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:4px">
+                    ${d.uploaded_by ? `<span style="font-size:10px;color:var(--text3)">👤 ${esc(d.uploaded_by)}</span>` : ''}
+                    ${d.upload_date ? `<span style="font-size:10px;color:var(--text3)">📅 ${esc(d.upload_date)}</span>` : ''}
+                  </div>
+                </div>
+                <div style="display:flex;gap:4px;align-items:flex-start;flex-shrink:0">
+                  <select style="font-size:10px;background:var(--navy4);border:1px solid var(--border2);border-radius:6px;color:var(--text2);padding:2px 4px;cursor:pointer" onchange="Gov.updateDocStatus(${d.id},this.value)">
+                    ${Object.keys(DOC_STATUS).map(k => `<option value="${k}"${d.status===k?' selected':''}>${esc((DOC_STATUS[k]||{})[l==='ar'?'ar':'en']||k)}</option>`).join('')}
+                  </select>
+                  <button class="btn-ghost btn-sm" onclick="Gov.delDocument(${d.id})" style="color:var(--red);font-size:10px">✕</button>
+                </div>
               </div>
-              ${d.is_mock ? `<span class="tag ta" style="font-size:10px">${lbl('نموذج','Sample')}</span>` : ''}
-              <button class="btn-ghost btn-sm" onclick="Gov.delDocument(${d.id})" style="color:var(--red);font-size:10px">✕</button>
-            </div>`).join('')}
+            </div>`;
+          }).join('')}
         </div>`
-        : `<div class="es" style="padding:12px"><div class="es-icon">📁</div><div style="font-size:12px">${lbl('لا توجد وثائق','No documents yet')}</div></div>`}
+        : `<div class="es" style="padding:12px"><div class="es-icon">📁</div><div style="font-size:12px">${lbl('لا توجد وثائق على مستوى الاجتماع','No meeting-level documents yet')}</div></div>`}
     </div>`;
   },
 
   async addDocument() {
     const title = $('doc-title')?.value.trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
-    const body = { title, doc_type: $('doc-type')?.value||'document', notes: $('doc-notes')?.value.trim()||'' };
+    const body = {
+      title,
+      doc_type: $('doc-type')?.value || 'other',
+      description: $('doc-desc')?.value.trim() || '',
+      uploaded_by: $('doc-by')?.value.trim() || '',
+      upload_date: $('doc-date')?.value || '',
+      status: $('doc-status')?.value || 'draft',
+    };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
     try { await api('/api/gov/documents', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async addAgendaDoc(itemId) {
+    const title = $(`ai-doc-title-${itemId}`)?.value.trim();
+    if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
+    const body = {
+      title,
+      doc_type: $(`ai-doc-type-${itemId}`)?.value || 'other',
+      uploaded_by: $(`ai-doc-by-${itemId}`)?.value.trim() || '',
+      status: $(`ai-doc-status-${itemId}`)?.value || 'draft',
+      agenda_item_id: itemId,
+    };
+    if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+    try { await api('/api/gov/documents', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async updateDocStatus(id, status) {
+    try { await api(`/api/gov/documents/${id}`, { method:'PATCH', body: JSON.stringify({ status }) }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
   },
 

@@ -42,20 +42,33 @@ router.delete('/agenda/:id', auth, (req, res) => {
 // ── Meeting Documents ─────────────────────────────────────────────────────────
 
 router.get('/documents', auth, (req, res) => {
-  const { meetingId, scheduleId } = req.query;
+  const { meetingId, scheduleId, agendaItemId } = req.query;
+  if (agendaItemId) return res.json(db.prepare('SELECT * FROM meeting_documents WHERE agenda_item_id=? ORDER BY id').all(agendaItemId));
   if (meetingId) return res.json(db.prepare('SELECT * FROM meeting_documents WHERE meeting_id=? ORDER BY id').all(meetingId));
   if (scheduleId) return res.json(db.prepare('SELECT * FROM meeting_documents WHERE schedule_id=? ORDER BY id').all(scheduleId));
-  res.status(400).json({ error: 'meetingId or scheduleId required' });
+  res.status(400).json({ error: 'meetingId, scheduleId, or agendaItemId required' });
 });
 
 router.post('/documents', auth, (req, res) => {
-  const { meeting_id, schedule_id, agenda_item_id, title, doc_type, notes } = req.body;
+  const { meeting_id, schedule_id, agenda_item_id, title, doc_type, description, uploaded_by, upload_date, status } = req.body;
   if (!title) return res.status(400).json({ error: 'title required' });
   const row = db.prepare(`
-    INSERT INTO meeting_documents (meeting_id, schedule_id, agenda_item_id, title, doc_type, notes, is_mock, created_by)
-    VALUES (?,?,?,?,?,?,0,?)
-  `).run(meeting_id||null, schedule_id||null, agenda_item_id||null, title, doc_type||'document', notes||'', req.user.id);
+    INSERT INTO meeting_documents (meeting_id, schedule_id, agenda_item_id, title, doc_type, description, uploaded_by, upload_date, status, is_mock, created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,0,?)
+  `).run(meeting_id||null, schedule_id||null, agenda_item_id||null, title, doc_type||'other', description||'', uploaded_by||'', upload_date||'', status||'draft', req.user.id);
   res.json(db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.patch('/documents/:id', auth, (req, res) => {
+  if (!db.prepare('SELECT id FROM meeting_documents WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const { title, doc_type, description, uploaded_by, upload_date, status } = req.body;
+  db.prepare(`UPDATE meeting_documents SET
+    title=COALESCE(?,title), doc_type=COALESCE(?,doc_type),
+    description=COALESCE(?,description), uploaded_by=COALESCE(?,uploaded_by),
+    upload_date=COALESCE(?,upload_date), status=COALESCE(?,status)
+    WHERE id=?`)
+    .run(title||null, doc_type||null, description||null, uploaded_by||null, upload_date||null, status||null, req.params.id);
+  res.json(db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(req.params.id));
 });
 
 router.delete('/documents/:id', auth, (req, res) => {

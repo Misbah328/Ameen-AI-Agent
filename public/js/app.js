@@ -935,6 +935,7 @@ async function renderLastMeeting() {
       body.innerHTML = `<div class="es" style="color:var(--text3)">${lbl('لا توجد اجتماعات بعد','No meetings yet')}</div>`;
       return;
     }
+    const docs = await api(`/api/gov/documents?meetingId=${m.id}`).catch(() => []);
     const title = esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar));
     const summary = esc((l === 'ar' ? m.ai_summary_ar : (m.ai_summary_en || m.ai_summary_ar)) || lbl('لا يوجد ملخص','No summary'));
     const meetingTypeLbl = m.meeting_type ? mtLabel(m.meeting_type, l) : '';
@@ -982,7 +983,25 @@ async function renderLastMeeting() {
             ${decisionsHtml}
           </div>
         </div>
-      </div>`;
+      </div>
+      ${docs.length ? `<div class="card" style="margin-top:14px">
+        <div class="ch"><div class="ct">📁 ${lbl('وثائق الاجتماع','Meeting Documents')}</div><div class="ctsub">${docs.length} ${lbl('وثيقة','document(s)')}</div></div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${docs.map(d => {
+            const _ic = {board_paper:'🗂️',financial_report:'💰',legal:'⚖️',presentation:'📊',proposal:'💡',policy:'📜',minutes:'📝',report:'📋',other:'📄'}[d.doc_type]||'📄';
+            const _st = {draft:{ar:'مسودة',en:'Draft',c:'var(--text3)',bg:'var(--navy4)'},shared:{ar:'مشترك',en:'Shared',c:'#5B9BD6',bg:'rgba(91,155,214,.12)'},reviewed:{ar:'مُراجَع',en:'Reviewed',c:'var(--amber)',bg:'rgba(201,168,76,.12)'},approved:{ar:'مُعتمَد',en:'Approved',c:'var(--green)',bg:'rgba(46,204,138,.12)'}}[d.status]||{ar:'مسودة',en:'Draft',c:'var(--text3)',bg:'var(--navy4)'};
+            return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--navy3);border-radius:8px;border-inline-start:2px solid ${_st.c}">
+              <span style="font-size:15px">${_ic}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</div>
+                ${d.description ? `<div style="font-size:10px;color:var(--text3)">${esc(d.description.substring(0,65))}${d.description.length>65?'…':''}</div>` : ''}
+              </div>
+              <span class="tag" style="font-size:10px;background:${_st.bg};color:${_st.c};flex-shrink:0">${_st[l==='ar'?'ar':'en']}</span>
+              ${d.uploaded_by ? `<span style="font-size:10px;color:var(--text3);flex-shrink:0">👤 ${esc(d.uploaded_by)}</span>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}`;
   } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
 
@@ -1436,6 +1455,7 @@ async function renderSchedule() {
               ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(mtLabel(s.meeting_type, l))}</span>` : ''}
               ${s.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l==='ar'?s.board_name_ar:(s.board_name_en||s.board_name_ar))}</span>` : ''}
               ${s.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l==='ar'?s.committee_name_ar:(s.committee_name_en||s.committee_name_ar))}</span>` : ''}
+              ${s.doc_count ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📁 ${s.doc_count}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">
               📅 ${esc(s.meeting_date||'')} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ''} · ${s.duration_mins||60} ${l==='ar'?'د':'min'} · ${esc(s.platform||'')}
