@@ -104,7 +104,7 @@
   </button>
   <button class="nb" data-p="documents">
     <span class="nb-icon">📄</span>
-    <span class="nb-label" data-ar="توليد التقارير" data-en="Report Generator">توليد التقارير</span>
+    <span class="nb-label" data-ar="الوثائق والتقارير" data-en="Documents & Reports">الوثائق والتقارير</span>
   </button>
   <div class="nsec" data-ar="الإدارة" data-en="Management">الإدارة</div>
   <button class="nb" data-p="schedule">
@@ -364,12 +364,28 @@
   <div class="ph">
     <div class="ph-row">
       <div>
-        <div class="ptitle" data-ar="توليد التقارير والوثائق" data-en="Report & Document Generator">توليد التقارير والوثائق</div>
-        <div class="ptitle-sub" data-ar="اختر النوع وسيُنشئ أمين الوثيقة كاملة" data-en="Select type and Ameen generates the complete document">اختر النوع وسيُنشئ أمين الوثيقة كاملة</div>
+        <div class="ptitle" data-ar="الوثائق والتقارير" data-en="Documents & Reports">الوثائق والتقارير</div>
+        <div class="ptitle-sub" data-ar="مكتبة الملفات المرفوعة · توليد التقارير بالذكاء الاصطناعي" data-en="Uploaded file library · AI-powered report generation">مكتبة الملفات المرفوعة · توليد التقارير</div>
       </div>
+      <button class="btn-ghost btn-sm" onclick="loadDocMeetings()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
     </div>
   </div>
   <div class="pbody">
+    <!-- File Library Section -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="ch" style="margin-bottom:10px">
+        <div>
+          <div class="ct" data-ar="📁 مكتبة الوثائق المرفوعة" data-en="📁 Uploaded Document Library">📁 مكتبة الوثائق المرفوعة</div>
+          <div class="ctsub" data-ar="جميع الملفات المرفوعة مع ملخصات الذكاء الاصطناعي" data-en="All uploaded files with AI summaries">جميع الملفات المرفوعة مع ملخصات الذكاء الاصطناعي</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="search" id="doc-lib-search" class="fi" style="width:200px;padding:5px 10px;font-size:12px"
+            data-ph-ar="بحث في الوثائق..." data-ph-en="Search documents..."
+            placeholder="بحث..." oninput="DocLib.search(this.value)"/>
+        </div>
+      </div>
+      <div id="doc-library-section"><div class="es"><div class="loading"></div></div></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;flex:1;min-height:0">
       <div class="card" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
         <div class="ct" data-ar="خصائص الوثيقة" data-en="Document Properties">خصائص الوثيقة</div>

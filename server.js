@@ -16,6 +16,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
 
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));

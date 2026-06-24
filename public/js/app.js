@@ -387,7 +387,133 @@ async function loadDocMeetings() {
       `<option value="all">${l === 'ar' ? '📊 جميع الاجتماعات السابقة (تقرير موحّد)' : '📊 All past meetings (combined report)'}</option>` +
       mtgs.map(m => `<option value="${m.id}">${esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar))} (${m.meeting_date?.substring(0,10) || ''})</option>`).join('');
   } catch (e) {}
+  await DocLib.renderLibrary('doc-library-section');
 }
+
+// ══ Document Library (File Uploads) ═══════════════════════════════════════════
+const DocLib = {
+  _searchTimer: null,
+  search(q) {
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => {
+      const el = $('doc-library-section');
+      if (el) { el._search = q; }
+      this.renderLibrary('doc-library-section');
+    }, 350);
+  },
+  async upload(meetingId) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.docx,.xlsx,.pptx,.txt';
+    input.onchange = async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const btn = $(`doc-upload-btn-${meetingId}`);
+      const l = App.lang;
+      if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${l === 'ar' ? 'جارٍ التحليل...' : 'Analysing...'}`; }
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}/upload`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        await this.loadAndRender(meetingId);
+        if (typeof Gov !== 'undefined' && Gov.meetingId === meetingId) Gov._loadSections();
+        showToast(l === 'ar' ? '✓ تم رفع الملف وتحليله بالذكاء الاصطناعي' : '✓ File uploaded and AI-analysed');
+      } catch (err) {
+        alert((App.lang === 'ar' ? 'خطأ: ' : 'Error: ') + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = `📎 ${App.lang === 'ar' ? 'إرفاق' : 'Attach'}`; }
+      }
+    };
+    input.click();
+  },
+  async loadAndRender(meetingId) {
+    const container = $(`mtg-docs-${meetingId}`);
+    if (!container) return;
+    try {
+      const docs = await api(`/api/meetings/${meetingId}/documents`);
+      if (!docs.length) { container.innerHTML = ''; return; }
+      const l = App.lang;
+      container.innerHTML = `<div style="margin-top:10px;border-top:.5px solid var(--border2);padding-top:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:7px">📎 ${l === 'ar' ? 'الوثائق المرفقة' : 'Attached Documents'} (${docs.length})</div>
+        ${docs.map(d => `<div style="display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:.5px solid var(--border2)">
+          <div style="font-size:20px;flex-shrink:0">${this.icon(d.doc_type)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
+              <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</span>
+              ${d.doc_classification ? `<span class="tag" style="background:var(--navy4);font-size:10px">${esc(d.doc_classification)}</span>` : ''}
+              <span style="font-size:10px;color:var(--text3)">${esc(d.upload_date || '')}</span>
+            </div>
+            ${d.ai_summary ? `<details><summary style="font-size:11px;color:var(--text3);cursor:pointer">${l === 'ar' ? '🤖 ملخص ذكاء اصطناعي' : '🤖 AI Summary'}</summary><div style="font-size:11px;color:var(--text);margin-top:5px;line-height:1.6;padding:6px 0">${esc(d.ai_summary)}</div></details>` : ''}
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:10px;padding:3px 7px;text-decoration:none" title="${l === 'ar' ? 'تنزيل' : 'Download'}">⬇</a>
+            <button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 7px;color:var(--red)" onclick="DocLib.deleteDoc(${d.id},${meetingId})" title="${l === 'ar' ? 'حذف' : 'Delete'}">🗑</button>
+          </div>
+        </div>`).join('')}
+      </div>`;
+    } catch {}
+  },
+  icon(type) {
+    const t = (type || '').toLowerCase();
+    if (t === 'pdf') return '📕';
+    if (t === 'docx' || t === 'doc') return '📘';
+    if (t === 'xlsx' || t === 'xls') return '📗';
+    if (t === 'pptx' || t === 'ppt') return '📙';
+    return '📄';
+  },
+  async deleteDoc(id, meetingId) {
+    const l = App.lang;
+    if (!confirm(l === 'ar' ? 'حذف هذه الوثيقة نهائياً؟' : 'Permanently delete this document?')) return;
+    try {
+      await api(`/api/meeting-documents/${id}`, { method: 'DELETE' });
+      await this.loadAndRender(meetingId);
+      await this.renderLibrary('doc-library-section');
+      showToast(l === 'ar' ? 'تم حذف الوثيقة' : 'Document deleted');
+    } catch (err) { alert(err.message); }
+  },
+  async renderLibrary(containerId) {
+    const container = $(containerId);
+    if (!container) return;
+    const l = App.lang;
+    const q = container._search || '';
+    container.innerHTML = `<div class="es" style="padding:20px 0"><div class="loading"></div></div>`;
+    try {
+      const docs = await api(`/api/documents/library${q ? '?q=' + encodeURIComponent(q) : ''}`);
+      if (!docs.length) {
+        container.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:12px 0;text-align:center">${
+          l === 'ar'
+            ? 'لا توجد ملفات مرفوعة بعد. استخدم زر «📎 إرفاق» في أي اجتماع لرفع ملفات PDF أو DOCX.'
+            : 'No uploaded files yet. Use the "📎 Attach" button on any meeting to upload PDF, DOCX, or TXT files.'
+        }</div>`;
+        return;
+      }
+      container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+        ${docs.map(d => `<div class="card" style="padding:12px">
+          <div style="display:flex;align-items:flex-start;gap:9px">
+            <div style="font-size:26px;flex-shrink:0">${this.icon(d.doc_type)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${esc(d.title)}</div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:5px">${esc(d.meeting_title_ar || '')} · ${esc(d.upload_date || '')}${d.doc_classification ? ' · ' + esc(d.doc_classification) : ''}</div>
+              ${d.ai_summary ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:7px">${esc(d.ai_summary.slice(0, 130))}${d.ai_summary.length > 130 ? '…' : ''}</div>` : ''}
+              <div style="display:flex;gap:5px;flex-wrap:wrap">
+                <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;text-decoration:none">⬇ ${l === 'ar' ? 'تنزيل' : 'Download'}</a>
+                <button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;color:var(--red)" onclick="DocLib.deleteDoc(${d.id},${d.meeting_id})">🗑</button>
+              </div>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>`;
+    } catch (err) {
+      container.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px 0">${err.message}</div>`;
+    }
+  }
+};
 
 // Six accent colours cycling through meeting attendees in the speaker bar.
 const MEETING_TYPES = {
@@ -1131,8 +1257,10 @@ async function renderTranscripts() {
               <span style="flex:1">${esc(l==='ar'?rk.text_ar:(rk.text_en||rk.text_ar))}</span>
             </div>`).join('')}
           </div>` : ''}
-          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+          <div id="mtg-docs-${m.id}"></div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
             ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l==='ar'?'تمت المشاركة':'Shared'}</span>` : ''}
+            <button id="doc-upload-btn-${m.id}" class="btn-ghost btn-sm" onclick="DocLib.upload(${m.id})">📎 ${l==='ar'?'إرفاق':'Attach'}</button>
             <button class="btn-ghost btn-sm" onclick="TranscriptModal.open(${m.id})" title="${l==='ar'?'إضافة أو تعديل النص':'Add or edit transcript'}">✏️ ${l==='ar'?'إضافة نص':'Add Notes'}</button>
             ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l==='ar'?'مشاركة النتائج':'Share Outcomes'}${App.isPro()?'':' ⭐'}</button>` : ''}
             <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l==='ar'?'حذف':'Delete'}</button>
@@ -1140,6 +1268,7 @@ async function renderTranscripts() {
         </div>`;
       }).join('')}
     </div>`;
+    meetings.forEach(m => DocLib.loadAndRender(m.id));
   } catch (e) { body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`; }
 }
 

@@ -1,5 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/auth');
@@ -9,6 +11,47 @@ const { callClaude, setSessionKey } = require('../utils/claude');
 const { processMeeting, findConflicts } = require('../services/pipeline');
 const { readRecent } = require('../utils/ailog');
 const { isValidEmail, isValidPhone, splitRecipients, partition } = require('../utils/validate');
+
+// ── File upload setup (multer + extractors) ──────────────────────────────────
+const multer = require('multer');
+const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const _uploadStorage = multer.diskStorage({
+  destination: UPLOADS_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
+  }
+});
+const upload = multer({
+  storage: _uploadStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.docx', '.xlsx', '.pptx', '.txt'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  }
+});
+
+async function extractFileText(filePath, originalname) {
+  const ext = path.extname(originalname).toLowerCase();
+  try {
+    if (ext === '.pdf') {
+      const pdfParse = require('pdf-parse');
+      const buf = fs.readFileSync(filePath);
+      const result = await pdfParse(buf);
+      return (result.text || '').slice(0, 8000);
+    } else if (ext === '.docx' || ext === '.pptx') {
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ path: filePath });
+      return (result.value || '').slice(0, 8000);
+    } else if (ext === '.txt') {
+      return fs.readFileSync(filePath, 'utf8').slice(0, 8000);
+    }
+  } catch {}
+  return '';
+}
 
 // ── Plan helpers ────────────────────────────────────────────────────────────
 function getPlan() {
@@ -180,14 +223,94 @@ router.delete('/meetings/:id', auth, (req, res) => {
   const id = req.params.id;
   const m = db.prepare('SELECT id FROM meetings WHERE id=?').get(id);
   if (!m) return res.status(404).json({ error: 'Not found' });
+  const meetingDocs = db.prepare("SELECT file_path FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!=''").all(id);
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM tasks WHERE source_meeting_id=?').run(id);
     db.prepare('DELETE FROM decisions WHERE meeting_id=?').run(id);
     db.prepare('DELETE FROM meeting_attendees WHERE meeting_id=?').run(id);
+    db.prepare('DELETE FROM meeting_documents WHERE meeting_id=?').run(id);
     db.prepare('UPDATE documents SET source_meeting_id=NULL WHERE source_meeting_id=?').run(id);
     db.prepare('DELETE FROM meetings WHERE id=?').run(id);
   });
   tx();
+  meetingDocs.forEach(d => { try { fs.unlinkSync(path.join(UPLOADS_DIR, d.file_path)); } catch {} });
+  res.json({ success: true });
+});
+
+// ── File Upload ────────────────────────────────────────────────────────────────
+router.post('/meetings/:id/upload', auth, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (PDF, DOCX, XLSX, PPTX, TXT only)' });
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) {
+    try { fs.unlinkSync(req.file.path); } catch {}
+    return res.status(404).json({ error: 'Meeting not found' });
+  }
+  let aiSummary = '', aiKeyPoints = '[]', docClassification = '';
+  try {
+    const text = await extractFileText(req.file.path, req.file.originalname);
+    if (text.length > 80) {
+      const aiPrompt = `ما يلي هو محتوى وثيقة من اجتماع. استخرج ما يلي وأعد JSON صالحاً فقط بلا أي شرح:
+{"summary":"ملخص موجز 3-5 جمل","key_points":["نقطة 1","نقطة 2","نقطة 3"],"classification":"تقرير مالي أو محضر أو خطة عمل أو سياسة أو عرض أو بيانات أو أخرى"}
+
+محتوى الوثيقة:
+"""
+${text.slice(0, 3500)}
+"""`;
+      const raw = await callClaude([{ role: 'user', content: aiPrompt }], '', 500, req.user.id);
+      const mMatch = raw.match(/\{[\s\S]*\}/);
+      if (mMatch) {
+        const parsed = JSON.parse(mMatch[0]);
+        aiSummary = (parsed.summary || '').slice(0, 1000);
+        aiKeyPoints = JSON.stringify(Array.isArray(parsed.key_points) ? parsed.key_points.slice(0, 7) : []);
+        docClassification = (parsed.classification || '').slice(0, 100);
+      }
+    }
+  } catch {}
+  const uploaderName = db.prepare('SELECT name_ar FROM users WHERE id=?').get(req.user.id)?.name_ar || '';
+  const row = db.prepare(`
+    INSERT INTO meeting_documents (meeting_id, title, doc_type, description, uploaded_by, upload_date, status, is_mock, created_by, file_path, file_size, file_type, ai_summary, ai_key_points, doc_classification)
+    VALUES (?,?,?,?,?,date('now'),'uploaded',0,?,?,?,?,?,?,?)
+  `).run(
+    meeting.id,
+    req.file.originalname,
+    path.extname(req.file.originalname).slice(1).toUpperCase() || 'DOC',
+    aiSummary.slice(0, 500),
+    uploaderName,
+    req.user.id,
+    req.file.filename,
+    req.file.size,
+    req.file.mimetype || '',
+    aiSummary,
+    aiKeyPoints,
+    docClassification
+  );
+  res.json({ success: true, id: row.lastInsertRowid, filename: req.file.filename, original: req.file.originalname, summary: aiSummary, classification: docClassification });
+});
+
+// ── Documents for a specific meeting ──────────────────────────────────────────
+router.get('/meetings/:id/documents', auth, (req, res) => {
+  res.json(db.prepare("SELECT * FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!='' ORDER BY id DESC").all(req.params.id));
+});
+
+// ── Document Library (all uploaded files) ─────────────────────────────────────
+router.get('/documents/library', auth, (req, res) => {
+  const { q, type } = req.query;
+  let sql = `SELECT md.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en, m.meeting_date
+    FROM meeting_documents md LEFT JOIN meetings m ON md.meeting_id=m.id
+    WHERE md.file_path IS NOT NULL AND md.file_path!=''`;
+  const params = [];
+  if (q) { sql += ` AND (md.title LIKE ? OR md.ai_summary LIKE ? OR md.doc_classification LIKE ?)`; params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  if (type) { sql += ` AND md.doc_type=?`; params.push(type); }
+  sql += ' ORDER BY md.id DESC LIMIT 100';
+  res.json(db.prepare(sql).all(...params));
+});
+
+// ── Delete an uploaded document ────────────────────────────────────────────────
+router.delete('/meeting-documents/:id', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Not found' });
+  if (doc.file_path) { try { fs.unlinkSync(path.join(UPLOADS_DIR, doc.file_path)); } catch {} }
+  db.prepare('DELETE FROM meeting_documents WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
 
@@ -419,6 +542,15 @@ router.post('/ai/chat', auth, async (req, res) => {
   const risks = db.prepare("SELECT ai_risks, title_ar FROM meetings WHERE ai_risks IS NOT NULL AND ai_risks != '[]' ORDER BY meeting_date DESC LIMIT 3").all();
   const riskLines = risks.flatMap(m => { try { return JSON.parse(m.ai_risks).map(r => `- [${m.title_ar}] ${r.text_ar} (${r.severity||'medium'})`); } catch { return []; } });
 
+  const docRows = db.prepare(`SELECT md.title, md.ai_summary, md.doc_classification, m.title_ar as mtg_title
+    FROM meeting_documents md LEFT JOIN meetings m ON md.meeting_id=m.id
+    WHERE md.ai_summary IS NOT NULL AND md.ai_summary!='' AND md.file_path IS NOT NULL AND md.file_path!=''
+    ORDER BY md.id DESC LIMIT 8`).all();
+  const docContext = docRows.length
+    ? '\n\nوثائق الاجتماعات المرفوعة (ملخصات ذكاء اصطناعي):\n' +
+      docRows.map(d => `• [${d.mtg_title || ''}] ${d.title} (${d.doc_classification || ''}): ${d.ai_summary}`).join('\n')
+    : '';
+
   const system = `أنت أمين، المساعد الذكي التنفيذي المتخصص لشركة أمين للذكاء الاصطناعي.
 أجب ${lang === 'en' ? 'in English only' : 'بالعربية الفصيحة فقط'} بأسلوب رسمي ومهني ومختصر وواضح.
 
@@ -438,7 +570,7 @@ ${riskLines.join('\n') || 'لا توجد مخاطر مسجلة'}
 ${meetings.map(m => `- ${m.title_ar} (${m.meeting_date?.substring(0,10)}): ${m.ai_summary_ar || 'لم يُعالج'}`).join('\n') || 'لا توجد اجتماعات'}
 
 الاجتماعات القادمة:
-${schedule.map(s => `- ${s.title_ar} | ${s.meeting_date} ${s.meeting_time} | ${s.platform}`).join('\n') || 'لا توجد اجتماعات مجدولة'}`;
+${schedule.map(s => `- ${s.title_ar} | ${s.meeting_date} ${s.meeting_time} | ${s.platform}`).join('\n') || 'لا توجد اجتماعات مجدولة'}${docContext}`;
 
   try {
     const reply = await callClaude(messages, system, 1000, req.user.id);

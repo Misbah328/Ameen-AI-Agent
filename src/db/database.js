@@ -163,6 +163,16 @@ ensureColumn('meeting_documents', 'status', "TEXT DEFAULT 'draft'");
 ensureColumn('meetings', 'ai_risks', "TEXT DEFAULT '[]'");
 ensureColumn('schedule', 'prev_meeting_id', 'INTEGER');
 ensureColumn('users', 'system_role', "TEXT DEFAULT 'Admin'");
+ensureColumn('meeting_documents', 'file_path', "TEXT DEFAULT ''");
+ensureColumn('meeting_documents', 'file_size', 'INTEGER DEFAULT 0');
+ensureColumn('meeting_documents', 'file_type', "TEXT DEFAULT ''");
+ensureColumn('meeting_documents', 'ai_summary', "TEXT DEFAULT ''");
+ensureColumn('meeting_documents', 'ai_key_points', "TEXT DEFAULT '[]'");
+ensureColumn('meeting_documents', 'doc_classification', "TEXT DEFAULT ''");
+
+// Ensure uploads directory exists
+const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`

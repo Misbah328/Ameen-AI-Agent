@@ -683,7 +683,10 @@ const Gov = {
           <div class="ct">📁 ${lbl('وثائق الاجتماع','Meeting Documents')}</div>
           <div class="ctsub">${docs.length} ${lbl('وثيقة على مستوى الاجتماع','meeting-level document(s)')}</div>
         </div>
-        <button class="btn-ghost btn-sm" onclick="Gov._showForm('doc-form')">+ ${lbl('إضافة وثيقة','Add Document')}</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn-ghost btn-sm" onclick="Gov._showForm('doc-form')">+ ${lbl('إضافة وثيقة','Add Document')}</button>
+          ${this.meetingId ? `<button class="btn-ghost btn-sm" onclick="DocLib.upload(${this.meetingId})">📎 ${lbl('رفع ملف','Upload File')}</button>` : ''}
+        </div>
       </div>
       <div id="doc-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
         <div class="fs" style="gap:8px">
