@@ -686,7 +686,7 @@ router.delete('/templates/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
-router.post('/schedule/from-template/:id', auth, (req, res) => {
+router.get('/schedule/from-template/:id', auth, (req, res) => {
   const tpl = db.prepare('SELECT * FROM meeting_templates WHERE id=?').get(req.params.id);
   if (!tpl) return res.status(404).json({ error: 'Template not found' });
   res.json({
