@@ -2,6 +2,115 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const PDFDocument = require('pdfkit');
+
+// ── Arabic font (Amiri) — downloaded once, cached on disk ────────────────────
+const FONTS_DIR = path.join(__dirname, '../../data/fonts');
+let _arabicFontPath = null;
+async function getArabicFont() {
+  if (_arabicFontPath && fs.existsSync(_arabicFontPath)) return _arabicFontPath;
+  const fontPath = path.join(FONTS_DIR, 'Amiri-Regular.ttf');
+  if (fs.existsSync(fontPath)) { _arabicFontPath = fontPath; return fontPath; }
+  if (!fs.existsSync(FONTS_DIR)) fs.mkdirSync(FONTS_DIR, { recursive: true });
+  const https = require('https');
+  const buf = await new Promise((resolve, reject) => {
+    const chunks = [];
+    https.get('https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/amiri/Amiri-Regular.ttf', r => {
+      if (r.statusCode !== 200) return reject(new Error(`font HTTP ${r.statusCode}`));
+      r.on('data', c => chunks.push(c));
+      r.on('end', () => resolve(Buffer.concat(chunks)));
+      r.on('error', reject);
+    }).on('error', reject);
+  });
+  fs.writeFileSync(fontPath, buf);
+  _arabicFontPath = fontPath;
+  return fontPath;
+}
+
+// ── PDF builder using pdfkit ──────────────────────────────────────────────────
+async function buildPdf({ title, lang, content, sections }) {
+  let arabicFontPath = null;
+  try { arabicFontPath = await getArabicFont(); } catch (_) {}
+
+  return new Promise((resolve, reject) => {
+    const isAr = lang !== 'en';
+    const doc = new PDFDocument({
+      margin: 60, size: 'A4', bufferPages: true,
+      info: { Title: title, Author: 'Ameen Executive Secretary' }
+    });
+    const bufs = [];
+    doc.on('data', d => bufs.push(d));
+    doc.on('error', reject);
+
+    if (arabicFontPath) doc.registerFont('Arabic', arabicFontPath);
+    const mainFont  = (isAr && arabicFontPath) ? 'Arabic' : 'Helvetica';
+    const boldFont  = (isAr && arabicFontPath) ? 'Arabic' : 'Helvetica-Bold';
+    const textAlign = isAr ? 'right' : 'left';
+
+    const dateStr = new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    // Header block
+    doc.font(boldFont).fontSize(8.5).fillColor('#666666')
+      .text('Ameen Executive Secretary · أمين للاجتماعات التنفيذية', { align: textAlign });
+    doc.moveDown(0.3);
+    doc.font(boldFont).fontSize(17).fillColor('#1a1a2e')
+      .text(title, { align: textAlign });
+    doc.moveDown(0.2);
+    doc.font(mainFont).fontSize(9.5).fillColor('#888888')
+      .text(dateStr, { align: textAlign });
+    doc.moveDown(0.5);
+    doc.moveTo(60, doc.y).lineTo(doc.page.width - 60, doc.y)
+      .strokeColor('#1a1a2e').lineWidth(2).stroke();
+    doc.moveDown(1);
+
+    // Single content block
+    if (content) {
+      doc.font(mainFont).fontSize(11).fillColor('#222222')
+        .text(content, { align: textAlign, lineGap: 4 });
+    }
+
+    // Multi-section (board pack)
+    if (sections) {
+      for (const s of sections) {
+        if (!s.text && !(s.items && s.items.length)) continue;
+        doc.moveDown(0.9);
+        doc.font(boldFont).fontSize(12.5).fillColor('#1a1a2e')
+          .text(s.title, { align: textAlign });
+        doc.moveDown(0.2);
+        doc.moveTo(60, doc.y).lineTo(doc.page.width - 60, doc.y)
+          .strokeColor('#cccccc').lineWidth(0.8).stroke();
+        doc.moveDown(0.5);
+        if (s.text) {
+          doc.font(mainFont).fontSize(10.5).fillColor('#333333')
+            .text(s.text, { align: textAlign, lineGap: 3 });
+        }
+        if (s.items) {
+          s.items.forEach((item, i) => {
+            doc.font(mainFont).fontSize(10.5).fillColor('#333333')
+              .text(`${i + 1}.  ${item}`, { align: textAlign, lineGap: 2, indent: 10 });
+          });
+        }
+      }
+    }
+
+    // Page numbers (requires bufferPages:true)
+    const range = doc.bufferedPageRange();
+    const total = range.count;
+    for (let i = 0; i < total; i++) {
+      doc.switchToPage(range.start + i);
+      doc.font('Helvetica').fontSize(8.5).fillColor('#bbbbbb')
+        .text(`${i + 1} / ${total}`, 0, doc.page.height - 40, {
+          align: 'center', width: doc.page.width
+        });
+    }
+    doc.flushPages();
+
+    doc.on('end', () => resolve(Buffer.concat(bufs)));
+    doc.end();
+  });
+}
 const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/auth');
@@ -958,46 +1067,24 @@ router.post('/documents/share', auth, requirePro, async (req, res) => {
   res.json({ success: true, shared: results.length, results });
 });
 
-// ── Report PDF (styled HTML for print-to-PDF) ────────────────────────────────
-router.post('/reports/pdf', auth, (req, res) => {
+// ── Report PDF — server-side binary PDF via pdfkit ───────────────────────────
+router.post('/reports/pdf', auth, async (req, res) => {
   const { content, title, lang } = req.body;
   if (!content) return res.status(400).json({ error: 'content required' });
-  const esc2 = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const dir = lang === 'en' ? 'ltr' : 'rtl';
-  const align = lang === 'en' ? 'left' : 'right';
-  const date = new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB', { year:'numeric', month:'long', day:'numeric' });
-  const html = `<!DOCTYPE html>
-<html lang="${lang||'ar'}" dir="${dir}">
-<head><meta charset="UTF-8"><title>${esc2(title)}</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'IBM Plex Sans Arabic','IBM Plex Sans',Arial,sans-serif;font-size:11pt;line-height:1.85;color:#1a1a2e;direction:${dir};text-align:${align};background:#fff}
-.page{padding:50px 60px;max-width:800px;margin:0 auto}
-.header{border-bottom:2.5px solid #1a1a2e;padding-bottom:16px;margin-bottom:28px}
-.org{font-size:9pt;color:#666;margin-bottom:6px}
-h1{font-size:18pt;font-weight:700;margin-bottom:4px}
-.date{font-size:9.5pt;color:#888}
-.content{white-space:pre-wrap;font-size:11pt;line-height:1.9;color:#222}
-.footer{margin-top:36px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:8.5pt;color:#aaa}
-@media print{body{margin:0}.page{padding:12mm 18mm;max-width:none}@page{size:A4;margin:12mm 18mm}}
-</style></head>
-<body><div class="page">
-<div class="header">
-  <div class="org">أمين للاجتماعات التنفيذية · Ameen Executive Secretary</div>
-  <h1>${esc2(title)}</h1>
-  <div class="date">${date}</div>
-</div>
-<div class="content">${esc2(content)}</div>
-<div class="footer"><span>Ameen · أمين</span><span>${date}</span></div>
-</div>
-<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),750));</script>
-</body></html>`;
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(html);
+  try {
+    const pdfBuf = await buildPdf({ title: title || 'Report', lang: lang || 'ar', content: String(content) });
+    const ascii = (title || 'report').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-') || 'report';
+    const encoded = encodeURIComponent((title || 'report').trim());
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${ascii}.pdf"; filename*=UTF-8''${encoded}.pdf`);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('PDF generation error:', e.message);
+    res.status(500).json({ error: 'PDF generation failed', detail: e.message });
+  }
 });
 
-// ── Board Pack ─────────────────────────────────────────────────────────────────
+// ── Board Pack — merged PDF of minutes + action plan + decision log ───────────
 router.post('/meetings/:id/board-pack', auth, async (req, res) => {
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
@@ -1013,25 +1100,72 @@ router.post('/meetings/:id/board-pack', auth, async (req, res) => {
   try { decisions = JSON.parse(meeting.ai_decisions || '[]'); } catch (_) {}
   try { risks = JSON.parse(meeting.ai_risks || '[]'); } catch (_) {}
 
-  // Fetch attached document summaries for the board pack
   const docRows = db.prepare(
     `SELECT title, ai_summary, doc_classification FROM meeting_documents
      WHERE meeting_id=? AND ai_summary IS NOT NULL AND ai_summary!='' AND file_path IS NOT NULL AND file_path!=''`
   ).all(meeting.id);
 
-  res.json({
-    title_ar: meeting.title_ar,
-    title_en: meeting.title_en || meeting.title_ar,
-    date: (meeting.meeting_date || '').substring(0, 10),
-    summary_ar: meeting.ai_summary_ar || '',
-    summary_en: meeting.ai_summary_en || '',
-    minutes_ar: meeting.ai_minutes_ar || '',
-    minutes_en: meeting.ai_minutes_en || '',
-    tasks,
-    decisions,
-    risks,
-    documents: docRows,
-  });
+  // Detect language from stored data
+  const lang = (meeting.ai_summary_en && !meeting.ai_summary_ar) ? 'en' : 'ar';
+  const isAr = lang === 'ar';
+  const title = isAr ? meeting.title_ar : (meeting.title_en || meeting.title_ar);
+
+  const sections = [];
+
+  const summary = isAr ? meeting.ai_summary_ar : (meeting.ai_summary_en || meeting.ai_summary_ar);
+  if (summary) sections.push({ title: isAr ? 'ملخص تنفيذي' : 'Executive Summary', text: summary });
+
+  const minutes = isAr ? meeting.ai_minutes_ar : (meeting.ai_minutes_en || meeting.ai_minutes_ar);
+  if (minutes) sections.push({ title: isAr ? 'محضر الاجتماع' : 'Meeting Minutes', text: minutes });
+
+  if (decisions.length) {
+    sections.push({
+      title: isAr ? 'سجل القرارات' : 'Decision Log',
+      items: decisions.map(d => (isAr ? (d.text_ar || d.decision_ar || '') : (d.text_en || d.decision_en || d.text_ar || '')).trim()).filter(Boolean)
+    });
+  }
+
+  if (tasks.length) {
+    sections.push({
+      title: isAr ? 'خطة العمل والمهام' : 'Action Plan & Tasks',
+      items: tasks.map(t => {
+        const txt = (isAr ? (t.text_ar || '') : (t.text_en || t.text_ar || '')).trim();
+        const owner = (isAr ? (t.owner_ar || '') : (t.owner_en || t.owner_ar || '')).trim();
+        return txt + (owner ? ` — ${owner}` : '');
+      }).filter(Boolean)
+    });
+  }
+
+  if (risks.length) {
+    sections.push({
+      title: isAr ? 'المخاطر والملاحظات' : 'Risks & Notes',
+      items: risks.map(r => {
+        const sev = r.severity === 'high' ? (isAr ? '[عالٍ] ' : '[High] ') : r.severity === 'medium' ? (isAr ? '[متوسط] ' : '[Medium] ') : (isAr ? '[منخفض] ' : '[Low] ');
+        const txt = (isAr ? (r.text_ar || '') : (r.text_en || r.text_ar || '')).trim();
+        return sev + txt;
+      }).filter(Boolean)
+    });
+  }
+
+  if (docRows.length) {
+    sections.push({
+      title: isAr ? 'ملخص الوثائق المرفقة' : 'Attached Document Summaries',
+      items: docRows.map(d => `${d.title}${d.doc_classification ? ' [' + d.doc_classification + ']' : ''}: ${d.ai_summary || ''}`)
+    });
+  }
+
+  try {
+    const packTitle = `${isAr ? 'حزمة مجلس الإدارة' : 'Board Pack'} — ${title}`;
+    const pdfBuf = await buildPdf({ title: packTitle, lang, sections });
+    const ascii = (title || 'board-pack').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-') || 'board-pack';
+    const encoded = encodeURIComponent(packTitle.trim());
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="board-pack-${ascii}.pdf"; filename*=UTF-8''${encoded}.pdf`);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('Board pack PDF error:', e.message);
+    res.status(500).json({ error: 'Board pack PDF generation failed', detail: e.message });
+  }
 });
 
 // ── Public attendee confirmation (NO AUTH — token-gated) ───────────────────

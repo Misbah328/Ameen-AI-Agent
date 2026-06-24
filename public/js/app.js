@@ -1716,16 +1716,40 @@ const DocGen = {
   },
   copy() { if (this.currentContent) { navigator.clipboard.writeText(this.currentContent); alert(App.lang === 'ar' ? '✓ تم النسخ' : '✓ Copied'); } },
   print() { window.print(); },
-  downloadPDF() {
+  async downloadPDF() {
     const l = App.lang;
     if (!this.currentContent) {
       alert(l === 'ar' ? 'لا توجد وثيقة لتنزيلها. ولّد وثيقة أولاً.' : 'No document to download. Generate one first.');
       return;
     }
+    const pdfBtn = document.querySelector('[onclick="DocGen.downloadPDF()"]');
+    if (pdfBtn) { pdfBtn.disabled = true; pdfBtn.innerHTML = `⏳ ${l === 'ar' ? 'جارٍ التوليد...' : 'Generating...'}`; }
     const typeSel = $('doc-type');
     const title = typeSel?.options[typeSel.selectedIndex]?.text || (l === 'ar' ? 'وثيقة' : 'Document');
     const lang = $('doc-lang')?.value || l;
-    _openPrintWindow(this.currentContent, title, lang);
+    try {
+      const resp = await fetch('/api/reports/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: this.currentContent, title, lang })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (title.replace(/[^\w\u0600-\u06FF\s]/g, '').trim() || 'report') + '.pdf';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast(l === 'ar' ? '✓ تم توليد وتنزيل PDF' : '✓ PDF generated and downloaded');
+    } catch (e) {
+      alert((l === 'ar' ? 'خطأ في توليد PDF: ' : 'PDF generation error: ') + e.message);
+    } finally {
+      if (pdfBtn) { pdfBtn.disabled = false; pdfBtn.innerHTML = `⬇ <span data-ar="تنزيل PDF" data-en="Download PDF">${l === 'ar' ? 'تنزيل PDF' : 'Download PDF'}</span>`; }
+    }
   },
   async shareWithTeam() {
     const l = App.lang;
@@ -1905,19 +1929,30 @@ const BoardPack = {
   async download(meetingId) {
     const l = App.lang;
     const btn = $(`bp-btn-${meetingId}`);
-    if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${l === 'ar' ? 'جارٍ الإعداد...' : 'Preparing...'}`; }
+    if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${l === 'ar' ? 'جارٍ التوليد...' : 'Generating PDF...'}`; }
     try {
-      const data = await api(`/api/meetings/${meetingId}/board-pack`, { method: 'POST' });
-      _openBoardPackWindow(data, l);
-    } catch (e) {
-      const msg = e.message || '';
-      if (msg.includes('NOT_PROCESSED') || msg.includes('PROCESSING')) {
-        alert(l === 'ar'
-          ? 'يجب معالجة الاجتماع بالذكاء الاصطناعي أولاً قبل توليد حزمة المجلس. استخدم زر «معالجة» على بطاقة الاجتماع.'
-          : 'The meeting must be AI-processed before generating a board pack. Use the Process button on the meeting card.');
-      } else {
-        alert((l === 'ar' ? 'خطأ: ' : 'Error: ') + e.message);
+      const resp = await fetch(`/api/meetings/${meetingId}/board-pack`, { method: 'POST' });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        const errCode = err.error || '';
+        if (errCode === 'NOT_PROCESSED' || errCode === 'PROCESSING') {
+          alert(l === 'ar'
+            ? 'يجب معالجة الاجتماع بالذكاء الاصطناعي أولاً قبل توليد حزمة المجلس.'
+            : 'The meeting must be AI-processed before generating a board pack.');
+          return;
+        }
+        throw new Error(err.error || `HTTP ${resp.status}`);
       }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `board-pack-${meetingId}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast(l === 'ar' ? '✓ تم توليد حزمة المجلس PDF' : '✓ Board pack PDF downloaded');
+    } catch (e) {
+      alert((l === 'ar' ? 'خطأ: ' : 'Error: ') + e.message);
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = `📦 ${l === 'ar' ? 'حزمة المجلس' : 'Board Pack'}`; }
     }
