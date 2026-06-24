@@ -169,6 +169,8 @@ ensureColumn('meeting_documents', 'file_type', "TEXT DEFAULT ''");
 ensureColumn('meeting_documents', 'ai_summary', "TEXT DEFAULT ''");
 ensureColumn('meeting_documents', 'ai_key_points', "TEXT DEFAULT '[]'");
 ensureColumn('meeting_documents', 'doc_classification', "TEXT DEFAULT ''");
+ensureColumn('schedule', 'recurrence', "TEXT DEFAULT 'none'");
+ensureColumn('schedule', 'recurrence_group_id', 'TEXT');
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
@@ -283,6 +285,20 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(board_id) REFERENCES boards(id)
   );
+
+  CREATE TABLE IF NOT EXISTS meeting_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name_ar TEXT NOT NULL,
+    name_en TEXT NOT NULL,
+    meeting_type TEXT DEFAULT '',
+    agenda_ar TEXT DEFAULT '',
+    agenda_en TEXT DEFAULT '',
+    default_duration INTEGER DEFAULT 60,
+    default_attendees TEXT DEFAULT '',
+    is_builtin INTEGER DEFAULT 0,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Default plan = free
@@ -394,6 +410,28 @@ if (userCount.c === 0) {
   insertSchedule.run('جلسة مراجعة الشراكة الخليجية', 'Gulf Partnership Review Session', '2026-05-28', '11:00', 45, 'Teams', 'م. أحمد، م. سارة', 'المراجعة القانونية للعقد، التفاصيل المالية', 'Legal review of contract, financial details', u2, 'Committee Meeting');
 
   console.log('✓ Database seeded with demo data');
+}
+
+// Seed built-in meeting templates (runs once)
+if (db.prepare("SELECT COUNT(*) as c FROM meeting_templates WHERE is_builtin=1").get().c === 0) {
+  const iTpl = db.prepare(`INSERT INTO meeting_templates (name_ar,name_en,meeting_type,agenda_ar,agenda_en,default_duration,is_builtin) VALUES (?,?,?,?,?,?,1)`);
+  iTpl.run('اجتماع مجلس الإدارة','Board Meeting','Board Meeting',
+    'مراجعة محضر الاجتماع السابق\nالتقرير المالي\nالقضايا الاستراتيجية\nقرارات المجلس\nمتفرقات',
+    'Review previous minutes\nFinancial report\nStrategic items\nBoard resolutions\nAOB',
+    90);
+  iTpl.run('الاجتماع التنفيذي الأسبوعي','Executive Standup','Executive Meeting',
+    'مراجعة مؤشرات الأداء\nتحديثات الفرق\nالعقبات والمخاطر\nأولويات الأسبوع القادم',
+    'KPI review\nTeam updates\nBlockers and risks\nNext week priorities',
+    30);
+  iTpl.run('اجتماع مراجعة اللجنة','Committee Review','Committee Meeting',
+    'مراجعة جدول الأعمال\nعرض التقارير\nمناقشة التوصيات\nاتخاذ القرارات',
+    'Agenda review\nReports presentation\nDiscuss recommendations\nDecision making',
+    60);
+  iTpl.run('جلسة التخطيط الاستراتيجي','Strategy Session','Strategy Meeting',
+    'مراجعة الأهداف الاستراتيجية\nتحليل البيئة الخارجية\nتقييم الفرص والمخاطر\nخطة العمل',
+    'Strategic objectives review\nExternal environment analysis\nOpportunities and risks\nAction plan',
+    120);
+  console.log('✓ Built-in meeting templates seeded');
 }
 
 // Seed boards and committees (runs independently of user seed)

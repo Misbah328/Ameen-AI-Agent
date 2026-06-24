@@ -570,16 +570,38 @@ function conflictPayload(conflicts) {
   };
 }
 
+function addRecurrencePeriod(dateStr, recurrence) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  if (recurrence === 'weekly')     d.setUTCDate(d.getUTCDate() + 7);
+  else if (recurrence === 'biweekly')  d.setUTCDate(d.getUTCDate() + 14);
+  else if (recurrence === 'monthly')   d.setUTCMonth(d.getUTCMonth() + 1);
+  else if (recurrence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
+  return d.toISOString().substring(0, 10);
+}
+
+const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
+
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, force } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, force } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
+  const rec = VALID_RECURRENCES.includes(recurrence) ? recurrence : 'none';
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
-  const row = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?)
-  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null);
+  const groupId = rec !== 'none' ? crypto.randomUUID() : null;
+  const insertSched = db.prepare(`
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, recurrence_group_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const dur = duration_mins || 60;
+  const row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId);
+  if (rec !== 'none') {
+    let nextDate = meeting_date;
+    for (let i = 0; i < 3; i++) {
+      nextDate = addRecurrencePeriod(nextDate, rec);
+      insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId);
+    }
+  }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -625,9 +647,57 @@ router.patch('/schedule/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
 });
 
+router.delete('/schedule/:id/series', auth, (req, res) => {
+  const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (row.recurrence_group_id) {
+    db.prepare(`DELETE FROM schedule WHERE recurrence_group_id=? AND meeting_date >= ?`).run(row.recurrence_group_id, row.meeting_date);
+  } else {
+    db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
+  }
+  res.json({ success: true });
+});
+
 router.delete('/schedule/:id', auth, (req, res) => {
   db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ── Meeting Templates ─────────────────────────────────────────────────────────
+router.get('/templates', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM meeting_templates ORDER BY is_builtin DESC, created_at ASC').all());
+});
+
+router.post('/templates', auth, (req, res) => {
+  const { name_ar, name_en, meeting_type, agenda_ar, agenda_en, default_duration, default_attendees } = req.body;
+  if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
+  const row = db.prepare(`
+    INSERT INTO meeting_templates (name_ar, name_en, meeting_type, agenda_ar, agenda_en, default_duration, default_attendees, is_builtin, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+  `).run(name_ar, name_en || name_ar, meeting_type || '', agenda_ar || '', agenda_en || '', default_duration || 60, default_attendees || '', req.user.id);
+  res.json(db.prepare('SELECT * FROM meeting_templates WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.delete('/templates/:id', auth, (req, res) => {
+  const tpl = db.prepare('SELECT * FROM meeting_templates WHERE id=?').get(req.params.id);
+  if (!tpl) return res.status(404).json({ error: 'Not found' });
+  if (tpl.is_builtin) return res.status(403).json({ error: 'Cannot delete built-in templates' });
+  db.prepare('DELETE FROM meeting_templates WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+router.post('/schedule/from-template/:id', auth, (req, res) => {
+  const tpl = db.prepare('SELECT * FROM meeting_templates WHERE id=?').get(req.params.id);
+  if (!tpl) return res.status(404).json({ error: 'Template not found' });
+  res.json({
+    title_ar: tpl.name_ar,
+    title_en: tpl.name_en,
+    meeting_type: tpl.meeting_type,
+    agenda_ar: tpl.agenda_ar,
+    agenda_en: tpl.agenda_en,
+    duration_mins: tpl.default_duration,
+    attendees: tpl.default_attendees,
+  });
 });
 
 // ── Push a meeting summary + tasks to WhatsApp (Last Meeting precision tab) ─────

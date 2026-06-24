@@ -325,7 +325,7 @@ const Panels = {
     switch (name) {
       case 'transcripts': await renderTranscripts(); break;
       case 'tasks': await renderTasks(); break;
-      case 'schedule': await renderSchedule(); break;
+      case 'schedule': await renderSchedule(); renderTemplates().catch(()=>{}); break;
       case 'overview': await renderOverview(); break;
       case 'analytics': await renderAnalytics(); break;
       case 'team': await Team.load(); break;
@@ -376,6 +376,16 @@ async function loadSelectLists() {
     const ownerSel = $('nt-owner'); if (ownerSel) ownerSel.innerHTML = `<option value="">-- ${l === 'ar' ? 'اختر' : 'Select'} --</option>${opts}`;
     Schedule._populateBoardSelects();
   } catch (e) {}
+}
+
+function recurrenceLabel(rec, l) {
+  const map = {
+    weekly:    l==='ar' ? 'أسبوعي'      : 'Weekly',
+    biweekly:  l==='ar' ? 'كل أسبوعين' : 'Bi-weekly',
+    monthly:   l==='ar' ? 'شهري'        : 'Monthly',
+    quarterly: l==='ar' ? 'ربع سنوي'    : 'Quarterly',
+  };
+  return map[rec] || rec;
 }
 
 async function loadDocMeetings() {
@@ -2012,11 +2022,13 @@ const Schedule = {
       board_id: parseInt($('nm-board')?.value) || null,
       committee_id: parseInt($('nm-committee')?.value) || null,
       prev_meeting_id: parseInt($('nm-prev')?.value) || null,
+      recurrence: ($('nm-recurrence') && $('nm-recurrence').value) || 'none',
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
       alert(App.lang === 'ar' ? 'يرجى إدخال العنوان والتاريخ والوقت' : 'Please enter title, date and time');
       return;
     }
+    const rec = data.recurrence;
     try {
       await api('/api/schedule', { method: 'POST', body: JSON.stringify(data) });
       $('sched-toast').style.display = 'flex'; setTimeout(() => $('sched-toast').style.display = 'none', 2500);
@@ -2027,7 +2039,56 @@ const Schedule = {
       if ($('nm-board')) $('nm-board').value = '';
       if ($('nm-committee')) $('nm-committee').value = '';
       if ($('nm-prev')) $('nm-prev').value = '';
+      if ($('nm-recurrence')) $('nm-recurrence').value = 'none';
+      if ($('nm-template')) $('nm-template').value = '';
+      if (rec !== 'none') showToast(App.lang === 'ar' ? `✓ تم جدولة الاجتماع + 3 تكرارات (${recurrenceLabel(rec, App.lang)})` : `✓ Meeting + 3 recurrences scheduled (${recurrenceLabel(rec, App.lang)})`);
     } catch (e) { alert(e.message); }
+  },
+
+  async applyTemplate(id) {
+    if (!id) return;
+    const l = App.lang;
+    try {
+      const tpl = await api(`/api/schedule/from-template/${id}`);
+      if ($('nm-title')) $('nm-title').value = l === 'ar' ? tpl.title_ar : (tpl.title_en || tpl.title_ar);
+      if ($('nm-type')) $('nm-type').value = tpl.meeting_type || '';
+      if ($('nm-agenda-ar')) $('nm-agenda-ar').value = tpl.agenda_ar || '';
+      if ($('nm-agenda-en')) $('nm-agenda-en').value = tpl.agenda_en || '';
+      if ($('nm-dur')) $('nm-dur').value = tpl.duration_mins || 60;
+      if ($('nm-att')) $('nm-att').value = tpl.attendees || '';
+      showToast(l === 'ar' ? '✓ تم تطبيق القالب' : '✓ Template applied');
+    } catch(e) {}
+  },
+
+  async saveAsTemplate() {
+    const l = App.lang;
+    const title = ($('nm-title') && $('nm-title').value.trim()) || '';
+    if (!title) { alert(l === 'ar' ? 'أدخل عنوان الاجتماع أولاً' : 'Enter a meeting title first'); return; }
+    const name = prompt(l === 'ar' ? 'اسم القالب:' : 'Template name:', title);
+    if (!name || !name.trim()) return;
+    try {
+      await api('/api/templates', { method: 'POST', body: JSON.stringify({
+        name_ar: name.trim(), name_en: name.trim(),
+        meeting_type: $('nm-type')?.value || '',
+        agenda_ar: $('nm-agenda-ar')?.value || '',
+        agenda_en: $('nm-agenda-en')?.value || '',
+        default_duration: parseInt($('nm-dur')?.value) || 60,
+        default_attendees: $('nm-att')?.value || '',
+      }) });
+      showToast(l === 'ar' ? '✓ تم حفظ القالب' : '✓ Template saved');
+      await renderTemplates();
+    } catch(e) { alert(e.message); }
+  },
+
+  async deleteSeries(id) {
+    const l = App.lang;
+    if (!confirm(l === 'ar' ? 'حذف هذا الاجتماع وجميع التكرارات القادمة؟' : 'Delete this meeting and all future occurrences?')) return;
+    try {
+      await api(`/api/schedule/${id}/series`, { method: 'DELETE' });
+      await renderSchedule();
+      await loadBadges();
+      showToast(l === 'ar' ? 'تم حذف سلسلة التكرار' : 'Recurring series deleted');
+    } catch(e) { alert(e.message); }
   },
 
   async confirm(id, force) {
@@ -2132,6 +2193,7 @@ async function renderSchedule() {
       const title = l==='ar' ? s.title_ar : (s.title_en || s.title_ar);
       const isUpcoming = s.meeting_date >= today;
       const isDraft = s.status === 'draft';
+      const isRecurring = s.recurrence && s.recurrence !== 'none';
       const agenda = l==='ar' ? (s.agenda_ar || s.agenda_en) : (s.agenda_en || s.agenda_ar);
       const reminderCall = `Schedule.openReminder(${s.id})`;
       return `<div style="padding:13px 0;border-bottom:1px solid var(--border2);${isDraft?'background:linear-gradient(90deg,rgba(124,94,16,.10),transparent);border-inline-start:3px solid #d4a017;padding-inline-start:10px':''}">
@@ -2140,6 +2202,7 @@ async function renderSchedule() {
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
               ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(mtLabel(s.meeting_type, l))}</span>` : ''}
+              ${isRecurring ? `<span class="tag" style="background:rgba(147,112,219,.15);color:#9370DB;font-size:10px">🔁 ${esc(recurrenceLabel(s.recurrence, l))}</span>` : ''}
               ${s.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l==='ar'?s.board_name_ar:(s.board_name_en||s.board_name_ar))}</span>` : ''}
               ${s.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l==='ar'?s.committee_name_ar:(s.committee_name_en||s.committee_name_ar))}</span>` : ''}
               ${s.doc_count ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📁 ${s.doc_count}</span>` : ''}
@@ -2159,12 +2222,62 @@ async function renderSchedule() {
           ${isDraft ? `<button class="btn-sm" onclick="Schedule.confirm(${s.id})" style="font-size:11px;background:#d4a017;color:#1a1a1a;border:none;border-radius:6px;padding:5px 10px;font-weight:600;cursor:pointer">✔ ${l==='ar'?'تأكيد الموعد':'Confirm Meeting'}</button>` : ''}
           <button class="btn-ghost btn-sm" onclick="${reminderCall}" style="font-size:11px">📧 ${l==='ar'?'إرسال تذكير':'Send Reminder'}</button>
           <button class="btn-ghost btn-sm" onclick="Schedule.edit(${s.id})" style="font-size:11px">✏️ ${l==='ar'?'تعديل':'Edit'}</button>
+          ${isRecurring ? `<button class="btn-ghost btn-sm" onclick="Schedule.deleteSeries(${s.id})" style="font-size:11px;color:var(--red)">🔁 ${l==='ar'?'حذف السلسلة':'Delete Series'}</button>` : ''}
           <button class="btn-ghost btn-sm" onclick="Schedule.delete(${s.id})" style="font-size:11px;color:var(--red)">✕ ${l==='ar'?'حذف':'Delete'}</button>
         </div>
       </div>`;
     }).join('');
   } catch (e) { el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px">${e.message}</div>`; }
 }
+
+async function renderTemplates() {
+  const el = $('templates-list');
+  if (!el) return;
+  const l = App.lang;
+  try {
+    const templates = await api('/api/templates');
+    App._templates = templates;
+    const sel = $('nm-template');
+    if (sel) {
+      sel.innerHTML = `<option value="">— ${l==='ar'?'اختر قالباً':'Select a template'} —</option>` +
+        templates.map(t => `<option value="${t.id}">${esc(l==='ar'?t.name_ar:(t.name_en||t.name_ar))}${t.is_builtin?' ⭐':''}</option>`).join('');
+    }
+    if (!templates.length) {
+      el.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:10px 0">${l==='ar'?'لا توجد قوالب محفوظة بعد. استخدم «حفظ كقالب» لإنشاء قوالب مخصصة.':'No saved templates yet. Use «Save as Template» to create custom templates.'}</div>`;
+      return;
+    }
+    el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:4px 0">` +
+      templates.map(t => {
+        const name = l==='ar' ? t.name_ar : (t.name_en || t.name_ar);
+        const dur = t.default_duration || 60;
+        const type = t.meeting_type || '';
+        return `<div style="background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;min-width:170px;max-width:230px;transition:border-color .2s;cursor:pointer" onclick="Schedule.applyTemplate(${t.id})" title="${l==='ar'?'انقر للملء التلقائي':'Click to auto-fill form'}">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+            <span style="font-size:17px">${t.is_builtin ? '⭐' : '📋'}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--text)">${esc(name)}</span>
+          </div>
+          ${type ? `<div style="font-size:10px;color:var(--gold);margin-bottom:3px">${esc(mtLabel(type, l))}</div>` : ''}
+          <div style="font-size:10px;color:var(--text3)">${dur} ${l==='ar'?'دقيقة':'min'}</div>
+          <div style="display:flex;gap:5px;margin-top:8px">
+            <button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 9px" onclick="event.stopPropagation();Schedule.applyTemplate(${t.id})">▶ ${l==='ar'?'استخدام':'Use'}</button>
+            ${!t.is_builtin ? `<button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 7px;color:var(--red)" onclick="event.stopPropagation();Templates.deleteTemplate(${t.id})">✕</button>` : ''}
+          </div>
+        </div>`;
+      }).join('') + `</div>`;
+  } catch (e) { if (el) el.innerHTML = `<div style="color:var(--red);font-size:12px">${e.message}</div>`; }
+}
+
+const Templates = {
+  async deleteTemplate(id) {
+    const l = App.lang;
+    if (!confirm(l==='ar' ? 'حذف هذا القالب نهائياً؟' : 'Permanently delete this template?')) return;
+    try {
+      await api(`/api/templates/${id}`, { method: 'DELETE' });
+      showToast(l==='ar' ? 'تم حذف القالب' : 'Template deleted');
+      await renderTemplates();
+    } catch(e) { alert(e.message); }
+  }
+};
 
 // ══ Share Outcomes (PRO) ══════════════════════════════════════════════════════
 const Share = {

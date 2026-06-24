@@ -483,6 +483,12 @@
         <div class="ch"><div class="ct" data-ar="جدولة اجتماع جديد" data-en="Schedule New Meeting">جدولة اجتماع جديد</div></div>
         <div class="fs">
           <div class="frow">
+            <div class="fl" data-ar="استخدام قالب" data-en="Use Template">قالب</div>
+            <select class="fi" id="nm-template" onchange="Schedule.applyTemplate(this.value)">
+              <option value="">— <span data-ar="اختر قالباً" data-en="Select a template">اختر قالباً</span> —</option>
+            </select>
+          </div>
+          <div class="frow">
             <div class="fl" data-ar="عنوان الاجتماع" data-en="Meeting Title">عنوان الاجتماع</div>
             <input class="fi" id="nm-title" data-ph-ar="اجتماع مجلس الإدارة — Board Meeting" data-ph-en="Board Meeting — اجتماع مجلس الإدارة" placeholder="اجتماع مجلس الإدارة"/>
           </div>
@@ -496,6 +502,16 @@
               <option value="General Meeting">الاجتماع العام / General Meeting</option>
               <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
               <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+            </select>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="التكرار" data-en="Recurrence">التكرار</div>
+            <select class="fi" id="nm-recurrence">
+              <option value="none" data-ar="مرة واحدة (بدون تكرار)" data-en="None (one-time)">بدون تكرار / None</option>
+              <option value="weekly" data-ar="أسبوعياً" data-en="Weekly">أسبوعياً / Weekly</option>
+              <option value="biweekly" data-ar="كل أسبوعين" data-en="Bi-weekly">كل أسبوعين / Bi-weekly</option>
+              <option value="monthly" data-ar="شهرياً" data-en="Monthly">شهرياً / Monthly</option>
+              <option value="quarterly" data-ar="ربع سنوي" data-en="Quarterly">ربع سنوي / Quarterly</option>
             </select>
           </div>
           <div class="fr2">
@@ -567,12 +583,23 @@
             <div class="fl">Agenda (English)</div>
             <textarea class="fi" id="nm-agenda-en" rows="2" placeholder="Meeting agenda items..." dir="ltr" style="text-align:left"></textarea>
           </div>
-          <div class="fa">
+          <div class="fa" style="flex-wrap:wrap;gap:8px">
             <button class="btn-gold" onclick="Schedule.add()">✓ <span data-ar="جدولة" data-en="Schedule">جدولة</span></button>
+            <button class="btn-ghost btn-sm" onclick="Schedule.saveAsTemplate()" title="Save as template">📋 <span data-ar="حفظ كقالب" data-en="Save as Template">حفظ كقالب</span></button>
             <div class="toast" id="sched-toast">✓ <span data-ar="تمت الجدولة" data-en="Scheduled">تمت الجدولة</span></div>
           </div>
         </div>
       </div>
+    </div>
+    <div class="card" style="margin-top:15px">
+      <div class="ch">
+        <div>
+          <div class="ct" data-ar="قوالب الاجتماعات" data-en="Meeting Templates">قوالب الاجتماعات</div>
+          <div class="ctsub" data-ar="انقر على أي قالب لملء النموذج تلقائياً" data-en="Click any template to auto-fill the form">انقر للملء التلقائي</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="renderTemplates()">↺</button>
+      </div>
+      <div id="templates-list"><div class="es"><div class="loading"></div></div></div>
     </div>
   </div>
 </section>
