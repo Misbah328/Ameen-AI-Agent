@@ -1262,6 +1262,7 @@ async function renderTranscripts() {
             ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l==='ar'?'تمت المشاركة':'Shared'}</span>` : ''}
             <button id="doc-upload-btn-${m.id}" class="btn-ghost btn-sm" onclick="DocLib.upload(${m.id})">📎 ${l==='ar'?'إرفاق':'Attach'}</button>
             <button class="btn-ghost btn-sm" onclick="TranscriptModal.open(${m.id})" title="${l==='ar'?'إضافة أو تعديل النص':'Add or edit transcript'}">✏️ ${l==='ar'?'إضافة نص':'Add Notes'}</button>
+            ${isProcessed ? `<button id="bp-btn-${m.id}" class="btn-ghost btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l==='ar'?'حزمة المجلس':'Board Pack'}</button>` : ''}
             ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l==='ar'?'مشاركة النتائج':'Share Outcomes'}${App.isPro()?'':' ⭐'}</button>` : ''}
             <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l==='ar'?'حذف':'Delete'}</button>
           </div>
@@ -1715,6 +1716,17 @@ const DocGen = {
   },
   copy() { if (this.currentContent) { navigator.clipboard.writeText(this.currentContent); alert(App.lang === 'ar' ? '✓ تم النسخ' : '✓ Copied'); } },
   print() { window.print(); },
+  downloadPDF() {
+    const l = App.lang;
+    if (!this.currentContent) {
+      alert(l === 'ar' ? 'لا توجد وثيقة لتنزيلها. ولّد وثيقة أولاً.' : 'No document to download. Generate one first.');
+      return;
+    }
+    const typeSel = $('doc-type');
+    const title = typeSel?.options[typeSel.selectedIndex]?.text || (l === 'ar' ? 'وثيقة' : 'Document');
+    const lang = $('doc-lang')?.value || l;
+    _openPrintWindow(this.currentContent, title, lang);
+  },
   async shareWithTeam() {
     const l = App.lang;
     if (!this.currentContent) { alert(l === 'ar' ? 'لا توجد وثيقة للمشاركة' : 'No document to share'); return; }
@@ -1729,6 +1741,185 @@ const DocGen = {
       alert(l === 'ar' ? `✓ تمت المشاركة مع ${r.shared} عضو` : `✓ Shared with ${r.shared} member(s)`);
     } catch (e) {
       alert((l === 'ar' ? 'تعذّرت المشاركة: ' : 'Could not share: ') + e.message);
+    }
+  }
+};
+
+// ══ Print-window PDF helper ════════════════════════════════════════════════════
+function _openPrintWindow(textContent, title, lang) {
+  const isAr = lang !== 'en';
+  const dir   = isAr ? 'rtl' : 'ltr';
+  const align = isAr ? 'right' : 'left';
+  const date  = new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', { year:'numeric', month:'long', day:'numeric' });
+  const safeTitle   = String(title || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const safeContent = String(textContent || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html = `<!DOCTYPE html>
+<html lang="${lang||'ar'}" dir="${dir}">
+<head><meta charset="UTF-8"><title>${safeTitle}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans Arabic','IBM Plex Sans',Arial,sans-serif;font-size:11pt;line-height:1.85;color:#1a1a2e;direction:${dir};text-align:${align};background:#fff}
+.page{padding:50px 60px;max-width:800px;margin:0 auto}
+.header{border-bottom:2.5px solid #1a1a2e;padding-bottom:16px;margin-bottom:28px}
+.org{font-size:9pt;color:#666;margin-bottom:6px;font-style:italic}
+h1{font-size:18pt;font-weight:700;margin-bottom:4px}
+.doc-date{font-size:9.5pt;color:#888}
+.content{white-space:pre-wrap;font-size:11pt;line-height:1.9;color:#222}
+.section-title{font-size:13pt;font-weight:700;color:#1a1a2e;margin:24px 0 8px;padding-bottom:5px;border-bottom:1px solid #ddd}
+.task-row,.dec-row{display:flex;gap:8px;padding:5px 0;border-bottom:.5px solid #eee;font-size:10.5pt;color:#333}
+.task-num{color:#888;flex-shrink:0;width:20px}
+.owner-tag{font-size:9pt;color:#777;margin-inline-start:6px}
+.footer{margin-top:36px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:8.5pt;color:#aaa}
+@media print{body{margin:0}.page{padding:12mm 18mm;max-width:none}@page{size:A4;margin:12mm 18mm}}
+</style></head>
+<body><div class="page">
+<div class="header">
+  <div class="org">أمين للاجتماعات التنفيذية · Ameen Executive Secretary</div>
+  <h1>${safeTitle}</h1>
+  <div class="doc-date">${date}</div>
+</div>
+<div class="content">${safeContent}</div>
+<div class="footer"><span>Ameen · أمين</span><span>${date}</span></div>
+</div>
+<script>window.addEventListener('load',()=>setTimeout(()=>{window.focus();window.print();},800));</script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert(App.lang === 'ar'
+      ? 'يُرجى السماح بالنوافذ المنبثقة لهذا الموقع لتتمكن من تنزيل PDF'
+      : 'Please allow pop-ups for this site to download the PDF');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+}
+
+function _openBoardPackWindow(data, lang) {
+  const isAr = lang !== 'en';
+  const dir   = isAr ? 'rtl' : 'ltr';
+  const align = isAr ? 'right' : 'left';
+  const title = isAr ? (data.title_ar || '') : (data.title_en || data.title_ar || '');
+  const date  = data.date || '';
+  const displayDate = date
+    ? new Date(date + 'T00:00:00').toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', {year:'numeric',month:'long',day:'numeric'})
+    : new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', {year:'numeric',month:'long',day:'numeric'});
+
+  const esc2 = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const summary = isAr ? (data.summary_ar || '') : (data.summary_en || data.summary_ar || '');
+  const minutes = isAr ? (data.minutes_ar || '') : (data.minutes_en || data.minutes_ar || '');
+  const tasks = data.tasks || [];
+  const decisions = data.decisions || [];
+  const risks = data.risks || [];
+  const documents = data.documents || [];
+
+  const sectTitle = (ar, en) => `<div class="section-title">${esc2(isAr ? ar : en)}</div>`;
+
+  let sections = '';
+
+  if (summary) {
+    sections += sectTitle('ملخص تنفيذي', 'Executive Summary');
+    sections += `<div class="content" style="margin-bottom:14px">${esc2(summary)}</div>`;
+  }
+
+  if (minutes) {
+    sections += sectTitle('محضر الاجتماع', 'Meeting Minutes');
+    sections += `<div class="content" style="margin-bottom:14px">${esc2(minutes)}</div>`;
+  }
+
+  if (decisions.length) {
+    sections += sectTitle('سجل القرارات', 'Decision Log');
+    sections += `<div style="margin-bottom:14px">${decisions.map((d,i) =>
+      `<div class="dec-row"><span class="task-num">${i+1}.</span><span>${esc2(isAr?(d.text_ar||d.decision_ar||''):(d.text_en||d.decision_en||d.text_ar||d.decision_ar||''))}</span></div>`
+    ).join('')}</div>`;
+  }
+
+  if (tasks.length) {
+    sections += sectTitle('خطة العمل والمهام', 'Action Plan & Tasks');
+    sections += `<div style="margin-bottom:14px">${tasks.map((t,i) =>
+      `<div class="task-row"><span class="task-num">${i+1}.</span><span style="flex:1">${esc2(isAr?(t.text_ar||''):(t.text_en||t.text_ar||''))}</span>${(t.owner_ar||t.owner_en)?`<span class="owner-tag">${esc2(isAr?(t.owner_ar||''):(t.owner_en||t.owner_ar||''))}</span>`:''}</div>`
+    ).join('')}</div>`;
+  }
+
+  if (risks.length) {
+    sections += sectTitle('المخاطر والملاحظات', 'Risks & Notes');
+    sections += `<div style="margin-bottom:14px">${risks.map((r,i) =>
+      `<div class="task-row"><span class="task-num">${r.severity==='high'?'🔴':r.severity==='medium'?'🟡':'🟢'}</span><span>${esc2(isAr?(r.text_ar||''):(r.text_en||r.text_ar||''))}</span></div>`
+    ).join('')}</div>`;
+  }
+
+  if (documents.length) {
+    sections += sectTitle('ملخص الوثائق المرفقة', 'Attached Document Summaries');
+    sections += `<div style="margin-bottom:14px">${documents.map(d =>
+      `<div style="padding:8px 0;border-bottom:.5px solid #eee"><div style="font-weight:600;font-size:10.5pt">${esc2(d.title)}${d.doc_classification?` <span style="font-size:9pt;color:#888">[${esc2(d.doc_classification)}]</span>`:''}</div>${d.ai_summary?`<div style="font-size:10pt;color:#444;margin-top:3px">${esc2(d.ai_summary)}</div>`:''}</div>`
+    ).join('')}</div>`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="${lang||'ar'}" dir="${dir}">
+<head><meta charset="UTF-8"><title>${esc2(isAr?'حزمة مجلس الإدارة':'Board Pack')} — ${esc2(title)}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans Arabic','IBM Plex Sans',Arial,sans-serif;font-size:11pt;line-height:1.85;color:#1a1a2e;direction:${dir};text-align:${align};background:#fff}
+.page{padding:50px 60px;max-width:800px;margin:0 auto}
+.header{border-bottom:2.5px solid #1a1a2e;padding-bottom:16px;margin-bottom:28px}
+.badge{display:inline-block;background:#1a1a2e;color:#fff;font-size:8.5pt;padding:2px 9px;border-radius:4px;margin-bottom:8px}
+.org{font-size:9pt;color:#666;margin-bottom:6px;font-style:italic}
+h1{font-size:18pt;font-weight:700;margin-bottom:4px}
+.doc-date{font-size:9.5pt;color:#888}
+.content{white-space:pre-wrap;font-size:11pt;line-height:1.9;color:#222}
+.section-title{font-size:13pt;font-weight:700;color:#1a1a2e;margin:24px 0 8px;padding-bottom:5px;border-bottom:1.5px solid #ddd}
+.task-row,.dec-row{display:flex;gap:8px;padding:5px 0;border-bottom:.5px solid #eee;font-size:10.5pt;color:#333}
+.task-num{color:#888;flex-shrink:0;width:20px}
+.owner-tag{font-size:9pt;color:#777;margin-inline-start:6px}
+.footer{margin-top:36px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:8.5pt;color:#aaa}
+@media print{body{margin:0}.page{padding:12mm 18mm;max-width:none}@page{size:A4;margin:12mm 18mm}}
+</style></head>
+<body><div class="page">
+<div class="header">
+  <div class="badge">${esc2(isAr?'حزمة مجلس الإدارة':'Board Pack')}</div>
+  <div class="org">أمين للاجتماعات التنفيذية · Ameen Executive Secretary</div>
+  <h1>${esc2(title)}</h1>
+  <div class="doc-date">${displayDate}</div>
+</div>
+${sections}
+<div class="footer"><span>Ameen · أمين</span><span>${displayDate}</span></div>
+</div>
+<script>window.addEventListener('load',()=>setTimeout(()=>{window.focus();window.print();},800));</script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert(App.lang === 'ar'
+      ? 'يُرجى السماح بالنوافذ المنبثقة لهذا الموقع لتتمكن من تنزيل PDF'
+      : 'Please allow pop-ups for this site to download the PDF');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+}
+
+// ══ Board Pack ═════════════════════════════════════════════════════════════════
+const BoardPack = {
+  async download(meetingId) {
+    const l = App.lang;
+    const btn = $(`bp-btn-${meetingId}`);
+    if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${l === 'ar' ? 'جارٍ الإعداد...' : 'Preparing...'}`; }
+    try {
+      const data = await api(`/api/meetings/${meetingId}/board-pack`, { method: 'POST' });
+      _openBoardPackWindow(data, l);
+    } catch (e) {
+      const msg = e.message || '';
+      if (msg.includes('NOT_PROCESSED') || msg.includes('PROCESSING')) {
+        alert(l === 'ar'
+          ? 'يجب معالجة الاجتماع بالذكاء الاصطناعي أولاً قبل توليد حزمة المجلس. استخدم زر «معالجة» على بطاقة الاجتماع.'
+          : 'The meeting must be AI-processed before generating a board pack. Use the Process button on the meeting card.');
+      } else {
+        alert((l === 'ar' ? 'خطأ: ' : 'Error: ') + e.message);
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = `📦 ${l === 'ar' ? 'حزمة المجلس' : 'Board Pack'}`; }
     }
   }
 };

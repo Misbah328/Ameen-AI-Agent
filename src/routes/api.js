@@ -958,6 +958,82 @@ router.post('/documents/share', auth, requirePro, async (req, res) => {
   res.json({ success: true, shared: results.length, results });
 });
 
+// ── Report PDF (styled HTML for print-to-PDF) ────────────────────────────────
+router.post('/reports/pdf', auth, (req, res) => {
+  const { content, title, lang } = req.body;
+  if (!content) return res.status(400).json({ error: 'content required' });
+  const esc2 = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const dir = lang === 'en' ? 'ltr' : 'rtl';
+  const align = lang === 'en' ? 'left' : 'right';
+  const date = new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB', { year:'numeric', month:'long', day:'numeric' });
+  const html = `<!DOCTYPE html>
+<html lang="${lang||'ar'}" dir="${dir}">
+<head><meta charset="UTF-8"><title>${esc2(title)}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans Arabic','IBM Plex Sans',Arial,sans-serif;font-size:11pt;line-height:1.85;color:#1a1a2e;direction:${dir};text-align:${align};background:#fff}
+.page{padding:50px 60px;max-width:800px;margin:0 auto}
+.header{border-bottom:2.5px solid #1a1a2e;padding-bottom:16px;margin-bottom:28px}
+.org{font-size:9pt;color:#666;margin-bottom:6px}
+h1{font-size:18pt;font-weight:700;margin-bottom:4px}
+.date{font-size:9.5pt;color:#888}
+.content{white-space:pre-wrap;font-size:11pt;line-height:1.9;color:#222}
+.footer{margin-top:36px;padding-top:12px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:8.5pt;color:#aaa}
+@media print{body{margin:0}.page{padding:12mm 18mm;max-width:none}@page{size:A4;margin:12mm 18mm}}
+</style></head>
+<body><div class="page">
+<div class="header">
+  <div class="org">أمين للاجتماعات التنفيذية · Ameen Executive Secretary</div>
+  <h1>${esc2(title)}</h1>
+  <div class="date">${date}</div>
+</div>
+<div class="content">${esc2(content)}</div>
+<div class="footer"><span>Ameen · أمين</span><span>${date}</span></div>
+</div>
+<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),750));</script>
+</body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
+// ── Board Pack ─────────────────────────────────────────────────────────────────
+router.post('/meetings/:id/board-pack', auth, async (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Not found' });
+  if (meeting.status !== 'processed') {
+    return res.status(400).json({
+      error: meeting.status === 'processing' ? 'PROCESSING' : 'NOT_PROCESSED',
+      message: 'يجب معالجة الاجتماع أولاً / Meeting must be processed first'
+    });
+  }
+
+  let tasks = [], decisions = [], risks = [];
+  try { tasks = JSON.parse(meeting.ai_tasks || '[]'); } catch (_) {}
+  try { decisions = JSON.parse(meeting.ai_decisions || '[]'); } catch (_) {}
+  try { risks = JSON.parse(meeting.ai_risks || '[]'); } catch (_) {}
+
+  // Fetch attached document summaries for the board pack
+  const docRows = db.prepare(
+    `SELECT title, ai_summary, doc_classification FROM meeting_documents
+     WHERE meeting_id=? AND ai_summary IS NOT NULL AND ai_summary!='' AND file_path IS NOT NULL AND file_path!=''`
+  ).all(meeting.id);
+
+  res.json({
+    title_ar: meeting.title_ar,
+    title_en: meeting.title_en || meeting.title_ar,
+    date: (meeting.meeting_date || '').substring(0, 10),
+    summary_ar: meeting.ai_summary_ar || '',
+    summary_en: meeting.ai_summary_en || '',
+    minutes_ar: meeting.ai_minutes_ar || '',
+    minutes_en: meeting.ai_minutes_en || '',
+    tasks,
+    decisions,
+    risks,
+    documents: docRows,
+  });
+});
+
 // ── Public attendee confirmation (NO AUTH — token-gated) ───────────────────
 router.get('/public/:token', (req, res) => {
   const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
