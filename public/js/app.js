@@ -275,6 +275,20 @@ async function loadDocMeetings() {
 }
 
 // Six accent colours cycling through meeting attendees in the speaker bar.
+const MEETING_TYPES = {
+  'Board Meeting':     { ar: 'مجلس الإدارة',          en: 'Board Meeting' },
+  'Committee Meeting': { ar: 'اجتماع اللجنة',          en: 'Committee Meeting' },
+  'Executive Meeting': { ar: 'الاجتماع التنفيذي',      en: 'Executive Meeting' },
+  'General Meeting':   { ar: 'الاجتماع العام',         en: 'General Meeting' },
+  'Strategy Meeting':  { ar: 'اجتماع الاستراتيجية',    en: 'Strategy Meeting' },
+  'Follow-up Meeting': { ar: 'اجتماع المتابعة',        en: 'Follow-up Meeting' },
+};
+function mtLabel(type, lang) {
+  const t = MEETING_TYPES[type];
+  if (!t || !type) return type || '';
+  return lang === 'ar' ? t.ar : t.en;
+}
+
 const SPEAKER_PALETTE = [
   { bg:'rgba(201,168,76,.13)',  border:'rgba(201,168,76,.28)',  fg:'#C9A84C' },
   { bg:'rgba(46,204,138,.12)',  border:'rgba(46,204,138,.30)',  fg:'#2ECC8A' },
@@ -300,10 +314,11 @@ const Rec = {
 
   async start() {
     const title = $('mtg-title').value.trim() || (App.lang === 'ar' ? 'اجتماع بدون عنوان' : 'Untitled Meeting');
+    const meetingType = ($('mtg-type') && $('mtg-type').value) || '';
     try {
       const row = await api('/api/meetings', {
         method: 'POST',
-        body: JSON.stringify({ title_ar: title, title_en: title, transcript: '' })
+        body: JSON.stringify({ title_ar: title, title_en: title, transcript: '', meeting_type: meetingType })
       });
       this.currentMeetingId = row.id;
     } catch (e) { alert(e.message); return; }
@@ -915,6 +930,7 @@ async function renderLastMeeting() {
     }
     const title = esc(l === 'ar' ? m.title_ar : (m.title_en || m.title_ar));
     const summary = esc((l === 'ar' ? m.ai_summary_ar : (m.ai_summary_en || m.ai_summary_ar)) || lbl('لا يوجد ملخص','No summary'));
+    const meetingTypeLbl = m.meeting_type ? mtLabel(m.meeting_type, l) : '';
     let tasks = []; try { tasks = JSON.parse(m.ai_tasks || '[]'); } catch {}
     let decisions = []; try { decisions = JSON.parse(m.ai_decisions || '[]'); } catch {}
     const tasksHtml = tasks.length ? tasks.map(t => `
@@ -934,7 +950,10 @@ async function renderLastMeeting() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
           <div>
             <div style="font-size:18px;font-weight:800;color:var(--text)">⭐ ${title}</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:3px">📅 ${esc((m.meeting_date||'').substring(0,10))}</div>
+            <div style="display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap">
+              <div style="font-size:12px;color:var(--text3)">📅 ${esc((m.meeting_date||'').substring(0,10))}</div>
+              ${meetingTypeLbl ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(meetingTypeLbl)}</span>` : ''}
+            </div>
           </div>
           <button class="btn-gold btn-sm" onclick="pushLastMeetingWhatsApp(${m.id})">📲 ${lbl('إرسال عبر واتساب','Push to WhatsApp')}</button>
         </div>
@@ -1242,6 +1261,7 @@ const Schedule = {
       agenda_ar: $('nm-agenda-ar').value,
       agenda_en: $('nm-agenda-en').value,
       reminder_channel: ($('nm-channel') && $('nm-channel').value) || 'email',
+      meeting_type: ($('nm-type') && $('nm-type').value) || '',
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
       alert(App.lang === 'ar' ? 'يرجى إدخال العنوان والتاريخ والوقت' : 'Please enter title, date and time');
@@ -1253,6 +1273,7 @@ const Schedule = {
       await renderSchedule();
       await loadBadges();
       ['nm-title', 'nm-att', 'nm-agenda-ar', 'nm-agenda-en'].forEach(id => $(id).value = '');
+      if ($('nm-type')) $('nm-type').value = '';
     } catch (e) { alert(e.message); }
   },
 
@@ -1297,9 +1318,16 @@ const Schedule = {
       if (time === null) return;
       const attendees = prompt(l==='ar' ? 'المشاركون (أسماء، إيميلات، أرقام جوال):' : 'Attendees (names, emails, phones):', s.attendees || '');
       if (attendees === null) return;
+      const TYPES_LIST = Object.keys(MEETING_TYPES).join(', ');
+      const typePrompt = l==='ar'
+        ? `نوع الاجتماع (${TYPES_LIST}):`
+        : `Meeting type (${TYPES_LIST}):`;
+      const meetingType = prompt(typePrompt, s.meeting_type || '');
+      if (meetingType === null) return;
       const t = title.trim();
       await api('/api/schedule/' + id, { method: 'PATCH', body: JSON.stringify({
-        title_ar: t, title_en: t, meeting_date: date.trim(), meeting_time: time.trim(), attendees: attendees.trim()
+        title_ar: t, title_en: t, meeting_date: date.trim(), meeting_time: time.trim(),
+        attendees: attendees.trim(), meeting_type: meetingType.trim()
       }) });
       await renderSchedule();
       await loadBadges();
@@ -1356,7 +1384,10 @@ async function renderSchedule() {
       return `<div style="padding:13px 0;border-bottom:1px solid var(--border2);${isDraft?'background:linear-gradient(90deg,rgba(124,94,16,.10),transparent);border-inline-start:3px solid #d4a017;padding-inline-start:10px':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
+              ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(mtLabel(s.meeting_type, l))}</span>` : ''}
+            </div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">
               📅 ${esc(s.meeting_date||'')} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ''} · ${s.duration_mins||60} ${l==='ar'?'د':'min'} · ${esc(s.platform||'')}
             </div>
@@ -1701,7 +1732,10 @@ async function renderOverview() {
           <div class="ct" style="margin-bottom:12px">📅 ${lbl('الاجتماعات القادمة','Upcoming Meetings')}</div>
           ${upcoming.length ? upcoming.slice(0,5).map(s => `
             <div style="padding:8px 0;border-bottom:.5px solid var(--border2)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l==='ar'?s.title_ar:(s.title_en||s.title_ar))}</div>
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l==='ar'?s.title_ar:(s.title_en||s.title_ar))}</div>
+                ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 6px">${esc(mtLabel(s.meeting_type, l))}</span>` : ''}
+              </div>
               <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${esc(s.meeting_date||'')} ${s.meeting_time?'🕐 '+esc(s.meeting_time):''} · ${esc(s.platform||'')}</div>
             </div>`).join('')
           : `<div style="font-size:12px;color:var(--text3)">${lbl('لا اجتماعات قادمة','No upcoming meetings')}</div>`}

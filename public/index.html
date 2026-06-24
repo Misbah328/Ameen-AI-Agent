@@ -161,6 +161,15 @@
             data-ph-ar="عنوان الاجتماع — مجلس الإدارة، الاجتماع التشغيلي..."
             data-ph-en="Meeting title — Board Meeting, Operational Review..."
             placeholder="عنوان الاجتماع..."/>
+          <select id="mtg-type" style="margin-top:8px;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2);width:100%;max-width:340px">
+            <option value="">— نوع الاجتماع / Meeting Type —</option>
+            <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
+            <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
+            <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+            <option value="General Meeting">الاجتماع العام / General Meeting</option>
+            <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+            <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+          </select>
           <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start">اضغط للبدء</div>
           <div class="rec-tm" id="rec-tm">00:00</div>
           <div class="rec-ht" id="rec-ht" data-ar="سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً" data-en="Ameen will transcribe and extract tasks per team member in real time">سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً</div>
@@ -431,6 +440,18 @@
           <div class="frow">
             <div class="fl" data-ar="عنوان الاجتماع" data-en="Meeting Title">عنوان الاجتماع</div>
             <input class="fi" id="nm-title" data-ph-ar="اجتماع مجلس الإدارة — Board Meeting" data-ph-en="Board Meeting — اجتماع مجلس الإدارة" placeholder="اجتماع مجلس الإدارة"/>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="نوع الاجتماع" data-en="Meeting Type">نوع الاجتماع</div>
+            <select class="fi" id="nm-type">
+              <option value="">— <span data-ar="اختر النوع" data-en="Select Type">اختر النوع</span> —</option>
+              <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
+              <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
+              <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+              <option value="General Meeting">الاجتماع العام / General Meeting</option>
+              <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+              <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+            </select>
           </div>
           <div class="fr2">
             <div class="frow">

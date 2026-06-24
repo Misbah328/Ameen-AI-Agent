@@ -117,16 +117,16 @@ router.get('/meetings/:id', auth, (req, res) => {
 });
 
 router.post('/meetings', auth, (req, res) => {
-  const { title_ar, title_en, transcript, duration } = req.body;
+  const { title_ar, title_en, transcript, duration, meeting_type } = req.body;
   const row = db.prepare(`
-    INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id);
+    INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '');
   res.json({ id: row.lastInsertRowid });
 });
 
 router.patch('/meetings/:id', auth, (req, res) => {
-  const { transcript, duration, title_ar, title_en } = req.body;
+  const { transcript, duration, title_ar, title_en, meeting_type } = req.body;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
 
@@ -134,9 +134,10 @@ router.patch('/meetings/:id', auth, (req, res) => {
   const newTitleEn = title_en !== undefined ? (title_en || title_ar || meeting.title_en) : meeting.title_en;
   const newTranscript = transcript !== undefined ? transcript : meeting.transcript;
   const newDuration = duration !== undefined ? duration : meeting.duration;
+  const newMeetingType = meeting_type !== undefined ? meeting_type : meeting.meeting_type;
 
-  db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=? WHERE id=?')
-    .run(newTitleAr, newTitleEn, newTranscript, newDuration, req.params.id);
+  db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=? WHERE id=?')
+    .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, req.params.id);
 
   // Keep denormalized titles in tasks & decisions in sync
   if (title_ar !== undefined || title_en !== undefined) {
@@ -260,7 +261,7 @@ function conflictPayload(conflicts) {
 }
 
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, force } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, force } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   // Conflict check before finalizing — overlap with any confirmed meeting blocks
@@ -268,9 +269,9 @@ router.post('/schedule', auth, (req, res) => {
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
   const row = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)
-  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id);
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)
+  `).run(title_ar, title_en || title_ar, meeting_date, meeting_time, duration_mins || 60, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '');
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -292,7 +293,7 @@ router.patch('/schedule/:id/confirm', auth, (req, res) => {
 router.patch('/schedule/:id', auth, (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type } = req.body;
   const chan = reminder_channel !== undefined
     ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
     : row.reminder_channel;
@@ -302,12 +303,13 @@ router.patch('/schedule/:id', auth, (req, res) => {
       meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
       duration_mins=COALESCE(?,duration_mins), platform=COALESCE(?,platform),
       attendees=COALESCE(?,attendees), agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
-      reminder_channel=?, reminder_sent=0
+      reminder_channel=?, meeting_type=COALESCE(?,meeting_type), reminder_sent=0
     WHERE id=?`)
     .run(
       title_ar, title_en !== undefined ? (title_en || title_ar) : null,
       meeting_date, meeting_time, duration_mins, platform,
-      attendees, agenda_ar, agenda_en, chan, req.params.id
+      attendees, agenda_ar, agenda_en, chan,
+      meeting_type !== undefined ? (meeting_type || null) : null, req.params.id
     );
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
 });

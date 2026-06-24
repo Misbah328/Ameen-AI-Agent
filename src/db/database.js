@@ -148,6 +148,8 @@ ensureColumn('tasks', 'needs_review', 'INTEGER DEFAULT 0');
 // Draft vs confirmed scheduling, and the meeting a draft was auto-created from.
 ensureColumn('schedule', 'status', "TEXT DEFAULT 'confirmed'");
 ensureColumn('schedule', 'source_meeting_id', 'INTEGER');
+ensureColumn('meetings', 'meeting_type', "TEXT DEFAULT ''");
+ensureColumn('schedule', 'meeting_type', "TEXT DEFAULT ''");
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`
@@ -196,8 +198,8 @@ if (userCount.c === 0) {
 
   // Demo meetings
   const insertMeeting = db.prepare(`
-    INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, ai_summary_ar, ai_summary_en, ai_tasks, ai_decisions, status, meeting_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, ai_summary_ar, ai_summary_en, ai_tasks, ai_decisions, status, meeting_date, meeting_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const m1 = insertMeeting.run(
@@ -217,7 +219,8 @@ if (userCount.c === 0) {
       {text_ar:'إحالة عقد الشراكة الخليجية للمراجعة القانونية', text_en:'Gulf Partnership Contract referred to legal review'}
     ]),
     'processed',
-    '2026-05-15 09:00:00'
+    '2026-05-15 09:00:00',
+    'Board Meeting'
   ).lastInsertRowid;
 
   const m2 = insertMeeting.run(
@@ -235,7 +238,8 @@ if (userCount.c === 0) {
       {text_ar:'استمرار المشاريع وفق الخطة المعتمدة', text_en:'Projects continue as per approved plan'}
     ]),
     'processed',
-    '2026-05-12 14:00:00'
+    '2026-05-12 14:00:00',
+    'Executive Meeting'
   ).lastInsertRowid;
 
   // Seed tasks
@@ -263,12 +267,12 @@ if (userCount.c === 0) {
 
   // Seed schedule
   const insertSchedule = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, created_by, meeting_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  insertSchedule.run('اجتماع مجلس الإدارة الشهري — يونيو', 'Monthly Board Meeting — June', '2026-06-02', '09:00', 90, 'قاعة الاجتماعات الرئيسية', 'م. أحمد، م. سارة، م. خالد، م. نورة', 'مراجعة أداء مايو، خطة التوظيف، قرار عقد الشراكة', 'May performance review, hiring plan, partnership contract decision', u1);
-  insertSchedule.run('اجتماع المتابعة التشغيلية', 'Operational Follow-up Meeting', '2026-05-26', '14:00', 60, 'Zoom', 'م. سارة، م. خالد، م. نورة', 'متابعة المهام المتأخرة، تحديث المشاريع', 'Overdue tasks follow-up, project updates', u4);
-  insertSchedule.run('جلسة مراجعة الشراكة الخليجية', 'Gulf Partnership Review Session', '2026-05-28', '11:00', 45, 'Teams', 'م. أحمد، م. سارة', 'المراجعة القانونية للعقد، التفاصيل المالية', 'Legal review of contract, financial details', u2);
+  insertSchedule.run('اجتماع مجلس الإدارة الشهري — يونيو', 'Monthly Board Meeting — June', '2026-06-02', '09:00', 90, 'قاعة الاجتماعات الرئيسية', 'م. أحمد، م. سارة، م. خالد، م. نورة', 'مراجعة أداء مايو، خطة التوظيف، قرار عقد الشراكة', 'May performance review, hiring plan, partnership contract decision', u1, 'Board Meeting');
+  insertSchedule.run('اجتماع المتابعة التشغيلية', 'Operational Follow-up Meeting', '2026-05-26', '14:00', 60, 'Zoom', 'م. سارة، م. خالد، م. نورة', 'متابعة المهام المتأخرة، تحديث المشاريع', 'Overdue tasks follow-up, project updates', u4, 'Follow-up Meeting');
+  insertSchedule.run('جلسة مراجعة الشراكة الخليجية', 'Gulf Partnership Review Session', '2026-05-28', '11:00', 45, 'Teams', 'م. أحمد، م. سارة', 'المراجعة القانونية للعقد، التفاصيل المالية', 'Legal review of contract, financial details', u2, 'Committee Meeting');
 
   console.log('✓ Database seeded with demo data');
 }
