@@ -160,6 +160,7 @@ ensureColumn('meeting_documents', 'uploaded_by', "TEXT DEFAULT ''");
 ensureColumn('meeting_documents', 'upload_date', "TEXT DEFAULT ''");
 ensureColumn('meeting_documents', 'description', "TEXT DEFAULT ''");
 ensureColumn('meeting_documents', 'status', "TEXT DEFAULT 'draft'");
+ensureColumn('meetings', 'ai_risks', "TEXT DEFAULT '[]'");
 
 // Key/value settings (e.g. subscription plan)
 db.exec(`

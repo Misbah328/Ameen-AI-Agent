@@ -554,19 +554,19 @@ router.post('/live-extract', auth, async (req, res) => {
   const memberList = Array.isArray(members) && members.length
     ? members.join('، ')
     : db.prepare('SELECT name_ar FROM users').all().map(u => u.name_ar).join('، ');
-  const system = `أنت مساعد ذكي يستخرج المهام والقرارات من نص اجتماع مباشر (قد يكون غير مكتمل).
-أعِد JSON فقط بالشكل: {"tasks":[{"text_ar":"","text_en":"","owner_ar":"","owner_en":""}],"decisions":[{"text_ar":"","text_en":""}]}.
-أسماء الحضور المعروفون: ${memberList}. اربط كل مهمة بأقرب اسم مالك إن وُجد. لا تختلق مهاماً غير مذكورة. أعد JSON صالحاً بدون أي شرح.`;
+  const system = `أنت مساعد ذكي يستخرج المهام والقرارات والمخاطر ونقاط المتابعة من نص اجتماع مباشر (قد يكون غير مكتمل).
+أعِد JSON فقط بالشكل: {"tasks":[{"text_ar":"","text_en":"","owner_ar":"","owner_en":""}],"decisions":[{"text_ar":"","text_en":""}],"risks":[{"text_ar":"","text_en":"","severity":"high|medium|low"}],"followups":[{"text_ar":"","text_en":""}]}.
+أسماء الحضور المعروفون: ${memberList}. اربط كل مهمة بأقرب اسم مالك إن وُجد. لا تختلق عناصر غير مذكورة. أعد JSON صالحاً بدون أي شرح.`;
   try {
     const raw = await callClaude(
       [{ role: 'user', content: `النص حتى الآن:\n"""${transcript.slice(-4000)}"""` }],
       system, 900, req.user.id
     );
     const m = raw.match(/\{[\s\S]*\}/);
-    const parsed = m ? JSON.parse(m[0]) : { tasks: [], decisions: [] };
-    res.json({ tasks: parsed.tasks || [], decisions: parsed.decisions || [] });
+    const parsed = m ? JSON.parse(m[0]) : { tasks: [], decisions: [], risks: [], followups: [] };
+    res.json({ tasks: parsed.tasks || [], decisions: parsed.decisions || [], risks: parsed.risks || [], followups: parsed.followups || [] });
   } catch (e) {
-    res.json({ tasks: [], decisions: [], _err: e.message });
+    res.json({ tasks: [], decisions: [], risks: [], followups: [], _err: e.message });
   }
 });
 

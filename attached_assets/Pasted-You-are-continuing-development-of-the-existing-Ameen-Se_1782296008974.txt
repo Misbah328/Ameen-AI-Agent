@@ -1,0 +1,206 @@
+You are continuing development of the existing Ameen Secretary application.
+
+Your task is to complete the MVP.
+
+First, review the current codebase and identify which MVP features are already developed and which are missing.
+
+Do not rebuild the app. Do not redesign the UI. Improve the existing prototype.
+
+MVP Goal:
+A user should be able to create a meeting, add transcript/notes, generate summary, extract decisions and action items, create tasks, ask questions through Ask Ameen, generate reports, and view updated dashboard metrics.
+
+Complete MVP Requirements:
+
+1. Meeting Management
+   Required:
+
+* Create meeting
+* Meeting title
+* Meeting type/category
+* Date and time
+* Participants
+* Agenda
+* Meeting notes
+* Previous meeting reference
+
+Check if already developed.
+If missing or incomplete, build it.
+
+2. Transcript Management
+   Required:
+
+* Add transcript to a meeting
+* Save transcript with meeting
+* Display transcript in meeting details
+* Support multi-speaker format:
+  Speaker 1:
+  Speaker 2:
+  Speaker 3:
+
+Check if already developed.
+If missing or incomplete, build it.
+
+3. AI Meeting Intelligence
+   Required:
+   From transcript or meeting notes, generate:
+
+* Executive summary
+* Meeting minutes
+* Key decisions
+* Action items
+* Risks
+* Follow-ups
+
+If real AI API is not connected, create a clean mock AI processing function that can later be replaced with real AI.
+
+Check if already developed.
+If missing or incomplete, build it.
+
+4. Action Item Extraction
+   Required:
+   Each action item should include:
+
+* Task title
+* Owner
+* Due date
+* Priority
+* Status
+* Source meeting
+
+Check if already developed.
+If missing or incomplete, build it.
+
+5. Task Tracker Integration
+   Required:
+
+* Automatically convert extracted action items into tasks
+* Show tasks in Task & Decision Tracker
+* Track open tasks
+* Track completed tasks
+* Track overdue tasks
+
+Check if already developed.
+If missing or incomplete, build it.
+
+6. Decision Tracking
+   Required:
+   Each decision should include:
+
+* Decision title
+* Description
+* Source meeting
+* Decision date
+* Status
+* Related action items if available
+
+Check if already developed.
+If missing or incomplete, build it.
+
+7. Ask Ameen
+   Required:
+   Ask Ameen should answer using current app data:
+
+* Last meeting summary
+* Pending action items
+* Overdue tasks
+* Decisions made
+* Team performance
+* Upcoming meetings
+
+Check if already developed.
+If missing or incomplete, build it.
+
+8. Report Generator
+   Required:
+   Generate reports from stored meeting data:
+
+* Meeting minutes report
+* Executive summary report
+* Action item report
+* Decision report
+* Follow-up report
+
+Check if already developed.
+If missing or incomplete, build it.
+
+9. Dashboard
+   Required:
+   Dashboard should show real or connected app data for:
+
+* Total meetings
+* Open tasks
+* Completed tasks
+* Overdue tasks
+* Decisions
+* Scheduled meetings
+* Team members
+* Completion rate
+* Upcoming meetings
+
+Check if already developed.
+If missing or incomplete, build it.
+
+10. Team Members
+    Required:
+
+* Team member name
+* Role
+* Email
+* Assigned tasks
+* Completed tasks
+* Completion percentage
+
+Check if already developed.
+If missing or incomplete, build it.
+
+11. Data Consistency
+    Required:
+    Make sure these are connected:
+
+* Meetings
+* Transcripts
+* Summaries
+* Decisions
+* Action items
+* Tasks
+* Reports
+* Dashboard
+* Ask Ameen
+
+Avoid disconnected mock sections where possible.
+
+12. MVP Boundaries
+    Do NOT implement these yet:
+
+* Zoom integration
+* Google Meet integration
+* Microsoft Teams integration
+* WhatsApp automation
+* Digital signatures
+* Advanced board governance
+* Voting
+* Quorum
+* Payment system
+* Mobile app
+* Complex multi-agent orchestration
+
+13. Development Instructions
+
+* Keep the current UI design.
+* Keep all existing pages working.
+* Do not delete current features.
+* Use existing design patterns.
+* If backend/database is not fully available, use clean structured local/mock data.
+* Make the MVP demo-ready.
+* Prioritize working flow over perfect architecture.
+
+14. Final Output Required
+    After completing the work, provide:
+
+* What was already developed
+* What was missing
+* What you built
+* Files changed
+* What is still mock/local
+* What should be connected next to real backend or AI API
+* How to test the MVP flow step by step

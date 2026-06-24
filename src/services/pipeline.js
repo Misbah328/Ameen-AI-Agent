@@ -82,6 +82,7 @@ function buildSystemPrompt(memberNames, meetingDate) {
 4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة، أو كانت مجرد اقتراح/سؤال) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين.
 5) تعرّف على نوايا الجدولة: عبارات مثل "لنجتمع الثلاثاء القادم" أو "حدد اجتماع متابعة" يجب أن تُنتج عنصراً في scheduling_intents بتاريخ ووقت مطلقين متى أمكن.
 6) إذا كان النص يحتوي على بوادئ بالشكل [اسم]: فهذه علامات متحدث فعلية مُعيَّنة يدوياً من المنسّق — اعتمد عليها مصدراً رئيسياً لحقل speaker_transcript وللنسب الصحيحة للمهام.
+7) استخرج المخاطر والتحديات: أي تهديد أو عائق أو قلق ذُكر صراحةً أو استُنتج من السياق. صنّف الخطورة: high (يهدد الهدف الرئيسي أو الجدول الزمني)، medium (يعيق التنفيذ ويحتاج متابعة)، low (ملاحظة احترازية). أضف تدابير تخفيف موجزة. إذا لم تكن هناك مخاطر واضحة أعِد مصفوفة فارغة.
 
 أرجع JSON فقط بدون أي markdown أو شرح. الهيكل:
 {
@@ -94,6 +95,7 @@ function buildSystemPrompt(memberNames, meetingDate) {
   "speaker_transcript": [{"speaker":"الاسم","text_ar":"","text_en":""}],
   "tasks": [{"text_ar":"","text_en":"","owner_ar":"اسم المسؤول","owner_en":"Owner","due":"YYYY-MM-DD أو ''","priority":"urgent|normal","needs_review":false,"review_reason":""}],
   "decisions": [{"text_ar":"","text_en":""}],
+  "risks": [{"text_ar":"","text_en":"","severity":"high|medium|low","mitigation_ar":"تدابير التخفيف","mitigation_en":"Mitigation steps"}],
   "scheduling_intents": [{"title_ar":"","title_en":"","date":"YYYY-MM-DD أو ''","time":"HH:MM أو ''","duration_mins":60,"raw_ar":"العبارة كما وردت","raw_en":""}],
   "reminders": [{"text_ar":"","text_en":""}],
   "followups": [{"text_ar":"","text_en":""}],
@@ -151,6 +153,8 @@ async function processMeeting({ meetingId, userId = null }) {
       meetingId,
       tasks: (result.tasks || []).length,
       decisions: (result.decisions || []).length,
+      risks: (result.risks || []).length,
+      followups: (result.followups || []).length,
       scheduling_intents: (result.scheduling_intents || []).length
     });
   } catch (e) {
@@ -187,6 +191,7 @@ async function processMeeting({ meetingId, userId = null }) {
       ai_summary_ar=?, ai_summary_en=?,
       ai_tasks=?, ai_decisions=?,
       ai_reminders=?, ai_followups=?,
+      ai_risks=?,
       ai_sentiment=?, speakers=?,
       ai_minutes_ar=?, ai_minutes_en=?, speaker_transcript=?,
       status='processed'
@@ -197,6 +202,7 @@ async function processMeeting({ meetingId, userId = null }) {
     JSON.stringify(result.decisions || []),
     JSON.stringify(result.reminders || []),
     JSON.stringify(result.followups || []),
+    JSON.stringify(result.risks || []),
     result.sentiment || 'neutral',
     JSON.stringify(finalSpeakers),
     result.minutes_ar || '', result.minutes_en || '',

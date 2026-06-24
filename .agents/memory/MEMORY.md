@@ -2,3 +2,6 @@
 - [Web Speech transcription](web-speech-transcription.md) — app uses browser webkitSpeechRecognition (NOT Whisper); how cut-off/persistence/accent name-correction are handled.
 - [Reliability baseline](reliability-baseline.md) — which crash-proofing, notification validation, and test scaffolding are in place.
 - [Governance feature state](governance-state.md) — DB tables + API routes added; client panel completed (governance.js + sidebar); Task modal reused for edit mode via Modals._editingId.
+- [Pipeline risks field](pipeline-risks.md) — ai_risks added to meetings table + pipeline schema; UPDATE .run() param order must stay in sync with the SET clause.
+- [Live-extract catch path](live-extract-catch.md) — /api/live-extract catch block must return all four keys (tasks/decisions/risks/followups) or frontend render crashes on undefined.
+- [Dual-side audio capture](dual-audio-capture.md) — getDisplayMedia captures both sides of browser video calls; SpeechRecognition reads mic only (browser API limitation); blob download shown in renderResult when Rec._dualAudioUrl is set.

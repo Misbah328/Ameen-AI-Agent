@@ -313,6 +313,8 @@ const Rec = {
   currentMeetingId: null,
   // Speaker identification state
   currentSpeaker: null, speakerColors: {}, _newSpeakerTurn: false,
+  // Dual-side audio capture (display/system audio for virtual meetings)
+  _displayStream: null, _mixedRec: null, _mixedChunks: [], _dualAudioUrl: null,
 
   async toggle() {
     if (this.isRecording) { await this.stop(); }
@@ -342,6 +344,9 @@ const Rec = {
     $('live-tr').textContent = '';
     $('ex-tasks').innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
     $('ex-decs').innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
+    const _exR = $('ex-risks'); if (_exR) _exR.innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
+    const _exF = $('ex-followups'); if (_exF) _exF.innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === 'ar' ? 'في انتظار الكلام...' : 'Listening...'}</div>`;
+    this._dualAudioUrl = null; this._mixedChunks = [];
     const stEl = $('rec-st'); if (stEl) stEl.textContent = App.lang === 'ar' ? '▶ جارٍ التسجيل' : '▶ Recording...';
 
     // Live editing while recording is a Pro feature.
@@ -373,6 +378,7 @@ const Rec = {
 
     this.startWaveform();
     this.startSpeechRec();
+    this._startSystemAudio(); // non-blocking — captures both sides of virtual meetings
   },
 
   // Save the live transcript to the meeting row without ending the session.
@@ -427,6 +433,7 @@ const Rec = {
     clearInterval(this._recWatch);
     const sb = $('speaker-bar'); if (sb) sb.style.display = 'none';
     this.currentSpeaker = null;
+    this._stopSystemAudio();
 
     // If the coordinator edited the transcript live (Pro), keep their version.
     const box = $('live-tr');
@@ -444,8 +451,11 @@ const Rec = {
     if (this.currentMeetingId && this.fullTranscript) {
       const dur = Math.floor((Date.now() - this.startTime) / 1000);
       await api(`/api/meetings/${this.currentMeetingId}`, { method: 'PATCH', body: JSON.stringify({ transcript: this.fullTranscript, duration: dur }) });
-      // Data passthrough: immediately hand the full transcript to the hidden
-      // Processing Agent (extraction + scheduling) instead of waiting for a click.
+      // Finalise dual-side recording blob for download in the results panel.
+      if (this._mixedChunks?.length) {
+        const blob = new Blob(this._mixedChunks, { type: 'audio/webm' });
+        this._dualAudioUrl = URL.createObjectURL(blob);
+      }
       this.processAI();
     }
   },
@@ -535,6 +545,46 @@ const Rec = {
         setTimeout(() => { if (this.isRecording && !this._recFatal) this._restartRec(); }, 500);
       }
     }
+  },
+
+  // ── Dual-side audio capture ───────────────────────────────────────────────
+  // Uses getDisplayMedia to record system/tab audio (captures all participants
+  // in browser-based video calls). Stored as a local Blob — available for
+  // download in the results panel. The Web Speech API continues to read the
+  // physical microphone for real-time captions (browser limitation).
+  async _startSystemAudio() {
+    if (!navigator.mediaDevices?.getDisplayMedia) return;
+    try {
+      let displayStream;
+      try {
+        displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
+      } catch {
+        // Some browsers require video — request minimal video then stop it.
+        displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { width: 1, height: 1, frameRate: 1 } });
+        displayStream.getVideoTracks().forEach(t => t.stop());
+      }
+      if (!displayStream.getAudioTracks().length) { displayStream.getTracks().forEach(t => t.stop()); return; }
+      this._displayStream = displayStream;
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      this._mixedRec = new MediaRecorder(displayStream, { mimeType });
+      this._mixedChunks = [];
+      this._mixedRec.ondataavailable = e => { if (e.data?.size > 0) this._mixedChunks.push(e.data); };
+      this._mixedRec.start(5000);
+      const badge = $('dual-audio-badge');
+      if (badge) {
+        badge.textContent = App.lang === 'ar' ? '🎙+🔊 كلا الجانبين' : '🎙+🔊 Both sides';
+        badge.style.display = '';
+      }
+      displayStream.getAudioTracks()[0].addEventListener('ended', () => this._stopSystemAudio());
+    } catch (_e) {
+      // User dismissed the screen-share prompt — mic-only recording continues.
+    }
+  },
+
+  _stopSystemAudio() {
+    if (this._mixedRec && this._mixedRec.state !== 'inactive') { try { this._mixedRec.stop(); } catch {} }
+    if (this._displayStream) { this._displayStream.getTracks().forEach(t => t.stop()); this._displayStream = null; }
+    const badge = $('dual-audio-badge'); if (badge) badge.style.display = 'none';
   },
 
   // ── Speaker identification ────────────────────────────────────────────────
@@ -679,6 +729,25 @@ const Rec = {
             <span style="color:var(--gold);flex-shrink:0">⚖️</span><span>${esc(txt || '')}</span></div>`;
         }).join('') : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l === 'ar' ? 'لم تُكتشف قرارات بعد...' : 'No decisions detected yet...'}</div>`;
       }
+      const rEl = $('ex-risks');
+      if (rEl) {
+        const risks = r.risks || [];
+        rEl.innerHTML = risks.length ? risks.map(rk => {
+          const txt = l === 'ar' ? rk.text_ar : (rk.text_en || rk.text_ar);
+          const icon = rk.severity === 'high' ? '🔴' : rk.severity === 'medium' ? '🟡' : '🟢';
+          return `<div class="ex-item" style="font-size:11px;padding:5px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start">
+            <span style="flex-shrink:0">${icon}</span><span>${esc(txt || '')}</span></div>`;
+        }).join('') : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l === 'ar' ? 'لم تُكتشف مخاطر بعد...' : 'No risks detected yet...'}</div>`;
+      }
+      const fuEl = $('ex-followups');
+      if (fuEl) {
+        const fus = r.followups || [];
+        fuEl.innerHTML = fus.length ? fus.map(f => {
+          const txt = l === 'ar' ? f.text_ar : (f.text_en || f.text_ar);
+          return `<div class="ex-item" style="font-size:11px;padding:5px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start">
+            <span style="color:var(--amber,#f4a300);flex-shrink:0">📌</span><span>${esc(txt || '')}</span></div>`;
+        }).join('') : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l === 'ar' ? 'لم تُكتشف متابعات بعد...' : 'No follow-ups detected yet...'}</div>`;
+      }
     } catch (e) { /* keyword fallback already shown */ }
     this._extracting = false;
   },
@@ -818,6 +887,51 @@ const Rec = {
           </div>`).join('')}
       </div>` : '';
 
+    // Identified Risks
+    const risks = r.risks || [];
+    const risksHtml = risks.length ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid rgba(220,50,50,.18)">
+        <div style="font-size:12px;font-weight:700;color:#e05252;margin-bottom:8px">⚠️ ${lbl('المخاطر المُكتشفة','Identified Risks')} (${risks.length})</div>
+        ${risks.map(rk => {
+          const sevColor = rk.severity==='high' ? '#e05252' : rk.severity==='medium' ? '#f4a300' : 'var(--text3)';
+          const sevIcon  = rk.severity==='high' ? '🔴' : rk.severity==='medium' ? '🟡' : '🟢';
+          const sevLbl   = rk.severity==='high' ? lbl('عالية','High') : rk.severity==='medium' ? lbl('متوسطة','Medium') : lbl('منخفضة','Low');
+          const text = l==='ar' ? rk.text_ar : (rk.text_en || rk.text_ar);
+          const mit  = l==='ar' ? (rk.mitigation_ar||'') : (rk.mitigation_en||rk.mitigation_ar||'');
+          return `<div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+            <div style="display:flex;gap:7px;align-items:flex-start">
+              <span style="font-size:13px;flex-shrink:0;margin-top:1px">${sevIcon}</span>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                  <span style="font-size:12px;color:var(--text)">${esc(text||'')}</span>
+                  <span class="tag" style="font-size:10px;background:${sevColor}22;color:${sevColor}">${sevLbl}</span>
+                </div>
+                ${mit ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;padding-inline-start:2px">→ ${esc(mit)}</div>` : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
+    // Task-tracker connection banner
+    const tracker = `
+      <div style="background:rgba(46,204,138,.07);border:1px solid rgba(46,204,138,.18);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <span style="font-size:18px">✅</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:#2ecc8a">${lbl('متصل بمتتبع المهام','Connected to Task Tracker')}</div>
+          <div style="font-size:11px;color:var(--text3)">${tasks.length} ${lbl('مهمة أُضيفت تلقائياً','tasks added automatically')} · ${decisions.length} ${lbl('قرار','decisions')} · ${risks.length} ${lbl('مخاطر مُكتشفة','risks identified')}</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')" style="font-size:11px">${lbl('عرض المهام','View Tasks')} →</button>
+      </div>`;
+
+    // Dual-side recording download (only when display audio was captured)
+    const dualAudio = Rec._dualAudioUrl ? `
+      <div style="background:rgba(91,155,214,.07);border:1px solid rgba(91,155,214,.18);border-radius:8px;padding:9px 13px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>🎙+🔊</span>
+        <div style="flex:1;font-size:12px;color:var(--text2)">${lbl('تم تسجيل كلا الجانبين — الصوت الكامل للاجتماع متاح للتنزيل','Both sides recorded — complete meeting audio available for download')}</div>
+        <a href="${Rec._dualAudioUrl}" download="meeting-recording-${Date.now()}.webm" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${lbl('تنزيل التسجيل','Download Recording')}</a>
+      </div>` : '';
+
     const mid = Rec.currentMeetingId;
     const shareBtn = mid ? `<button class="btn-gold btn-sm" onclick="Share.open(${mid})">📤 ${lbl('مشاركة النتائج','Share Outcomes')}${App.isPro()?'':' ⭐'}</button>` : '';
     const actions = `
@@ -827,7 +941,7 @@ const Rec = {
         ${shareBtn}
       </div>`;
 
-    return summary + speakersHtml + minutesHtml + tasksHtml + decsHtml + fuHtml + actions;
+    return dualAudio + tracker + summary + speakersHtml + minutesHtml + tasksHtml + decsHtml + risksHtml + fuHtml + actions;
   }
 };
 
@@ -847,8 +961,33 @@ async function renderTranscripts() {
         const title = l==='ar' ? m.title_ar : (m.title_en || m.title_ar);
         const tasks = tryParse(m.ai_tasks, []);
         const decisions = tryParse(m.ai_decisions, []);
+        const risks = tryParse(m.ai_risks, []);
+        const speakerTr = tryParse(m.speaker_transcript, []);
         const summary = l==='ar' ? (m.ai_summary_ar||'') : (m.ai_summary_en || m.ai_summary_ar || '');
         const isProcessed = m.status === 'processed';
+        // Speaker count derived from the speaker_transcript segments
+        const uniqueSpeakers = [...new Set(speakerTr.map(s=>s.speaker).filter(Boolean))];
+        // Render transcript: prefer speaker blocks over plain text
+        const transcriptHtml = speakerTr.length ? `
+          <details style="margin-bottom:10px">
+            <summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0">🗣️ ${l==='ar'?'النص حسب المتحدث':'Transcript by speaker'} (${uniqueSpeakers.length} ${l==='ar'?'متحدث':'speakers'})</summary>
+            <div class="tr-box" style="margin-top:8px;max-height:220px;overflow-y:auto">
+              ${speakerTr.map(s => {
+                const spk = s.speaker || (l==='ar'?'متحدث':'Speaker');
+                const initials = spk.split(/[\s.]+/).filter(Boolean).slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '?';
+                const palette = SPEAKER_PALETTE[Math.abs((spk.charCodeAt(0)||0) + (spk.charCodeAt(1)||0)) % SPEAKER_PALETTE.length];
+                const txt = l==='ar' ? (s.text_ar||s.text_en||'') : (s.text_en||s.text_ar||'');
+                return `<div style="display:flex;gap:7px;padding:5px 0;border-bottom:.5px solid var(--border2);align-items:flex-start">
+                  <div style="width:22px;height:22px;border-radius:50%;background:${palette.bg};border:1px solid ${palette.border};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${palette.fg};flex-shrink:0;margin-top:1px">${esc(initials)}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:11px;font-weight:700;color:${palette.fg}">${esc(spk)}</div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.6">${esc(txt)}</div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </details>` :
+          (m.transcript ? `<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0">${l==='ar'?'عرض النص الكامل':'Show full transcript'}</summary><div class="tr-box" style="margin-top:8px;max-height:200px;overflow-y:auto">${esc(m.transcript)}</div></details>` : '');
         return `<div class="card">
           <div class="ch">
             <div>
@@ -862,16 +1001,25 @@ async function renderTranscripts() {
               ${isProcessed ? `<span class="tag tg">✓ ${l==='ar'?'مُعالج':'Processed'}</span>` : `<span class="tag ta">${l==='ar'?'جديد':'New'}</span>`}
               ${tasks.length ? `<span class="tag tgold">${tasks.length} ${l==='ar'?'مهمة':'tasks'}</span>` : ''}
               ${decisions.length ? `<span class="tag" style="background:var(--navy4)">${decisions.length} ${l==='ar'?'قرار':'decisions'}</span>` : ''}
+              ${risks.length ? `<span class="tag" style="background:rgba(220,50,50,.15);color:#e05252">${risks.length} ${l==='ar'?'مخاطر':'risks'}</span>` : ''}
+              ${uniqueSpeakers.length > 1 ? `<span class="tag" style="background:var(--navy4)">🗣️ ${uniqueSpeakers.length}</span>` : ''}
             </div>
           </div>
           ${summary ? `<div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:10px;padding:0 2px">${esc(summary)}</div>` : ''}
-          ${m.transcript ? `<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0">${l==='ar'?'عرض النص الكامل':'Show full transcript'}</summary><div class="tr-box" style="margin-top:8px;max-height:200px;overflow-y:auto">${esc(m.transcript)}</div></details>` : ''}
+          ${transcriptHtml}
           ${tasks.length ? `<div style="margin-bottom:8px">
             <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:5px">✅ ${l==='ar'?'المهام':'Tasks'}</div>
             ${tasks.slice(0,5).map(t=>`<div style="display:flex;gap:7px;padding:4px 0;border-bottom:.5px solid var(--border2);font-size:11px;color:var(--text)">
               <span style="color:var(--gold)">→</span>
               <span style="flex:1">${esc(l==='ar'?t.text_ar:(t.text_en||t.text_ar))}</span>
               ${t.owner_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l==='ar'?t.owner_ar:t.owner_en||t.owner_ar)}</span>` : ''}
+            </div>`).join('')}
+          </div>` : ''}
+          ${risks.length ? `<div style="margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;color:#e05252;margin-bottom:5px">⚠️ ${l==='ar'?'المخاطر':'Risks'}</div>
+            ${risks.slice(0,3).map(rk=>`<div style="display:flex;gap:6px;padding:4px 0;border-bottom:.5px solid var(--border2);font-size:11px;color:var(--text);align-items:flex-start">
+              <span style="flex-shrink:0">${rk.severity==='high'?'🔴':rk.severity==='medium'?'🟡':'🟢'}</span>
+              <span style="flex:1">${esc(l==='ar'?rk.text_ar:(rk.text_en||rk.text_ar))}</span>
             </div>`).join('')}
           </div>` : ''}
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">

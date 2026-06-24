@@ -200,7 +200,10 @@
           <div class="ct" data-ar="النص المباشر" data-en="Live Transcript">النص المباشر</div>
           <div class="ctsub" data-ar="يظهر تلقائياً أثناء الحديث" data-en="Appears automatically as you speak">يظهر تلقائياً أثناء الحديث</div>
         </div>
-        <div class="pill pill-red"><span class="sdot" style="background:var(--red)"></span>&nbsp;<span id="rec-live-lbl" data-ar="جارٍ التسجيل" data-en="Recording">جارٍ التسجيل</span>&nbsp;<span id="rec-timer-lbl">00:00</span></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div class="pill pill-red"><span class="sdot" style="background:var(--red)"></span>&nbsp;<span id="rec-live-lbl" data-ar="جارٍ التسجيل" data-en="Recording">جارٍ التسجيل</span>&nbsp;<span id="rec-timer-lbl">00:00</span></div>
+          <div id="dual-audio-badge" style="display:none;background:rgba(91,155,214,.15);border:1px solid rgba(91,155,214,.3);border-radius:20px;padding:2px 9px;font-size:10px;color:#5B9BD6" data-ar="🎙+🔊 كلا الجانبين" data-en="🎙+🔊 Both sides">🎙+🔊 كلا الجانبين</div>
+        </div>
       </div>
       <div class="tr-box" id="live-tr" style="max-height:180px"></div>
     </div>
@@ -221,6 +224,14 @@
         <div class="ec">
           <div class="el" data-ar="⚖️ قرارات مكتشفة" data-en="⚖️ Detected Decisions">⚖️ قرارات مكتشفة</div>
           <div id="ex-decs"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
+        </div>
+        <div class="ec">
+          <div class="el" data-ar="⚠️ مخاطر مكتشفة" data-en="⚠️ Detected Risks">⚠️ مخاطر مكتشفة</div>
+          <div id="ex-risks"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
+        </div>
+        <div class="ec">
+          <div class="el" data-ar="📌 نقاط متابعة" data-en="📌 Follow-ups">📌 نقاط متابعة</div>
+          <div id="ex-followups"><div style="font-size:11px;color:var(--text3);font-style:italic" data-ar="في انتظار الكلام..." data-en="Listening...">في انتظار الكلام...</div></div>
         </div>
       </div>
       <div style="display:flex;gap:10px;margin-top:13px;justify-content:flex-end">
