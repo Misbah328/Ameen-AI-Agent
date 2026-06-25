@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ameen Secretary — تسجيل الدخول / Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f1a;
+      --surface: #1a1a2e;
+      --border: #2a2a45;
+      --accent: #C9A84C;
+      --text: #e8e8f0;
+      --muted: #888899;
+      --danger: #e05a5a;
+      --radius: 12px;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .logo h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+    .logo p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+    .lang-toggle {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .lang-toggle button {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+    .lang-toggle button.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+      direction: ltr;
+    }
+    input:focus { border-color: var(--accent); }
+    button[type="submit"] {
+      width: 100%;
+      background: var(--accent);
+      color: #1a1a2e;
+      border: none;
+      border-radius: 8px;
+      padding: 0.8rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-top: 0.25rem;
+    }
+    button[type="submit"]:hover { opacity: 0.9; }
+    button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error-msg {
+      background: rgba(224,90,90,0.12);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+      text-align: center;
+    }
+    .error-msg.visible { display: block; }
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <h1>⚖️ أمين / Ameen</h1>
+      <p class="subtitle-ar">نظام الأمانة التنفيذية الذكية</p>
+    </div>
+
+    <div class="lang-toggle">
+      <button id="btn-ar" class="active" onclick="setLang('ar')">عربي</button>
+      <button id="btn-en" onclick="setLang('en')">English</button>
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div>
+      <label id="lbl-email">البريد الإلكتروني</label>
+      <input type="email" id="email" autocomplete="email" placeholder="you@ameen.ai" />
+
+      <label id="lbl-password">كلمة المرور</label>
+      <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+
+      <button type="submit" id="login-btn" onclick="doLogin()">
+        <span id="btn-text">تسجيل الدخول</span>
+      </button>
+    </div>
+
+    <p class="footer-note" id="footer-note">Ameen Executive Secretary v3</p>
+  </div>
+
+  <script>
+    const T = {
+      ar: { email: 'البريد الإلكتروني', password: 'كلمة المرور', btn: 'تسجيل الدخول', loading: 'جارٍ التحقق...', footer: 'نظام الأمانة التنفيذية الذكية', badCreds: 'البريد الإلكتروني أو كلمة المرور غير صحيحة', networkErr: 'خطأ في الاتصال بالخادم' },
+      en: { email: 'Email Address', password: 'Password', btn: 'Sign In', loading: 'Signing in...', footer: 'Ameen Executive Secretary v3', badCreds: 'Invalid email or password', networkErr: 'Could not connect to server' }
+    };
+    let lang = localStorage.getItem('ameen_lang') || 'ar';
+    function setLang(l) {
+      lang = l;
+      localStorage.setItem('ameen_lang', l);
+      document.documentElement.lang = l;
+      document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+      document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
+      document.getElementById('btn-en').classList.toggle('active', l === 'en');
+      document.getElementById('lbl-email').textContent = T[l].email;
+      document.getElementById('lbl-password').textContent = T[l].password;
+      document.getElementById('btn-text').textContent = T[l].btn;
+      document.getElementById('footer-note').textContent = T[l].footer;
+    }
+    setLang(lang);
+
+    document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+    function hideError() { document.getElementById('error-msg').classList.remove('visible'); }
+
+    async function doLogin() {
+      hideError();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      if (!email || !password) { showError(lang === 'ar' ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور' : 'Please enter email and password'); return; }
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      document.getElementById('btn-text').textContent = T[lang].loading;
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (data.user && data.user.lang_pref) localStorage.setItem('ameen_lang', data.user.lang_pref);
+          window.location.replace('/');
+        } else {
+          showError(data.error || T[lang].badCreds);
+          btn.disabled = false;
+          document.getElementById('btn-text').textContent = T[lang].btn;
+        }
+      } catch (err) {
+        showError(T[lang].networkErr);
+        btn.disabled = false;
+        document.getElementById('btn-text').textContent = T[lang].btn;
+      }
+    }
+  </script>
+</body>
+</html>

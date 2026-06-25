@@ -209,6 +209,9 @@ function baseUrl(req) {
   return `${proto}://${req.get('host')}`;
 }
 
+// ── Require authentication for all API routes ─────────────────────────────────
+router.use(auth);
+
 // ── Set API key (session-level) ────────────────────────────────────────────
 router.post('/ai/setkey', auth, (req, res) => {
   const { key } = req.body;

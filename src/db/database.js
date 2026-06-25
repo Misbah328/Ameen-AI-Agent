@@ -504,4 +504,25 @@ if (db.prepare('SELECT COUNT(*) as c FROM meeting_documents').get().c === 0) {
   }
 }
 
+// ── Ensure admin user has a valid bcrypt password ────────────────────────────
+// Runs once on startup. If the seed user's password is not a bcrypt hash,
+// sets a default development password and logs it ONCE to the console.
+(function ensureAdminPassword() {
+  const bcrypt = require('bcryptjs');
+  const admin = db.prepare('SELECT id, email, password FROM users ORDER BY id ASC LIMIT 1').get();
+  if (!admin) return;
+  const isBcrypt = admin.password && admin.password.startsWith('$2');
+  if (!isBcrypt) {
+    const defaultPass = 'AmeenAdmin2026!';
+    const hash = bcrypt.hashSync(defaultPass, 10);
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, admin.id);
+    console.log('╔══════════════════════════════════════════════════════════╗');
+    console.log('║  [AUTH] Development admin credentials set (one-time)     ║');
+    console.log('║  Email   : ' + admin.email.padEnd(44) + '║');
+    console.log('║  Password: AmeenAdmin2026!                               ║');
+    console.log('║  ⚠️  Change this password immediately in production!      ║');
+    console.log('╚══════════════════════════════════════════════════════════╝');
+  }
+})();
+
 module.exports = db;

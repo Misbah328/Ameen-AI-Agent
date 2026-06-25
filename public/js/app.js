@@ -111,7 +111,13 @@ const App = {
       const me = await api('/auth/me');
       this.user = me;
       this.systemRole = me.system_role || 'Admin';
-    } catch (e) { this.user = null; }
+    } catch (e) {
+      if (e.message && (e.message.includes('401') || e.message.includes('UNAUTHORIZED'))) {
+        window.location.replace('/login.html');
+        return;
+      }
+      this.user = null;
+    }
     await this.loadPlan();
     this.applyLang(this.lang);
     this.renderUser();
@@ -272,10 +278,15 @@ const App = {
 // ══ API ════════════════════════════════════════════════════════════════════════
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  const r = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  const r = await fetch(path, { ...opts, credentials: 'include', headers: { ...headers, ...(opts.headers || {}) } });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || data.message || `HTTP ${r.status}`);
   return data;
+}
+
+async function logoutUser() {
+  try { await api('/auth/logout', { method: 'POST' }); } catch (_) {}
+  window.location.replace('/login.html');
 }
 
 // Global, self-contained toast — works on any panel without needing a pre-existing
