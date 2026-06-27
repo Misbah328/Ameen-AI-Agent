@@ -60,4 +60,17 @@ router.patch('/lang', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── PATCH /auth/password ──────────────────────────────────────────────────────
+router.patch('/password', auth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  if (newPassword === currentPassword) return res.status(400).json({ error: 'New password must differ from current' });
+  const user = db.prepare('SELECT id, password FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!bcrypt.compareSync(currentPassword, user.password || '')) return res.status(401).json({ error: 'Current password is incorrect' });
+  db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(newPassword, 10), req.user.id);
+  res.json({ success: true });
+});
+
 module.exports = router;

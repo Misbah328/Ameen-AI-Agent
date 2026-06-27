@@ -1751,6 +1751,7 @@ const DocGen = {
     try {
       const resp = await fetch('/api/reports/pdf', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: this.currentContent, title, lang })
       });
@@ -1952,7 +1953,7 @@ const BoardPack = {
     const btn = $(`bp-btn-${meetingId}`);
     if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${l === 'ar' ? 'جارٍ التوليد...' : 'Generating PDF...'}`; }
     try {
-      const resp = await fetch(`/api/meetings/${meetingId}/board-pack`, { method: 'POST' });
+      const resp = await fetch(`/api/meetings/${meetingId}/board-pack`, { method: 'POST', credentials: 'include' });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         const errCode = err.error || '';
@@ -2107,6 +2108,7 @@ const Schedule = {
     try {
       const res = await fetch('/api/schedule/' + id + '/confirm', {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ force: !!force })
       });
@@ -2999,3 +3001,14 @@ $('ci').addEventListener('input', function () {
 // ══ Bootstrap ══════════════════════════════════════════════════════════════════
 window.__AMEEN_READY = true;
 App.init();
+
+// PASSWORD MANAGEMENT - Change Password
+function openChangePassword(){var m=document.getElementById('modal-change-password');if(!m)return;['cp-current','cp-new','cp-confirm'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});['cp-error','cp-success'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});m.style.display='flex';}
+function closeChangePassword(){var m=document.getElementById('modal-change-password');if(m)m.style.display='none';}
+async function submitChangePassword(){var cpv=(document.getElementById('cp-current')||{}).value||'',npv=(document.getElementById('cp-new')||{}).value||'',cfv=(document.getElementById('cp-confirm')||{}).value||'',errEl=document.getElementById('cp-error'),okEl=document.getElementById('cp-success'),btn=document.getElementById('cp-submit-btn');if(errEl)errEl.style.display='none';if(okEl)okEl.style.display='none';if(!cpv||!npv||!cfv){if(errEl){errEl.textContent='Please fill all fields';errEl.style.display='block';}return;}if(npv.length<8){if(errEl){errEl.textContent='New password must be at least 8 characters';errEl.style.display='block';}return;}if(npv!==cfv){if(errEl){errEl.textContent='Passwords do not match';errEl.style.display='block';}return;}if(btn)btn.disabled=true;try{await api('/auth/password',{method:'PATCH',body:JSON.stringify({currentPassword:cpv,newPassword:npv})});if(okEl){okEl.textContent='Password changed successfully';okEl.style.display='block';}['cp-current','cp-new','cp-confirm'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});setTimeout(closeChangePassword,2000);}catch(err){if(errEl){errEl.textContent=err.message||'Error';errEl.style.display='block';}}finally{if(btn)btn.disabled=false;}}
+// PASSWORD MANAGEMENT - Admin Reset Password
+var _resetTargetId=null;
+function openResetPassword(userId,userName){_resetTargetId=userId;var m=document.getElementById('modal-reset-password');if(!m)return;var inp=document.getElementById('rp-new');if(inp)inp.value='';['rp-error','rp-success'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});var b=document.getElementById('rp-submit-btn');if(b){b.style.display='';b.disabled=false;}var nm=document.getElementById('rp-user-name');if(nm)nm.textContent='Reset password for: '+userName;m.style.display='flex';}
+function closeResetPassword(){var m=document.getElementById('modal-reset-password');if(m)m.style.display='none';_resetTargetId=null;}
+function generateResetPassword(){var c='abcdefghijkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#';var p='';for(var i=0;i<12;i++)p+=c[Math.floor(Math.random()*c.length)];var el=document.getElementById('rp-new');if(el)el.value=p;}
+async function submitResetPassword(){var inp=document.getElementById('rp-new'),errEl=document.getElementById('rp-error'),okEl=document.getElementById('rp-success'),btn=document.getElementById('rp-submit-btn'),npv=inp?inp.value.trim():'';if(errEl)errEl.style.display='none';if(okEl)okEl.style.display='none';if(!npv||npv.length<8){if(errEl){errEl.textContent='Password must be at least 8 characters';errEl.style.display='block';}return;}if(!_resetTargetId)return;if(btn)btn.disabled=true;try{await api('/api/members/'+_resetTargetId+'/reset-password',{method:'POST',body:JSON.stringify({newPassword:npv})});if(okEl){okEl.innerHTML='Reset done. New password: <strong>'+npv+'</strong><br><small>Share this and ask user to change it immediately.</small>';okEl.style.display='block';}if(inp)inp.value='';if(btn)btn.style.display='none';}catch(err){if(errEl){errEl.textContent=err.message||'Error';errEl.style.display='block';}}finally{if(btn&&btn.style.display!=='none')btn.disabled=false;}}

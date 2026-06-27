@@ -288,6 +288,16 @@ router.patch('/members/:id/role', auth, requireRole('Admin'), (req, res) => {
   res.json({ success: true, system_role });
 });
 
+// ── POST /api/members/:id/reset-password ─────────────────────────────────────
+router.post('/members/:id/reset-password', auth, requireRole('Admin'), (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const member = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!member) return res.status(404).json({ error: 'User not found' });
+  db.prepare('UPDATE users SET password = ? WHERE id = ?').run(require('bcryptjs').hashSync(newPassword, 10), req.params.id);
+  res.json({ success: true });
+});
+
 router.delete('/members/:id', auth, requireRole('Admin'), (req, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
   db.prepare('UPDATE tasks SET owner_id=NULL WHERE owner_id=?').run(req.params.id);
