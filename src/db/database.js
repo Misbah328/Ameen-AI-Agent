@@ -202,6 +202,21 @@ db.exec(`
   )
 `);
 
+// Task progress history
+db.exec(`
+  CREATE TABLE IF NOT EXISTS task_updates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    author_id INTEGER,
+    author_name TEXT,
+    author_role TEXT,
+    update_text TEXT NOT NULL,
+    status_snapshot TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+  )
+`);
+
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
