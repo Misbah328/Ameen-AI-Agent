@@ -2526,6 +2526,7 @@ const Tasks = {
     const ownerSel = $("nt-owner");
     if (ownerSel && t.owner_id) ownerSel.value = String(t.owner_id);
     $("modal-task").classList.add("open");
+    TaskTimeline.load(id, t);
   },
   async delete(id) {
     if (!confirm(App.lang === "ar" ? "حذف هذه المهمة؟" : "Delete this task?"))
@@ -2578,6 +2579,8 @@ const Modals = {
     $("modal-task").classList.remove("open");
     this._editingId = null;
     this._resetTitle();
+    const tc = document.getElementById("task-timeline-container");
+    if (tc) tc.remove();
   },
   async saveTask() {
     const l = App.lang;
@@ -2613,6 +2616,119 @@ const Modals = {
 $("modal-task").addEventListener("click", (e) => {
   if (e.target === $("modal-task")) Modals.close();
 });
+
+// ══ Task Progress Timeline ════════════════════════════════════════════════════
+const TaskTimeline = {
+  async load(taskId, task) {
+    const l = App.lang;
+    const existing = document.getElementById("task-timeline-container");
+    if (existing) existing.remove();
+    const modal = document.querySelector("#modal-task .modal");
+    if (!modal) return;
+    const container = document.createElement("div");
+    container.id = "task-timeline-container";
+    container.style.cssText = "margin-top:14px;border-top:1px solid var(--border2);padding-top:14px";
+    container.innerHTML = `<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0"><div class="loading" style="width:16px;height:16px;margin:0 auto"></div></div>`;
+    modal.appendChild(container);
+    try {
+      const updates = await api(`/api/tasks/${taskId}/updates`);
+      this.render(container, taskId, task, updates, l);
+    } catch (e) {
+      container.innerHTML = `<div style="font-size:11px;color:var(--red);padding:6px">${e.message}</div>`;
+    }
+  },
+
+  render(container, taskId, task, updates, l) {
+    const statusLabel = (s) => ({ new: l==='ar'?'جديدة':'New', inprogress: l==='ar'?'جارٍ':'In Progress', overdue: l==='ar'?'متأخرة':'Overdue', done: l==='ar'?'مكتملة':'Done' }[s] || s || '');
+    const statusStyle = (s) => ({ new: 'background:var(--navy4);color:var(--text)', inprogress: 'background:rgba(255,160,0,.15);color:#f0a000', overdue: 'background:rgba(220,50,50,.15);color:#e05252', done: 'background:rgba(50,180,100,.15);color:#32b464' }[s] || '');
+    const dotColor = (s) => ({ done:'#32b464', overdue:'#e05252', inprogress:'#f0a000' }[s] || 'var(--text3)');
+    const dot = (c) => `<div style="width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0;margin-top:3px;border:2px solid var(--bg2,var(--bg));z-index:1;position:relative"></div>`;
+    const fmt = (dt) => (dt||'').substring(0,16).replace('T',' ');
+
+    const items = [];
+
+    // ── Created node ──
+    items.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding-bottom:14px">
+      ${dot('var(--gold)')}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:700;color:var(--gold)">${l==='ar'?'تم الإنشاء':'Created'}</div>
+        ${task.created_at ? `<div style="font-size:10px;color:var(--text3)">${fmt(task.created_at)}</div>` : ''}
+        ${task.owner_name_en||task.owner_name_ar ? `<div style="font-size:10px;color:var(--text3)">${l==='ar'?'المسؤول: ':'Owner: '}${esc(l==='ar'?task.owner_name_ar:task.owner_name_en||task.owner_name_ar)}</div>` : ''}
+      </div>
+    </div>`);
+
+    // ── Update nodes ──
+    updates.forEach(u => {
+      items.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding-bottom:14px">
+        ${dot(dotColor(u.status_snapshot))}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
+            <span style="font-size:11px;font-weight:700;color:var(--text)">${esc(u.author_name||'')}</span>
+            ${u.author_role ? `<span style="font-size:10px;color:var(--text3)">· ${esc(u.author_role)}</span>` : ''}
+            ${u.status_snapshot ? `<span class="tag" style="font-size:9px;padding:1px 5px;${statusStyle(u.status_snapshot)}">${statusLabel(u.status_snapshot)}</span>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:2px">${esc(u.update_text)}</div>
+          <div style="font-size:10px;color:var(--text3)">${fmt(u.created_at)}</div>
+        </div>
+      </div>`);
+    });
+
+    // ── Completed node ──
+    if (task.status === 'done') {
+      items.push(`<div style="display:flex;gap:10px;align-items:flex-start">
+        ${dot('#32b464')}
+        <div><div style="font-size:11px;font-weight:700;color:#32b464">${l==='ar'?'مكتملة ✓':'Completed ✓'}</div></div>
+      </div>`);
+    }
+
+    container.innerHTML = `
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px">
+        📋 ${l==='ar'?'سجل التحديثات':'Progress History'}
+        ${updates.length ? `<span class="tag" style="background:var(--navy4);font-size:10px;margin-${l==='ar'?'right':'left'}:4px">${updates.length}</span>` : ''}
+      </div>
+      <div style="position:relative">
+        <div style="position:absolute;top:5px;bottom:5px;left:4px;width:1px;background:var(--border2)"></div>
+        <div style="padding-left:22px">${items.join('')}</div>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--border2);padding-top:10px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">${l==='ar'?'إضافة تحديث:':'Add Update:'}</div>
+        <textarea id="task-update-input" rows="2" class="fi" dir="${l==='ar'?'rtl':'ltr'}"
+          style="width:100%;resize:vertical;font-size:12px;line-height:1.5;box-sizing:border-box"
+          placeholder="${l==='ar'?'أدخل تحديثاً على المهمة...':'Enter a progress update...'}"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+          <button class="btn-gold btn-sm" id="task-update-save-btn" onclick="TaskTimeline.addUpdate(${taskId})">
+            ✓ ${l==='ar'?'حفظ التحديث':'Save Update'}
+          </button>
+        </div>
+      </div>`;
+  },
+
+  async addUpdate(taskId) {
+    const l = App.lang;
+    const input = document.getElementById("task-update-input");
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) { showToast(l==='ar'?'أدخل نص التحديث':'Enter update text', 'error'); return; }
+    const btn = document.getElementById("task-update-save-btn");
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    try {
+      await api(`/api/tasks/${taskId}/updates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ update_text: text }),
+      });
+      input.value = '';
+      const task = (App.tasksCache || []).find(x => x.id === taskId) || {};
+      const updates = await api(`/api/tasks/${taskId}/updates`);
+      const container = document.getElementById("task-timeline-container");
+      if (container) this.render(container, taskId, task, updates, l);
+      showToast(l==='ar'?'تم حفظ التحديث':'Update saved', 'success');
+    } catch (e) {
+      showToast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = `✓ ${l==='ar'?'حفظ التحديث':'Save Update'}`; }
+    }
+  },
+};
 
 // ══ Chat ══════════════════════════════════════════════════════════════════════
 const Chat = {
