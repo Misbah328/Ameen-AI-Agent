@@ -1,0 +1,91 @@
+Improve the Governance section specifically so the CEO can clearly understand the product value.
+
+Goal:
+Make Governance look complete, data-rich, and executive-ready.
+
+Important:
+
+* Do not modify backend logic unless demo data is required.
+* Do not remove existing features.
+* Do not break authentication, meetings, tasks, reports, Ask Ameen, or approval workflow.
+* Keep all existing governance functionality working.
+
+Focus only on:
+
+1. Governance dashboard
+2. Boards
+3. Committees
+4. Resolutions
+5. Quorum
+6. Voting
+7. General Assembly
+8. Minutes approval status
+9. Action tracking connected to governance
+
+Add realistic demo data if tables are empty.
+
+Use this demo organization:
+Ameen Holdings Group
+
+Create demo governance data:
+
+* Board of Directors
+* Audit Committee
+* Risk Committee
+* Nomination & Remuneration Committee
+* Annual General Assembly
+* Extraordinary General Assembly
+
+Add sample members:
+
+* Mohammed Al-Otaibi — Chairman
+* Ahmed Al-Qahtani — CEO
+* Fatima Al-Harbi — Corporate Secretary
+* Sara Al-Zahrani — CFO
+* Noura Al-Shammari — Board Member
+* Omar Hassan — Legal Advisor
+
+Add sample resolutions:
+
+* Approval of Q2 Financial Statements
+* Appointment of External Auditor
+* Approval of Risk Management Framework
+* Approval of Annual General Assembly Agenda
+* Authorization of CEO for Strategic Partnership
+
+For each resolution show:
+
+* Resolution number
+* Meeting source
+* Owner
+* Status
+* Vote result
+* Approval status
+* Due date
+* Related action items
+
+Improve the Governance UI so it shows:
+
+* KPI cards
+* Boards summary
+* Committees summary
+* Pending resolutions
+* Voting results
+* Quorum status
+* Approval workflow
+* Recent governance actions
+* Upcoming governance meetings
+
+Make the page user-friendly with clear labels and explanations.
+
+Example helper text:
+“Track board decisions, quorum, resolutions, approvals, and governance actions in one place.”
+
+After changes:
+
+1. Restart app
+2. Confirm Governance page has visible demo data
+3. Confirm Board, Committee, Resolution, Quorum, and Voting sections are understandable
+4. List files changed
+5. Explain exactly what data was added
+6. Explain what the CEO will see in the Governance page

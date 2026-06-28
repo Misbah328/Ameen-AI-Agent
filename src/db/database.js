@@ -549,6 +549,29 @@ if (db.prepare('SELECT COUNT(*) as c FROM meeting_documents').get().c === 0) {
   }
 }
 
+// Seed resolutions demo data if none exist
+if (!db.prepare("SELECT id FROM resolutions WHERE title='الموافقة على القوائم المالية للربع الثاني'").get()) {
+  const _rm1 = db.prepare('SELECT id FROM meetings ORDER BY id LIMIT 1').get()?.id;
+  const _rm2 = db.prepare('SELECT id FROM meetings ORDER BY id LIMIT 1 OFFSET 1').get()?.id;
+  if (_rm1) {
+    const iRes = db.prepare(`INSERT INTO resolutions (meeting_id,title,description,status,votes_approve,votes_reject,votes_abstain) VALUES (?,?,?,?,?,?,?)`);
+    const iFu  = db.prepare(`INSERT INTO resolution_followups (resolution_id,owner,due_date,status,notes) VALUES (?,?,?,?,?)`);
+    const r1 = iRes.run(_rm1,'الموافقة على القوائم المالية للربع الثاني','مراجعة واعتماد البيانات المالية للربع الثاني 2026 بعد مراجعة لجنة المراجعة والتدقيق','approved',4,0,1).lastInsertRowid;
+    const r2 = iRes.run(_rm1,'تعيين المراجع الخارجي لعام 2026','الموافقة على تعيين شركة ديلويت كمراجع خارجي للسنة المالية 2026 بالإجماع','approved',5,0,0).lastInsertRowid;
+    const r3 = iRes.run(_rm1,'اعتماد إطار إدارة المخاطر','مراجعة واعتماد وثيقة إطار إدارة المخاطر المحدثة لعام 2026 — تحتاج تعديلات إضافية','pending',2,1,0).lastInsertRowid;
+    iFu.run(r1,'سارة الزهراني','2026-07-15','completed','تم إعداد تقرير الإفصاح المالي وإرساله للهيئة');
+    iFu.run(r2,'فاطمة الحربي','2026-07-01','in_progress','إرسال خطاب التعيين الرسمي وتوقيع العقد');
+    iFu.run(r3,'سارة الزهراني','2026-08-01','pending','مراجعة إضافية مطلوبة من اللجنة التنفيذية');
+    if (_rm2) {
+      const r4 = iRes.run(_rm2,'اعتماد جدول أعمال الجمعية العمومية السنوية','الموافقة على جدول أعمال الجمعية العمومية السنوية المقررة في يوليو 2026','approved',3,0,0).lastInsertRowid;
+      const r5 = iRes.run(_rm2,'تفويض الرئيس التنفيذي لإبرام عقد الشراكة الاستراتيجية','تفويض الرئيس التنفيذي بالتوقيع على اتفاقية الشراكة مع مجموعة الخليج التجارية','deferred',1,2,1).lastInsertRowid;
+      iFu.run(r4,'فاطمة الحربي','2026-07-10','in_progress','إعداد دعوات الجمعية العمومية وإرسالها للمساهمين');
+      iFu.run(r5,'عمر حسن','2026-08-15','pending','مراجعة قانونية إضافية للبنود التعاقدية مطلوبة');
+    }
+    console.log('✓ Resolutions demo data seeded');
+  }
+}
+
 // ── Ensure admin user has a valid bcrypt password ────────────────────────────
 // Runs once on startup. If the seed user's password is not a bcrypt hash,
 // sets a default development password and logs it ONCE to the console.

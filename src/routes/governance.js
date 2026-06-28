@@ -302,4 +302,35 @@ router.get('/boards-and-committees', auth, (req, res) => {
   res.json({ boards, committees });
 });
 
+// ── Governance dashboard summary ──────────────────────────────────────────────
+router.get('/summary', auth, (req, res) => {
+  try {
+    const boards       = db.prepare('SELECT COUNT(*) as c FROM boards').get().c;
+    const committees   = db.prepare('SELECT COUNT(*) as c FROM committees').get().c;
+    const resTotal     = db.prepare('SELECT COUNT(*) as c FROM resolutions').get().c;
+    const resPending   = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='pending'").get().c;
+    const resApproved  = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='approved'").get().c;
+    const resRejected  = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='rejected'").get().c;
+    const resDeferred  = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='deferred'").get().c;
+    const quorumAchieved = db.prepare('SELECT COUNT(*) as c FROM meeting_quorum WHERE quorum_achieved=1').get().c;
+    const quorumTotal    = db.prepare('SELECT COUNT(*) as c FROM meeting_quorum WHERE required_members>0').get().c;
+    const recentRes = db.prepare(`
+      SELECT r.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en,
+        (SELECT COUNT(*) FROM resolution_followups WHERE resolution_id=r.id) as followup_count
+      FROM resolutions r
+      LEFT JOIN meetings m ON r.meeting_id = m.id
+      ORDER BY r.created_at DESC LIMIT 8
+    `).all();
+    const upcoming = db.prepare(`
+      SELECT title_ar,title_en,meeting_date,meeting_time,meeting_type
+      FROM schedule WHERE meeting_date >= date('now')
+      ORDER BY meeting_date ASC LIMIT 5
+    `).all();
+    res.json({ boards, committees, resTotal, resPending, resApproved, resRejected, resDeferred,
+               quorumAchieved, quorumTotal, recentRes, upcoming });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

@@ -58,24 +58,27 @@ const Gov = {
   _meetings: [],
   _schedule: [],
   _boards: [],
+  _summary: null,
   _qTimer: null,
 
   lbl(ar, en) { return App.lang === 'ar' ? ar : en; },
 
-  // ── Init: load meeting lists + boards, render all ─────────────────────────
+  // ── Init: load meeting lists + boards + summary, render all ──────────────
   async init() {
     const body = $('gov-body');
     if (!body) return;
     body.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
-      const [meetings, schedule, boards] = await Promise.all([
+      const [meetings, schedule, boards, summary] = await Promise.all([
         api('/api/meetings').catch(() => []),
         api('/api/schedule').catch(() => []),
         api('/api/gov/boards').catch(() => []),
+        api('/api/gov/summary').catch(() => null),
       ]);
       this._meetings = meetings || [];
       this._schedule = schedule || [];
       this._boards = boards || [];
+      this._summary = summary;
       this._renderAll();
     } catch (e) {
       body.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">${esc(e.message)}</div>`;
@@ -86,12 +89,132 @@ const Gov = {
     const body = $('gov-body');
     if (!body) return;
     body.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        ${this._summary ? this._sDashboard(this._summary) : ''}
         ${this._sBoardsSection(this._boards)}
         <div id="gov-meeting-selector"></div>
         <div id="gov-sections" style="display:flex;flex-direction:column;gap:14px"></div>
       </div>`;
     this._renderSelector();
+  },
+
+  // ── Executive Governance Dashboard ────────────────────────────────────────
+  _sDashboard(s) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const { boards=0, committees=0, resTotal=0, resPending=0, resApproved=0, resRejected=0,
+            resDeferred=0, quorumAchieved=0, quorumTotal=0, recentRes=[], upcoming=[] } = s || {};
+
+    const kpis = [
+      { icon:'🏛', val:boards,      label:lbl('مجالس الإدارة','Boards'),             color:'var(--gold)',  sub:lbl('هيئات حاكمة','Governing bodies') },
+      { icon:'⚙️', val:committees,  label:lbl('اللجان المتخصصة','Committees'),        color:'#5B9BD6',      sub:lbl('لجان تنفيذية','Specialized bodies') },
+      { icon:'⚖️', val:resTotal,    label:lbl('إجمالي القرارات','Total Resolutions'), color:'var(--text2)', sub:lbl('من كل الاجتماعات','All meetings') },
+      { icon:'⏳', val:resPending,  label:lbl('معلقة','Pending'),                    color:'var(--amber)', sub:lbl('تحتاج تصويتاً','Awaiting vote') },
+      { icon:'✅', val:resApproved, label:lbl('مُعتمدة','Approved'),                  color:'var(--green)', sub:lbl('قرارات مُجازة','Passed') },
+      { icon:'📅', val:upcoming.length, label:lbl('اجتماعات قادمة','Upcoming Mtgs'), color:'var(--gold)',  sub:lbl('مجدولة','Scheduled') },
+    ];
+
+    const kpiHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px">
+      ${kpis.map(k => `<div class="card stat-clickable" style="padding:20px 16px 16px;text-align:center;position:relative;overflow:hidden;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${k.color};border-radius:14px 14px 0 0"></div>
+        <div style="font-size:28px;margin-bottom:8px;line-height:1">${k.icon}</div>
+        <div style="font-size:32px;font-weight:800;color:${k.color};letter-spacing:-.04em;line-height:1">${k.val}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.3">${k.label}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">${k.sub}</div>
+      </div>`).join('')}
+    </div>`;
+
+    // Status summary bar
+    const totalVotes = resApproved + resRejected + resDeferred + resPending;
+    const summaryBar = totalVotes > 0 ? `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:12.5px;font-weight:600;color:var(--text2)">${lbl('ملخص القرارات:','Resolutions summary:')}</span>
+        ${resApproved ? `<span class="tag tg">${resApproved} ${lbl('مُعتمد','Approved')}</span>` : ''}
+        ${resPending  ? `<span class="tag ta">${resPending}  ${lbl('معلق','Pending')}</span>` : ''}
+        ${resRejected ? `<span class="tag tr">${resRejected} ${lbl('مرفوض','Rejected')}</span>` : ''}
+        ${resDeferred ? `<span class="tag" style="background:var(--navy4)">${resDeferred} ${lbl('مؤجل','Deferred')}</span>` : ''}
+        ${quorumTotal > 0 ? `<span class="tag tb">${lbl('نصاب محقق:','Quorum met:')} ${quorumAchieved}/${quorumTotal}</span>` : ''}
+      </div>` : '';
+
+    // Recent resolutions
+    const stColor = { approved:'var(--green)', rejected:'var(--red)', deferred:'var(--amber)', pending:'var(--text3)' };
+    const stLabel = { approved:{ar:'مُعتمد',en:'Approved'}, rejected:{ar:'مرفوض',en:'Rejected'}, deferred:{ar:'مؤجل',en:'Deferred'}, pending:{ar:'معلق',en:'Pending'} };
+    const resHtml = recentRes.length ? `
+      <div class="card">
+        <div class="ch">
+          <div>
+            <div class="ct">⚖️ ${lbl('القرارات الأخيرة','Recent Resolutions')}</div>
+            <div class="ctsub">${lbl('آخر القرارات المسجلة عبر الاجتماعات','Latest decisions across all meetings')}</div>
+          </div>
+          ${summaryBar}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${recentRes.map((r, i) => {
+            const sc = stColor[r.status] || 'var(--text3)';
+            const sl = (stLabel[r.status]||{ar:r.status,en:r.status})[l];
+            const total = (r.votes_approve||0)+(r.votes_reject||0)+(r.votes_abstain||0);
+            const pct = total>0 ? Math.round(((r.votes_approve||0)/total)*100) : 0;
+            const mtgTitle = l==='ar'?(r.meeting_title_ar||''):(r.meeting_title_en||r.meeting_title_ar||'');
+            return `<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 15px;background:var(--navy3);border-radius:10px;border:1px solid var(--border2);border-inline-start:3px solid ${sc}">
+              <div style="min-width:26px;height:26px;border-radius:50%;background:${sc}22;color:${sc};font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${i+1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14.5px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:6px">${esc(r.title)}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <span class="tag" style="font-size:11.5px;background:transparent;border:1px solid ${sc};color:${sc}">${sl}</span>
+                  ${mtgTitle ? `<span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3)">📋 ${esc(mtgTitle.substring(0,32))}${mtgTitle.length>32?'…':''}</span>` : ''}
+                  ${total>0 ? `<span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3)">🗳 ${r.votes_approve}✓ ${r.votes_reject}✕ ${r.votes_abstain}◎</span>` : ''}
+                  ${total>0&&r.status==='approved' ? `<span class="tag tg" style="font-size:11px">${pct}% ${lbl('موافقة','approval')}</span>` : ''}
+                  ${(r.followup_count||0)>0 ? `<span class="tag" style="font-size:11px;background:var(--gold-dim);color:var(--gold)">📌 ${r.followup_count} ${lbl('متابعة','follow-up(s)')}</span>` : ''}
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+    // Upcoming governance meetings
+    const typeAr = { board:'مجلس الإدارة', committee:'لجنة', general_assembly:'جمعية عمومية', executive:'تنفيذي', other:'أخرى' };
+    const typeEn = { board:'Board', committee:'Committee', general_assembly:'General Assembly', executive:'Executive', other:'Other' };
+    const upcomingHtml = upcoming.length ? `
+      <div class="card">
+        <div class="ch">
+          <div>
+            <div class="ct">📅 ${lbl('الاجتماعات الحوكمية القادمة','Upcoming Governance Meetings')}</div>
+            <div class="ctsub">${lbl('المجدولة خلال الفترة القادمة','Scheduled for upcoming period')}</div>
+          </div>
+          <button class="btn-ghost btn-sm" onclick="Panels.load('schedule')">${lbl('عرض الكل ←','View All →')}</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${upcoming.map(s => {
+            const title = l==='ar'?s.title_ar:(s.title_en||s.title_ar);
+            return `<div style="display:flex;align-items:center;gap:14px;padding:11px 15px;background:var(--navy3);border-radius:10px;border:1px solid var(--border2)">
+              <div style="min-width:44px;text-align:center;flex-shrink:0">
+                <div style="font-size:20px;font-weight:800;color:var(--gold);line-height:1">${(s.meeting_date||'').substring(8,10)||'–'}</div>
+                <div style="font-size:10px;color:var(--text3);letter-spacing:.06em">${(s.meeting_date||'').substring(5,7)||''}</div>
+              </div>
+              <div style="width:1px;background:var(--border2);align-self:stretch"></div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(title)}</div>
+                <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+                  ${s.meeting_type ? `<span class="tag tb" style="font-size:11px">${l==='ar'?(typeAr[s.meeting_type]||s.meeting_type):(typeEn[s.meeting_type]||s.meeting_type)}</span>` : ''}
+                  ${s.meeting_time ? `<span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3)">🕐 ${esc(s.meeting_time)}</span>` : ''}
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+    return `<div style="display:flex;flex-direction:column;gap:16px">
+      <div class="hint-bar">
+        <span class="hint-icon">🏛</span>
+        <div><strong>${lbl('لوحة الحوكمة التنفيذية — أمين هولدينج','Executive Governance Dashboard — Ameen Holdings')}</strong><br>
+        <span style="font-size:13px">${lbl('تتبع قرارات المجالس، النصاب، التصويت، الاعتمادات، وإجراءات الحوكمة في مكان واحد.','Track board decisions, quorum, resolutions, approvals, and governance actions in one place.')}</span></div>
+      </div>
+      ${kpiHtml}
+      ${resHtml}
+      ${upcomingHtml}
+    </div>`;
   },
 
   _renderSelector() {
@@ -170,34 +293,36 @@ const Gov = {
     const lbl = this.lbl.bind(this);
     const name = l==='ar' ? b.name_ar : (b.name_en||b.name_ar);
     const coms = b.committees || [];
-    return `<div style="background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:10px;border:1px solid var(--border2)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+    return `<div style="background:var(--navy3);border-radius:12px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--border2);position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;inset-inline-start:0;bottom:0;width:3px;background:var(--gold);border-radius:12px 0 0 12px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding-inline-start:6px">
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:var(--text)">🏛 ${esc(name)}</div>
-          ${b.description ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(b.description)}</div>` : ''}
-          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
-            ${b.chairperson ? `<span class="tag tgold" style="font-size:10px">👤 ${esc(b.chairperson)}</span>` : ''}
-            ${b.total_members ? `<span class="tag" style="background:var(--navy4);font-size:10px">👥 ${b.total_members} ${lbl('عضو','members')}</span>` : ''}
-            ${b.default_quorum ? `<span class="tag tb" style="font-size:10px">🏛 ${lbl('نصاب:','Quorum:')} ${b.default_quorum}</span>` : ''}
+          <div style="font-size:16px;font-weight:700;color:var(--text)">🏛 ${esc(name)}</div>
+          ${b.description ? `<div style="font-size:13px;color:var(--text3);margin-top:4px;line-height:1.5">${esc(b.description)}</div>` : ''}
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
+            ${b.chairperson ? `<span class="tag tgold">👤 ${lbl('الرئيس:','Chair:')} ${esc(b.chairperson)}</span>` : ''}
+            ${b.total_members ? `<span class="tag tb">👥 ${b.total_members} ${lbl('عضو','members')}</span>` : ''}
+            ${b.default_quorum ? `<span class="tag" style="background:var(--navy4)">⚖️ ${lbl('نصاب:','Quorum:')} ${b.default_quorum}</span>` : ''}
+            <span class="tag" style="background:var(--navy4);color:var(--text3)">⚙️ ${coms.length} ${lbl('لجنة','committee(s)')}</span>
           </div>
         </div>
-        <div style="display:flex;gap:4px;align-items:center">
-          <button class="btn-ghost btn-sm" onclick="Gov._showForm('com-add-form-${b.id}')" style="font-size:10px">+ ${lbl('لجنة','Committee')}</button>
-          <button class="btn-ghost btn-sm" onclick="Gov.delBoard(${b.id})" style="color:var(--red);font-size:10px">✕</button>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <button class="btn-ghost btn-sm" onclick="Gov._showForm('com-add-form-${b.id}')">+ ${lbl('لجنة','Committee')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov.delBoard(${b.id})" style="color:var(--red)">✕</button>
         </div>
       </div>
 
-      <div id="com-add-form-${b.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:10px;margin-top:10px">
-        <div class="fs" style="gap:7px">
+      <div id="com-add-form-${b.id}" style="display:none;background:var(--navy4);border-radius:10px;padding:12px;margin-top:12px">
+        <div class="fs" style="gap:8px">
           <div class="fr2">
-            <div class="frow"><div class="fl" style="font-size:11px">${lbl('الاسم (عربي)','Name (Arabic)')} *</div><input class="fi" id="c-name-ar-${b.id}" placeholder="${lbl('اللجنة التنفيذية','Executive Committee')}"/></div>
-            <div class="frow"><div class="fl" style="font-size:11px">Name (English)</div><input class="fi" id="c-name-en-${b.id}" placeholder="Executive Committee" dir="ltr" style="text-align:left"/></div>
+            <div class="frow"><div class="fl">${lbl('الاسم (عربي)','Name (Arabic)')} *</div><input class="fi" id="c-name-ar-${b.id}" placeholder="${lbl('اللجنة التنفيذية','Executive Committee')}"/></div>
+            <div class="frow"><div class="fl">Name (English)</div><input class="fi" id="c-name-en-${b.id}" placeholder="Executive Committee" dir="ltr" style="text-align:left"/></div>
           </div>
           <div class="fr2">
-            <div class="frow"><div class="fl" style="font-size:11px">${lbl('الرئيس','Chairperson')}</div><input class="fi" id="c-chair-${b.id}" placeholder="${lbl('الاسم','Name')}"/></div>
-            <div class="frow"><div class="fl" style="font-size:11px">${lbl('الأعضاء','Total Members')}</div><input class="fi" type="number" id="c-total-${b.id}" value="0" min="0"/></div>
+            <div class="frow"><div class="fl">${lbl('الرئيس','Chairperson')}</div><input class="fi" id="c-chair-${b.id}" placeholder="${lbl('الاسم','Name')}"/></div>
+            <div class="frow"><div class="fl">${lbl('الأعضاء','Total Members')}</div><input class="fi" type="number" id="c-total-${b.id}" value="0" min="0"/></div>
           </div>
-          <div class="frow"><div class="fl" style="font-size:11px">${lbl('الوصف','Description')}</div><input class="fi" id="c-desc-${b.id}" placeholder="${lbl('وصف اللجنة...','Committee description...')}"/></div>
+          <div class="frow"><div class="fl">${lbl('الوصف','Description')}</div><input class="fi" id="c-desc-${b.id}" placeholder="${lbl('وصف اللجنة...','Committee description...')}"/></div>
           <div class="fa">
             <button class="btn-gold btn-sm" onclick="Gov.addCommittee(${b.id})">✓ ${lbl('إضافة','Add')}</button>
             <button class="btn-ghost btn-sm" onclick="Gov._hideForm('com-add-form-${b.id}')">✕</button>
@@ -205,23 +330,23 @@ const Gov = {
         </div>
       </div>
 
-      ${coms.length ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
+      ${coms.length ? `<div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;padding-inline-start:6px">
         ${coms.map(c => {
           const cname = l==='ar'?c.name_ar:(c.name_en||c.name_ar);
-          return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--navy4);border-radius:8px">
-            <div style="font-size:13px">⚙️</div>
+          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--navy4);border-radius:10px;border:1px solid var(--border2)">
+            <div style="font-size:15px;flex-shrink:0">⚙️</div>
             <div style="flex:1">
-              <div style="font-size:12px;font-weight:600;color:var(--text2)">${esc(cname)}</div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
-                ${c.chairperson ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:10px">👤 ${esc(c.chairperson)}</span>` : ''}
-                ${c.total_members ? `<span class="tag" style="background:var(--navy3);font-size:10px">👥 ${c.total_members}</span>` : ''}
-                ${c.description ? `<span style="font-size:10px;color:var(--text3)">${esc(c.description.substring(0,50))}${c.description.length>50?'…':''}</span>` : ''}
+              <div style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(cname)}</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+                ${c.chairperson ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(c.chairperson)}</span>` : ''}
+                ${c.total_members ? `<span class="tag" style="background:var(--navy3);font-size:11px">👥 ${c.total_members}</span>` : ''}
+                ${c.description ? `<span style="font-size:12px;color:var(--text3)">${esc(c.description.substring(0,55))}${c.description.length>55?'…':''}</span>` : ''}
               </div>
             </div>
-            <button class="btn-ghost btn-sm" onclick="Gov.delCommittee(${c.id})" style="color:var(--red);font-size:10px;flex-shrink:0">✕</button>
+            <button class="btn-ghost btn-sm" onclick="Gov.delCommittee(${c.id})" style="color:var(--red);flex-shrink:0">✕</button>
           </div>`;
         }).join('')}
-      </div>` : `<div style="font-size:11px;color:var(--text3);margin-top:8px;padding-inline-start:4px">↳ ${lbl('لا توجد لجان — اضغط + لجنة لإضافة','No committees — press + Committee to add')}</div>`}
+      </div>` : `<div style="font-size:12.5px;color:var(--text3);margin-top:10px;padding-inline-start:8px">↳ ${lbl('لا توجد لجان — اضغط + لجنة لإضافة','No committees — press + Committee to add')}</div>`}
     </div>`;
   },
 
