@@ -493,6 +493,14 @@ router.get('/ai/debug-log', auth, (req, res) => {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 router.get('/tasks', auth, (req, res) => {
+  // Auto-mark overdue: any task with a past due_date that isn't done/cancelled
+  const today = new Date().toISOString().substring(0, 10);
+  db.prepare(`
+    UPDATE tasks SET status='overdue', updated_at=CURRENT_TIMESTAMP
+    WHERE due_date != '' AND due_date IS NOT NULL AND due_date < ?
+      AND status NOT IN ('done', 'cancelled', 'overdue')
+  `).run(today);
+
   const user = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
   const role = (user && user.system_role) || 'Admin';
   const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'inprogress' THEN 2 WHEN 'new' THEN 3 ELSE 4 END, due_date ASC";
