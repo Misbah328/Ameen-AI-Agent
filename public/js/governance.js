@@ -59,26 +59,29 @@ const Gov = {
   _schedule: [],
   _boards: [],
   _summary: null,
+  _gas: [],
   _qTimer: null,
 
   lbl(ar, en) { return App.lang === 'ar' ? ar : en; },
 
-  // ── Init: load meeting lists + boards + summary, render all ──────────────
+  // ── Init: load meeting lists + boards + summary + GAs, render all ────────
   async init() {
     const body = $('gov-body');
     if (!body) return;
     body.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
-      const [meetings, schedule, boards, summary] = await Promise.all([
+      const [meetings, schedule, boards, summary, gas] = await Promise.all([
         api('/api/meetings').catch(() => []),
         api('/api/schedule').catch(() => []),
         api('/api/gov/boards').catch(() => []),
         api('/api/gov/summary').catch(() => null),
+        api('/api/gov/general-assemblies').catch(() => []),
       ]);
       this._meetings = meetings || [];
       this._schedule = schedule || [];
       this._boards = boards || [];
       this._summary = summary;
+      this._gas = gas || [];
       this._renderAll();
     } catch (e) {
       body.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">${esc(e.message)}</div>`;
@@ -91,6 +94,7 @@ const Gov = {
     body.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:16px">
         ${this._summary ? this._sDashboard(this._summary) : ''}
+        ${this._gas && this._gas.length ? this._sGASection(this._gas) : ''}
         ${this._sBoardsSection(this._boards)}
         <div id="gov-meeting-selector"></div>
         <div id="gov-sections" style="display:flex;flex-direction:column;gap:14px"></div>
@@ -103,15 +107,18 @@ const Gov = {
     const l = App.lang;
     const lbl = this.lbl.bind(this);
     const { boards=0, committees=0, resTotal=0, resPending=0, resApproved=0, resRejected=0,
-            resDeferred=0, quorumAchieved=0, quorumTotal=0, recentRes=[], upcoming=[] } = s || {};
+            resDeferred=0, quorumAchieved=0, quorumTotal=0, recentRes=[], upcoming=[],
+            generalAssemblies=0, openActions=0, pendingMinutes=0 } = s || {};
 
     const kpis = [
-      { icon:'🏛', val:boards,      label:lbl('مجالس الإدارة','Boards'),             color:'var(--gold)',  sub:lbl('هيئات حاكمة','Governing bodies') },
-      { icon:'⚙️', val:committees,  label:lbl('اللجان المتخصصة','Committees'),        color:'#5B9BD6',      sub:lbl('لجان تنفيذية','Specialized bodies') },
-      { icon:'⚖️', val:resTotal,    label:lbl('إجمالي القرارات','Total Resolutions'), color:'var(--text2)', sub:lbl('من كل الاجتماعات','All meetings') },
-      { icon:'⏳', val:resPending,  label:lbl('معلقة','Pending'),                    color:'var(--amber)', sub:lbl('تحتاج تصويتاً','Awaiting vote') },
-      { icon:'✅', val:resApproved, label:lbl('مُعتمدة','Approved'),                  color:'var(--green)', sub:lbl('قرارات مُجازة','Passed') },
-      { icon:'📅', val:upcoming.length, label:lbl('اجتماعات قادمة','Upcoming Mtgs'), color:'var(--gold)',  sub:lbl('مجدولة','Scheduled') },
+      { icon:'🏛', val:boards,            label:lbl('مجالس الإدارة النشطة','Active Boards'),          color:'var(--gold)',  sub:lbl('الهيئات الحاكمة','Governing bodies') },
+      { icon:'⚙️', val:committees,        label:lbl('اللجان المتخصصة','Committees'),                  color:'#5B9BD6',      sub:lbl('لجان تنفيذية','Specialized bodies') },
+      { icon:'🏢', val:generalAssemblies, label:lbl('الجمعيات العمومية','General Assemblies'),        color:'#8B5CF6',      sub:lbl('عادية وغير عادية','Ordinary & Extraordinary') },
+      { icon:'⏳', val:resPending,        label:lbl('قرارات معلقة','Pending Resolutions'),           color:'var(--amber)', sub:lbl('تحتاج تصويتاً','Awaiting vote') },
+      { icon:'✅', val:resApproved,       label:lbl('قرارات مُعتمدة','Approved Resolutions'),         color:'var(--green)', sub:lbl('قرارات مُجازة','Passed') },
+      { icon:'📋', val:pendingMinutes,    label:lbl('محاضر معلقة','Pending Minutes Approval'),       color:'var(--amber)', sub:lbl('تنتظر الاعتماد','Awaiting approval') },
+      { icon:'⚖️', val:quorumAchieved,   label:lbl('نصاب محقق','Quorum Completed'),                 color:'var(--green)', sub:lbl('اجتماعات مكتملة','Meetings achieved') },
+      { icon:'📌', val:openActions,       label:lbl('إجراءات حوكمة مفتوحة','Open Governance Actions'), color:'var(--red)', sub:lbl('متابعات نشطة','Active follow-ups') },
     ];
 
     const kpiHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px">
@@ -208,13 +215,138 @@ const Gov = {
     return `<div style="display:flex;flex-direction:column;gap:16px">
       <div class="hint-bar">
         <span class="hint-icon">🏛</span>
-        <div><strong>${lbl('لوحة الحوكمة التنفيذية — أمين هولدينج','Executive Governance Dashboard — Ameen Holdings')}</strong><br>
-        <span style="font-size:13px">${lbl('تتبع قرارات المجالس، النصاب، التصويت، الاعتمادات، وإجراءات الحوكمة في مكان واحد.','Track board decisions, quorum, resolutions, approvals, and governance actions in one place.')}</span></div>
+        <div><strong>${lbl('لوحة الحوكمة التنفيذية — مجموعة أمين هولدينج','Executive Governance Dashboard — Ameen Holdings Group')}</strong><br>
+        <span style="font-size:13px">${lbl('إدارة المجالس، اللجان، الجمعيات العمومية، النصاب، التصويت، القرارات، والاعتمادات في مكان واحد.','Manage boards, committees, general assemblies, quorum, voting, resolutions, and approvals in one place.')}</span></div>
       </div>
       ${kpiHtml}
       ${resHtml}
       ${upcomingHtml}
     </div>`;
+  },
+
+  // ── General Assembly Section ───────────────────────────────────────────────
+  _sGASection(gas) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const today = new Date().toISOString().substring(0,10);
+    const stColor = { confirmed:'var(--green)', draft:'var(--amber)', cancelled:'var(--red)' };
+    const stLabelAr = { confirmed:'مؤكد', draft:'مسودة', cancelled:'ملغي' };
+    const stLabelEn = { confirmed:'Confirmed', draft:'Draft', cancelled:'Cancelled' };
+
+    return `<div class="card" id="sec-ga">
+      <div class="ch">
+        <div>
+          <div class="ct">🏢 ${lbl('الجمعيات العمومية','General Assemblies')}</div>
+          <div class="ctsub">${lbl('الجمعية العمومية العادية وغير العادية — مجموعة أمين هولدينج','Ordinary & Extraordinary General Assemblies — Ameen Holdings Group')}</div>
+        </div>
+        <span class="tag tb" style="font-size:12px">${gas.length} ${lbl('جمعية','assembly')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        ${gas.map((ga, idx) => {
+          const title = l==='ar' ? ga.title_ar : (ga.title_en||ga.title_ar);
+          const isUpcoming = ga.meeting_date >= today;
+          const sc = stColor[ga.status] || 'var(--text3)';
+          const sl = l==='ar' ? (stLabelAr[ga.status]||ga.status||'') : (stLabelEn[ga.status]||ga.status||'');
+          const qPct = (ga.quorum_required||0) > 0 ? Math.min(100, Math.round(((ga.quorum_present||0)/(ga.quorum_required))*100)) : 0;
+          const qOk = ga.quorum_achieved === 1;
+          const gaLabel = l==='ar' ? 'جمعية عمومية' : (idx===0 ? 'Ordinary General Assembly' : 'Extraordinary General Assembly');
+
+          return `<div style="background:var(--navy3);border-radius:13px;padding:20px 20px 18px;border:1px solid var(--border2);position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;inset-inline-start:0;bottom:0;width:4px;background:var(--gold)"></div>
+
+            <!-- Title row -->
+            <div style="padding-inline-start:8px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                    <span class="tag" style="background:rgba(139,92,246,.15);color:#8B5CF6;font-size:12px;font-weight:700">🏢 ${gaLabel}</span>
+                    <span class="tag" style="font-size:12px;background:transparent;border:1px solid ${sc};color:${sc}">${sl}</span>
+                    ${isUpcoming ? `<span class="tag tb" style="font-size:11.5px">📅 ${lbl('اجتماع قادم','Upcoming')}</span>` : `<span class="tag tg" style="font-size:11.5px">✓ ${lbl('انعقدت','Held')}</span>`}
+                  </div>
+                  <div style="font-size:18px;font-weight:800;color:var(--text);line-height:1.35">${esc(title)}</div>
+                </div>
+                <button class="btn-ghost btn-sm" onclick="Gov._selectGA(${ga.id})" style="flex-shrink:0;font-size:12.5px">
+                  ${lbl('عرض بنود الحوكمة ←','View Governance Items →')}
+                </button>
+              </div>
+
+              <!-- Info strip -->
+              <div style="display:flex;gap:0;flex-wrap:wrap;padding:11px 14px;background:var(--navy4);border-radius:10px;margin-bottom:14px;row-gap:10px">
+                ${[
+                  ['📅', lbl('التاريخ','Date'), ga.meeting_date||'—'],
+                  ga.meeting_time ? ['🕐', lbl('الوقت','Time'), ga.meeting_time] : null,
+                  ga.platform ? ['📍', lbl('المقر','Venue'), (ga.platform||'').substring(0,30)+((ga.platform||'').length>30?'…':'')] : null,
+                  ['👥', lbl('المساهمون','Shareholders'), ga.attendees ? esc(String(ga.attendees))+' '+lbl('مساهم','attendees') : '—'],
+                  ['📋', lbl('بنود الأعمال','Agenda Items'), String(ga.agenda_count||0)],
+                  ['⚖️', lbl('القرارات','Resolutions'), String(ga.resolution_count||0)],
+                ].filter(Boolean).map(([ic,lbl2,val]) => `
+                  <div style="display:flex;align-items:center;gap:6px;min-width:120px;padding-inline-end:18px">
+                    <span style="font-size:15px">${ic}</span>
+                    <div>
+                      <div style="font-size:10px;color:var(--text3)">${lbl2}</div>
+                      <div style="font-size:13px;font-weight:600;color:var(--text)">${val}</div>
+                    </div>
+                  </div>`).join('')}
+              </div>
+
+              <!-- People + Quorum grid -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+                <!-- Key people -->
+                <div style="background:var(--navy4);border-radius:10px;padding:13px">
+                  <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${lbl('الهيئة الرئاسية','Key Roles')}</div>
+                  ${[
+                    ['👑', lbl('رئيس الجمعية','Chairman'), 'Mohammed Al-Otaibi'],
+                    ['📝', lbl('أمين السر','Secretary'), 'Fatima Al-Harbi'],
+                    ['⚖️', lbl('المستشار القانوني','Legal Advisor'), 'Omar Hassan'],
+                  ].map(([ic,role,name]) => `<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+                    <span style="font-size:14px;flex-shrink:0">${ic}</span>
+                    <span style="font-size:11.5px;color:var(--text3);flex-shrink:0">${role}:</span>
+                    <span style="font-size:12.5px;font-weight:600;color:var(--text)">${name}</span>
+                  </div>`).join('')}
+                </div>
+                <!-- Quorum -->
+                <div style="background:var(--navy4);border-radius:10px;padding:13px">
+                  <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${lbl('النصاب القانوني','Quorum Status')}</div>
+                  ${(ga.quorum_required||0) > 0 ? `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+                      <span style="font-size:13px;font-weight:600;color:var(--text)">${ga.quorum_present||0} / ${ga.quorum_required||0}</span>
+                      <span class="tag ${qOk?'tg':'tr'}" style="font-size:11px">${qOk?lbl('✓ محقق','✓ Achieved'):lbl('✗ غير محقق','✗ Not Met')}</span>
+                    </div>
+                    <div style="background:var(--navy3);border-radius:20px;height:9px;overflow:hidden;margin-bottom:5px">
+                      <div style="height:100%;border-radius:20px;background:${qOk?'var(--green)':'var(--amber)'};width:${qPct}%;transition:width .6s"></div>
+                    </div>
+                    <div style="font-size:11.5px;color:var(--text3)">${qPct}% ${lbl('من النصاب المطلوب (50%+1)','of required quorum (50%+1)')}</div>
+                  ` : `<div style="font-size:12.5px;color:var(--text3)">${isUpcoming ? lbl('الاجتماع لم ينعقد بعد','Meeting not held yet') : lbl('لم يُسجَّل النصاب','Quorum not recorded')}</div>`}
+                  ${ga.quorum_notes ? `<div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4;font-style:italic">${esc((ga.quorum_notes||'').substring(0,90))}${(ga.quorum_notes||'').length>90?'…':''}</div>` : ''}
+                </div>
+              </div>
+
+              <!-- Approval workflow -->
+              <div style="display:flex;gap:0;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--navy4);border-radius:10px;row-gap:6px">
+                <span style="font-size:12.5px;font-weight:600;color:var(--text2);padding-inline-end:12px">${lbl('حالة المحاضر:','Minutes Status:')}</span>
+                ${[
+                  ['📄', lbl('مسودة','Draft'), !isUpcoming],
+                  ['📤', lbl('تُعمَّم','Circulated'), !isUpcoming],
+                  ['✓', lbl('مُعتمَد','Approved'), !isUpcoming && (ga.quorum_achieved===1)],
+                  ['✅', lbl('اعتماد نهائي','Final Approved'), !isUpcoming && (ga.quorum_achieved===1)],
+                ].map(([ic, step, done]) => `
+                  <div style="display:flex;align-items:center;gap:5px;padding-inline-end:14px">
+                    <div style="width:22px;height:22px;border-radius:50%;background:${done?'var(--green)':'var(--navy3)'};border:2px solid ${done?'var(--green)':'var(--border2)'};display:flex;align-items:center;justify-content:center;font-size:11px;color:${done?'#fff':'var(--text3)'};flex-shrink:0">${ic}</div>
+                    <span style="font-size:12px;color:${done?'var(--text)':'var(--text3)'};font-weight:${done?'600':'400'}">${step}</span>
+                  </div>`).join(`<div style="color:var(--border2);padding-inline-end:14px">›</div>`)}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  },
+
+  _selectGA(scheduleId) {
+    const sel = $('gov-sel');
+    if (sel) { sel.value = `schedule:${scheduleId}`; Gov.onSelect(`schedule:${scheduleId}`); }
+    const el = $('gov-sections');
+    if (el) setTimeout(() => el.scrollIntoView({ behavior:'smooth', block:'start' }), 400);
   },
 
   _renderSelector() {

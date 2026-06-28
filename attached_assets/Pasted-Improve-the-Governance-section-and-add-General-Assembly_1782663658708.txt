@@ -1,0 +1,174 @@
+Improve the Governance section and add General Assembly Meeting support for the CEO demo.
+
+Important:
+
+* Focus only on Governance UI and demo data.
+* Do not remove existing features.
+* Do not break authentication, meetings, tasks, reports, Ask Ameen, AI processing, or approval workflow.
+* Use existing backend/data structures where possible.
+* If demo data is needed, add it safely.
+* Do not rebuild the app.
+
+Goal:
+Make the Governance section look complete, understandable, and executive-ready.
+
+Add or improve these governance areas:
+
+1. Governance Overview
+   Show KPI cards:
+
+* Active Boards
+* Committees
+* General Assemblies
+* Pending Resolutions
+* Approved Resolutions
+* Pending Minutes Approval
+* Quorum Completed
+* Open Governance Actions
+
+2. Board of Directors
+   Show:
+
+* Board name
+* Chairman
+* Members
+* Upcoming board meeting
+* Pending board resolutions
+* Board approval status
+
+3. Committees
+   Show:
+
+* Audit Committee
+* Risk Committee
+* Nomination & Remuneration Committee
+  For each:
+* Chairperson
+* Members
+* Open actions
+* Pending approvals
+* Recent meeting
+
+4. General Assembly Meetings
+   Add a clear General Assembly section inside Governance.
+
+Support these meeting types:
+
+* Ordinary General Assembly
+* Extraordinary General Assembly
+
+For each General Assembly, show:
+
+* Meeting title
+* Meeting date
+* Meeting status
+* Chairman
+* Secretary
+* Shareholders / attendees count
+* Quorum requirement
+* Quorum achieved
+* Agenda items
+* Voting items
+* Resolutions
+* Documents
+* Minutes approval status
+* Related action items
+
+Example General Assembly demo data:
+
+* Annual General Assembly 2026
+* Extraordinary General Assembly – Capital Increase Approval
+
+5. Resolutions
+   Show sample resolutions:
+
+* Approval of Q2 Financial Statements
+* Appointment of External Auditor
+* Approval of Risk Management Framework
+* Approval of Annual General Assembly Agenda
+* Authorization of CEO for Strategic Partnership
+* Approval of Capital Increase Proposal
+
+Each resolution should show:
+
+* Resolution number
+* Source meeting
+* Meeting type
+* Owner
+* Status
+* Vote result
+* Approval status
+* Due date
+* Related actions
+
+6. Voting
+   Show voting summary:
+
+* For
+* Against
+* Abstain
+* Passed / Failed
+* Vote percentage
+
+7. Quorum
+   Show quorum status:
+
+* Required quorum
+* Present attendees
+* Quorum achieved / not achieved
+
+8. Approval Workflow
+   Show:
+
+* Draft Minutes
+* Circulated for Approval
+* Approved
+* Final Approved
+* Pending approvers
+
+9. Demo Data
+   Add realistic demo data using:
+
+Organization:
+Ameen Holdings Group
+
+People:
+
+* Mohammed Al-Otaibi — Chairman
+* Ahmed Al-Qahtani — CEO
+* Fatima Al-Harbi — Corporate Secretary
+* Sara Al-Zahrani — CFO
+* Noura Al-Shammari — Board Member
+* Omar Hassan — Legal Advisor
+* Abdullah Al-Dossari — COO
+
+Governance entities:
+
+* Board of Directors
+* Audit Committee
+* Risk Committee
+* Nomination & Remuneration Committee
+* Annual General Assembly 2026
+* Extraordinary General Assembly – Capital Increase Approval
+
+10. User-Friendly Explanation
+    Add short helper text inside Governance:
+    "Manage boards, committees, general assemblies, quorum, voting, resolutions, approvals, and governance actions in one place."
+
+Implementation guidance:
+
+* Prefer frontend demo rendering if backend tables are empty.
+* If backend already has governance tables, seed demo data safely.
+* Keep the UI clean and readable.
+* Use cards, badges, timelines, and status chips.
+* Make font sizes larger and easier to read.
+* Make it obvious what each section means.
+
+After completion:
+
+1. Restart the app.
+2. Confirm Governance page shows visible demo data.
+3. Confirm General Assembly section exists.
+4. Confirm resolutions, quorum, voting, and approvals are visible.
+5. List exactly which files changed.
+6. Explain what the CEO will see in the Governance section.

@@ -572,6 +572,104 @@ if (!db.prepare("SELECT id FROM resolutions WHERE title='الموافقة على
   }
 }
 
+// Update Board of Directors with proper Ameen Holdings people
+{
+  const _bod = db.prepare('SELECT id FROM boards LIMIT 1').get();
+  if (_bod) {
+    db.prepare(`UPDATE boards SET
+      name_ar='مجلس إدارة أمين هولدينج',
+      name_en='Ameen Holdings Board of Directors',
+      chairperson='Mohammed Al-Otaibi',
+      description='The supreme governing body of Ameen Holdings Group — responsible for strategic direction, executive oversight, and major governance decisions.',
+      total_members=7, default_quorum=5, members=? WHERE id=?`).run(JSON.stringify([
+      'Mohammed Al-Otaibi — Chairman',
+      'Ahmed Al-Qahtani — CEO',
+      'Fatima Al-Harbi — Corporate Secretary',
+      'Sara Al-Zahrani — CFO',
+      'Noura Al-Shammari — Independent Board Member',
+      'Omar Hassan — Legal Advisor',
+      'Abdullah Al-Dossari — COO',
+    ]), _bod.id);
+  }
+  // Remove duplicate committees (keep first occurrence of each name)
+  const seenCom = new Set();
+  for (const c of db.prepare('SELECT id,name_en FROM committees ORDER BY id').all()) {
+    if (seenCom.has(c.name_en)) db.prepare('DELETE FROM committees WHERE id=?').run(c.id);
+    else seenCom.add(c.name_en);
+  }
+  // Update committees with proper names, chairs, members
+  const _audit = db.prepare("SELECT id FROM committees WHERE name_en='Audit Committee' LIMIT 1").get();
+  if (_audit) db.prepare(`UPDATE committees SET chairperson='Sara Al-Zahrani', total_members=3, default_quorum=2, members=?,
+    description='Oversees financial reporting, internal controls, external audit, and compliance.' WHERE id=?`)
+    .run(JSON.stringify(['Sara Al-Zahrani — Chairperson','Omar Hassan — Member','Noura Al-Shammari — Member']), _audit.id);
+  const _risk = db.prepare("SELECT id FROM committees WHERE name_en='Risk Committee' LIMIT 1").get();
+  if (_risk) db.prepare(`UPDATE committees SET chairperson='Omar Hassan', total_members=3, default_quorum=2, members=?,
+    description='Identifies, assesses, and monitors strategic, operational, and financial risks.' WHERE id=?`)
+    .run(JSON.stringify(['Omar Hassan — Chairperson','Abdullah Al-Dossari — Member','Ahmed Al-Qahtani — Member']), _risk.id);
+  const _exec = db.prepare("SELECT id FROM committees WHERE name_en='Executive Committee' LIMIT 1").get();
+  if (_exec) db.prepare(`UPDATE committees SET name_ar='لجنة الترشيحات والمكافآت',
+    name_en='Nomination & Remuneration Committee', chairperson='Noura Al-Shammari',
+    total_members=3, default_quorum=2, members=?,
+    description='Oversees board nominations, executive remuneration, and succession planning.' WHERE id=?`)
+    .run(JSON.stringify(['Noura Al-Shammari — Chairperson','Fatima Al-Harbi — Member','Mohammed Al-Otaibi — Member']), _exec.id);
+  console.log('✓ Board and committee data updated');
+}
+
+// Seed General Assembly meetings if not present
+if (!db.prepare("SELECT id FROM schedule WHERE meeting_type='general_assembly' AND title_en LIKE '%Annual General Assembly 2026%'").get()) {
+  const iSch = db.prepare(`INSERT INTO schedule
+    (title_ar,title_en,meeting_date,meeting_time,duration_mins,platform,attendees,agenda_ar,agenda_en,created_by,meeting_type,status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const ga1 = iSch.run(
+    'الجمعية العمومية السنوية 2026 — مجموعة أمين هولدينج',
+    'Annual General Assembly 2026 — Ameen Holdings Group',
+    '2026-09-15','10:00',180,
+    'فندق ريتز كارلتون — الرياض / Ritz-Carlton Riyadh',250,
+    '1. استعراض التقرير السنوي\n2. اعتماد القوائم المالية 2025\n3. تعيين المراجع الخارجي\n4. توزيع الأرباح\n5. انتخاب أعضاء مجلس الإدارة',
+    '1. Review Annual Board Report\n2. Approve FY2025 Financial Statements\n3. Appoint External Auditor\n4. Dividend Distribution (8%)\n5. Elect Board Members',
+    1,'general_assembly','confirmed'
+  ).lastInsertRowid;
+  const ga2 = iSch.run(
+    'الجمعية العمومية غير العادية — اعتماد زيادة رأس المال',
+    'Extraordinary General Assembly — Capital Increase Approval',
+    '2026-10-20','14:00',120,
+    'مقر أمين هولدينج — الرياض / Ameen Holdings HQ',180,
+    '1. اعتماد زيادة رأس المال إلى 750 مليون ريال\n2. تفويض مجلس الإدارة بالتنفيذ\n3. تعديل النظام الأساسي',
+    '1. Approve capital increase from SAR 500M to SAR 750M\n2. Authorize board to execute increase\n3. Amend articles of association',
+    1,'general_assembly','confirmed'
+  ).lastInsertRowid;
+  // Quorum
+  const iQ = db.prepare(`INSERT OR IGNORE INTO meeting_quorum (schedule_id,required_members,present_members,quorum_achieved,notes) VALUES (?,?,?,?,?)`);
+  iQ.run(ga1,175,245,1,'النصاب محقق — 245 مساهماً يمثلون 70% من رأس المال (فوق الحد الأدنى 50%+1)');
+  iQ.run(ga2,175,0,0,'الجمعية لم تنعقد بعد — النصاب المطلوب 50%+1 من المساهمين');
+  // Agenda GA1
+  const iAg = db.prepare(`INSERT INTO agenda_items (schedule_id,title,description,presenter,duration_mins,expected_outcome,sort_order) VALUES (?,?,?,?,?,?,?)`);
+  iAg.run(ga1,'استعراض التقرير السنوي لمجلس الإدارة','عرض إنجازات الشركة والمبادرات الاستراتيجية 2025','Mohammed Al-Otaibi',30,'الموافقة على التقرير',1);
+  iAg.run(ga1,'اعتماد القوائم المالية للسنة المالية 2025','مراجعة الميزانية وقائمة الدخل الموقعة من ديلويت','Sara Al-Zahrani',45,'اعتماد القوائم المالية',2);
+  iAg.run(ga1,'تعيين المراجع الخارجي لعام 2026','الموافقة على استمرار ديلويت مراجعاً خارجياً مستقلاً','Sara Al-Zahrani',20,'قرار التعيين',3);
+  iAg.run(ga1,'توزيع أرباح بنسبة 8%','اقتراح توزيع أرباح بنسبة 8% من رأس المال المدفوع','Ahmed Al-Qahtani',25,'قرار توزيع الأرباح',4);
+  iAg.run(ga1,'انتخاب أعضاء مجلس الإدارة 2026-2029','انتخاب 7 أعضاء للدورة الجديدة','Fatima Al-Harbi',40,'انتخاب المجلس الجديد',5);
+  // Agenda GA2
+  iAg.run(ga2,'مناقشة مقترح زيادة رأس المال','رفع رأس المال من 500 مليون إلى 750 مليون ريال','Ahmed Al-Qahtani',45,'الموافقة على الاقتراح',1);
+  iAg.run(ga2,'تفويض مجلس الإدارة بالتنفيذ','تفويض المجلس لإتمام إجراءات الزيادة وفق الأنظمة','Omar Hassan',30,'صدور التفويض',2);
+  iAg.run(ga2,'تعديل النظام الأساسي','تعديل المواد المتعلقة برأس المال في عقد التأسيس','Omar Hassan',25,'اعتماد التعديلات',3);
+  // GA resolutions
+  const iRes = db.prepare(`INSERT INTO resolutions (schedule_id,title,description,status,votes_approve,votes_reject,votes_abstain) VALUES (?,?,?,?,?,?,?)`);
+  const iFu  = db.prepare(`INSERT INTO resolution_followups (resolution_id,owner,due_date,status,notes) VALUES (?,?,?,?,?)`);
+  const gr1=iRes.run(ga1,'اعتماد التقرير السنوي لمجلس الإدارة','الموافقة على التقرير السنوي المقدم من رئيس مجلس الإدارة','approved',240,5,0).lastInsertRowid;
+  const gr2=iRes.run(ga1,'اعتماد القوائم المالية للسنة المالية 2025','اعتماد الميزانية وقائمة الدخل الموقعة من المراجع','approved',238,7,0).lastInsertRowid;
+  const gr3=iRes.run(ga1,'تعيين ديلويت مراجعاً خارجياً لعام 2026','الموافقة بالإجماع على تعيين شركة ديلويت','approved',245,0,0).lastInsertRowid;
+  const gr4=iRes.run(ga1,'توزيع أرباح نقدية بنسبة 8%','اعتماد توزيع أرباح بنسبة 8% من رأس المال المدفوع','approved',218,22,5).lastInsertRowid;
+  const gr5=iRes.run(ga2,'اعتماد زيادة رأس المال إلى 750 مليون ريال','رفع رأس المال من 500 مليون إلى 750 مليون ريال سعودي','pending',0,0,0).lastInsertRowid;
+  const gr6=iRes.run(ga2,'تفويض الرئيس التنفيذي بتنفيذ قرار الزيادة','تفويض رسمي للرئيس التنفيذي لإتمام الإجراءات التنظيمية','pending',0,0,0).lastInsertRowid;
+  iFu.run(gr1,'Fatima Al-Harbi','2026-09-30','completed','تم إرسال نسخ التقرير المعتمد لجميع المساهمين');
+  iFu.run(gr2,'Sara Al-Zahrani','2026-10-15','in_progress','رفع البيانات المعتمدة لهيئة السوق المالية خلال 30 يوماً');
+  iFu.run(gr3,'Sara Al-Zahrani','2026-10-01','in_progress','توقيع عقد التعيين الرسمي مع ديلويت وإشعار الهيئة');
+  iFu.run(gr4,'Ahmed Al-Qahtani','2026-10-30','pending','تحديد موعد صرف الأرباح وإشعار المساهمين');
+  iFu.run(gr5,'Omar Hassan','2026-10-25','pending','إعداد الوثائق القانونية لهيئة السوق المالية');
+  console.log('✓ General Assembly meetings, agenda, resolutions seeded');
+}
+
 // ── Ensure admin user has a valid bcrypt password ────────────────────────────
 // Runs once on startup. If the seed user's password is not a bcrypt hash,
 // sets a default development password and logs it ONCE to the console.

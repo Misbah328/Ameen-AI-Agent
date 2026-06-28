@@ -312,8 +312,11 @@ router.get('/summary', auth, (req, res) => {
     const resApproved  = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='approved'").get().c;
     const resRejected  = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='rejected'").get().c;
     const resDeferred  = db.prepare("SELECT COUNT(*) as c FROM resolutions WHERE status='deferred'").get().c;
-    const quorumAchieved = db.prepare('SELECT COUNT(*) as c FROM meeting_quorum WHERE quorum_achieved=1').get().c;
-    const quorumTotal    = db.prepare('SELECT COUNT(*) as c FROM meeting_quorum WHERE required_members>0').get().c;
+    const quorumAchieved    = db.prepare('SELECT COUNT(*) as c FROM meeting_quorum WHERE quorum_achieved=1').get().c;
+    const quorumTotal       = db.prepare('SELECT COUNT(*) as c FROM meeting_quorum WHERE required_members>0').get().c;
+    const generalAssemblies = db.prepare("SELECT COUNT(*) as c FROM schedule WHERE meeting_type='general_assembly'").get().c;
+    const openActions       = db.prepare("SELECT COUNT(*) as c FROM resolution_followups WHERE status IN ('pending','in_progress')").get().c;
+    const pendingMinutes    = db.prepare("SELECT COUNT(*) as c FROM meetings WHERE status IN ('draft','circulated')").get().c;
     const recentRes = db.prepare(`
       SELECT r.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en,
         (SELECT COUNT(*) FROM resolution_followups WHERE resolution_id=r.id) as followup_count
@@ -327,10 +330,29 @@ router.get('/summary', auth, (req, res) => {
       ORDER BY meeting_date ASC LIMIT 5
     `).all();
     res.json({ boards, committees, resTotal, resPending, resApproved, resRejected, resDeferred,
-               quorumAchieved, quorumTotal, recentRes, upcoming });
+               quorumAchieved, quorumTotal, generalAssemblies, openActions, pendingMinutes,
+               recentRes, upcoming });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── General Assemblies ────────────────────────────────────────────────────────
+router.get('/general-assemblies', auth, (req, res) => {
+  try {
+    const gas = db.prepare(`
+      SELECT s.*,
+        (SELECT COUNT(*) FROM resolutions WHERE schedule_id=s.id) as resolution_count,
+        (SELECT COUNT(*) FROM agenda_items WHERE schedule_id=s.id) as agenda_count,
+        mq.quorum_achieved, mq.required_members as quorum_required,
+        mq.present_members as quorum_present, mq.notes as quorum_notes
+      FROM schedule s
+      LEFT JOIN meeting_quorum mq ON mq.schedule_id=s.id
+      WHERE s.meeting_type='general_assembly'
+      ORDER BY s.meeting_date ASC
+    `).all();
+    res.json(gas);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;
