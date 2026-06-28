@@ -645,6 +645,33 @@ router.patch('/schedule/:id/confirm', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.id));
 });
 
+router.post('/schedule/:id/remind', auth, async (req, res) => {
+  const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Meeting not found' });
+  const channel = ['email','whatsapp','both'].includes(row.reminder_channel) ? row.reminder_channel : 'email';
+  const { splitRecipients, isValidEmail, isValidPhone, normalizePhone } = require('../utils/validate');
+  const rawList = splitRecipients(row.attendees || '');
+  const emails = rawList.filter(isValidEmail);
+  const phones = rawList.filter(s => !/@/.test(s) && isValidPhone(s)).map(normalizePhone);
+  if (!emails.length && !phones.length) return res.status(400).json({ error: 'No valid email addresses or phone numbers found in attendees' });
+  const date = (row.meeting_date || '').substring(0, 10);
+  const time = (row.meeting_time || '09:00').substring(0, 5);
+  const subject = `تذكير: ${row.title_ar} — ${date} ${time} | Reminder: ${row.title_en || row.title_ar} — ${date} ${time}`;
+  const text = [`تذكير باجتماع قادم\n\nالعنوان: ${row.title_ar}\nالتاريخ: ${date}  الوقت: ${time}\nالمنصة: ${row.platform || '-'}`, row.agenda_ar ? `جدول الأعمال:\n${row.agenda_ar}` : '', `\n— أمين السكرتير\n\n———\n\nReminder: upcoming meeting\n\nTitle: ${row.title_en || row.title_ar}\nDate: ${date}  Time: ${time}\nPlatform: ${row.platform || '-'}`, row.agenda_en ? `Agenda:\n${row.agenda_en}` : '', '\n— Ameen Secretary'].filter(Boolean).join('\n');
+  const results = { channel, emails_attempted: 0, whatsapp_attempted: 0, errors: [] };
+  if ((channel === 'email' || channel === 'both') && emails.length) {
+    try { await notify.sendEmail({ to: emails, subject, text }); results.emails_attempted = emails.length; }
+    catch (e) { results.errors.push({ channel: 'email', error: e.message }); }
+  }
+  if ((channel === 'whatsapp' || channel === 'both') && phones.length) {
+    try { await notify.sendWhatsApp({ to: phones, body: `${subject}\n\n${text}` }); results.whatsapp_attempted = phones.length; }
+    catch (e) { results.errors.push({ channel: 'whatsapp', error: e.message }); }
+  }
+  const allFailed = results.errors.length > 0 && results.emails_attempted === 0 && results.whatsapp_attempted === 0;
+  if (allFailed) return res.status(500).json({ error: results.errors.map(e => e.error).join('; '), results });
+  res.json({ success: true, ...results });
+});
+
 router.patch('/schedule/:id', auth, (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });

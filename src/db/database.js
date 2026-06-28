@@ -139,6 +139,8 @@ ensureColumn('schedule', 'reminder_sent', 'INTEGER DEFAULT 0');
 ensureColumn('schedule', 'reminder_email', 'TEXT');
 ensureColumn('schedule', 'reminder_channel', "TEXT DEFAULT 'email'");
 ensureColumn('tasks', 'confirm_token', 'TEXT');
+ensureColumn('tasks', 'task_reminder_sent', 'INTEGER DEFAULT 0');
+ensureColumn('tasks', 'assignee_email', 'TEXT');
 ensureColumn('tasks', 'confirmed', 'INTEGER DEFAULT 0');
 ensureColumn('tasks', 'confirmed_at', 'DATETIME');
 ensureColumn('tasks', 'assignee_email', 'TEXT');
@@ -171,6 +173,34 @@ ensureColumn('meeting_documents', 'ai_key_points', "TEXT DEFAULT '[]'");
 ensureColumn('meeting_documents', 'doc_classification', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'recurrence', "TEXT DEFAULT 'none'");
 ensureColumn('schedule', 'recurrence_group_id', 'TEXT');
+
+// Minutes Approval Workflow columns
+ensureColumn('meetings', 'minutes_status', "TEXT DEFAULT 'draft'");
+ensureColumn('meetings', 'minutes_version', 'INTEGER DEFAULT 1');
+ensureColumn('meetings', 'circulated_at', 'DATETIME');
+ensureColumn('meetings', 'circulated_by', 'INTEGER');
+ensureColumn('meetings', 'approved_by', 'INTEGER');
+ensureColumn('meetings', 'approved_at', 'DATETIME');
+ensureColumn('meetings', 'final_approved_by', 'INTEGER');
+ensureColumn('meetings', 'final_approved_at', 'DATETIME');
+ensureColumn('meetings', 'approval_due_date', 'TEXT');
+ensureColumn('meetings', 'approval_comments', 'TEXT');
+
+// Minutes approval audit log
+db.exec(`
+  CREATE TABLE IF NOT EXISTS minutes_approval_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    actor_id INTEGER,
+    actor_name TEXT,
+    actor_role TEXT,
+    comments TEXT,
+    version INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+  )
+`);
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
