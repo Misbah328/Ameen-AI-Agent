@@ -113,6 +113,15 @@ async function buildPdf({ title, lang, content, sections }) {
 }
 const db = require('../db/database');
 const auth = require('../middleware/auth');
+
+// ── Ensure escalation columns exist (safe, idempotent) ───────────────────────
+;[
+  'escalated_at DATETIME',
+  'escalated_to INTEGER',
+  'escalated_to_name TEXT',
+].forEach(col => {
+  try { db.exec(`ALTER TABLE tasks ADD COLUMN ${col}`); } catch (_) {}
+});
 const { requireRole } = require('../middleware/auth');
 const { sendEmail } = require('../utils/replitmail');
 const notify = require('../utils/notify');
@@ -578,6 +587,57 @@ router.post('/tasks/:id/updates', auth, (req, res) => {
   ).run(task.id, req.user.id, author_name, author_role, update_text, task.status);
   const created = db.prepare('SELECT * FROM task_updates WHERE id=?').get(row.lastInsertRowid);
   res.json(created);
+});
+
+// ── Task Escalation ────────────────────────────────────────────────────────────
+router.post('/tasks/:id/escalate', auth, async (req, res) => {
+  const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  const { escalate_to_id, comments } = req.body;
+  if (!escalate_to_id) return res.status(400).json({ error: 'escalate_to_id is required' });
+
+  // Resolve escalation target
+  const target = db.prepare('SELECT id, name_en, name_ar, role_en, role_ar, email FROM users WHERE id=?').get(escalate_to_id);
+  if (!target) return res.status(404).json({ error: 'Escalation target user not found' });
+
+  const targetName = target.name_en || target.name_ar || String(target.id);
+
+  // Resolve escalating user
+  const actor = db.prepare('SELECT name_en, name_ar, role_en, role_ar FROM users WHERE id=?').get(req.user.id);
+  const actorName = actor ? (actor.name_en || actor.name_ar || req.user.email) : req.user.email;
+
+  // Update task
+  db.prepare(
+    `UPDATE tasks SET escalated_at=CURRENT_TIMESTAMP, escalated_to=?, escalated_to_name=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
+  ).run(target.id, targetName, task.id);
+
+  // Build update text
+  const updateText = comments
+    ? `Task Escalated to ${targetName}: ${comments}`
+    : `Task Escalated to ${targetName}`;
+
+  // Insert task_updates record
+  const actorRole = actor ? (actor.role_en || actor.role_ar || null) : null;
+  db.prepare(
+    `INSERT INTO task_updates (task_id, author_id, author_name, author_role, update_text, status_snapshot) VALUES (?,?,?,?,?,?)`
+  ).run(task.id, req.user.id, actorName, actorRole, updateText, task.status);
+
+  // Send notification to escalation target (best-effort)
+  const taskTitle = task.text_en || task.text_ar || `Task #${task.id}`;
+  const subject = `Task Escalated to You: ${taskTitle}`;
+  const body = `${actorName} has escalated the following task to you:\n\n"${taskTitle}"\n\n${comments ? `Note: ${comments}\n\n` : ''}Please review and take action.`;
+  const notifResult = {};
+  try {
+    if (target.email) {
+      notifResult.email = await notify.sendEmail({ to: target.email, subject, text: body });
+    }
+  } catch (e) {
+    notifResult.error = e.message;
+  }
+
+  const updatedTask = db.prepare('SELECT * FROM tasks WHERE id=?').get(task.id);
+  res.json({ success: true, task: updatedTask, notification: notifResult });
 });
 
 // ── Decisions ─────────────────────────────────────────────────────────────────
