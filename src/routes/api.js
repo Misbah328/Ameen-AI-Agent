@@ -545,6 +545,33 @@ router.delete('/tasks/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Task Progress History ──────────────────────────────────────────────────────
+
+router.get('/tasks/:id/updates', auth, (req, res) => {
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const updates = db.prepare(
+    'SELECT * FROM task_updates WHERE task_id=? ORDER BY created_at ASC'
+  ).all(req.params.id);
+  res.json(updates);
+});
+
+router.post('/tasks/:id/updates', auth, (req, res) => {
+  const task = db.prepare('SELECT id, status FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const update_text = (req.body.update_text || '').toString().trim();
+  if (!update_text) return res.status(400).json({ error: 'update_text is required' });
+  const user = db.prepare('SELECT name_ar, name_en, role_ar, role_en, system_role FROM users WHERE id=?').get(req.user.id);
+  const author_name = user ? (user.name_en || user.name_ar || req.user.email) : req.user.email;
+  const author_role = user ? (user.role_en || user.role_ar || user.system_role || null) : null;
+  const row = db.prepare(
+    `INSERT INTO task_updates (task_id, author_id, author_name, author_role, update_text, status_snapshot)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(task.id, req.user.id, author_name, author_role, update_text, task.status);
+  const created = db.prepare('SELECT * FROM task_updates WHERE id=?').get(row.lastInsertRowid);
+  res.json(created);
+});
+
 // ── Decisions ─────────────────────────────────────────────────────────────────
 router.get('/decisions', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM decisions ORDER BY created_at DESC').all());
