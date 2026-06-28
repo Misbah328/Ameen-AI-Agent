@@ -1323,4 +1323,83 @@ router.post('/public/:token', (req, res) => {
   res.json({ success: true });
 });
 
+// ── Minutes Approval Workflow ────────────────────────────────────────────────
+
+function logApprovalAction(meeting_id, action, user, comments, version) {
+  db.prepare(
+    `INSERT INTO minutes_approval_log (meeting_id, action, actor_id, actor_name, actor_role, comments, version)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    meeting_id,
+    action,
+    user ? user.id : null,
+    user ? (user.name || user.email || null) : null,
+    user ? (user.role || null) : null,
+    comments || null,
+    version || 1
+  );
+}
+
+// POST /api/meetings/:id/circulate
+router.post('/meetings/:id/circulate', (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
+  const version = (meeting.minutes_version || 1);
+  db.prepare(
+    `UPDATE meetings SET minutes_status='circulated', circulated_at=CURRENT_TIMESTAMP, circulated_by=?, approval_comments=? WHERE id=?`
+  ).run(req.user ? req.user.id : null, comments, meeting.id);
+  logApprovalAction(meeting.id, 'circulated', req.user, comments, version);
+  res.json({ success: true, minutes_status: 'circulated' });
+});
+
+// POST /api/meetings/:id/approve
+router.post('/meetings/:id/approve', (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
+  const version = (meeting.minutes_version || 1);
+  db.prepare(
+    `UPDATE meetings SET minutes_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP, approval_comments=? WHERE id=?`
+  ).run(req.user ? req.user.id : null, comments, meeting.id);
+  logApprovalAction(meeting.id, 'approved', req.user, comments, version);
+  res.json({ success: true, minutes_status: 'approved' });
+});
+
+// POST /api/meetings/:id/request-revision
+router.post('/meetings/:id/request-revision', (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
+  const version = (meeting.minutes_version || 1);
+  db.prepare(
+    `UPDATE meetings SET minutes_status='revision_requested', minutes_version=?, approval_comments=? WHERE id=?`
+  ).run(version + 1, comments, meeting.id);
+  logApprovalAction(meeting.id, 'revision_requested', req.user, comments, version);
+  res.json({ success: true, minutes_status: 'revision_requested', new_version: version + 1 });
+});
+
+// POST /api/meetings/:id/final-approve
+router.post('/meetings/:id/final-approve', (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
+  const version = (meeting.minutes_version || 1);
+  db.prepare(
+    `UPDATE meetings SET minutes_status='final_approved', final_approved_by=?, final_approved_at=CURRENT_TIMESTAMP, approval_comments=? WHERE id=?`
+  ).run(req.user ? req.user.id : null, comments, meeting.id);
+  logApprovalAction(meeting.id, 'final_approved', req.user, comments, version);
+  res.json({ success: true, minutes_status: 'final_approved' });
+});
+
+// GET /api/meetings/:id/approval-log
+router.get('/meetings/:id/approval-log', (req, res) => {
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const log = db.prepare(
+    `SELECT * FROM minutes_approval_log WHERE meeting_id=? ORDER BY created_at ASC`
+  ).all(meeting.id);
+  res.json({ success: true, log });
+});
+
 module.exports = router;
