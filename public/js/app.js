@@ -1870,6 +1870,32 @@ async function renderTranscripts() {
               ? m.ai_summary_ar || ""
               : m.ai_summary_en || m.ai_summary_ar || "";
           const isProcessed = m.status === "processed";
+          const mStatus = m.minutes_status || 'draft';
+          const mVersion = m.minutes_version || 1;
+          const mStatusBadge = (() => {
+            if (mStatus === 'draft') return '';
+            const stLabels = { circulated: l==='ar'?'📤 قيد الاعتماد':'📤 Circulated', approved: l==='ar'?'✅ معتمد':'✅ Approved', revision_requested: l==='ar'?'🔄 يحتاج مراجعة':'🔄 Revision Needed', final_approved: l==='ar'?'🏆 معتمد نهائياً':'🏆 Final Approved' };
+            const stStyles = { circulated: 'background:rgba(255,160,0,.15);color:#f0a000', approved: 'background:rgba(50,180,100,.15);color:#32b464', revision_requested: 'background:rgba(220,50,50,.15);color:#e05252', final_approved: 'background:rgba(40,120,220,.15);color:#2878dc' };
+            const ver = mVersion > 1 ? ` v${mVersion}` : '';
+            return `<span class="tag" style="${stStyles[mStatus]||''}">${stLabels[mStatus]||mStatus}${ver}</span>`;
+          })();
+          const mApprovalBtns = (() => {
+            const btns = [];
+            if (mStatus === 'draft' || mStatus === 'revision_requested') {
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'circulate')" style="color:var(--gold);border-color:var(--gold)">📤 ${l==='ar'?'تعميم للاعتماد':'Circulate'}</button>`);
+            }
+            if (mStatus === 'circulated') {
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'approve')" style="color:#32b464;border-color:#32b464">✅ ${l==='ar'?'اعتماد':'Approve'}</button>`);
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'request-revision')" style="color:#e05252;border-color:#e05252">🔄 ${l==='ar'?'طلب مراجعة':'Request Revision'}</button>`);
+            }
+            if (mStatus === 'approved') {
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'final-approve')" style="color:#2878dc;border-color:#2878dc">🏆 ${l==='ar'?'اعتماد نهائي':'Final Approve'}</button>`);
+            }
+            if (mStatus !== 'draft') {
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:10px">📋 ${l==='ar'?'سجل الاعتماد':'Approval Log'}</button>`);
+            }
+            return btns.join('');
+          })();
           // Speaker count derived from the speaker_transcript segments
           const uniqueSpeakers = [
             ...new Set(speakerTr.map((s) => s.speaker).filter(Boolean)),
@@ -1930,6 +1956,7 @@ async function renderTranscripts() {
               ${decisions.length ? `<span class="tag" style="background:var(--navy4)">${decisions.length} ${l === "ar" ? "قرار" : "decisions"}</span>` : ""}
               ${risks.length ? `<span class="tag" style="background:rgba(220,50,50,.15);color:#e05252">${risks.length} ${l === "ar" ? "مخاطر" : "risks"}</span>` : ""}
               ${uniqueSpeakers.length > 1 ? `<span class="tag" style="background:var(--navy4)">🗣️ ${uniqueSpeakers.length}</span>` : ""}
+              ${mStatusBadge}
             </div>
           </div>
           ${summary ? `<div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:10px;padding:0 2px">${esc(summary)}</div>` : ""}
@@ -1978,6 +2005,7 @@ async function renderTranscripts() {
             <button class="btn-ghost btn-sm" onclick="TranscriptModal.open(${m.id})" title="${l === "ar" ? "إضافة أو تعديل النص" : "Add or edit transcript"}">✏️ ${l === "ar" ? "إضافة نص" : "Add Notes"}</button>
             ${isProcessed ? `<button id="bp-btn-${m.id}" class="btn-ghost btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l === "ar" ? "حزمة المجلس" : "Board Pack"}</button>` : ""}
             ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l === "ar" ? "مشاركة النتائج" : "Share Outcomes"}${App.isPro() ? "" : " ⭐"}</button>` : ""}
+            ${mApprovalBtns}
             <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l === "ar" ? "حذف" : "Delete"}</button>
           </div>
         </div>`;
@@ -1995,6 +2023,57 @@ function tryParse(s, def) {
     return JSON.parse(s || "[]");
   } catch {
     return def;
+  }
+}
+
+// ── Minutes Approval Workflow helpers ──────────────────────────────────────
+async function minutesApprovalAction(meetingId, action) {
+  const l = App.lang;
+  const actionLabels = {
+    'circulate': l === 'ar' ? 'تعميم للاعتماد' : 'Circulate for Approval',
+    'approve': l === 'ar' ? 'اعتماد' : 'Approve',
+    'request-revision': l === 'ar' ? 'طلب مراجعة' : 'Request Revision',
+    'final-approve': l === 'ar' ? 'اعتماد نهائي' : 'Final Approve',
+  };
+  const label = actionLabels[action] || action;
+  const comments = prompt(
+    l === 'ar' ? `${label} — ملاحظات اختيارية:` : `${label} — Optional comments:`,
+    ''
+  );
+  if (comments === null) return;
+  try {
+    await api(`/api/meetings/${meetingId}/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comments }),
+    });
+    await renderTranscripts();
+  } catch (e) {
+    alert(l === 'ar' ? 'حدث خطأ: ' + e.message : 'Error: ' + e.message);
+  }
+}
+
+async function minutesShowLog(meetingId) {
+  const l = App.lang;
+  try {
+    const data = await api(`/api/meetings/${meetingId}/approval-log`);
+    const log = data.log || [];
+    if (!log.length) {
+      alert(l === 'ar' ? 'لا توجد إجراءات اعتماد بعد.' : 'No approval actions yet.');
+      return;
+    }
+    const actionLabels = { circulated: l==='ar'?'تعميم':'Circulated', approved: l==='ar'?'اعتماد':'Approved', revision_requested: l==='ar'?'طلب مراجعة':'Revision Requested', final_approved: l==='ar'?'اعتماد نهائي':'Final Approved' };
+    const lines = log.map(row => {
+      const date = (row.created_at || '').substring(0, 16).replace('T', ' ');
+      const actor = row.actor_name || (l === 'ar' ? 'مجهول' : 'Unknown');
+      const act = actionLabels[row.action] || row.action;
+      const ver = row.version > 1 ? ` v${row.version}` : '';
+      const comment = row.comments ? `\n   💬 ${row.comments}` : '';
+      return `• ${date}  ${actor}  →  ${act}${ver}${comment}`;
+    }).join('\n\n');
+    alert((l === 'ar' ? 'سجل الاعتماد:\n\n' : 'Approval Log:\n\n') + lines);
+  } catch (e) {
+    alert(l === 'ar' ? 'خطأ في تحميل السجل' : 'Error loading log');
   }
 }
 
