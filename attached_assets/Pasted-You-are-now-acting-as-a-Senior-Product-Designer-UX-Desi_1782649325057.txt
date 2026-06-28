@@ -1,0 +1,605 @@
+You are now acting as a **Senior Product Designer, UX Designer, and Frontend Engineer**.
+
+Project:
+**Ameen Secretary – AI Executive Governance & Meeting Platform**
+
+Your goal is to transform the current prototype into a **premium enterprise SaaS application** suitable for CEOs, Board Members, Corporate Secretaries, and Executive Teams.
+
+## IMPORTANT RULES
+
+DO NOT:
+
+* Change backend logic
+* Change database schema
+* Change APIs
+* Remove any feature
+* Break existing functionality
+* Rebuild the application
+
+ONLY improve the frontend.
+
+Modify only frontend files such as:
+
+* public/css/app.css
+* public/js/app.js
+* public/index.html (only if absolutely required)
+
+---
+
+# DESIGN GOAL
+
+The application should feel like a combination of:
+
+• Microsoft Teams
+• Notion
+• ClickUp
+• Monday.com
+• Atlassian Jira
+• Linear
+• Salesforce
+• Microsoft Loop
+• ChatGPT
+
+It must look like a modern Executive Governance Platform rather than a developer prototype.
+
+---
+
+# OVERALL DESIGN IMPROVEMENTS
+
+Improve:
+
+• Typography
+• Font hierarchy
+• Font sizes
+• White space
+• Alignment
+• Visual hierarchy
+• Consistent spacing
+• Card layouts
+• Colors
+• Shadows
+• Border radius
+• Hover effects
+• Icons
+• Status badges
+• Buttons
+• Empty states
+• Tables
+• Forms
+• Navigation
+• Mobile responsiveness where possible
+
+Use enterprise design principles.
+
+---
+
+# TYPOGRAPHY
+
+Improve readability.
+
+Suggested sizes:
+
+Dashboard KPI:
+34px
+
+Section Titles:
+26px
+
+Page Titles:
+22px
+
+Card Titles:
+18px
+
+Normal Text:
+15–16px
+
+Labels:
+14px
+
+Small helper text:
+13px
+
+Buttons:
+15px
+
+Navigation:
+15px
+
+Increase line spacing and improve readability.
+
+---
+
+# COLOR SYSTEM
+
+Maintain current branding but improve visual polish.
+
+Use consistent colors for:
+
+Blue
+Information
+
+Green
+Completed
+
+Orange
+Pending
+
+Red
+Overdue
+
+Gold
+Executive / Governance
+
+Gray
+Secondary
+
+Status badges should be visually obvious.
+
+---
+
+# DASHBOARD
+
+Redesign Dashboard professionally.
+
+Large KPI cards:
+
+Meetings
+
+Pending Approvals
+
+Open Actions
+
+Completed Actions
+
+Overdue Actions
+
+Critical Risks
+
+Board Meetings
+
+Committee Meetings
+
+Upcoming Meetings
+
+AI Insights
+
+Each KPI should contain:
+
+• Icon
+• Number
+• Trend
+• Small description
+
+Example:
+
+Open Actions
+23
+5 overdue
+Updated just now
+
+---
+
+# ADD EXECUTIVE DASHBOARD
+
+Create a premium executive dashboard containing:
+
+Recent Decisions
+
+Pending Approvals
+
+Critical Tasks
+
+Upcoming Meetings
+
+Meeting Calendar
+
+Weekly Activity
+
+Recent AI Insights
+
+Approval Progress
+
+Risk Indicators
+
+Top Contributors
+
+Latest Documents
+
+Recent Reports
+
+---
+
+# MEETING PAGE
+
+Improve layout.
+
+Show:
+
+Meeting Type
+
+Status
+
+Organizer
+
+Chairman
+
+Secretary
+
+Meeting Date
+
+Meeting Time
+
+Committee
+
+Board
+
+General Assembly
+
+Attendance
+
+Quorum
+
+Approval Progress
+
+Current Workflow Stage
+
+Use professional cards instead of plain text.
+
+---
+
+# MINUTES PAGE
+
+Redesign completely.
+
+Separate sections:
+
+Executive Summary
+
+Key Decisions
+
+Action Items
+
+Approval Workflow
+
+Attachments
+
+Comments
+
+Approval Timeline
+
+Use timeline components.
+
+Use colored badges.
+
+---
+
+# APPROVAL WORKFLOW
+
+Visual workflow.
+
+Example:
+
+Draft
+
+↓
+
+Secretary Review
+
+↓
+
+Chairman Review
+
+↓
+
+Board Approval
+
+↓
+
+Final Minutes
+
+Show:
+
+Completed
+
+Current
+
+Pending
+
+Use progress indicators.
+
+---
+
+# TASKS
+
+Transform into modern task management.
+
+Each task card should show:
+
+Priority
+
+Owner
+
+Responsible Person
+
+Due Date
+
+Status
+
+Progress
+
+Meeting Source
+
+Decision Source
+
+Days Remaining
+
+Overdue Indicator
+
+Latest Update
+
+Approval Required
+
+Add progress bars.
+
+Add colored status chips.
+
+---
+
+# TASK DETAIL
+
+Show timeline.
+
+Example:
+
+Created
+
+↓
+
+Assigned
+
+↓
+
+Owner Update
+
+↓
+
+Secretary Review
+
+↓
+
+CEO Comment
+
+↓
+
+Completed
+
+Very similar to Jira activity.
+
+---
+
+# ASK AMEEN
+
+Modern AI chat interface.
+
+Improve:
+
+Message bubbles
+
+Input box
+
+Suggested prompts
+
+Typing indicator
+
+AI avatar
+
+Conversation history
+
+Better spacing
+
+---
+
+# GOVERNANCE
+
+Professional board governance dashboard.
+
+Cards for:
+
+Boards
+
+Committees
+
+General Assemblies
+
+Resolutions
+
+Voting
+
+Quorum
+
+Compliance
+
+Approval Status
+
+Meeting Calendar
+
+---
+
+# REPORTS
+
+Professional report cards.
+
+Show:
+
+Preview
+
+Generated Date
+
+Meeting
+
+Author
+
+Status
+
+Download PDF
+
+Share
+
+---
+
+# SIDEBAR
+
+Improve:
+
+Icons
+
+Font size
+
+Spacing
+
+Grouping
+
+Hover animation
+
+Active indicator
+
+Collapse support if possible
+
+---
+
+# TOP HEADER
+
+Professional executive header.
+
+Show:
+
+Current User
+
+Role
+
+Organization
+
+Notifications
+
+Quick Search
+
+Dark Mode
+
+Language
+
+Profile
+
+---
+
+# EMPTY STATES
+
+Never show blank pages.
+
+Every empty page should explain:
+
+What this page does
+
+Why it matters
+
+How to start
+
+Example:
+
+"No meetings yet.
+
+Create your first board meeting to begin managing governance with Ameen Secretary."
+
+---
+
+# DEMO DATA
+
+Populate realistic enterprise demo data throughout the application.
+
+Organization:
+Ameen Holdings Group
+
+Users:
+Ahmed Al-Qahtani – CEO
+Fatima Al-Harbi – Corporate Secretary
+Mohammed Al-Otaibi – Chairman
+Sara Al-Zahrani – CFO
+Abdullah Al-Dossari – COO
+Noura Al-Shammari – Board Member
+Omar Hassan – Legal Advisor
+
+Meetings:
+
+Quarterly Board Meeting
+
+Audit Committee
+
+Risk Committee
+
+Annual General Assembly
+
+Executive Leadership Meeting
+
+Board Strategy Session
+
+Sample agenda items.
+
+Sample decisions.
+
+Sample AI summaries.
+
+Sample action items.
+
+Sample approvals.
+
+Sample reports.
+
+Sample governance resolutions.
+
+Sample executive dashboard metrics.
+
+Sample notifications.
+
+Sample reminders.
+
+Make the application immediately understandable to a CEO during a live demo.
+
+---
+
+# PERFORMANCE
+
+Do not reduce performance.
+
+Do not break responsiveness.
+
+Keep existing functionality intact.
+
+---
+
+# FINAL VERIFICATION
+
+After all changes:
+
+Restart the application.
+
+Verify:
+
+No JavaScript errors
+
+No CSS errors
+
+No broken pages
+
+No backend changes
+
+No API changes
+
+No database changes
+
+Finally provide:
+
+1. Files changed
+2. UI improvements by page
+3. Before vs After summary
+4. UX improvements
+5. Remaining UI recommendations for Version 2

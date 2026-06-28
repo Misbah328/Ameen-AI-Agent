@@ -2429,25 +2429,36 @@ async function renderTasks() {
       const isDone = t.status === "done";
       const isUrgent = t.priority === "urgent";
       const accentClass = isOverdue ? "trow-overdue" : isUrgent && !isDone ? "trow-urgent" : "";
-      const dueDateColor = isOverdue ? "var(--red)" : "var(--navy4)";
+      // Days remaining
+      const todayStr = new Date().toISOString().substring(0, 10);
+      const daysLeft = t.due_date ? Math.round((new Date(t.due_date) - new Date(todayStr)) / 86400000) : null;
+      const daysTag = daysLeft !== null && !isDone ? (() => {
+        if (daysLeft < 0) return `<span class="days-badge days-late">⚠ ${Math.abs(daysLeft)}${l === "ar" ? "ي تأخر" : "d late"}</span>`;
+        if (daysLeft === 0) return `<span class="days-badge days-warn">⏰ ${l === "ar" ? "اليوم" : "Today"}</span>`;
+        if (daysLeft <= 3) return `<span class="days-badge days-warn">⏳ ${daysLeft}${l === "ar" ? "ي" : "d"}</span>`;
+        return `<span class="days-badge days-ok">📅 ${daysLeft}${l === "ar" ? "ي" : "d"}</span>`;
+      })() : "";
+      // Status label
+      const statusMap = { overdue: ["tr","⚠ " + (l==="ar"?"متأخرة":"Overdue")], inprogress: ["ta","▶ "+(l==="ar"?"جارية":"In Progress")], new: ["tb","◎ "+(l==="ar"?"جديدة":"New")], done: ["tg","✓ "+(l==="ar"?"مكتملة":"Done")], cancelled: ["tgr","✕ "+(l==="ar"?"ملغاة":"Cancelled")] };
+      const [stClass, stLabel] = statusMap[t.status] || ["tgr", t.status];
       return `<div class="trow ${accentClass}" id="tr-${t.id}">
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          <input type="checkbox" class="tck" ${isDone ? "checked" : ""} onchange="Tasks.updateStatus(${t.id}, this.checked?'done':'inprogress')" title="${l === "ar" ? "تحديث الحالة" : "Toggle status"}" style="margin-top:3px"/>
+        <div style="display:flex;gap:11px;align-items:flex-start">
+          <input type="checkbox" class="tck" ${isDone ? "checked" : ""} onchange="Tasks.updateStatus(${t.id}, this.checked?'done':'inprogress')" title="${l === "ar" ? "تحديث الحالة" : "Toggle status"}" style="margin-top:4px;flex-shrink:0"/>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13.5px;color:${isDone ? "var(--text3)" : "var(--text)"};font-weight:${isDone ? "400" : "500"};${isDone ? "text-decoration:line-through;opacity:.6" : ""};line-height:1.5">${esc(text)}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">
-              ${owner ? `<span class="tag tgold">👤 ${esc(owner)}</span>` : ""}
-              ${isOverdue ? `<span class="tag tr">⚠ ${l === "ar" ? "متأخرة" : "Overdue"}</span>` : ""}
-              ${isUrgent && !isDone ? `<span class="tag tr" style="background:rgba(240,168,48,.15);color:var(--amber);border-color:rgba(240,168,48,.3)">🔥 ${l === "ar" ? "عاجل" : "Urgent"}</span>` : ""}
-              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25)" title="${l === "ar" ? "بحاجة لمراجعة — المساعد لم يكن متأكداً" : "AI was unsure — please verify"}">⚑ ${l === "ar" ? "مراجعة" : "Review"}</span>` : ""}
-              ${t.due_date ? `<span class="tag" style="background:${isOverdue ? "var(--red2)" : "var(--navy4)"};color:${isOverdue ? "var(--red)" : "var(--text3)"};${isOverdue ? "border:.5px solid rgba(224,85,85,.25)" : ""}">📅 ${esc(t.due_date)}</span>` : ""}
-              ${t.escalated_at ? `<span class="tag" style="background:var(--purple2);color:var(--purple);border:.5px solid rgba(155,114,219,.25)">↑ ${l === "ar" ? "مُصعَّدة" : "Escalated"}</span>` : ""}
-              ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px;border:.5px solid var(--border2)">📝 ${esc(mtg.length > 28 ? mtg.substring(0,28)+'…' : mtg)}</span>` : ""}
+            <div style="font-size:14.5px;color:${isDone ? "var(--text3)" : "var(--text)"};font-weight:${isDone ? "400" : "600"};${isDone ? "text-decoration:line-through;opacity:.55" : ""};line-height:1.45;margin-bottom:7px">${esc(text)}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              ${owner ? `<span class="tag tgold" style="font-size:11.5px">👤 ${esc(owner)}</span>` : ""}
+              <span class="tag ${stClass}" style="font-size:11px">${stLabel}</span>
+              ${daysTag}
+              ${isUrgent && !isDone ? `<span class="tag" style="background:rgba(240,168,48,.14);color:var(--amber);border:.5px solid rgba(240,168,48,.3);font-size:11px">🔥 ${l === "ar" ? "عاجل" : "Urgent"}</span>` : ""}
+              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11px" title="${l === "ar" ? "بحاجة لمراجعة" : "AI was unsure — please verify"}">⚑ ${l === "ar" ? "مراجعة" : "Review"}</span>` : ""}
+              ${t.escalated_at ? `<span class="tag" style="background:var(--purple2);color:var(--purple);border:.5px solid rgba(155,114,219,.25);font-size:11px">↑ ${l === "ar" ? "مُصعَّدة" : "Escalated"}</span>` : ""}
+              ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10.5px;border:.5px solid var(--border2)">📝 ${esc(mtg.length > 32 ? mtg.substring(0,32)+'…' : mtg)}</span>` : ""}
             </div>
           </div>
-          <div style="display:flex;gap:3px;flex-shrink:0;align-items:center">
-            <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:7px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l === "ar" ? "تعديل" : "Edit"}">✏️</button>
-            <button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:7px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l === "ar" ? "حذف" : "Delete"}">✕</button>
+          <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+            <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1;font-weight:500" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l === "ar" ? "تعديل" : "Edit"}">✏️</button>
+            <button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l === "ar" ? "حذف" : "Delete"}">✕</button>
           </div>
         </div>
       </div>`;
@@ -4335,13 +4346,29 @@ async function renderOverview() {
           .map(
             (
               s,
-            ) => `<div class="card stat-clickable" style="text-align:center;padding:20px 14px 16px;cursor:pointer;position:relative;overflow:hidden" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${s.color};opacity:.85;border-radius:14px 14px 0 0"></div>
-          <div style="font-size:28px;margin-bottom:8px;line-height:1">${s.icon}</div>
-          <div style="font-size:30px;font-weight:800;color:${s.color};letter-spacing:-.03em;line-height:1">${s.val}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4">${s.label}</div>
-          <div class="stat-click-hint">${l === 'ar' ? 'اضغط لعرض ←' : 'click to view →'}</div>
-        </div>`,
+            ) => {
+          // Trend & sub-description per metric
+          const td = {
+            meetings:      { trend:'neu', tl: lbl('كل الاجتماعات','All sessions'), sub: lbl('انقر لعرض المحاضر','Click to view transcripts') },
+            tasks_open:    { trend: s.val > 0 ? 'warn' : 'neu', tl: s.val > 0 ? lbl(`${stats.tasks_overdue} متأخرة`,''+stats.tasks_overdue+' overdue') : lbl('لا مهام مفتوحة','No open tasks'), sub: lbl('المهام الجارية والجديدة','In-progress & new tasks') },
+            tasks_overdue: { trend: s.val > 0 ? 'down' : 'neu', tl: s.val > 0 ? lbl('تحتاج انتباهاً فورياً','Requires immediate action') : lbl('لا متأخرة ✓','None overdue ✓'), sub: lbl('المهام المتجاوزة للموعد','Past due date') },
+            tasks_done:    { trend:'up',  tl: stats.completion + '% ' + lbl('نسبة إنجاز','completion'), sub: lbl('مكتملة هذا الأسبوع','Completed tasks') },
+            decisions:     { trend:'neu', tl: lbl('قيد التنفيذ','Tracked decisions'), sub: lbl('من كل الاجتماعات','Across all meetings') },
+            schedule:      { trend:'neu', tl: lbl('الـ 30 يوم القادمة','Next 30 days'), sub: lbl('اجتماعات مجدولة','Scheduled meetings') },
+            users:         { trend:'neu', tl: lbl('أعضاء الفريق','Team members'), sub: lbl('لديهم صلاحية الوصول','With system access') },
+            completion:    { trend: s.val >= 70 ? 'up' : s.val >= 40 ? 'warn' : 'down', tl: s.val >= 70 ? lbl('أداء ممتاز','Excellent performance') : s.val >= 40 ? lbl('أداء متوسط','Moderate performance') : lbl('يحتاج متابعة','Needs attention'), sub: lbl('نسبة إنجاز المهام','Overall task completion') },
+          }[s.key] || { trend:'neu', tl: '', sub: '' };
+          const trendClass = { up:'trend-up', down:'trend-down', neu:'trend-neu', warn:'trend-warn' }[td.trend];
+          const trendIcon  = { up:'↑', down:'↓', neu:'●', warn:'⚠' }[td.trend];
+          return `<div class="card stat-clickable" style="text-align:center;padding:24px 16px 20px;cursor:pointer;position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${s.color};opacity:.9;border-radius:14px 14px 0 0"></div>
+          <div style="font-size:32px;margin-bottom:10px;line-height:1">${s.icon}</div>
+          <div style="font-size:34px;font-weight:800;color:${s.color};letter-spacing:-.04em;line-height:1">${s.val}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.3">${s.label}</div>
+          <div class="stat-trend ${trendClass}">${trendIcon} ${td.tl}</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.4">${td.sub}</div>
+          <div class="stat-click-hint">${l === 'ar' ? '← اضغط للعرض' : 'click to view →'}</div>
+        </div>`;},
           )
           .join("")}
       </div>`;
