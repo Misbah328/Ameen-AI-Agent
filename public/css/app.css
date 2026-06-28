@@ -283,5 +283,195 @@ select.fi option{background:var(--navy3)}
 .spk-btn:hover{background:var(--navy3);border-color:var(--border)}
 .spk-btn.spk-active{border-color:var(--gold);background:var(--gold-dim);box-shadow:0 0 0 3px var(--gold-glow)}
 .spk-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;border:2px solid transparent}
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM UI ENHANCEMENT LAYER  ·  appended — overrides only
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Base ────────────────────────────────────────────────────── */
+body{font-size:13.5px;letter-spacing:-.01em}
+
+/* ── Topbar ──────────────────────────────────────────────────── */
+.topbar{height:62px;padding:0 28px;border-bottom-width:1px}
+.brand-ar{font-size:16px;font-weight:800}
+.brand-en{font-size:9px;letter-spacing:.14em}
+.brand-logo{width:38px;height:38px;border-radius:11px}
+
+/* ── Sidebar — richer section headers ────────────────────────── */
+.nsec{
+  font-size:9px;letter-spacing:.2em;padding:22px 16px 7px;
+  display:flex;align-items:center;gap:8px
+}
+.nsec::after{content:'';flex:1;height:1px;background:var(--border2);opacity:.7}
+.nb{font-size:12.5px;padding:9px 14px;margin:2px 8px;gap:10px;border-radius:10px;letter-spacing:-.005em}
+.nb.active{
+  background:linear-gradient(135deg,rgba(201,168,76,.22),rgba(201,168,76,.06));
+  box-shadow:inset 0 0 0 1px var(--gold-border),0 2px 10px rgba(201,168,76,.12);
+  font-weight:700
+}
+.nb-icon{font-size:16px;width:20px;text-align:center}
+.sf{padding:14px 12px}
+.uav{width:34px;height:34px;font-size:11px;font-weight:800}
+
+/* ── Panel header ────────────────────────────────────────────── */
+.ph{padding:20px 28px 17px;background:linear-gradient(to bottom,var(--navy2),var(--navy2) 70%,transparent);background:var(--navy2)}
+.ptitle{font-size:19px;font-weight:800;letter-spacing:-.03em}
+.ptitle-sub{font-size:12px;margin-top:5px;line-height:1.5}
+.ph-row{gap:12px}
+.pbody{padding:22px 28px;gap:18px}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card{border-radius:14px;padding:22px 24px;transition:transform var(--t),box-shadow var(--t),border-color var(--t)}
+.card:hover{box-shadow:var(--shadow-md);border-color:var(--border)}
+.card-gold{background:linear-gradient(135deg,var(--navy2) 65%,rgba(201,168,76,.04))}
+.ct{font-size:14.5px;font-weight:700;letter-spacing:-.015em}
+.ctsub{font-size:11.5px}
+.ch{margin-bottom:16px;gap:12px}
+
+/* ── KPI stat cards — top accent bar instead of left bar ─────── */
+.stat-c{padding:22px 20px 18px;border-radius:14px;overflow:hidden}
+.stat-c::before{
+  width:100%;height:3px;
+  top:0;left:0;right:0;bottom:auto;
+  border-radius:14px 14px 0 0;
+  opacity:1
+}
+.stat-clickable:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--border)}
+.stat-lbl{font-size:10.5px;letter-spacing:.06em;margin-bottom:10px;line-height:1.4}
+.stat-val{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.stat-sub{font-size:10.5px;margin-top:6px}
+.stat-grid{gap:14px}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn-gold{padding:10px 22px;font-size:13.5px;border-radius:10px;letter-spacing:.005em;font-weight:700}
+.btn-ghost{padding:9px 18px;font-size:12.5px;border-radius:10px;font-weight:500}
+.btn-sm{padding:6px 14px;font-size:11.5px}
+
+/* ── Tags & Pills ────────────────────────────────────────────── */
+.tag{padding:3px 10px;font-size:10.5px;letter-spacing:.015em}
+.pill{padding:5px 13px;font-size:11.5px}
+.ai-pill{padding:4px 12px;font-size:11.5px}
+
+/* ── Forms ───────────────────────────────────────────────────── */
+.fi{padding:10px 14px;font-size:13px;border-radius:10px}
+.fi:focus{box-shadow:0 0 0 3px var(--gold-glow),0 0 0 1px var(--gold)}
+.fl{font-size:10.5px;letter-spacing:.09em;margin-bottom:5px}
+textarea.fi{min-height:84px}
+.fs{gap:14px}
+
+/* ── Modals ──────────────────────────────────────────────────── */
+.modal{border-radius:20px;padding:32px;max-width:520px;border-width:1px}
+.modal-title{font-size:17px;margin-bottom:22px;letter-spacing:-.02em}
+.modal-overlay{backdrop-filter:blur(8px) saturate(1.3);background:rgba(0,0,0,.72)}
+
+/* ── Recording screen ────────────────────────────────────────── */
+.rec-ring{width:106px;height:106px;border-width:2.5px}
+.rec-ic{width:46px;height:46px;font-size:22px}
+.rec-tm{font-size:32px;letter-spacing:-.03em;margin-top:6px}
+.rec-center{gap:26px;padding:28px 12px}
+.rec-st{font-size:13.5px;margin-top:10px}
+.rec-ht{font-size:11.5px;margin-top:5px;line-height:1.6}
+.feat-pills{gap:8px;margin-top:4px}
+.fp{font-size:11.5px;padding:5px 14px;border-radius:100px}
+.rec-title-inp{font-size:15.5px;font-weight:600;min-width:320px;padding-bottom:7px}
+
+/* ── Live transcript ─────────────────────────────────────────── */
+.tr-box{padding:16px 18px;font-size:12.5px;border-radius:12px;line-height:2}
+.ec{border-radius:10px;padding:14px 15px}
+.el{font-size:10px;letter-spacing:.09em;margin-bottom:10px}
+.ei{font-size:12.5px}
+
+/* ── Chat ────────────────────────────────────────────────────── */
+.chat-body{padding:18px 24px;gap:14px}
+.mb{border-radius:16px;padding:12px 16px;font-size:13.5px;line-height:1.75}
+.msg.user .mb{border-radius:16px 4px 16px 16px}
+.msg:not(.user) .mb{border-radius:4px 16px 16px 16px}
+.mav{width:30px;height:30px}
+.chat-ft{padding:14px 24px;gap:10px}
+.ci{border-radius:13px;padding:11px 16px;font-size:13px;min-height:44px}
+.sbtn{width:42px;height:42px;border-radius:13px;font-size:18px}
+.qchips{gap:8px;padding-bottom:4px;padding-right:52px}
+[dir=ltr] .qchips{padding-right:0;padding-left:52px}
+.qc{font-size:11.5px;padding:6px 14px;border-radius:100px}
+
+/* ── Empty states ────────────────────────────────────────────── */
+.es{padding:52px 24px;gap:13px}
+.es-icon{font-size:48px;margin-bottom:8px;opacity:.5}
+.es-title{font-size:16px;font-weight:700;letter-spacing:-.015em}
+.es-sub{font-size:12.5px;max-width:300px;line-height:1.8}
+
+/* ── Task rows ───────────────────────────────────────────────── */
+.trow{padding:13px 18px}
+.tck{width:16px;height:16px}
+
+/* ── Schedule ────────────────────────────────────────────────── */
+.sched-row{padding:14px 2px}
+.sname{font-size:13.5px;margin-bottom:4px}
+.smeta{font-size:11.5px;gap:10px}
+.stime .t{font-size:13.5px}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+
+/* ── Speaker bar ─────────────────────────────────────────────── */
+.spk-btn{padding:8px 11px;min-width:58px;border-radius:11px}
+.spk-av{width:34px;height:34px}
+.spk-nm{font-size:10.5px}
+
+/* ── Toast ───────────────────────────────────────────────────── */
+.toast{border-radius:10px;padding:8px 14px;font-size:12.5px}
+
+/* ── Loading spinner ─────────────────────────────────────────── */
+.loading{width:16px;height:16px;border-width:2.5px}
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.divider{margin:10px 0}
+
+/* ── Announcement banner for empty state actions ─────────────── */
+.hint-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;border-radius:10px;
+  background:var(--gold-dim);border:.5px solid var(--gold-border);
+  font-size:12px;color:var(--text2);line-height:1.5;
+  margin-bottom:4px
+}
+.hint-bar .hint-icon{font-size:18px;flex-shrink:0}
+.hint-bar strong{color:var(--gold);font-weight:700}
+
+/* ── Dashboard stat card click hint ─────────────────────────── */
+.stat-click-hint{
+  font-size:10px;color:var(--text3);margin-top:8px;
+  opacity:0;transition:opacity var(--t);letter-spacing:.02em
+}
+.stat-clickable:hover .stat-click-hint{opacity:1}
+
+/* ── Priority urgent badge ───────────────────────────────────── */
+.urgent-dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--red);margin-left:4px;vertical-align:middle;
+  animation:rpulse 1.8s infinite
+}
+[dir=ltr] .urgent-dot{margin-left:0;margin-right:4px}
+
+/* ── Task row overdue accent ─────────────────────────────────── */
+.trow-overdue{border-right:3px solid var(--red)}
+[dir=ltr] .trow-overdue{border-right:none;border-left:3px solid var(--red)}
+.trow-urgent{border-right:3px solid var(--amber)}
+[dir=ltr] .trow-urgent{border-right:none;border-left:3px solid var(--amber)}
+
+/* ── Document output box ─────────────────────────────────────── */
+.doc-out{border-radius:12px;padding:18px;font-size:13px;line-height:2}
+
+/* ── Extraction grid ─────────────────────────────────────────── */
+.eg{gap:12px}
+
+/* ── Pbar ────────────────────────────────────────────────────── */
+.pbar-bg{height:5px;border-radius:4px}
+.pbar{border-radius:4px}
+
+/* ── Light theme scrollbar ───────────────────────────────────── */
+[data-theme="light"] ::-webkit-scrollbar-thumb{background:var(--border2)}
 .spk-nm{font-size:10px;color:var(--text2);white-space:nowrap;max-width:64px;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .spk-btn.spk-active .spk-nm{color:var(--gold);font-weight:600}
