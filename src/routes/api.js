@@ -1284,6 +1284,111 @@ router.post('/documents/share', auth, requirePro, async (req, res) => {
   res.json({ success: true, shared: results.length, results });
 });
 
+// ── Executive Weekly Report ───────────────────────────────────────────────────
+router.get('/reports/executive-weekly', auth, (req, res) => {
+  const today = new Date().toISOString().substring(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
+
+  // 1. Open Actions — new or in-progress tasks
+  const openActions = db.prepare(
+    `SELECT id, text_en, text_ar, owner_name_en, owner_name_ar, due_date, priority, status
+     FROM tasks WHERE status IN ('new','inprogress') ORDER BY due_date ASC`
+  ).all();
+
+  // 2. Completed this week
+  const completed = db.prepare(
+    `SELECT id, text_en, text_ar, owner_name_en, owner_name_ar, due_date, updated_at
+     FROM tasks WHERE status='done' AND updated_at >= ? ORDER BY updated_at DESC`
+  ).all(weekAgo);
+
+  // 3. Overdue tasks
+  const overdue = db.prepare(
+    `SELECT id, text_en, text_ar, owner_name_en, owner_name_ar, due_date, priority
+     FROM tasks WHERE status='overdue' ORDER BY due_date ASC`
+  ).all();
+
+  // 4. Escalated tasks
+  const escalated = db.prepare(
+    `SELECT id, text_en, text_ar, owner_name_en, owner_name_ar, due_date, status,
+            escalated_at, escalated_to_name
+     FROM tasks WHERE escalated_at IS NOT NULL ORDER BY escalated_at DESC`
+  ).all();
+
+  // 5. Meetings this week + upcoming 7 days
+  const meetings = db.prepare(
+    `SELECT id, title_en, title_ar, meeting_date, status, minutes_status, recorded_by
+     FROM meetings WHERE meeting_date >= ? ORDER BY meeting_date DESC`
+  ).all(weekAgo);
+
+  // 6. Minutes pending approval (has minutes but not final_approved)
+  const minutesPendingApproval = db.prepare(
+    `SELECT id, title_en, title_ar, meeting_date, minutes_status, circulated_at, approval_due_date
+     FROM meetings
+     WHERE minutes_status IS NOT NULL
+       AND minutes_status != ''
+       AND minutes_status != 'final_approved'
+     ORDER BY meeting_date DESC`
+  ).all();
+
+  // 7. Critical Tasks — urgent priority, not done/cancelled
+  const criticalTasks = db.prepare(
+    `SELECT id, text_en, text_ar, owner_name_en, owner_name_ar, due_date, status, escalated_at
+     FROM tasks WHERE priority='urgent' AND status NOT IN ('done','cancelled')
+     ORDER BY due_date ASC`
+  ).all();
+
+  // 8. Top 5 Risks — parse ai_risks from all meetings, return most recent 5 unique items
+  const riskRows = db.prepare(
+    `SELECT id, title_en, title_ar, meeting_date, ai_risks
+     FROM meetings WHERE ai_risks IS NOT NULL AND ai_risks != ''
+     ORDER BY meeting_date DESC LIMIT 10`
+  ).all();
+
+  const risks = [];
+  for (const row of riskRows) {
+    if (risks.length >= 5) break;
+    let parsed = [];
+    try { parsed = JSON.parse(row.ai_risks); } catch (_) {
+      // plain text fallback — split by newline
+      parsed = String(row.ai_risks).split('\n').map(l => l.trim()).filter(Boolean);
+    }
+    const items = Array.isArray(parsed) ? parsed : [parsed];
+    for (const item of items) {
+      if (risks.length >= 5) break;
+      risks.push({
+        risk: typeof item === 'object' ? (item.text_en || item.text_ar || JSON.stringify(item)) : item,
+        source_meeting_id: row.id,
+        source_meeting_title_en: row.title_en,
+        source_meeting_title_ar: row.title_ar,
+        meeting_date: row.meeting_date,
+      });
+    }
+  }
+
+  res.json({
+    generated_at: new Date().toISOString(),
+    period: { from: weekAgo, to: today },
+    summary: {
+      open_actions_count: openActions.length,
+      completed_count: completed.length,
+      overdue_count: overdue.length,
+      escalated_count: escalated.length,
+      meetings_count: meetings.length,
+      minutes_pending_approval_count: minutesPendingApproval.length,
+      critical_tasks_count: criticalTasks.length,
+      top_risks_count: risks.length,
+    },
+    open_actions: openActions,
+    completed,
+    overdue,
+    escalated,
+    meetings,
+    minutes_pending_approval: minutesPendingApproval,
+    critical_tasks: criticalTasks,
+    top_risks: risks,
+  });
+});
+
 // ── Report PDF — server-side binary PDF via pdfkit ───────────────────────────
 router.post('/reports/pdf', auth, async (req, res) => {
   const { content, title, lang } = req.body;
