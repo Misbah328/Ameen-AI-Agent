@@ -2018,7 +2018,40 @@ function _injectRecordHelper(l) {
           </div>
         </div>
       </div>
+    </div>
+    <div style="margin-bottom:4px;padding:14px 15px;background:var(--navy3);border:2px solid rgba(45,140,255,.35);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:20px">📤</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#5B9BD6">${l==='ar'?'رفع تسجيل رسمي للاجتماع':'Upload Official Meeting Recording'}</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:1px">${l==='ar'?'Zoom · Microsoft Teams · Google Meet · قاعة اجتماعات':'Zoom · Microsoft Teams · Google Meet · Boardroom'}</div>
+        </div>
+        <span style="margin-inline-start:auto;font-size:9.5px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.3)">✓ ${l==='ar'?'تسجيل كامل للاجتماع':'Full meeting capture'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.65;margin-bottom:10px">${l==='ar'
+        ? 'استخدم هذا الخيار لرفع التسجيل الرسمي من <strong style="color:#5B9BD6">Zoom أو Microsoft Teams أو Google Meet</strong> أو تسجيل قاعة الاجتماعات. يتيح التقاط أصوات جميع المشاركين وتصنيفه كـ <strong style="color:#2ecc8a">تسجيل كامل للاجتماع</strong>.'
+        : 'Use this to upload the official recording from <strong style="color:#5B9BD6">Zoom, Microsoft Teams, Google Meet</strong>, or a boardroom system. This captures all participants and is classified as a <strong style="color:#2ecc8a">full meeting recording</strong>.'}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:10.5px;color:var(--text3);display:block;margin-bottom:4px">📋 ${l==='ar'?'اختر الاجتماع:':'Select Meeting:'}</label>
+          <select id="official-rec-meeting-sel" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11.5px">
+            <option value="">${l==='ar'?'— جارٍ التحميل —':'— Loading —'}</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10.5px;color:var(--text3);display:block;margin-bottom:4px">🎞 ${l==='ar'?'ملف التسجيل (صوت أو فيديو):':'Recording File (audio or video):'}</label>
+          <input type="file" id="official-rec-file"
+            accept=".mp4,.mov,.webm,.mp3,.wav,.m4a,.aac,.ogg,.wma"
+            style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11px;box-sizing:border-box">
+          <div style="font-size:9.5px;color:var(--text3);margin-top:3px">${l==='ar'?'الصيغ المدعومة: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — حتى 500 MB':'Supported: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — up to 500 MB'}</div>
+        </div>
+        <button id="official-rec-btn" onclick="RecStore.uploadOfficial()"
+          style="align-self:flex-start;padding:8px 20px;border-radius:8px;background:rgba(45,140,255,.15);color:#5B9BD6;border:1px solid rgba(45,140,255,.4);font-size:12px;font-weight:700;cursor:pointer">
+          📤 ${l==='ar'?'رفع التسجيل الرسمي':'Upload Official Recording'}
+        </button>
+      </div>
     </div>`;
+  RecStore.populateMeetingsSel();
 }
 
 // ══ Recording Storage ══════════════════════════════════════════════════════════
@@ -2041,6 +2074,56 @@ const RecStore = {
     } catch (e) {
       showToast(e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = l === 'ar' ? '☁ حفظ في المنصة' : '☁ Save to Platform'; }
+    }
+  },
+  async uploadOfficial() {
+    const l   = App.lang;
+    const sel = document.getElementById('official-rec-meeting-sel');
+    const fi  = document.getElementById('official-rec-file');
+    const btn = document.getElementById('official-rec-btn');
+    const meetingId = sel?.value;
+    if (!meetingId) { showToast(l==='ar'?'الرجاء اختيار اجتماع أولاً':'Please select a meeting first', 'error'); return; }
+    if (!fi?.files?.[0]) { showToast(l==='ar'?'الرجاء اختيار ملف تسجيل':'Please select a recording file', 'error'); return; }
+    const f = fi.files[0];
+    if (btn) { btn.disabled = true; btn.textContent = l==='ar'?'جارٍ الرفع…':'Uploading…'; }
+    try {
+      const fd = new FormData();
+      fd.append('recording', f, f.name);
+      fd.append('capture_type', 'uploaded_recording');
+      const res = await fetch(`/api/meetings/${meetingId}/recording`, {
+        method: 'POST', credentials: 'include', body: fd
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+      showToast(l==='ar'?'✓ تم رفع التسجيل الرسمي — تسجيل كامل للاجتماع':'✓ Official recording uploaded — full meeting capture', 'success');
+      if (btn) { btn.textContent = l==='ar'?'✓ تم الرفع':'✓ Uploaded'; }
+      fi.value = '';
+      sel.value = '';
+      const panels = document.getElementById('panel-transcripts');
+      if (panels?.classList.contains('active')) await renderTranscripts();
+    } catch (e) {
+      showToast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = l==='ar'?'📤 رفع التسجيل الرسمي':'📤 Upload Official Recording'; }
+    }
+  },
+  async populateMeetingsSel() {
+    const sel = document.getElementById('official-rec-meeting-sel');
+    if (!sel) return;
+    const l = App.lang;
+    sel.innerHTML = `<option value="">${l==='ar'?'جارٍ تحميل الاجتماعات…':'Loading meetings…'}</option>`;
+    try {
+      const meetings = await api('/api/meetings');
+      if (!meetings.length) {
+        sel.innerHTML = `<option value="">${l==='ar'?'لا توجد اجتماعات مسجلة بعد':'No meetings recorded yet'}</option>`;
+        return;
+      }
+      sel.innerHTML = `<option value="">${l==='ar'?'— اختر الاجتماع —':'— Select Meeting —'}</option>` +
+        meetings.map(m => {
+          const title = l==='ar' ? m.title_ar : (m.title_en||m.title_ar);
+          const date  = (m.meeting_date||'').substring(0,10);
+          return `<option value="${m.id}">${esc(title)}${date?' · '+date:''}</option>`;
+        }).join('');
+    } catch (_) {
+      sel.innerHTML = `<option value="">${l==='ar'?'تعذّر تحميل الاجتماعات':'Could not load meetings'}</option>`;
     }
   },
   async approve(meetingId, action) {
@@ -2299,7 +2382,8 @@ async function renderTranscripts() {
                   ${capInfo ? `<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:${capInfo.bg};color:${capInfo.c};border:.5px solid ${capInfo.bd}">${l==='ar'?capInfo.ar:capInfo.en}</span>` : ''}
                   ${scopeInfo ? `<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:${scopeInfo.bg};color:${scopeInfo.c};border:.5px solid ${scopeInfo.bd}">${l==='ar'?scopeInfo.ar:scopeInfo.en}</span>` : ''}
                 </div>
-                ${isLocalOnly ? `<div style="margin-bottom:8px;padding:5px 9px;background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.22);border-radius:7px;font-size:10.5px;color:#f0a000;line-height:1.5">⚠️ ${l==='ar'?'تسجيل الميكروفون المحلي فقط — لا يشمل أصوات المشاركين الآخرين عبر منصات الاجتماع الافتراضية.':'Local microphone only — does not capture other participants on virtual meeting platforms.'}</div>` : ''}
+                ${isLocalOnly ? `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.22);border-radius:7px;font-size:10.5px;color:#f0a000;line-height:1.5">⚠️ ${l==='ar'?'هذا التسجيل يحتوي على الميكروفون المحلي فقط — لا يشمل أصوات المشاركين الآخرين عبر منصات الاجتماع الافتراضية.':'This recording may only contain local microphone audio — other participants on virtual platforms are not captured.'}</div>` : ''}
+                ${m.recording_scope === 'full_meeting_recording' ? `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(46,204,138,.08);border:1px solid rgba(46,204,138,.25);border-radius:7px;font-size:10.5px;color:#2ecc8a;line-height:1.5">✓ ${l==='ar'?'تسجيل كامل للاجتماع متاح — يشمل جميع المشاركين.':'Full meeting recording available — captures all participants.'}</div>` : ''}
                 <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px;line-height:1.8">
                   📁 ${esc(m.recording_file_name||'')} &nbsp;·&nbsp; ${fmtBytes(m.recording_file_size||0)}
                   ${m.recording_uploaded_at ? ` &nbsp;·&nbsp; 📅 ${m.recording_uploaded_at.substring(0,16)}` : ''}

@@ -439,7 +439,7 @@ router.post('/meetings/:id/recording', auth, uploadRec.single('recording'), (req
   }
   const publicUrl = `/recordings/${req.file.filename}`;
   const { capture_type, scope } = req.body;
-  const resolvedScope = capture_type && ['zoom_cloud','teams_cloud','google_meet_cloud'].includes(capture_type)
+  const resolvedScope = capture_type && ['zoom_cloud','teams_cloud','google_meet_cloud','uploaded_recording'].includes(capture_type)
     ? 'full_meeting_recording'
     : (scope || 'local_microphone_only');
   db.prepare(`
