@@ -278,9 +278,14 @@ const Gov = {
                   </div>
                   <div style="font-size:18px;font-weight:800;color:var(--text);line-height:1.35">${esc(title)}</div>
                 </div>
-                <button class="btn-ghost btn-sm" onclick="Gov._selectGA(${ga.id})" style="flex-shrink:0;font-size:12.5px">
-                  ${lbl('عرض بنود الحوكمة ←','View Governance Items →')}
-                </button>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0">
+                  <button class="btn-ghost btn-sm" onclick="Gov._selectGA(${ga.id})" style="font-size:12px">
+                    ${lbl('بنود الحوكمة','Governance Items →')}
+                  </button>
+                  <button class="btn-gold btn-sm" onclick="Gov._toggleGADetail(${ga.id})" style="font-size:12px;white-space:nowrap" id="ga-toggle-${ga.id}">
+                    📊 ${lbl('التقرير الكامل','Full GA Report')}
+                  </button>
+                </div>
               </div>
 
               <!-- Info strip -->
@@ -349,7 +354,8 @@ const Gov = {
                   </div>`).join(`<div style="color:var(--border2);padding-inline-end:14px">›</div>`)}
               </div>
             </div>
-          </div>`;
+          </div>
+          <div id="ga-detail-${ga.id}" style="display:none;margin-top:2px"></div>`;
         }).join('')}
       </div>
     </div>`;
@@ -1051,6 +1057,415 @@ const Gov = {
     if (!confirm(this.lbl('حذف هذه الوثيقة؟','Delete this document?'))) return;
     try { await api(`/api/gov/documents/${id}`, { method:'DELETE' }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
+  },
+
+  // ── General Assembly: toggle detail panel ──────────────────────────────────
+  _toggleGADetail(gaId) {
+    const el = document.getElementById('ga-detail-' + gaId);
+    const btn = document.getElementById('ga-toggle-' + gaId);
+    if (!el) return;
+    const l = App.lang;
+    if (el.style.display === 'none' || !el.style.display) {
+      const ga = (this._gas || []).find(g => g.id === gaId) || { id: gaId };
+      el.innerHTML = this._sGADetail(ga);
+      el.style.display = '';
+      if (btn) btn.textContent = (l === 'ar' ? '▲ طي التقرير' : '▲ Collapse');
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    } else {
+      el.style.display = 'none';
+      if (btn) btn.innerHTML = '📊 ' + (l === 'ar' ? 'التقرير الكامل' : 'Full GA Report');
+    }
+  },
+
+  // ── Enterprise demo data (used when backend GA detail fields are absent) ───
+  _gaDemo(ga) {
+    const y = (ga.meeting_date || '2025').substring(0, 4);
+    return {
+      shareholders: [
+        { nameAr: 'محمد العتيبي',       nameEn: 'Mohammed Al-Otaibi',      shares: 2500000, pct: 35.7, voteRights: 2500000, attendance: 'present', proxy: '—' },
+        { nameAr: 'خالد الراشد',         nameEn: 'Khalid Al-Rashid',         shares: 1800000, pct: 25.7, voteRights: 1800000, attendance: 'present', proxy: '—' },
+        { nameAr: 'صندوق أمين القابضة', nameEn: 'Ameen Holdings Fund',      shares: 1200000, pct: 17.1, voteRights: 1200000, attendance: 'proxy',   proxy: 'M. Hassan' },
+        { nameAr: 'سارة العمري',         nameEn: 'Sarah Al-Amri',            shares:  800000, pct: 11.4, voteRights:  800000, attendance: 'present', proxy: '—' },
+        { nameAr: 'شركاء دوليون م.م.',  nameEn: 'International Partners LLC', shares: 700000, pct: 10.0, voteRights: 700000, attendance: 'absent',  proxy: '—' },
+      ],
+      quorum: { totalShares: 7000000, sharesPresent: 6300000, required: 50, pct: 90, achieved: true },
+      agenda: [
+        { no:1, titleAr:'اعتماد محضر الاجتماع السابق',                               titleEn:'Approval of previous meeting minutes',                      presenter:'Company Secretary', status:'approved' },
+        { no:2, titleAr:'استعراض واعتماد القوائم المالية للسنة المالية '+y,           titleEn:'Review and approval of financial statements FY'+y,           presenter:'CFO – Ahmed Salem',   status:'approved' },
+        { no:3, titleAr:'انتخاب أعضاء مجلس الإدارة للدورة القادمة',                  titleEn:'Election of Board of Directors for next term',               presenter:'Chairman',            status:'approved' },
+        { no:4, titleAr:'تعيين مراجع الحسابات الخارجي لعام '+(parseInt(y)+1),        titleEn:'Appointment of external auditors for '+(parseInt(y)+1),      presenter:'Audit Committee',     status:'approved' },
+        { no:5, titleAr:'توزيع الأرباح على المساهمين',                               titleEn:'Dividend distribution to shareholders',                      presenter:'CFO – Ahmed Salem',   status:'approved' },
+        { no:6, titleAr:'أي موضوعات أخرى',                                           titleEn:'Any other business',                                         presenter:'Chairman',            status:'closed'   },
+      ],
+      votes: [
+        { motionAr:'اعتماد القوائم المالية FY'+y,            motionEn:'Approve FY'+y+' Financial Statements',           for:5800000, against:200000, abstain:300000, total:6300000, passed:true },
+        { motionAr:'إعادة انتخاب أعضاء مجلس الإدارة',        motionEn:'Re-elect Board of Directors 2026–2028',          for:6100000, against:100000, abstain:100000, total:6300000, passed:true },
+        { motionAr:'تعيين PricewaterhouseCoopers مراجعاً',    motionEn:'Appoint PricewaterhouseCoopers as Auditors',      for:5900000, against:150000, abstain:250000, total:6300000, passed:true },
+        { motionAr:'الموافقة على توزيع أرباح بنسبة 8%',       motionEn:'Approve 8% Dividend Distribution',              for:5400000, against:600000, abstain:300000, total:6300000, passed:true },
+      ],
+      resolutions: [
+        { no:'GA-'+y+'-001', descAr:'اعتماد القوائم المالية للسنة المالية '+y,          descEn:'Approved annual financial statements FY'+y,           ownerAr:'المدير المالي — أحمد سالم',        ownerEn:'CFO – Ahmed Salem',        due:y+'-03-31', status:'implemented' },
+        { no:'GA-'+y+'-002', descAr:'إعادة تشكيل مجلس الإدارة للفترة 2026–2028',       descEn:'Reconstitution of Board of Directors 2026–2028',      ownerAr:'أمين السر',                        ownerEn:'Company Secretary',        due:y+'-04-15', status:'in_progress' },
+        { no:'GA-'+y+'-003', descAr:'تعيين PricewaterhouseCoopers مراجعاً خارجياً',     descEn:'Appointed PwC as External Auditors',                  ownerAr:'الرئيس التنفيذي — محمد العتيبي',   ownerEn:'CEO – Mohammed Al-Otaibi', due:y+'-03-15', status:'implemented' },
+        { no:'GA-'+y+'-004', descAr:'توزيع أرباح بنسبة 8% على المساهمين',              descEn:'Approved 8% dividend distribution to shareholders',   ownerAr:'المدير المالي — أحمد سالم',        ownerEn:'CFO – Ahmed Salem',        due:y+'-05-01', status:'pending'     },
+      ],
+      minutesWorkflow: [
+        { stepAr:'مسودة',              stepEn:'Draft',                icon:'📄', done:true,  doneBy:'Fatima Al-Harbi',      date:y+'-02-16' },
+        { stepAr:'مراجعة أمين السر',   stepEn:'Secretary Review',    icon:'🔍', done:true,  doneBy:'Fatima Al-Harbi',      date:y+'-02-18' },
+        { stepAr:'مراجعة الرئيس',      stepEn:'Chairman Review',     icon:'👑', done:true,  doneBy:'Mohammed Al-Otaibi',   date:y+'-02-22' },
+        { stepAr:'موافقة المساهمين',   stepEn:'Shareholder Approval',icon:'🗳', done:false, doneBy:null, date:null },
+        { stepAr:'اعتماد نهائي',       stepEn:'Final Approved',      icon:'✅', done:false, doneBy:null, date:null },
+      ],
+      documents: [
+        { icon:'📨', nameAr:'إشعار الاجتماع',          nameEn:'Notice of Meeting',             date:y+'-01-10', status:'shared',   by:'Company Secretary' },
+        { icon:'📋', nameAr:'جدول الأعمال',             nameEn:'Agenda',                        date:y+'-01-15', status:'approved', by:'Chairman'          },
+        { icon:'📦', nameAr:'حقيبة المجلس',             nameEn:'Board Pack',                    date:y+'-01-20', status:'approved', by:'CFO'               },
+        { icon:'💰', nameAr:'القوائم المالية '+y,       nameEn:'Financial Statements FY'+y,     date:y+'-01-20', status:'approved', by:'External Auditors'  },
+        { icon:'📝', nameAr:'مسودة المحضر',             nameEn:'Draft Minutes',                 date:y+'-02-16', status:'reviewed', by:'Fatima Al-Harbi'    },
+      ],
+      actionItems: [
+        { descAr:'رفع القوائم المالية لوزارة التجارة',                    descEn:'File financial statements with Ministry of Commerce', ownerAr:'أحمد سالم',    ownerEn:'Ahmed Salem',      priority:'high',   due:y+'-03-31', progress:100 },
+        { descAr:'تسجيل تشكيلة المجلس الجديدة لدى هيئة السوق المالية',   descEn:'Register new Board composition with CMA',            ownerAr:'أمين السر',    ownerEn:'Company Secretary',priority:'urgent', due:y+'-04-15', progress:60  },
+        { descAr:'معالجة توزيع الأرباح للمساهمين',                        descEn:'Process dividend payments to shareholders',          ownerAr:'فريق المالية', ownerEn:'Finance Team',     priority:'high',   due:y+'-05-01', progress:30  },
+        { descAr:'توقيع عقد تعيين PwC والبدء بالتخطيط للمراجعة',          descEn:'Sign PwC engagement letter and begin audit planning',ownerAr:'أحمد سالم',    ownerEn:'Ahmed Salem',      priority:'normal', due:y+'-03-20', progress:100 },
+        { descAr:'تعميم المحضر المعتمد على المساهمين',                     descEn:'Circulate approved minutes to all shareholders',     ownerAr:'أمين السر',    ownerEn:'Company Secretary',priority:'normal', due:y+'-03-01', progress:80  },
+      ],
+      timeline: [
+        { eventAr:'إنشاء الاجتماع',       eventEn:'Meeting Created',    icon:'🏗', done:true,  date:y+'-01-05' },
+        { eventAr:'إصدار الإشعار',        eventEn:'Notice Issued',       icon:'📨', done:true,  date:y+'-01-10' },
+        { eventAr:'مشاركة حقيبة المجلس', eventEn:'Board Pack Shared',   icon:'📦', done:true,  date:y+'-01-20' },
+        { eventAr:'انعقاد الاجتماع',      eventEn:'Meeting Held',        icon:'🏢', done:true,  date:ga.meeting_date||y+'-02-15' },
+        { eventAr:'إغلاق التصويت',        eventEn:'Voting Closed',       icon:'🗳', done:true,  date:ga.meeting_date||y+'-02-15' },
+        { eventAr:'اعتماد المحضر',        eventEn:'Minutes Approved',    icon:'✅', done:false, date:null },
+        { eventAr:'أرشفة الوثائق',        eventEn:'Archived',            icon:'🗄', done:false, date:null },
+      ],
+    };
+  },
+
+  // ── Full 10-section GA Detail Panel ────────────────────────────────────────
+  _sGADetail(ga) {
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const demo = this._gaDemo(ga);
+    const fmt = n => n ? Number(n).toLocaleString() : '0';
+
+    // ── 1. Overview Card ──────────────────────────────────────────────────
+    const title = l === 'ar' ? (ga.title_ar || '') : (ga.title_en || ga.title_ar || '');
+    const gaTypeLabel = (ga.meeting_type === 'extraordinary' || (title||'').toLowerCase().includes('extraordinary'))
+      ? lbl('جمعية عمومية غير عادية', 'Extraordinary General Assembly')
+      : lbl('جمعية عمومية عادية', 'Ordinary General Assembly');
+    const stColors = { confirmed:'var(--green)', draft:'var(--amber)', cancelled:'var(--red)' };
+    const stLabels = { confirmed:lbl('مؤكد','Confirmed'), draft:lbl('مسودة','Draft'), cancelled:lbl('ملغي','Cancelled') };
+    const stC = stColors[ga.status] || 'var(--text3)';
+    const stL = stLabels[ga.status] || (ga.status || '');
+    const s1 = `<div class="card" style="border:1px solid rgba(139,92,246,.3)">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct" style="color:#8B5CF6">🏢 ${lbl('ملخص الجمعية العمومية','General Assembly Overview')}</div>
+        <div class="ctsub">${lbl('البيانات الأساسية للاجتماع','Core meeting details')}</div></div>
+        <span class="tag" style="font-size:12px;background:transparent;border:1px solid ${stC};color:${stC}">${stL}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+        ${[
+          ['🏢', lbl('اسم الاجتماع','Meeting Name'), esc(title || lbl('جمعية عمومية','General Assembly'))],
+          ['📌', lbl('النوع','Type'), gaTypeLabel],
+          ['📅', lbl('التاريخ','Date'), ga.meeting_date || '—'],
+          ['🕐', lbl('الوقت','Time'), ga.meeting_time || '10:00 AM'],
+          ['📍', lbl('المقر','Venue'), esc((ga.platform||'').substring(0,40) || lbl('مقر الشركة الرئيسي','Company Head Office'))],
+          ['📊', lbl('الحالة','Status'), stL],
+        ].map(([ic,lb,val]) => `<div style="padding:11px 14px;background:var(--navy3);border-radius:10px;display:flex;align-items:flex-start;gap:9px">
+            <span style="font-size:18px;flex-shrink:0;margin-top:1px">${ic}</span>
+            <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${lb}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${val}</div></div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+    // ── 2. Shareholders ───────────────────────────────────────────────────
+    const sh = demo.shareholders;
+    const atC = { present:'var(--green)', absent:'var(--red)', proxy:'var(--amber)', excused:'var(--text3)' };
+    const atL = { present:lbl('حاضر','Present'), absent:lbl('غائب','Absent'), proxy:lbl('وكيل','Proxy'), excused:lbl('معتذر','Excused') };
+    const s2 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">👥 ${lbl('المساهمون','Shareholders')}</div>
+        <div class="ctsub">${lbl('سجل الحضور وحقوق التصويت','Attendance and voting rights register')}</div></div>
+        <span class="tag tb">${sh.length} ${lbl('مساهم','shareholders')}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border2)">
+            ${[lbl('المساهم','Shareholder'),lbl('الأسهم','Shares'),lbl('النسبة','%'),lbl('حقوق التصويت','Vote Rights'),lbl('الحضور','Attendance'),lbl('الوكيل','Proxy')]
+              .map(h=>`<th style="text-align:start;padding:7px 10px;color:var(--text3);font-size:11px;font-weight:700">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${sh.map((s,i)=>`<tr style="border-bottom:.5px solid var(--border2);${i%2===1?'background:rgba(255,255,255,.02)':''}">
+              <td style="padding:9px 10px;font-weight:600;color:var(--text)">${l==='ar'?esc(s.nameAr):esc(s.nameEn)}</td>
+              <td style="padding:9px 10px;color:var(--gold);font-weight:700">${fmt(s.shares)}</td>
+              <td style="padding:9px 10px;color:var(--text2)">${s.pct}%</td>
+              <td style="padding:9px 10px;color:var(--text2)">${fmt(s.voteRights)}</td>
+              <td style="padding:9px 10px"><span class="tag" style="font-size:11px;color:${atC[s.attendance]||'var(--text3)'};background:transparent;border:1px solid ${atC[s.attendance]||'var(--border2)'}">${atL[s.attendance]||s.attendance}</span></td>
+              <td style="padding:9px 10px;color:var(--text3)">${s.proxy}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+    // ── 3. Quorum ─────────────────────────────────────────────────────────
+    const q = demo.quorum;
+    const qPct = Math.round((q.sharesPresent / q.totalShares) * 100);
+    const s3 = `<div class="card" style="border:1px solid ${q.achieved?'rgba(46,204,138,.3)':'rgba(240,100,100,.3)'}">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">⚖️ ${lbl('النصاب القانوني','Quorum Status')}</div>
+        <div class="ctsub">${lbl('التحقق من اكتمال النصاب القانوني','Legal quorum verification')}</div></div>
+        <span class="tag ${q.achieved?'tg':'tr'}" style="font-size:12.5px">${q.achieved?'✓ '+lbl('محقق','Achieved'):'✗ '+lbl('غير محقق','Not Met')}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px">
+        ${[
+          { label:lbl('إجمالي الأسهم','Total Shares'),    val:fmt(q.totalShares),   color:'var(--text)'  },
+          { label:lbl('الأسهم الحاضرة','Shares Present'), val:fmt(q.sharesPresent), color:'var(--gold)'  },
+          { label:lbl('نسبة الحضور','Attendance %'),      val:qPct+'%',             color:q.achieved?'var(--green)':'var(--red)' },
+          { label:lbl('النصاب المطلوب','Required Quorum'), val:q.required+'% + 1',  color:'var(--text2)' },
+        ].map(s=>`<div style="padding:14px;background:var(--navy3);border-radius:10px;text-align:center">
+            <div style="font-size:22px;font-weight:800;color:${s.color};margin-bottom:4px">${s.val}</div>
+            <div style="font-size:11px;color:var(--text3)">${s.label}</div>
+          </div>`).join('')}
+      </div>
+      <div style="background:var(--navy3);border-radius:10px;padding:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:12px;color:var(--text2)">${lbl('نسبة النصاب','Quorum Percentage')}</span>
+          <span style="font-size:12px;font-weight:700;color:${q.achieved?'var(--green)':'var(--red)'}">${qPct}%</span>
+        </div>
+        <div style="background:var(--navy4);border-radius:20px;height:12px;overflow:hidden;position:relative">
+          <div style="height:100%;border-radius:20px;background:${q.achieved?'var(--green)':'var(--red)'};width:${qPct}%;transition:width .6s"></div>
+          <div style="position:absolute;top:0;bottom:0;left:${q.required}%;width:2px;background:var(--amber);opacity:.8"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px">
+          <span style="font-size:10px;color:var(--text3)">0%</span>
+          <span style="font-size:10px;color:var(--amber)">${lbl('الحد الأدنى','Minimum')} ${q.required}%</span>
+          <span style="font-size:10px;color:var(--text3)">100%</span>
+        </div>
+      </div>
+    </div>`;
+
+    // ── 4. Agenda ─────────────────────────────────────────────────────────
+    const agItems = demo.agenda;
+    const agStC = { approved:'var(--green)', closed:'var(--text3)', deferred:'var(--amber)', pending:'var(--amber)' };
+    const agStL = { approved:lbl('مُقرَّر','Approved'), closed:lbl('مُغلق','Closed'), deferred:lbl('مُؤجَّل','Deferred'), pending:lbl('معلق','Pending') };
+    const s4 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">📋 ${lbl('جدول الأعمال','Agenda')}</div>
+        <div class="ctsub">${lbl('بنود الاجتماع والنتائج','Meeting items and outcomes')}</div></div>
+        <span class="tag tb">${agItems.length} ${lbl('بند','items')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        ${agItems.map((ag,i)=>`<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;${i<agItems.length-1?'border-bottom:.5px solid var(--border2)':''}">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(212,160,23,.15);border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gold);flex-shrink:0;margin-top:2px">${ag.no}</div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">${l==='ar'?esc(ag.titleAr):esc(ag.titleEn)}</div>
+              <div style="font-size:11.5px;color:var(--text3)">👤 ${ag.presenter}</div>
+            </div>
+            <span class="tag" style="font-size:11px;color:${agStC[ag.status]||'var(--text3)'};border:.5px solid ${agStC[ag.status]||'var(--border2)'};background:transparent;flex-shrink:0">${agStL[ag.status]||ag.status}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+    // ── 5. Voting ─────────────────────────────────────────────────────────
+    const votes = demo.votes;
+    const s5 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">🗳 ${lbl('نتائج التصويت','Voting Results')}</div>
+        <div class="ctsub">${lbl('نتائج التصويت على القرارات الرسمية','Formal voting results')}</div></div>
+        <span class="tag tg">${votes.filter(v=>v.passed).length}/${votes.length} ${lbl('نجح','passed')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${votes.map((v,i)=>{
+          const forPct = Math.round((v.for/v.total)*100);
+          const agPct  = Math.round((v.against/v.total)*100);
+          const absPct = Math.round((v.abstain/v.total)*100);
+          return `<div style="background:var(--navy3);border-radius:10px;padding:14px;border-inline-start:3px solid ${v.passed?'var(--green)':'var(--red)'}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+              <div>
+                <div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${lbl('اقتراح','Motion')} ${i+1}</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(v.motionAr):esc(v.motionEn)}</div>
+              </div>
+              <span class="tag" style="font-size:12px;color:${v.passed?'var(--green)':'var(--red)'};border:1px solid ${v.passed?'var(--green)':'var(--red)'};background:transparent;flex-shrink:0">${v.passed?'✓ '+lbl('نجح','Passed'):'✗ '+lbl('رُفض','Failed')}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+              <div style="background:rgba(46,204,138,.1);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(46,204,138,.3)">
+                <div style="font-size:14px;font-weight:800;color:var(--green)">${fmt(v.for)}</div>
+                <div style="font-size:10px;color:var(--text3)">${lbl('مع','For')} · ${forPct}%</div>
+              </div>
+              <div style="background:rgba(240,90,90,.08);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(240,90,90,.25)">
+                <div style="font-size:14px;font-weight:800;color:var(--red)">${fmt(v.against)}</div>
+                <div style="font-size:10px;color:var(--text3)">${lbl('ضد','Against')} · ${agPct}%</div>
+              </div>
+              <div style="background:rgba(255,193,7,.08);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(255,193,7,.25)">
+                <div style="font-size:14px;font-weight:800;color:var(--amber)">${fmt(v.abstain)}</div>
+                <div style="font-size:10px;color:var(--text3)">${lbl('امتناع','Abstain')} · ${absPct}%</div>
+              </div>
+            </div>
+            <div style="background:var(--navy4);border-radius:20px;height:8px;overflow:hidden;display:flex">
+              <div style="height:100%;background:var(--green);width:${forPct}%"></div>
+              <div style="height:100%;background:var(--red);width:${agPct}%"></div>
+              <div style="height:100%;background:var(--amber);width:${absPct}%"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+    // ── 6. Resolutions ────────────────────────────────────────────────────
+    const ress = demo.resolutions;
+    const resC = { implemented:'var(--green)', in_progress:'#5B9BD6', pending:'var(--amber)', rejected:'var(--red)' };
+    const resL = { implemented:lbl('مُنفَّذ','Implemented'), in_progress:lbl('جارٍ','In Progress'), pending:lbl('معلق','Pending'), rejected:lbl('مرفوض','Rejected') };
+    const s6 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">📜 ${lbl('القرارات الرسمية','Formal Resolutions')}</div>
+        <div class="ctsub">${lbl('قرارات الجمعية مع حالة التنفيذ','Assembly resolutions with implementation status')}</div></div>
+        <span class="tag tb">${ress.length} ${lbl('قرار','resolutions')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${ress.map(r=>`<div style="display:flex;gap:12px;align-items:flex-start;padding:13px;background:var(--navy3);border-radius:10px;border-inline-start:3px solid ${resC[r.status]||'var(--border2)'}">
+            <span style="font-size:10px;font-weight:700;color:var(--gold);background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);border-radius:6px;padding:3px 7px;white-space:nowrap;flex-shrink:0;margin-top:1px">${r.no}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px">${l==='ar'?esc(r.descAr):esc(r.descEn)}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <span style="font-size:11px;color:var(--text3)">👤 ${l==='ar'?esc(r.ownerAr):esc(r.ownerEn)}</span>
+                ${r.due?`<span style="font-size:11px;color:var(--text3)">📅 ${r.due}</span>`:''}
+                <span class="tag" style="font-size:11px;color:${resC[r.status]||'var(--text3)'};background:transparent;border:.5px solid ${resC[r.status]||'var(--border2)'}">${resL[r.status]||r.status}</span>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+    // ── 7. Minutes Approval Workflow ──────────────────────────────────────
+    const mw = demo.minutesWorkflow;
+    const doneCount = mw.filter(s => s.done).length;
+    const mPct = Math.round((doneCount / mw.length) * 100);
+    const s7 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">✍ ${lbl('سير اعتماد المحضر','Minutes Approval Workflow')}</div>
+        <div class="ctsub">${lbl('مسار الاعتماد الرسمي خطوة بخطوة','Step-by-step formal approval workflow')}</div></div>
+        <span class="tag ${doneCount===mw.length?'tg':'ta'}">${doneCount}/${mw.length} ${lbl('خطوة','steps')}</span>
+      </div>
+      <div style="background:var(--navy3);border-radius:10px;padding:12px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--text2)">${lbl('تقدم الاعتماد','Approval Progress')}</span>
+          <span style="font-size:12px;font-weight:700;color:${doneCount===mw.length?'var(--green)':'var(--gold)'}">${mPct}%</span>
+        </div>
+        <div style="background:var(--navy4);border-radius:20px;height:10px;overflow:hidden">
+          <div style="height:100%;border-radius:20px;background:${doneCount===mw.length?'var(--green)':'var(--gold)'};width:${mPct}%;transition:width .6s"></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        ${mw.map((step,i)=>`<div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+              <div style="width:36px;height:36px;border-radius:50%;background:${step.done?'var(--green)':'var(--navy3)'};border:2px solid ${step.done?'var(--green)':'var(--border2)'};display:flex;align-items:center;justify-content:center;font-size:${step.done?'14':'17'}px">${step.done?'✓':step.icon}</div>
+              ${i<mw.length-1?`<div style="width:2px;flex:1;min-height:24px;background:${step.done?'var(--green)':'var(--border2)'};margin:3px 0"></div>`:''}
+            </div>
+            <div style="flex:1;padding-top:7px;padding-bottom:${i<mw.length-1?'16px':'0'}">
+              <div style="font-size:13px;font-weight:${step.done?'700':'400'};color:${step.done?'var(--text)':'var(--text3)'}">${l==='ar'?step.stepAr:step.stepEn}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">${step.done&&step.doneBy?'✓ '+step.doneBy+(step.date?' · '+step.date:''):lbl('في الانتظار','Pending')}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+    // ── 8. Documents ──────────────────────────────────────────────────────
+    const docs = demo.documents;
+    const docStC = { shared:'#5B9BD6', approved:'var(--green)', reviewed:'var(--amber)', draft:'var(--text3)' };
+    const docStL = { shared:lbl('مُوزَّع','Shared'), approved:lbl('مُعتمَد','Approved'), reviewed:lbl('مُراجَع','Reviewed'), draft:lbl('مسودة','Draft') };
+    const s8 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">📁 ${lbl('وثائق الجمعية العمومية','GA Documents')}</div>
+        <div class="ctsub">${lbl('جميع الوثائق الرسمية المرتبطة بالاجتماع','All official documents linked to this assembly')}</div></div>
+        <span class="tag tb">${docs.length} ${lbl('وثيقة','documents')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${docs.map(d=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--navy3);border-radius:10px;border-inline-start:3px solid ${docStC[d.status]||'var(--border2)'}">
+            <span style="font-size:22px;flex-shrink:0">${d.icon}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(d.nameAr):esc(d.nameEn)}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${d.date} · 👤 ${d.by}</div>
+            </div>
+            <span class="tag" style="font-size:11px;color:${docStC[d.status]||'var(--text3)'};background:transparent;border:.5px solid ${docStC[d.status]||'var(--border2)'};flex-shrink:0">${docStL[d.status]||d.status}</span>
+            <button class="btn-ghost btn-sm" style="font-size:11px;flex-shrink:0">⬇ ${lbl('تنزيل','Download')}</button>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+    // ── 9. Action Items ───────────────────────────────────────────────────
+    const acts = demo.actionItems;
+    const priC = { urgent:'var(--red)', high:'var(--amber)', normal:'#5B9BD6', low:'var(--text3)' };
+    const priL = { urgent:lbl('عاجل','Urgent'), high:lbl('عالي','High'), normal:lbl('عادي','Normal'), low:lbl('منخفض','Low') };
+    const s9 = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">📌 ${lbl('بنود العمل','Action Items')}</div>
+        <div class="ctsub">${lbl('المهام والإجراءات اللازمة بعد الاجتماع','Post-meeting required actions')}</div></div>
+        <span class="tag tb">${acts.length} ${lbl('بند','items')}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${acts.map(a=>{
+          const pgC = a.progress===100?'var(--green)':a.progress>=60?'#5B9BD6':a.progress>=30?'var(--amber)':'var(--red)';
+          return `<div style="padding:13px;background:var(--navy3);border-radius:10px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+              <div style="flex:1">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;flex-wrap:wrap">
+                  <span class="tag" style="font-size:10px;color:${priC[a.priority]||'var(--text3)'};background:transparent;border:.5px solid ${priC[a.priority]||'var(--border2)'}">${priL[a.priority]||a.priority}</span>
+                  ${a.progress===100?`<span class="tag tg" style="font-size:10px">✓ ${lbl('مكتمل','Done')}</span>`:''}
+                </div>
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(a.descAr):esc(a.descEn)}</div>
+              </div>
+              <span style="font-size:14px;font-weight:800;color:${pgC};flex-shrink:0">${a.progress}%</span>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">👤 ${l==='ar'?esc(a.ownerAr):esc(a.ownerEn)} &nbsp;·&nbsp; 📅 ${a.due}</div>
+            <div style="background:var(--navy4);border-radius:20px;height:7px;overflow:hidden">
+              <div style="height:100%;border-radius:20px;background:${pgC};width:${a.progress}%;transition:width .6s"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+    // ── 10. Timeline ──────────────────────────────────────────────────────
+    const tl = demo.timeline;
+    const s10 = `<div class="card">
+      <div class="ch" style="margin-bottom:16px">
+        <div><div class="ct">🕐 ${lbl('مسار الجمعية العمومية','General Assembly Timeline')}</div>
+        <div class="ctsub">${lbl('المراحل الزمنية الكاملة من الإنشاء حتى الأرشفة','Full lifecycle from creation to archiving')}</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        ${tl.map((ev,i)=>`<div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+              <div style="width:40px;height:40px;border-radius:50%;background:${ev.done?'rgba(212,160,23,.2)':'var(--navy3)'};border:2px solid ${ev.done?'var(--gold)':'var(--border2)'};display:flex;align-items:center;justify-content:center;font-size:18px;z-index:1">${ev.icon}</div>
+              ${i<tl.length-1?`<div style="width:2px;flex:1;min-height:28px;background:${ev.done?'var(--gold)':'var(--border2)'};opacity:${ev.done?'1':'.35'};margin:3px 0"></div>`:''}
+            </div>
+            <div style="flex:1;padding-top:8px;padding-bottom:${i<tl.length-1?'20px':'0'}">
+              <div style="font-size:13px;font-weight:${ev.done?'700':'400'};color:${ev.done?'var(--text)':'var(--text3)'}">${l==='ar'?ev.eventAr:ev.eventEn}</div>
+              <div style="font-size:11px;color:${ev.done?'var(--gold)':'var(--text3)'};margin-top:2px">${ev.done&&ev.date?'📅 '+ev.date:lbl('قادم','Upcoming')}</div>
+            </div>
+            <div style="flex-shrink:0;padding-top:10px">
+              <span class="tag" style="font-size:10.5px;${ev.done?'background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3)':'background:var(--navy3);color:var(--text3)'}">${ev.done?'✓ '+lbl('مكتمل','Done'):lbl('قادم','Upcoming')}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+    return `<div style="display:flex;flex-direction:column;gap:14px;border-top:2px solid rgba(139,92,246,.25);padding-top:16px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(139,92,246,.08);border-radius:10px;border:.5px solid rgba(139,92,246,.25)">
+        <span style="font-size:16px">📊</span>
+        <div style="flex:1">
+          <div style="font-size:12.5px;font-weight:700;color:#8B5CF6">${lbl('التقرير التفصيلي للجمعية العمومية','Detailed General Assembly Report')}</div>
+          <div style="font-size:11px;color:var(--text3)">${lbl('10 أقسام · بيانات توضيحية · يُستبدل ببيانات حقيقية عند ربط الواجهة الخلفية','10 sections · Demo data · Replaced with real data when backend is connected')}</div>
+        </div>
+        <span class="tag ta" style="font-size:10px;flex-shrink:0">${lbl('بيانات توضيحية','Demo Data')}</span>
+      </div>
+      ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}
+      <div style="text-align:center;padding:10px">
+        <button class="btn-ghost btn-sm" onclick="Gov._toggleGADetail(${ga.id})" style="color:var(--text3);font-size:12px">▲ ${lbl('طي التقرير الكامل','Collapse Full Report')}</button>
+      </div>
+    </div>`;
   },
 
   // ── Helpers ────────────────────────────────────────────────────────────────
