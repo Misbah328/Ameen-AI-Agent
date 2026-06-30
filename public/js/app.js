@@ -1870,6 +1870,92 @@ function _secHdr(icon, labelAr, labelEn, subAr = '', subEn = '') {
   </div>`;
 }
 
+// ── Meeting Lifecycle Strip ────────────────────────────────────────────────────
+// Renders a compact 10-step lifecycle bar for any meeting or schedule item.
+// Works with both schedule items (s) and recorded meetings (m).
+function _meetingLifecycle(m, l) {
+  const ar = (a, e) => l === 'ar' ? a : e;
+  const today = new Date().toISOString().substring(0, 10);
+  const meetingDate = m.meeting_date || '';
+  const isPast = meetingDate && meetingDate < today;
+
+  const isConfirmed  = m.status === 'confirmed' || m.status === 'processed' || !!m.transcript;
+  const hasRecording = !!(m.transcript || m.audio_recording_url);
+  const hasTr        = !!(m.transcript && m.transcript.length > 10);
+  const hasST        = (() => { try { const p = JSON.parse(m.speaker_transcript||'[]'); return Array.isArray(p)&&p.length>0; } catch(e){ return false; } })();
+  const hasTranscript= hasTr || hasST;
+  const hasAI        = !!(m.ai_summary_ar || m.ai_summary_en);
+  const hasTasks     = (() => { try { const t = JSON.parse(m.ai_tasks||'[]'); return Array.isArray(t)&&t.length>0; } catch(e){ return false; } })();
+  const hasDecisions = (() => { try { const d = JSON.parse(m.ai_decisions||'[]'); return Array.isArray(d)&&d.length>0; } catch(e){ return false; } })();
+  const mStatus      = m.minutes_status || '';
+  const recSt        = m.recording_approval_status || '';
+  const isCirculated = ['circulated','approved','final_approved'].includes(mStatus);
+  const isApproved   = ['approved','final_approved'].includes(mStatus);
+  const isFinal      = mStatus === 'final_approved';
+  const isArchived   = isFinal && recSt === 'approved';
+  const hasAttendees = !!(m.attendees && m.attendees.trim());
+
+  // 10 lifecycle steps — each gets done:true when that milestone is complete
+  const steps = [
+    { ar:'إنشاء',      en:'Created',      icon:'🏗', done: true                                    },
+    { ar:'الدعوات',    en:'Invitations',  icon:'📧', done: isConfirmed || hasAttendees             },
+    { ar:'مجدول',      en:'Scheduled',    icon:'📅', done: isConfirmed                             },
+    { ar:'التسجيل',    en:'Recording',    icon:'🎙', done: hasRecording                            },
+    { ar:'النص',       en:'Transcript',   icon:'📝', done: hasTranscript                           },
+    { ar:'محضر AI',    en:'AI Minutes',   icon:'🤖', done: hasAI                                   },
+    { ar:'الاعتماد',   en:'Approval',     icon:'✅', done: isApproved                              },
+    { ar:'المهام',     en:'Actions',      icon:'📌', done: hasTasks || hasDecisions                },
+    { ar:'متابعة',     en:'Follow-up',    icon:'🔄', done: (hasTasks||hasDecisions) && isCirculated },
+    { ar:'أرشفة',      en:'Archived',     icon:'🗄', done: isFinal                                 },
+  ];
+
+  // Walk forward: first non-done step = 'current', rest = 'pending'
+  let foundCurrent = false;
+  const resolved = steps.map(s => {
+    if (s.done) return { ...s, state: 'done' };
+    if (!foundCurrent) { foundCurrent = true; return { ...s, state: 'current' }; }
+    return { ...s, state: 'pending' };
+  });
+
+  const doneCount  = resolved.filter(s => s.state === 'done').length;
+  const pct        = Math.round((doneCount / steps.length) * 100);
+  const barColor   = pct === 100 ? 'var(--green)' : pct >= 50 ? '#5B9BD6' : 'var(--gold)';
+
+  const SC = {
+    done:    { bg: 'rgba(46,204,138,.12)',  fg: 'var(--green)', bd: 'rgba(46,204,138,.3)'  },
+    current: { bg: 'rgba(212,160,23,.13)', fg: 'var(--gold)',  bd: 'rgba(212,160,23,.4)'  },
+    pending: { bg: 'transparent',          fg: 'var(--text3)', bd: 'var(--border2)'        },
+  };
+
+  const chips = resolved.map((s, i) => {
+    const c   = SC[s.state] || SC.pending;
+    const dot = s.state === 'done' ? '✓' : s.state === 'current' ? '●' : '○';
+    const sep = i > 0
+      ? `<div style="width:10px;height:1px;flex-shrink:0;background:${s.state==='done'?'rgba(46,204,138,.4)':'var(--border2)'}"></div>`
+      : '';
+    return `${sep}<div style="display:flex;align-items:center;gap:3px;padding:3px 7px;border-radius:20px;background:${c.bg};border:.5px solid ${c.bd};white-space:nowrap" title="${s.state==='done'?ar('مكتمل','Completed'):s.state==='current'?ar('جارٍ','Current'):ar('معلق','Pending')}">
+      <span style="font-size:10px">${s.icon}</span>
+      <span style="font-size:10px;font-weight:${s.state==='current'?'700':'500'};color:${c.fg}">${l==='ar'?s.ar:s.en}</span>
+      <span style="font-size:8px;color:${c.fg}">${dot}</span>
+    </div>`;
+  }).join('');
+
+  return `<div style="margin:10px 0 6px;padding:10px 12px;background:var(--navy3);border-radius:10px;border:.5px solid var(--border2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">⚡ ${ar('مسار الاجتماع','Meeting Lifecycle')}</span>
+      <span style="font-size:10px;font-weight:700;color:${barColor}">${doneCount}/${steps.length} ${ar('مكتملة','complete')} · ${pct}%</span>
+    </div>
+    <div style="background:var(--navy4);border-radius:20px;height:4px;overflow:hidden;margin-bottom:8px">
+      <div style="height:100%;border-radius:20px;background:${barColor};width:${pct}%;transition:width .5s"></div>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <div style="display:flex;align-items:center;min-width:max-content">
+        ${chips}
+      </div>
+    </div>
+  </div>`;
+}
+
 // ── Record Meeting helper card (injected into static panel on every visit) ────
 function _injectRecordHelper(l) {
   const pbody = document.querySelector('#panel-record .pbody');
@@ -2080,6 +2166,7 @@ async function renderTranscripts() {
               ${mStatusBadge}
             </div>
           </div>
+          ${_meetingLifecycle(m, l)}
           ${summary ? `<div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:10px;padding:0 2px">${esc(summary)}</div>` : ""}
           ${transcriptHtml}
           ${
@@ -3940,6 +4027,7 @@ async function renderSchedule() {
             ${isDraft ? `<span class="tag" style="background:#7c5e10;color:#ffd969;font-size:10px">📝 ${l === "ar" ? "مسودة" : "Draft"}</span>` : isUpcoming ? `<span class="tag tg" style="font-size:10px">${l === "ar" ? "قادم" : "Upcoming"}</span>` : `<span class="tag" style="background:var(--navy4);font-size:10px">${l === "ar" ? "مضى" : "Past"}</span>`}
           </div>
         </div>
+        ${_meetingLifecycle(s, l)}
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           ${isDraft ? `<button class="btn-sm" onclick="Schedule.confirm(${s.id})" style="font-size:11px;background:#d4a017;color:#1a1a1a;border:none;border-radius:6px;padding:5px 10px;font-weight:600;cursor:pointer">✔ ${l === "ar" ? "تأكيد الموعد" : "Confirm Meeting"}</button>` : ""}
           <button class="btn-ghost btn-sm" onclick="${reminderCall}" style="font-size:11px">📧 ${l === "ar" ? "إرسال تذكير" : "Send Reminder"}</button>
