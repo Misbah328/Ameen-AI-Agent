@@ -205,6 +205,16 @@ ensureColumn('meetings', 'recording_verified_by',     'INTEGER');
 ensureColumn('meetings', 'recording_verified_at',     'DATETIME');
 ensureColumn('meetings', 'recording_approval_status', "TEXT DEFAULT 'none'");
 
+// ── Recording governance columns (capture type, scope, lifecycle) ─────────────
+ensureColumn('meetings', 'recording_started_by',   'INTEGER');
+ensureColumn('meetings', 'recording_started_at',   'DATETIME');
+ensureColumn('meetings', 'recording_stopped_at',   'DATETIME');
+ensureColumn('meetings', 'recording_capture_type', "TEXT DEFAULT 'browser_microphone'");
+ensureColumn('meetings', 'recording_source',       "TEXT DEFAULT ''");
+ensureColumn('meetings', 'recording_scope',        "TEXT DEFAULT 'unknown'");
+ensureColumn('meetings', 'recording_status',       "TEXT DEFAULT 'not_started'");
+ensureColumn('meetings', 'recording_notes',        "TEXT DEFAULT ''");
+
 // Minutes approval audit log
 db.exec(`
   CREATE TABLE IF NOT EXISTS minutes_approval_log (

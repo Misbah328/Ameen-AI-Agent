@@ -1,0 +1,87 @@
+Implement real Recording Governance backend and UI.
+
+Goal:
+Make recording status real, visible, and controlled by approval workflow.
+
+Important:
+- Modify backend, database, and frontend as needed.
+- Do not remove existing recording.
+- Do not break AI minutes, transcripts, reports, governance, or approvals.
+
+Requirements:
+
+1. Database
+Add/ensure fields on meetings:
+- recording_started_by
+- recording_started_at
+- recording_stopped_at
+- recording_capture_type
+- recording_source
+- recording_scope
+- recording_status
+- recording_approval_status
+- recording_verified_by
+- recording_verified_at
+- recording_notes
+
+Values:
+recording_capture_type:
+- browser_microphone
+- uploaded_recording
+- zoom_cloud
+- teams_cloud
+- google_meet_cloud
+
+recording_scope:
+- local_microphone_only
+- full_meeting_recording
+- unknown
+
+recording_status:
+- not_started
+- recording
+- stopped
+- uploaded
+- processed
+- archived
+
+2. Backend routes
+Add routes:
+- POST /api/meetings/:id/recording/start
+- POST /api/meetings/:id/recording/stop
+- POST /api/meetings/:id/recording/approve
+- POST /api/meetings/:id/recording/reject
+- GET /api/meetings/:id/recording-status
+
+3. Frontend
+On Record Meeting page show:
+- Recording Source
+- Current capture type
+- Warning if browser recording is local microphone only
+- Status: Recording / Stopped / Uploaded / Pending Approval / Archived
+
+Add clear warning:
+"Browser recording may capture only local microphone. For full meeting recording, upload official Zoom/Teams/Meet recording or connect platform integration."
+
+4. Meeting Platform card
+For Zoom/Teams/Google Meet show:
+- Cloud Recording: Not Connected
+- Full Meeting Capture: Requires integration credentials
+- Manual Upload: Available
+
+5. Recording Archive
+Show:
+- Recording file
+- Capture type
+- Scope
+- Approval status
+- Verified by
+- Verified date
+
+6. Do not claim full meeting recording works unless recording_scope = full_meeting_recording.
+
+After implementation:
+- Restart app
+- Verify no errors
+- Explain exactly what changed
+- Explain where I can see recording status in the app

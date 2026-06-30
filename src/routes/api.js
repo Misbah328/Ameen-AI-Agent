@@ -438,16 +438,23 @@ router.post('/meetings/:id/recording', auth, uploadRec.single('recording'), (req
     try { fs.unlinkSync(path.join(RECORDINGS_DIR, prevFile)); } catch {}
   }
   const publicUrl = `/recordings/${req.file.filename}`;
+  const { capture_type, scope } = req.body;
+  const resolvedScope = capture_type && ['zoom_cloud','teams_cloud','google_meet_cloud'].includes(capture_type)
+    ? 'full_meeting_recording'
+    : (scope || 'local_microphone_only');
   db.prepare(`
     UPDATE meetings SET
       audio_recording_url       = ?,
       recording_file_name       = ?,
       recording_file_size       = ?,
       recording_uploaded_at     = CURRENT_TIMESTAMP,
-      recording_approval_status = 'pending'
+      recording_approval_status = 'pending',
+      recording_status          = 'uploaded',
+      recording_capture_type    = COALESCE(NULLIF(?, ''), recording_capture_type, 'browser_microphone'),
+      recording_scope           = ?
     WHERE id = ?
-  `).run(publicUrl, req.file.originalname, req.file.size, meeting.id);
-  res.json({ success: true, audio_recording_url: publicUrl, recording_approval_status: 'pending' });
+  `).run(publicUrl, req.file.originalname, req.file.size, capture_type || '', resolvedScope, meeting.id);
+  res.json({ success: true, audio_recording_url: publicUrl, recording_approval_status: 'pending', recording_status: 'uploaded' });
 });
 
 // PATCH /api/meetings/:id/recording/approve — approval workflow
@@ -503,10 +510,60 @@ router.delete('/meetings/:id/recording', auth, (req, res) => {
       recording_uploaded_at     = NULL,
       recording_verified_by     = NULL,
       recording_verified_at     = NULL,
-      recording_approval_status = 'none'
+      recording_approval_status = 'none',
+      recording_status          = 'not_started'
     WHERE id = ?
   `).run(meeting.id);
   res.json({ success: true });
+});
+
+// ── Recording Governance Routes ───────────────────────────────────────────────
+
+// GET /api/meetings/:id/recording-status
+router.get('/meetings/:id/recording-status', auth, (req, res) => {
+  const m = db.prepare(`
+    SELECT id, recording_status, recording_capture_type, recording_source, recording_scope,
+           recording_started_at, recording_stopped_at, recording_started_by,
+           recording_approval_status, audio_recording_url, recording_file_name,
+           recording_file_size, recording_verified_at, recording_notes,
+           recording_uploaded_at
+    FROM meetings WHERE id = ?
+  `).get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  res.json(m);
+});
+
+// POST /api/meetings/:id/recording/start
+router.post('/meetings/:id/recording/start', auth, (req, res) => {
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const { capture_type, source, scope } = req.body;
+  db.prepare(`
+    UPDATE meetings SET
+      recording_status       = 'recording',
+      recording_started_by   = ?,
+      recording_started_at   = CURRENT_TIMESTAMP,
+      recording_capture_type = COALESCE(NULLIF(?, ''), recording_capture_type, 'browser_microphone'),
+      recording_source       = COALESCE(NULLIF(?, ''), recording_source, ''),
+      recording_scope        = COALESCE(NULLIF(?, ''), recording_scope, 'unknown')
+    WHERE id = ?
+  `).run(req.user.id, capture_type || '', source || '', scope || '', meeting.id);
+  res.json({ success: true, recording_status: 'recording' });
+});
+
+// POST /api/meetings/:id/recording/stop
+router.post('/meetings/:id/recording/stop', auth, (req, res) => {
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const { notes } = req.body;
+  db.prepare(`
+    UPDATE meetings SET
+      recording_status     = 'stopped',
+      recording_stopped_at = CURRENT_TIMESTAMP,
+      recording_notes      = COALESCE(NULLIF(?, ''), recording_notes, '')
+    WHERE id = ?
+  `).run(notes || '', meeting.id);
+  res.json({ success: true, recording_status: 'stopped' });
 });
 
 // ── File Upload ────────────────────────────────────────────────────────────────

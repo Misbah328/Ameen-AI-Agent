@@ -1967,18 +1967,54 @@ function _injectRecordHelper(l) {
     pbody.insertBefore(h, pbody.firstChild);
   }
   h.innerHTML = `
-    <div style="margin-bottom:14px;padding:13px 15px;background:linear-gradient(135deg,rgba(212,160,23,.09),rgba(45,140,255,.06));border:1px solid rgba(212,160,23,.28);border-radius:12px">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <span style="font-size:22px;flex-shrink:0">📼</span>
+    <div style="margin-bottom:12px;padding:11px 13px;background:rgba(255,160,0,.07);border:1px solid rgba(255,160,0,.30);border-radius:10px">
+      <div style="display:flex;align-items:flex-start;gap:9px">
+        <span style="font-size:18px;flex-shrink:0">⚠️</span>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">${l==='ar'?'تنبيه: التسجيل عبر المتصفح يلتقط الميكروفون المحلي فقط':'Browser Recording — Local Microphone Only'}</div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.65">${l==='ar'
+            ? 'التسجيل عبر المتصفح يلتقط <strong style="color:var(--amber)">ميكروفون جهازك المحلي فقط</strong>، ولا يشمل أصوات المشاركين الآخرين عبر Zoom أو Teams أو Google Meet. للحصول على تسجيل كامل للاجتماع، ارفع الملف الرسمي من المنصة أو قم بربط التكامل المباشر.'
+            : 'Browser recording captures <strong style="color:var(--amber)">your local microphone only</strong> — it does not include other participants over Zoom, Teams, or Google Meet. For a full meeting recording, upload the official file from your meeting platform or connect a direct integration.'}</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;padding:11px 13px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">🎙 ${l==='ar'?'نوع الالتقاط — اختر المصدر المناسب':'Capture Type — Choose Your Source'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:1px solid rgba(212,160,23,.25)">
+          <div style="font-size:10.5px;font-weight:700;color:var(--gold)">🖥 ${l==='ar'?'ميكروفون المتصفح':'Browser Microphone'}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'النطاق: ميكروفون محلي فقط':'Scope: local mic only'}</div>
+          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⚠ ${l==='ar'?'محلي فقط':'Local only'}</div>
+        </div>
+        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
+          <div style="font-size:10.5px;font-weight:700;color:#5B9BD6">📤 ${l==='ar'?'رفع تسجيل رسمي':'Upload Official Recording'}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'ملف من Zoom / Teams / Meet':'File from Zoom/Teams/Meet'}</div>
+          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(46,204,138,.10);color:#2ecc8a;border-radius:4px">✓ ${l==='ar'?'تسجيل كامل ممكن':'Full recording possible'}</div>
+        </div>
+        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
+          <div style="font-size:10.5px;font-weight:700;color:#2D8CFF">☁ Zoom Cloud</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
+          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(45,140,255,.10);color:#2D8CFF;border-radius:4px">⏳ ${l==='ar'?'بانتظار بيانات الاعتماد':'Awaiting credentials'}</div>
+        </div>
+        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
+          <div style="font-size:10.5px;font-weight:700;color:#6264A7">💼 Teams / Meet</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
+          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(98,100,167,.10);color:#6264A7;border-radius:4px">⏳ ${l==='ar'?'بانتظار بيانات الاعتماد':'Awaiting credentials'}</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:14px;padding:11px 13px;background:linear-gradient(135deg,rgba(212,160,23,.09),rgba(45,140,255,.06));border:1px solid rgba(212,160,23,.28);border-radius:10px">
+      <div style="display:flex;align-items:flex-start;gap:9px">
+        <span style="font-size:20px;flex-shrink:0">📼</span>
         <div style="flex:1">
-          <div style="font-size:12.5px;font-weight:700;color:var(--gold);margin-bottom:5px">${l==='ar'?'أرشيف التسجيل — جاهز للاستخدام':'Recording Archive — Ready'}</div>
-          <div style="font-size:11.5px;color:var(--text3);line-height:1.7">${l==='ar'
-            ? 'بعد انتهاء الاجتماع، انقر على <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> لرفع التسجيل وإرساله للاعتماد الرسمي من رئيس مجلس الإدارة أو عضو مجلس الإدارة.'
-            : 'After the meeting ends, click <strong style="color:var(--gold)">☁ Save to Platform</strong> to upload the recording for official archiving and Chairman / Board Member approval.'}</div>
-          <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
-            <span style="font-size:10px;padding:3px 9px;border-radius:6px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف التسجيل جاهز':'Recording archive ready'}</span>
-            <span style="font-size:10px;padding:3px 9px;border-radius:6px;background:rgba(45,140,255,.10);color:#2D8CFF;border:.5px solid rgba(45,140,255,.22)">🔗 ${l==='ar'?'تكامل Zoom / Teams / Google Meet جاهز':'Zoom / Teams / Google Meet integration ready'}</span>
-            <span style="font-size:10px;padding:3px 9px;border-radius:6px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'ربط مباشر — بانتظار بيانات الاعتماد':'Live API connection pending credentials'}</span>
+          <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:4px">${l==='ar'?'أرشيف التسجيل — اعتماد رسمي':'Recording Archive — Official Approval Workflow'}</div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.65">${l==='ar'
+            ? 'بعد التسجيل، انقر <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> ← إرساله للاعتماد الرسمي من رئيس مجلس الإدارة ← أرشفة موثقة.'
+            : 'After recording, click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval → officially archive.'}</div>
+          <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
+            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف جاهز':'Archive ready'}</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(45,140,255,.10);color:#2D8CFF;border:.5px solid rgba(45,140,255,.22)">🔗 ${l==='ar'?'Zoom/Teams/Meet جاهز للربط':'Zoom/Teams/Meet ready'}</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'ربط مباشر بانتظار بيانات الاعتماد':'Live API pending credentials'}</span>
           </div>
         </div>
       </div>
@@ -2210,17 +2246,42 @@ async function renderTranscripts() {
           ${(() => {
             const hasRec = !!m.audio_recording_url;
             const recSt  = m.recording_approval_status || 'none';
+            const recStatus = m.recording_status || 'not_started';
             const ST_LABEL = {
               none:     l==='ar' ? 'لم يُرفع'            : 'Not Archived',
               pending:  l==='ar' ? 'بانتظار الاعتماد'    : 'Pending Approval',
               approved: l==='ar' ? 'مؤرشف رسمياً ✓'      : 'Officially Archived ✓',
               rejected: l==='ar' ? 'مرفوض'               : 'Rejected'
             };
-            const ST_CLR  = { none:'color:var(--text3)', pending:'color:#f0a000', approved:'color:#2ecc8a', rejected:'color:#e05252' };
+            const ST_CLR = { none:'color:var(--text3)', pending:'color:#f0a000', approved:'color:#2ecc8a', rejected:'color:#e05252' };
             const fmtBytes = b => b > 1048576 ? `${(b/1048576).toFixed(1)} MB` : b > 1024 ? `${(b/1024).toFixed(0)} KB` : `${b||0} B`;
             const verifier = m.rec_verifier_ar ? (l==='ar' ? m.rec_verifier_ar : m.rec_verifier_en || m.rec_verifier_ar) : '';
-            return `<div style="margin:10px 0;background:var(--navy3);border:1px solid ${hasRec ? 'var(--border2)' : 'rgba(212,160,23,.18)'};border-radius:10px;padding:12px 14px">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:${hasRec?'10px':'8px'}">
+            const CAPTURE_LABEL = {
+              browser_microphone:  { en:'🖥 Browser Mic',      ar:'🖥 ميكروفون متصفح',   c:'#f0a000', bg:'rgba(255,160,0,.12)',   bd:'rgba(255,160,0,.3)' },
+              uploaded_recording:  { en:'📤 Uploaded File',    ar:'📤 ملف مرفوع',         c:'#5B9BD6', bg:'rgba(91,155,214,.12)', bd:'rgba(91,155,214,.3)' },
+              zoom_cloud:          { en:'☁ Zoom Cloud',        ar:'☁ Zoom سحابي',         c:'#2D8CFF', bg:'rgba(45,140,255,.12)', bd:'rgba(45,140,255,.3)' },
+              teams_cloud:         { en:'☁ Teams Cloud',       ar:'☁ Teams سحابي',        c:'#6264A7', bg:'rgba(98,100,167,.12)', bd:'rgba(98,100,167,.3)' },
+              google_meet_cloud:   { en:'☁ Google Meet Cloud', ar:'☁ Meet سحابي',         c:'#00897B', bg:'rgba(0,137,123,.12)',  bd:'rgba(0,137,123,.3)'  },
+            };
+            const SCOPE_LABEL = {
+              local_microphone_only:   { en:'⚠ Local Mic Only',         ar:'⚠ ميكروفون محلي فقط',    c:'#f0a000', bg:'rgba(255,160,0,.12)',  bd:'rgba(255,160,0,.3)' },
+              full_meeting_recording:  { en:'✓ Full Meeting Capture',    ar:'✓ تسجيل كامل للاجتماع',  c:'#2ecc8a', bg:'rgba(46,204,138,.12)', bd:'rgba(46,204,138,.3)' },
+              unknown:                 { en:'? Scope Unknown',           ar:'? نطاق غير محدد',         c:'var(--text3)', bg:'var(--navy4)', bd:'var(--border2)' },
+            };
+            const STATUS_LABEL = {
+              not_started: { en:'Not Started',     ar:'لم يبدأ',       c:'var(--text3)' },
+              recording:   { en:'🔴 Recording',    ar:'🔴 جارٍ التسجيل', c:'#e05252' },
+              stopped:     { en:'⏹ Stopped',       ar:'⏹ متوقف',       c:'#f0a000' },
+              uploaded:    { en:'📤 Uploaded',      ar:'📤 مُرفوع',      c:'#5B9BD6' },
+              processed:   { en:'✓ Processed',     ar:'✓ مُعالَج',      c:'#2ecc8a' },
+              archived:    { en:'🏛 Archived',      ar:'🏛 مؤرشف',       c:'#2ecc8a' },
+            };
+            const capInfo    = CAPTURE_LABEL[m.recording_capture_type] || null;
+            const scopeInfo  = SCOPE_LABEL[m.recording_scope]    || null;
+            const stInfo     = STATUS_LABEL[recStatus]            || STATUS_LABEL.not_started;
+            const isLocalOnly = m.recording_scope === 'local_microphone_only';
+            return `<div style="margin:10px 0;background:var(--navy3);border:1px solid ${hasRec?'var(--border2)':'rgba(212,160,23,.18)'};border-radius:10px;padding:12px 14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
                 <div style="display:flex;align-items:center;gap:7px">
                   <span style="font-size:15px">📼</span>
                   <div>
@@ -2228,14 +2289,23 @@ async function renderTranscripts() {
                     <div style="font-size:9.5px;color:var(--text3);margin-top:1px">${l==='ar'?'تسجيل · اعتماد · أرشفة رسمية':'Record · Approve · Officially Archive'}</div>
                   </div>
                 </div>
-                ${hasRec ? `<span style="font-size:10px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : `<span style="font-size:9.5px;color:#2ecc8a;background:rgba(46,204,138,.10);border:.5px solid rgba(46,204,138,.25);padding:2px 7px;border-radius:5px">✓ ${l==='ar'?'جاهز':'Ready'}</span>`}
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+                  ${hasRec ? `<span style="font-size:10px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : `<span style="font-size:9.5px;color:#2ecc8a;background:rgba(46,204,138,.10);border:.5px solid rgba(46,204,138,.25);padding:2px 7px;border-radius:5px">✓ ${l==='ar'?'جاهز':'Ready'}</span>`}
+                  <span style="font-size:9.5px;font-weight:600;color:${stInfo.c}">${l==='ar'?stInfo.ar:stInfo.en}</span>
+                </div>
               </div>
               ${hasRec ? `
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
+                  ${capInfo ? `<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:${capInfo.bg};color:${capInfo.c};border:.5px solid ${capInfo.bd}">${l==='ar'?capInfo.ar:capInfo.en}</span>` : ''}
+                  ${scopeInfo ? `<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:${scopeInfo.bg};color:${scopeInfo.c};border:.5px solid ${scopeInfo.bd}">${l==='ar'?scopeInfo.ar:scopeInfo.en}</span>` : ''}
+                </div>
+                ${isLocalOnly ? `<div style="margin-bottom:8px;padding:5px 9px;background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.22);border-radius:7px;font-size:10.5px;color:#f0a000;line-height:1.5">⚠️ ${l==='ar'?'تسجيل الميكروفون المحلي فقط — لا يشمل أصوات المشاركين الآخرين عبر منصات الاجتماع الافتراضية.':'Local microphone only — does not capture other participants on virtual meeting platforms.'}</div>` : ''}
                 <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px;line-height:1.8">
                   📁 ${esc(m.recording_file_name||'')} &nbsp;·&nbsp; ${fmtBytes(m.recording_file_size||0)}
                   ${m.recording_uploaded_at ? ` &nbsp;·&nbsp; 📅 ${m.recording_uploaded_at.substring(0,16)}` : ''}
                   ${verifier ? `<br>✓ ${l==='ar'?'معتمد بواسطة':'Verified by'}: <strong>${esc(verifier)}</strong>${m.recording_verified_at?' · '+m.recording_verified_at.substring(0,10):''}` : ''}
                 </div>
+                ${m.recording_notes ? `<div style="margin-bottom:8px;padding:5px 9px;background:var(--navy2);border-radius:7px;border-inline-start:2px solid var(--gold);font-size:10.5px;color:var(--text3);line-height:1.5"><span style="font-size:10px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==='ar'?'ملاحظات التسجيل:':'Recording Notes:'}</span>${esc(m.recording_notes)}</div>` : ''}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                   <a href="${esc(m.audio_recording_url)}" target="_blank" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">▶ ${l==='ar'?'تشغيل':'Play'}</a>
                   <a href="${esc(m.audio_recording_url)}" download class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${l==='ar'?'تنزيل':'Download'}</a>
@@ -3991,7 +4061,7 @@ const Schedule = {
     const statusGrid = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px;padding-top:10px;border-top:1px solid var(--border2)">
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"حالة التسجيل":"Recording"}</div>
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"حالة التسجيل":"Recording Status"}</div>
           <div style="font-size:11px;font-weight:700;color:${isVirt ? recSt.color : '#2ecc8a'}">${isVirt ? recSt.label : (l==="ar"?"مدمج في المنصة":"On-platform")}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
@@ -4000,7 +4070,15 @@ const Schedule = {
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
           <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل السحابي":"Cloud Recording"}</div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3)">${isVirt ? (s.recording_url ? `<a href="${esc(s.recording_url)}" target="_blank" style="color:var(--gold);text-decoration:none">${l==="ar"?"عرض ↗":"View ↗"}</a>` : notConn) : (l==="ar"?"غير مطبق":"N/A")}</div>
+          <div style="font-size:11px;font-weight:700;color:${isVirt?'var(--text3)':'#2ecc8a'}">${isVirt ? (s.recording_url ? `<a href="${esc(s.recording_url)}" target="_blank" style="color:var(--gold);text-decoration:none">${l==="ar"?"عرض ↗":"View ↗"}</a>` : (l==="ar"?"غير متصل":"Not Connected")) : (l==="ar"?"غير مطبق":"N/A")}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل الكامل":"Full Capture"}</div>
+          <div style="font-size:11px;font-weight:700;color:${isVirt?'#f0a000':'#2ecc8a'}">${isVirt ? (l==="ar"?"يتطلب بيانات الاعتماد":"Requires credentials") : (l==="ar"?"رفع يدوي متاح":"Manual upload available")}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"رفع يدوي":"Manual Upload"}</div>
+          <div style="font-size:11px;font-weight:700;color:#2ecc8a">${l==="ar"?"متاح ✓":"Available ✓"}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
           <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التخزين":"Storage"}</div>
