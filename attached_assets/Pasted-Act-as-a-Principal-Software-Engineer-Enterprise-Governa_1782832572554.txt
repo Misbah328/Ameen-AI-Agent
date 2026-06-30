@@ -1,0 +1,228 @@
+Act as a Principal Software Engineer, Enterprise Governance Architect, QA Lead, and Senior Full Stack Engineer.
+
+Work directly on my existing project.
+
+Goal:
+Implement a COMPLETE and WORKING Resolution Voting system.
+
+Do NOT analyze.
+
+Do NOT explain.
+
+Do NOT generate a plan.
+
+Implement it completely.
+
+================================================
+
+REQUIREMENTS
+
+1. DATABASE
+
+Create everything required automatically.
+
+Create a votes table if it does not exist.
+
+Each vote must store:
+
+- id
+- resolution_id
+- voter_id
+- voter_name
+- voter_role
+- vote
+- comments
+- created_at
+- updated_at
+
+One user can vote only once.
+
+If the same user votes again,
+update the previous vote instead.
+
+================================================
+
+2. BACKEND
+
+Implement complete API endpoints.
+
+POST
+Vote on a resolution
+
+GET
+Retrieve voting results
+
+GET
+Retrieve voting history
+
+Automatically calculate
+
+For
+
+Against
+
+Abstain
+
+Total votes
+
+Percentage
+
+Passed
+
+Failed
+
+Quorum reached
+
+Quorum not reached
+
+================================================
+
+3. FRONTEND
+
+Inside Governance.
+
+Every Resolution card must contain
+
+Vote FOR button
+
+Vote AGAINST button
+
+Vote ABSTAIN button
+
+Live vote totals
+
+Progress bar
+
+Pie chart if existing chart library exists.
+
+If not
+
+Use coloured bars.
+
+================================================
+
+4. HISTORY
+
+Display
+
+Who voted
+
+Role
+
+Vote
+
+Time
+
+Comments
+
+================================================
+
+5. CEO VIEW
+
+Chairman
+
+Corporate Secretary
+
+Board Members
+
+must immediately see
+
+Current voting status
+
+Who has voted
+
+Who has not voted
+
+Quorum
+
+Passed
+
+Failed
+
+================================================
+
+6. WORKFLOW
+
+Draft
+
+↓
+
+Open Voting
+
+↓
+
+Members Vote
+
+↓
+
+Voting Closed
+
+↓
+
+Resolution Passed
+
+↓
+
+Resolution Archived
+
+================================================
+
+7. SECURITY
+
+Only authorised roles can vote.
+
+Prevent duplicate votes.
+
+================================================
+
+8. UI
+
+Professional.
+
+Large badges.
+
+Corporate colours.
+
+Readable typography.
+
+Enterprise cards.
+
+================================================
+
+9. IMPORTANT
+
+Do NOT create placeholders.
+
+Do NOT leave TODOs.
+
+Do NOT fake data.
+
+Use real database data.
+
+If no resolutions exist
+
+Create one realistic sample resolution automatically.
+
+================================================
+
+When finished
+
+Restart the application.
+
+Verify everything works.
+
+Test one vote.
+
+Show me:
+
+Files changed
+
+Database changes
+
+API changes
+
+Frontend changes
+
+How to test.
+
+Do not stop until the complete workflow works.

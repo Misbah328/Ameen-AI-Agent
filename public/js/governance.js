@@ -820,14 +820,177 @@ const Gov = {
     } catch (e) { /* silent auto-save */ }
   },
 
-  // ── Resolutions section ────────────────────────────────────────────────────
+  // ── Resolutions & Voting section ──────────────────────────────────────────
   _sResolutions(resolutions) {
     const l = App.lang;
     const lbl = this.lbl.bind(this);
+    const role = (App.user||{}).system_role || '';
+    const canManage = ['Admin','CEO','Chairman','Secretary'].includes(role);
+    const canVote   = !['Observer'].includes(role);
+
+    const VS = {
+      draft:    { ar:'مسودة',          en:'Draft',         c:'var(--text3)',  bg:'var(--navy4)' },
+      open:     { ar:'تصويت مفتوح',    en:'Voting Open',   c:'#2D8CFF',      bg:'rgba(45,140,255,.12)' },
+      closed:   { ar:'تصويت مغلق',     en:'Voting Closed', c:'var(--amber)',  bg:'rgba(201,168,76,.12)' },
+      archived: { ar:'مؤرشف',          en:'Archived',      c:'var(--green)',  bg:'rgba(46,204,138,.12)' },
+    };
+    const WFLOW = [
+      { s:'draft',    ar:'مسودة',       en:'Draft' },
+      { s:'open',     ar:'مفتوح',       en:'Open' },
+      { s:'closed',   ar:'مغلق',        en:'Closed' },
+      { s:'archived', ar:'مؤرشف',       en:'Archived' },
+    ];
+
     const stBadge = s => {
       const st = RESOLUTION_ST[s]||RESOLUTION_ST.pending;
-      return `<span class="tag" style="font-size:10px;background:transparent;border:1px solid ${st.c};color:${st.c}">${st[l]||s}</span>`;
+      return `<span class="tag" style="font-size:10.5px;background:transparent;border:1px solid ${st.c};color:${st.c}">${st[l]||s}</span>`;
     };
+
+    const votingBar = (label, count, total, color) => {
+      const pct = total > 0 ? Math.round((count/total)*100) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        <span style="font-size:11.5px;color:var(--text2);min-width:70px;flex-shrink:0">${label}</span>
+        <div style="flex:1;height:9px;background:var(--navy2);border-radius:20px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:20px;transition:width .5s ease"></div>
+        </div>
+        <span style="font-size:12px;font-weight:700;color:${color};min-width:24px;text-align:end">${count}</span>
+        <span style="font-size:10.5px;color:var(--text3);min-width:32px">${pct}%</span>
+      </div>`;
+    };
+
+    const resCard = r => {
+      const vs  = r.voting_status || 'draft';
+      const vsi = VS[vs] || VS.draft;
+      const totalVotes = (r.votes_approve||0)+(r.votes_reject||0)+(r.votes_abstain||0);
+      const rSt = RESOLUTION_ST[r.status]||RESOLUTION_ST.pending;
+      const wIdx = WFLOW.findIndex(w=>w.s===vs);
+      const isOpen = vs==='open', isClosed = vs==='closed', isArchived = vs==='archived';
+
+      return `<div style="background:var(--navy3);border-radius:13px;padding:18px 20px;border:1px solid var(--border2);border-inline-start:3px solid ${rSt.c};margin-bottom:14px" id="res-card-${r.id}">
+
+        <!-- ── Header ─────────────────────────────────────────────── -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
+              ${stBadge(r.status)}
+              <span style="font-size:10.5px;padding:2px 9px;border-radius:10px;background:${vsi.bg};color:${vsi.c};font-weight:700;border:.5px solid ${vsi.c}55">${vsi[l==='ar'?'ar':'en']}</span>
+              ${totalVotes>0&&(isClosed||isArchived) ? `<span class="tag ${r.status==='approved'?'tg':'tr'}" style="font-size:10px">${r.status==='approved'?'✓ '+lbl('نجح القرار','Passed'):'✗ '+lbl('لم ينجح','Failed')}</span>` : ''}
+            </div>
+            <div style="font-size:14.5px;font-weight:700;color:var(--text);line-height:1.4">${esc(r.title)}</div>
+            ${r.description ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;line-height:1.6">${esc(r.description)}</div>` : ''}
+          </div>
+          <div style="display:flex;gap:5px;flex-shrink:0;align-items:flex-start">
+            ${canManage&&!isArchived ? `
+              ${vs==='draft'   ? `<button onclick="Gov.setVotingStatus(${r.id},'open')" class="btn-gold btn-sm" style="font-size:11px;white-space:nowrap">🗳️ ${lbl('فتح التصويت','Open Voting')}</button>` : ''}
+              ${vs==='open'    ? `<button onclick="Gov.setVotingStatus(${r.id},'closed')" class="btn-ghost btn-sm" style="font-size:11px;white-space:nowrap;border-color:var(--amber);color:var(--amber)">🔒 ${lbl('إغلاق التصويت','Close Voting')}</button>` : ''}
+              ${vs==='closed'  ? `<button onclick="Gov.setVotingStatus(${r.id},'archived')" class="btn-ghost btn-sm" style="font-size:11px;white-space:nowrap;border-color:var(--green);color:var(--green)">🗄️ ${lbl('أرشفة','Archive')}</button>` : ''}
+            ` : ''}
+            <button onclick="Gov.delResolution(${r.id})" class="btn-ghost btn-sm" style="color:var(--red);font-size:11px">✕</button>
+          </div>
+        </div>
+
+        <!-- ── Workflow track ────────────────────────────────────── -->
+        <div style="display:flex;align-items:center;margin-bottom:14px">
+          ${WFLOW.map((w,i)=>{
+            const done   = i < wIdx;
+            const active = i === wIdx;
+            const c = done?'var(--green)':active?vsi.c:'var(--text3)';
+            return `${i>0?`<div style="flex:1;height:1.5px;background:${done?'var(--green)':'var(--border2)'}"></div>`:''}
+              <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
+                <div style="width:22px;height:22px;border-radius:50%;background:${done?'rgba(46,204,138,.15)':active?vsi.bg:'var(--navy4)'};border:2px solid ${c};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${c}">${done?'✓':i+1}</div>
+                <div style="font-size:9px;color:${c};white-space:nowrap">${l==='ar'?w.ar:w.en}</div>
+              </div>`;
+          }).join('')}
+        </div>
+
+        <!-- ── Vote totals (shown when there are votes or voting is not draft) ── -->
+        ${totalVotes>0||vs!=='draft' ? `
+          <div style="background:var(--navy2);border-radius:10px;padding:13px 14px;margin-bottom:12px;border:.5px solid var(--border2)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <span style="font-size:12px;font-weight:700;color:var(--text2)">🗳️ ${lbl('نتائج التصويت','Voting Results')}</span>
+              <div style="display:flex;gap:6px;align-items:center">
+                ${totalVotes>0 ? `<span style="font-size:11px;color:var(--text3)">${totalVotes} ${lbl('صوت','votes')}</span>` : `<span style="font-size:11px;color:var(--text3)">${lbl('لا أصوات بعد','No votes yet')}</span>`}
+                ${totalVotes>0&&isOpen ? `<span style="font-size:10.5px;padding:2px 8px;border-radius:5px;background:${(r.votes_approve||0)>(r.votes_reject||0)?'rgba(46,204,138,.12)':'rgba(201,168,76,.12)'};color:${(r.votes_approve||0)>(r.votes_reject||0)?'var(--green)':'var(--amber)'}">
+                  ${(r.votes_approve||0)>(r.votes_reject||0)?'✓ '+lbl('الأغلبية مؤيدة','Majority for'):'⚠ '+lbl('بدون أغلبية','No majority')}
+                </span>` : ''}
+              </div>
+            </div>
+            ${votingBar(lbl('✅ موافق','✅ For'),       r.votes_approve||0, totalVotes, 'var(--green)')}
+            ${votingBar(lbl('❌ رفض','❌ Against'),     r.votes_reject||0,  totalVotes, 'var(--red)')}
+            ${votingBar(lbl('◎ امتناع','◎ Abstain'), r.votes_abstain||0, totalVotes, 'var(--text3)')}
+          </div>
+        ` : ''}
+
+        <!-- ── Vote buttons (only when voting is open) ─────────── -->
+        ${isOpen&&canVote ? `
+          <div style="background:rgba(45,140,255,.05);border:1px solid rgba(45,140,255,.22);border-radius:11px;padding:14px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:#2D8CFF;margin-bottom:10px">🗳️ ${lbl('صوّت الآن','Cast Your Vote')}</div>
+            <input class="fi" id="vote-comment-${r.id}" placeholder="${lbl('تعليق اختياري على صوتك...','Optional comment on your vote...')}" style="font-size:12px;margin-bottom:10px"/>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button onclick="Gov.vote(${r.id},'approve')"
+                style="flex:1;min-width:90px;padding:11px 12px;background:var(--green2);color:var(--green);border:1.5px solid rgba(46,204,138,.4);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
+                ✅ ${lbl('موافق','For')}
+              </button>
+              <button onclick="Gov.vote(${r.id},'reject')"
+                style="flex:1;min-width:90px;padding:11px 12px;background:var(--red2);color:var(--red);border:1.5px solid rgba(224,90,90,.4);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
+                ❌ ${lbl('رفض','Against')}
+              </button>
+              <button onclick="Gov.vote(${r.id},'abstain')"
+                style="flex:1;min-width:90px;padding:11px 12px;background:var(--navy4);color:var(--text3);border:1.5px solid var(--border2);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+                ◎ ${lbl('امتناع','Abstain')}
+              </button>
+            </div>
+          </div>
+        ` : isOpen&&!canVote ? `<div style="font-size:11.5px;color:var(--text3);padding:10px 14px;background:var(--navy4);border-radius:8px;margin-bottom:12px">🔒 ${lbl('دورك لا يتيح التصويت في هذا القرار','Your role does not permit voting on this resolution')}</div>` : ''}
+
+        <!-- ── Voting history toggle ──────────────────────────── -->
+        <div style="margin-bottom:12px">
+          <button onclick="Gov.toggleVoteHistory(${r.id})"
+            style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:var(--navy4);border:none;border-radius:8px;cursor:pointer;color:var(--text2);font-size:11.5px;font-weight:600" id="hist-toggle-${r.id}">
+            <span>📜 ${lbl('سجل التصويت','Voting History')}${totalVotes>0?` (${totalVotes})`:''}</span>
+            <span id="hist-arrow-${r.id}" style="color:var(--text3)">▾</span>
+          </button>
+          <div id="vote-history-${r.id}" style="display:none;margin-top:6px"></div>
+        </div>
+
+        <!-- ── Follow-up actions ──────────────────────────────── -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">📌 ${lbl('إجراءات المتابعة','Follow-up Actions')}</span>
+            <button class="btn-ghost btn-sm" onclick="Gov._showForm('fu-form-${r.id}')" style="font-size:10.5px">+ ${lbl('إضافة','Add')}</button>
+          </div>
+          <div id="fu-form-${r.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:11px;margin-bottom:8px">
+            <div class="fs" style="gap:6px">
+              <div class="fr2">
+                <div class="frow"><div class="fl" style="font-size:11px">${lbl('المسؤول','Owner')}</div><input class="fi" id="fu-owner-${r.id}" placeholder="${lbl('الاسم','Name')}"/></div>
+                <div class="frow"><div class="fl" style="font-size:11px">${lbl('الموعد','Due Date')}</div><input class="fi" type="date" id="fu-due-${r.id}"/></div>
+              </div>
+              <div class="frow"><div class="fl" style="font-size:11px">${lbl('ملاحظات','Notes')}</div><input class="fi" id="fu-notes-${r.id}" placeholder="${lbl('ملاحظات...','Notes...')}"/></div>
+              <div class="fa">
+                <button class="btn-gold btn-sm" onclick="Gov.addFollowup(${r.id})">✓ ${lbl('حفظ','Save')}</button>
+                <button class="btn-ghost btn-sm" onclick="Gov._hideForm('fu-form-${r.id}')">✕</button>
+              </div>
+            </div>
+          </div>
+          ${(r.followups||[]).length
+            ? r.followups.map(f => `
+              <div style="display:flex;gap:7px;align-items:center;padding:6px 10px;background:var(--navy4);border-radius:7px;margin-bottom:4px;font-size:11.5px">
+                <div style="flex:1">
+                  <span style="color:var(--gold);font-weight:600">${esc(f.owner||'—')}</span>
+                  ${f.due_date ? `<span style="color:var(--text3)"> · 📅 ${esc(f.due_date)}</span>` : ''}
+                  ${f.notes ? `<span style="color:var(--text2)"> · ${esc(f.notes)}</span>` : ''}
+                </div>
+                <select style="font-size:10px;padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2)"
+                  onchange="Gov.updateFollowup(${f.id},this.value)">
+                  ${Object.keys(FOLLOWUP_ST).map(k=>`<option value="${k}" ${f.status===k?'selected':''}>${esc((FOLLOWUP_ST[k]||{})[l]||k)}</option>`).join('')}
+                </select>
+                <button onclick="Gov.delFollowup(${f.id})" style="color:var(--red);background:none;border:none;cursor:pointer;font-size:11px;padding:0">✕</button>
+              </div>`).join('')
+            : `<div style="font-size:12px;color:var(--text3)">${lbl('لا توجد متابعات','No follow-up actions yet')}</div>`}
+        </div>
+      </div>`;
+    };
+
     return `<div class="card" id="sec-resolutions">
       <div class="ch">
         <div>
@@ -847,66 +1010,12 @@ const Gov = {
         </div>
       </div>
       ${resolutions.length
-        ? resolutions.map(r => `
-          <div style="background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:10px;border:1px solid var(--border2)">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-              <div style="flex:1">
-                <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(r.title)}</div>
-                ${r.description ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(r.description)}</div>` : ''}
-              </div>
-              <div style="display:flex;gap:5px;align-items:center">
-                ${stBadge(r.status)}
-                <button class="btn-ghost btn-sm" onclick="Gov.delResolution(${r.id})" style="color:var(--red);font-size:10px">✕</button>
-              </div>
-            </div>
-            <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;align-items:center">
-              <span style="font-size:11px;color:var(--text3)">${lbl('التصويت:','Voting:')}</span>
-              <button onclick="Gov.vote(${r.id},'approve')" style="background:var(--green2);color:var(--green);border:1px solid rgba(46,204,138,.3);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer;font-weight:600">
-                ✓ ${lbl('موافق','Approve')} (${r.votes_approve})
-              </button>
-              <button onclick="Gov.vote(${r.id},'reject')" style="background:var(--red2);color:var(--red);border:1px solid rgba(224,90,90,.3);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer;font-weight:600">
-                ✕ ${lbl('رفض','Reject')} (${r.votes_reject})
-              </button>
-              <button onclick="Gov.vote(${r.id},'abstain')" style="background:var(--navy4);color:var(--text3);border:1px solid var(--border2);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer">
-                ◎ ${lbl('امتناع','Abstain')} (${r.votes_abstain})
-              </button>
-            </div>
-            <div style="margin-top:10px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-                <span style="font-size:11px;font-weight:600;color:var(--text2)">📌 ${lbl('المتابعة','Follow-up')}</span>
-                <button class="btn-ghost btn-sm" onclick="Gov._showForm('fu-form-${r.id}')" style="font-size:10px">+ ${lbl('إضافة','Add')}</button>
-              </div>
-              <div id="fu-form-${r.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:10px;margin-bottom:7px">
-                <div class="fs" style="gap:6px">
-                  <div class="fr2">
-                    <div class="frow"><div class="fl" style="font-size:11px">${lbl('المسؤول','Owner')}</div><input class="fi" id="fu-owner-${r.id}" placeholder="${lbl('الاسم','Name')}"/></div>
-                    <div class="frow"><div class="fl" style="font-size:11px">${lbl('الموعد','Due Date')}</div><input class="fi" type="date" id="fu-due-${r.id}"/></div>
-                  </div>
-                  <div class="frow"><div class="fl" style="font-size:11px">${lbl('ملاحظات','Notes')}</div><input class="fi" id="fu-notes-${r.id}" placeholder="${lbl('ملاحظات...','Notes...')}"/></div>
-                  <div class="fa">
-                    <button class="btn-gold btn-sm" onclick="Gov.addFollowup(${r.id})">✓ ${lbl('حفظ','Save')}</button>
-                    <button class="btn-ghost btn-sm" onclick="Gov._hideForm('fu-form-${r.id}')">✕</button>
-                  </div>
-                </div>
-              </div>
-              ${(r.followups||[]).length
-                ? r.followups.map(f => `
-                  <div style="display:flex;gap:7px;align-items:center;padding:5px 8px;background:var(--navy4);border-radius:7px;margin-bottom:4px;font-size:11px">
-                    <div style="flex:1">
-                      <span style="color:var(--gold);font-weight:600">${esc(f.owner||'—')}</span>
-                      ${f.due_date ? `<span style="color:var(--text3)"> · 📅 ${esc(f.due_date)}</span>` : ''}
-                      ${f.notes ? `<span style="color:var(--text2)"> · ${esc(f.notes)}</span>` : ''}
-                    </div>
-                    <select style="font-size:10px;padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2)"
-                      onchange="Gov.updateFollowup(${f.id},this.value)">
-                      ${Object.keys(FOLLOWUP_ST).map(k => `<option value="${k}" ${f.status===k?'selected':''}>${esc((FOLLOWUP_ST[k]||{})[l]||k)}</option>`).join('')}
-                    </select>
-                    <button onclick="Gov.delFollowup(${f.id})" style="color:var(--red);background:none;border:none;cursor:pointer;font-size:11px">✕</button>
-                  </div>`).join('')
-                : `<div style="font-size:11px;color:var(--text3)">${lbl('لا توجد متابعات','No follow-ups yet')}</div>`}
-            </div>
-          </div>`).join('')
-        : `<div class="es" style="padding:16px"><div class="es-icon">⚖️</div><div style="font-size:12px">${lbl('لا توجد قرارات بعد','No resolutions yet')}</div></div>`}
+        ? resolutions.map(resCard).join('')
+        : `<div class="es" style="padding:24px">
+            <div class="es-icon">⚖️</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:5px">${lbl('لا توجد قرارات','No resolutions yet')}</div>
+            <div style="font-size:12px;color:var(--text3)">${lbl('أضف قراراً للبدء في التصويت','Add a resolution to start the voting workflow')}</div>
+           </div>`}
     </div>`;
   },
 
@@ -920,8 +1029,84 @@ const Gov = {
   },
 
   async vote(resId, vote) {
-    try { await api(`/api/gov/resolutions/${resId}/vote`, { method:'POST', body: JSON.stringify({ vote }) }); await this._loadSections(); }
+    const comment = ($(`vote-comment-${resId}`)?.value || '').trim();
+    try {
+      await api(`/api/gov/resolutions/${resId}/vote`, { method:'POST', body: JSON.stringify({ vote, comments: comment }) });
+      showToast(this.lbl('تم تسجيل صوتك','Vote recorded successfully'), 'success');
+      await this._loadSections();
+    }
     catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async setVotingStatus(resId, status) {
+    const msgs = {
+      open:     this.lbl('فتح التصويت على هذا القرار؟','Open voting on this resolution?'),
+      closed:   this.lbl('إغلاق التصويت نهائياً وإقرار النتيجة؟','Close voting? This will finalize the result.'),
+      archived: this.lbl('أرشفة هذا القرار؟','Archive this resolution?'),
+    };
+    if (msgs[status] && !confirm(msgs[status])) return;
+    try {
+      await api(`/api/gov/resolutions/${resId}/voting-status`, { method:'POST', body: JSON.stringify({ status }) });
+      showToast(this.lbl('تم تحديث حالة التصويت','Voting status updated'), 'success');
+      await this._loadSections();
+    } catch (e) { showToast(e.message, 'error'); }
+  },
+
+  async toggleVoteHistory(resId) {
+    const el    = document.getElementById('vote-history-' + resId);
+    const arrow = document.getElementById('hist-arrow-' + resId);
+    if (!el) return;
+    if (el.style.display !== 'none') {
+      el.style.display = 'none';
+      if (arrow) arrow.textContent = '▾';
+      return;
+    }
+    el.style.display = '';
+    if (arrow) arrow.textContent = '▴';
+    el.innerHTML = '<div class="es" style="padding:10px"><div class="loading"></div></div>';
+    try {
+      const data = await api('/api/gov/resolutions/' + resId + '/votes');
+      const l = App.lang;
+      const lbl = this.lbl.bind(this);
+      if (!data.votes || data.votes.length === 0) {
+        el.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:10px 13px;background:var(--navy4);border-radius:8px">${lbl('لا توجد أصوات مسجلة بعد','No votes have been cast yet')}</div>`;
+        return;
+      }
+      const vIcon  = { approve:'✅', reject:'❌', abstain:'◎' };
+      const vLabel = { approve:{ar:'موافق',en:'For'}, reject:{ar:'رفض',en:'Against'}, abstain:{ar:'امتناع',en:'Abstain'} };
+      const vColor = { approve:'var(--green)', reject:'var(--red)', abstain:'var(--text3)' };
+      el.innerHTML = `
+        <div style="background:var(--navy4);border-radius:10px;overflow:hidden;border:.5px solid var(--border2)">
+          <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:.5px solid var(--border2);flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">📜 ${lbl('سجل التصويت','Voting History')}</span>
+            <span class="tag tg" style="font-size:11px">✅ ${data.approve} ${l==='ar'?'موافق':'For'}</span>
+            <span class="tag tr" style="font-size:11px">❌ ${data.reject} ${l==='ar'?'رفض':'Against'}</span>
+            <span class="tag" style="font-size:11px;background:var(--navy3)">◎ ${data.abstain} ${l==='ar'?'امتناع':'Abstain'}</span>
+          </div>
+          <div style="max-height:240px;overflow-y:auto">
+            ${data.votes.map((v, i) => {
+              const vc = vColor[v.vote] || 'var(--text3)';
+              const vi = vIcon[v.vote]  || '—';
+              const vl = (vLabel[v.vote]||{})[l==='ar'?'ar':'en'] || v.vote;
+              const dt = (v.updated_at||v.created_at||'').substring(0,16).replace('T',' ');
+              return `<div style="display:flex;align-items:flex-start;gap:11px;padding:10px 14px;border-bottom:${i<data.votes.length-1?'.5px solid var(--border2)':'none'};${i%2===1?'background:rgba(255,255,255,.018)':''}">
+                <div style="width:32px;height:32px;border-radius:50%;background:${vc}18;border:1.5px solid ${vc}55;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;margin-top:1px">${vi}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(v.voter_name||v.voter_email||lbl('مستخدم','User'))}</div>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;align-items:center">
+                    ${v.voter_role ? `<span class="tag" style="font-size:10px;background:var(--navy3);color:var(--text3)">${esc(v.voter_role)}</span>` : ''}
+                    <span class="tag" style="font-size:11px;background:transparent;border:.5px solid ${vc};color:${vc}">${vi} ${vl}</span>
+                    ${dt ? `<span style="font-size:10px;color:var(--text3)">🕐 ${esc(dt)}</span>` : ''}
+                  </div>
+                  ${v.comments ? `<div style="font-size:12px;color:var(--text2);margin-top:5px;font-style:italic;line-height:1.5">"${esc(v.comments)}"</div>` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    } catch (e) {
+      el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px">${esc(e.message)}</div>`;
+    }
   },
 
   async delResolution(id) {

@@ -231,6 +231,22 @@ db.exec(`
   )
 `);
 
+// Resolution per-user vote tracking
+db.exec(`CREATE TABLE IF NOT EXISTS votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  resolution_id INTEGER NOT NULL,
+  voter_id INTEGER NOT NULL,
+  voter_name TEXT DEFAULT '',
+  voter_role TEXT DEFAULT '',
+  vote TEXT NOT NULL,
+  comments TEXT DEFAULT '',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(resolution_id, voter_id),
+  FOREIGN KEY (resolution_id) REFERENCES resolutions(id) ON DELETE CASCADE
+)`);
+ensureColumn('resolutions', 'voting_status', "TEXT DEFAULT 'draft'");
+
 // Task progress history
 db.exec(`
   CREATE TABLE IF NOT EXISTS task_updates (

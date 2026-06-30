@@ -176,18 +176,33 @@ router.delete('/resolutions/:id', auth, (req, res) => {
 router.post('/resolutions/:id/vote', auth, (req, res) => {
   const item = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Not found' });
-  const { vote } = req.body;
-  const col = vote === 'approve' ? 'votes_approve' : vote === 'reject' ? 'votes_reject' : vote === 'abstain' ? 'votes_abstain' : null;
-  if (!col) return res.status(400).json({ error: 'vote must be approve, reject, or abstain' });
-  db.prepare(`UPDATE resolutions SET ${col}=${col}+1 WHERE id=?`).run(req.params.id);
-  const updated = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
-  // Auto-derive status from vote majority
-  if (updated.votes_approve + updated.votes_reject + updated.votes_abstain > 0) {
-    let s = 'pending';
-    if (updated.votes_approve > updated.votes_reject) s = 'approved';
-    else if (updated.votes_reject > updated.votes_approve) s = 'rejected';
-    if (s !== updated.status) db.prepare('UPDATE resolutions SET status=? WHERE id=?').run(s, req.params.id);
+  const vs = item.voting_status || 'draft';
+  if (vs !== 'open') return res.status(400).json({ error: vs === 'closed' ? 'Voting has been closed' : 'Voting is not open yet — an authorised user must open voting first' });
+  const { vote, comments } = req.body;
+  if (!['approve', 'reject', 'abstain'].includes(vote))
+    return res.status(400).json({ error: 'vote must be approve, reject, or abstain' });
+  const userRow = db.prepare('SELECT name_ar, name_en, system_role FROM users WHERE id=?').get(req.user.id);
+  const voterName = (userRow?.name_en || userRow?.name_ar || req.user.email || '').trim();
+  const voterRole = req.user.system_role || userRow?.system_role || '';
+  const existing = db.prepare('SELECT id FROM votes WHERE resolution_id=? AND voter_id=?').get(req.params.id, req.user.id);
+  if (existing) {
+    db.prepare('UPDATE votes SET vote=?, comments=?, voter_name=?, voter_role=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(vote, comments||'', voterName, voterRole, existing.id);
+  } else {
+    db.prepare('INSERT INTO votes (resolution_id, voter_id, voter_name, voter_role, vote, comments) VALUES (?,?,?,?,?,?)')
+      .run(req.params.id, req.user.id, voterName, voterRole, vote, comments||'');
   }
+  const agg = db.prepare('SELECT vote, COUNT(*) as c FROM votes WHERE resolution_id=? GROUP BY vote').all(req.params.id);
+  const counts = { approve:0, reject:0, abstain:0 };
+  agg.forEach(a => { if (a.vote in counts) counts[a.vote] = a.c; });
+  const totalV = counts.approve + counts.reject + counts.abstain;
+  let status = 'pending';
+  if (totalV > 0) {
+    if (counts.approve > counts.reject) status = 'approved';
+    else if (counts.reject > counts.approve) status = 'rejected';
+  }
+  db.prepare('UPDATE resolutions SET votes_approve=?, votes_reject=?, votes_abstain=?, status=? WHERE id=?')
+    .run(counts.approve, counts.reject, counts.abstain, status, req.params.id);
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));
 });
 
@@ -353,6 +368,34 @@ router.get('/general-assemblies', auth, (req, res) => {
     `).all();
     res.json(gas);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gov/resolutions/:id/votes — full per-user voting history
+router.get('/resolutions/:id/votes', auth, (req, res) => {
+  try {
+    const votes = db.prepare('SELECT * FROM votes WHERE resolution_id=? ORDER BY updated_at DESC').all(req.params.id);
+    const approve = votes.filter(v => v.vote === 'approve').length;
+    const reject  = votes.filter(v => v.vote === 'reject').length;
+    const abstain = votes.filter(v => v.vote === 'abstain').length;
+    res.json({ votes, total: votes.length, approve, reject, abstain, passed: approve > reject });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/resolutions/:id/voting-status — open / close / archive voting
+router.post('/resolutions/:id/voting-status', auth, (req, res) => {
+  const { status } = req.body;
+  if (!['draft','open','closed','archived'].includes(status))
+    return res.status(400).json({ error: 'Invalid voting status' });
+  db.prepare('UPDATE resolutions SET voting_status=? WHERE id=?').run(status, req.params.id);
+  if (status === 'closed') {
+    const r = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
+    if (!r.status || r.status === 'pending') {
+      const derived = (r.votes_approve||0) > (r.votes_reject||0) ? 'approved'
+        : (r.votes_reject||0) > (r.votes_approve||0) ? 'rejected' : 'pending';
+      db.prepare('UPDATE resolutions SET status=? WHERE id=?').run(derived, req.params.id);
+    }
+  }
+  res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));
 });
 
 module.exports = router;
