@@ -91,9 +91,22 @@ const Gov = {
   _renderAll() {
     const body = $('gov-body');
     if (!body) return;
+    const l = App.lang;
+    const lbl = this.lbl.bind(this);
+    const _govBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 18px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">🏛 ${lbl('لوحة الحوكمة التنفيذية','Executive Governance Board')}</div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${lbl('مجالس الإدارة، اللجان، الجمعيات العمومية، والقرارات — نظرة شاملة على هيكل حوكمة أمين القابضة','Boards, committees, general assemblies, and resolutions — complete governance structure of Ameen Holdings')}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-ghost btn-sm" onclick="Panels.load('transcripts')" style="font-size:11px;white-space:nowrap">📋 ${lbl('المحاضر','Minutes')}</button>
+        <button class="btn-gold btn-sm" onclick="Panels.load('tasks')" style="font-size:11px;white-space:nowrap">⚖️ ${lbl('القرارات','Decisions')}</button>
+      </div>
+    </div>`;
     body.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:16px">
-        ${this._summary ? this._sDashboard(this._summary) : ''}
+        ${_govBanner}
+        ${this._summary ? this._sDashboard(this._summary) : `<div style="text-align:center;padding:32px 20px"><div style="font-size:40px;margin-bottom:12px">🏛</div><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${lbl('لا توجد بيانات حوكمة بعد','No governance data yet')}</div><div style="font-size:11.5px;color:var(--text3);line-height:1.7;max-width:360px;margin:0 auto">${lbl('أضف مجلس إدارة أو لجنة لتفعيل لوحة الحوكمة وتتبع القرارات والقرارات والجمعيات العمومية','Add a board or committee to activate the governance dashboard and track resolutions, decisions, and general assemblies')}</div></div>`}
         ${this._gas && this._gas.length ? this._sGASection(this._gas) : ''}
         ${this._sBoardsSection(this._boards)}
         <div id="gov-meeting-selector"></div>

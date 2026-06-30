@@ -1850,6 +1850,26 @@ const Rec = {
   },
 };
 
+// ── Shared page intro banner ──────────────────────────────────────────────────
+function _pgBanner(titleAr, titleEn, descAr, descEn, btnHtml = '') {
+  const l = App.lang;
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:15px 18px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:18px">
+    <div style="min-width:0">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">${l==='ar'?titleAr:titleEn}</div>
+      <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${l==='ar'?descAr:descEn}</div>
+    </div>
+    ${btnHtml ? `<div style="flex-shrink:0">${btnHtml}</div>` : ''}
+  </div>`;
+}
+function _secHdr(icon, labelAr, labelEn, subAr = '', subEn = '') {
+  const l = App.lang;
+  return `<div style="display:flex;align-items:baseline;gap:8px;margin:20px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--border2)">
+    <span style="font-size:15px">${icon}</span>
+    <div style="font-size:12.5px;font-weight:700;color:var(--text)">${l==='ar'?labelAr:labelEn}</div>
+    ${(l==='ar'?subAr:subEn) ? `<div style="font-size:11px;color:var(--text3)">${l==='ar'?subAr:subEn}</div>` : ''}
+  </div>`;
+}
+
 // ── Record Meeting helper card (injected into static panel on every visit) ────
 function _injectRecordHelper(l) {
   const pbody = document.querySelector('#panel-record .pbody');
@@ -1937,10 +1957,28 @@ async function renderTranscripts() {
     App.meetingsCache = meetings;
     const l = App.lang;
     if (!meetings.length) {
-      body.innerHTML = `<div class="es"><div class="es-icon">📝</div><div>${l === "ar" ? "لا توجد اجتماعات مسجلة بعد" : "No recorded meetings yet"}</div></div>`;
+      body.innerHTML = `<div style="text-align:center;padding:40px 24px">
+        <div style="font-size:44px;margin-bottom:14px">🎙</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px">${l==="ar"?"لا توجد اجتماعات مسجلة بعد":"No recorded meetings yet"}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.8;max-width:400px;margin:0 auto 20px">${l==="ar"?"انتقل إلى صفحة <strong style='color:var(--gold)'>تسجيل اجتماع</strong>، ابدأ التسجيل الصوتي أو ارفع ملفاً، وسيقوم أمين تلقائياً باستخراج المهام، القرارات، والمخاطر من المحادثة.":"Go to <strong style='color:var(--gold)'>Record Meeting</strong>, start voice recording or upload a file, and Ameen will automatically extract tasks, decisions, and risks from the conversation."}</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:20px">
+          <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(46,204,138,.1);color:var(--green);border:.5px solid rgba(46,204,138,.25)">✓ ${l==="ar"?"استخراج مهام آلي":"Auto task extraction"}</span>
+          <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(212,160,23,.1);color:var(--gold);border:.5px solid rgba(212,160,23,.25)">⚖️ ${l==="ar"?"تسجيل قرارات":"Decision logging"}</span>
+          <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(91,155,214,.1);color:#5B9BD6;border:.5px solid rgba(91,155,214,.25)">📝 ${l==="ar"?"محاضر رسمية":"Official minutes"}</span>
+        </div>
+        <button class="btn-gold btn-sm" onclick="Panels.load('record')" style="font-size:12px;padding:8px 20px">🎙 ${l==="ar"?"ابدأ التسجيل الآن":"Start Recording Now"}</button>
+      </div>`;
       return;
     }
+    const _trBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 16px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:3px">📝 ${l==='ar'?'سجل الاجتماعات المُعالَجة':'Processed Meeting Archive'}</div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${l==='ar'?'كل اجتماع يحتوي على ملخص، مهام، قرارات، ومخاطر — انقر على أي بطاقة لعرض التفاصيل الكاملة وإدارة اعتماد المحضر':'Each meeting contains a summary, tasks, decisions, and risks — expand any card to view full details and manage minutes approval'}</div>
+      </div>
+      <button class="btn-gold btn-sm" onclick="Panels.load('record')" style="white-space:nowrap;font-size:11px">🎙 ${l==='ar'?'تسجيل جديد':'New Recording'}</button>
+    </div>`;
     body.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">
+      ${_trBanner}
       ${meetings
         .map((m) => {
           const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
@@ -2619,18 +2657,34 @@ async function renderTasks() {
       </div>`;
     };
 
-    body.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
+    const _tasksBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:13px 16px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:3px">📋 ${l==="ar"?"لوحة المهام والقرارات":"Task & Decision Board"}</div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${l==="ar"?"المهام والقرارات تُستخرج تلقائياً من كل اجتماع مسجل — أسندت لأصحابها وتُتابع حتى الإنجاز الكامل":"Tasks and decisions are auto-extracted from every recorded meeting — assigned to owners and tracked to completion"}</div>
+      </div>
+      <button class="btn-gold btn-sm" onclick="Modals.addTask()" style="white-space:nowrap;font-size:12px">+ ${l==="ar"?"مهمة يدوية":"Add Task"}</button>
+    </div>`;
+    body.innerHTML = _tasksBanner + `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
       <div class="card">
-        <div class="ch"><div class="ct">${l === "ar" ? "⚠ متأخرة / جديدة" : "⚠ Overdue / Open"}</div><span class="tag tr">${overdue.length + inprog.length}</span></div>
-        ${overdue.length + inprog.length === 0 ? `<div class="es" style="padding:20px"><div class="es-icon" style="font-size:22px">✓</div><div style="font-size:12px">${l === "ar" ? "لا مهام متأخرة" : "No overdue tasks"}</div></div>` : [...overdue, ...inprog].map(renderTask).join("")}
+        <div class="ch" style="margin-bottom:4px"><div class="ct">${l === "ar" ? "⚠ متأخرة / مفتوحة" : "⚠ Overdue / Open"}</div><span class="tag tr">${overdue.length + inprog.length}</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${l==="ar"?"تحتاج انتباهاً فورياً — مرتبة حسب الأولوية":"Require immediate attention — sorted by priority"}</div>
+        ${overdue.length + inprog.length === 0
+          ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">✅</div><div style="font-size:12.5px;font-weight:600;color:var(--green)">${l === "ar" ? "لا مهام متأخرة" : "No overdue tasks"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px">${l==="ar"?"أداء ممتاز — كل المهام في الوقت المحدد":"Excellent — all tasks on schedule"}</div></div>`
+          : [...overdue, ...inprog].map(renderTask).join("")}
       </div>
       <div class="card">
-        <div class="ch"><div class="ct">✓ ${l === "ar" ? "مكتملة" : "Done"}</div><span class="tag tg">${done.length}</span></div>
-        ${done.length === 0 ? `<div class="es" style="padding:20px"><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا مهام مكتملة" : "No completed tasks"}</div></div>` : done.map(renderTask).join("")}
+        <div class="ch" style="margin-bottom:4px"><div class="ct">✓ ${l === "ar" ? "مكتملة" : "Done"}</div><span class="tag tg">${done.length}</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${l==="ar"?"مغلقة وموثقة بالسجل":"Closed and logged in the record"}</div>
+        ${done.length === 0
+          ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">📋</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا مهام مكتملة بعد" : "No completed tasks yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"حدّث حالة المهام عند إنجازها":"Mark tasks done as you complete them"}</div></div>`
+          : done.map(renderTask).join("")}
       </div>
       <div class="card">
-        <div class="ch"><div class="ct">⚖️ ${l === "ar" ? "القرارات" : "Decisions"}</div><span class="tag" style="background:var(--navy4)">${decisions.length}</span></div>
-        ${decisions.length === 0 ? `<div class="es" style="padding:20px"><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا قرارات" : "No decisions"}</div></div>` : decisions.map(renderDecision).join("")}
+        <div class="ch" style="margin-bottom:4px"><div class="ct">⚖️ ${l === "ar" ? "القرارات" : "Decisions"}</div><span class="tag" style="background:var(--navy4)">${decisions.length}</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${l==="ar"?"مستخرجة آلياً من محاضر الاجتماعات":"Auto-extracted from meeting minutes"}</div>
+        ${decisions.length === 0
+          ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">⚖️</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا قرارات مسجلة بعد" : "No decisions recorded yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"القرارات تُستخرج تلقائياً عند تسجيل الاجتماعات":"Decisions auto-appear after meetings are recorded"}</div></div>`
+          : decisions.map(renderDecision).join("")}
       </div>
     </div>`;
   } catch (e) {
@@ -3840,11 +3894,21 @@ async function renderSchedule() {
     App.scheduleCache = items;
     const l = App.lang;
     if (!items.length) {
-      el.innerHTML = `<div class="es" style="padding:20px"><div class="es-icon">📅</div><div>${l === "ar" ? "لا اجتماعات مجدولة" : "No scheduled meetings"}</div></div>`;
+      el.innerHTML = `<div style="text-align:center;padding:36px 24px">
+        <div style="font-size:44px;margin-bottom:14px">📅</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px">${l==="ar"?"لا اجتماعات مجدولة بعد":"No meetings scheduled yet"}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.8;max-width:380px;margin:0 auto 18px">${l==="ar"?"استخدم نموذج <strong style='color:var(--gold)'>إضافة اجتماع</strong> أعلاه لجدولة اجتماعك الأول. يمكنك تحديد المشاركين، جهة الاجتماع (Zoom/Teams/Meet)، وإرسال تذكيرات بريدية تلقائية.":"Use the <strong style='color:var(--gold)'>Add Meeting</strong> form above to schedule your first meeting. Set the type, attendees, platform (Zoom / Teams / Meet), and send automatic email reminders."}</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(46,204,138,.1);color:var(--green);border:.5px solid rgba(46,204,138,.25)">✓ ${l==="ar"?"تذكيرات بريدية جاهزة":"Email reminders ready"}</span>
+          <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(212,160,23,.1);color:var(--gold);border:.5px solid rgba(212,160,23,.25)">🎥 ${l==="ar"?"Zoom / Teams / Meet مدعوم":"Zoom / Teams / Meet supported"}</span>
+          <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(91,155,214,.1);color:#5B9BD6;border:.5px solid rgba(91,155,214,.25)">🔁 ${l==="ar"?"تكرار تلقائي متاح":"Recurring meetings available"}</span>
+        </div>
+      </div>`;
       return;
     }
     const today = new Date().toISOString().substring(0, 10);
-    el.innerHTML = items
+    const _sb = `<div style="padding:11px 15px;background:rgba(212,160,23,.06);border:1px solid rgba(212,160,23,.15);border-radius:10px;margin-bottom:14px;font-size:11.5px;color:var(--text3);line-height:1.75">${l==="ar"?'<strong style="color:var(--gold)">💡 نصيحة:</strong> انقر ✏️ لتعديل أي اجتماع · استخدم 📧 <strong>إرسال تذكير</strong> لإبلاغ المشاركين تلقائياً · الاجتماعات الافتراضية تُظهر بطاقة المنصة بزر الانضمام المباشر':'<strong style="color:var(--gold)">💡 Tip:</strong> Click ✏️ Edit to update any meeting · Use 📧 <strong>Send Reminder</strong> to notify attendees automatically · Virtual meetings show a platform card with a direct join button'}</div>`;
+    el.innerHTML = _sb + items
       .map((s) => {
         const title = l === "ar" ? s.title_ar : s.title_en || s.title_ar;
         const isUpcoming = s.meeting_date >= today;
@@ -4739,12 +4803,21 @@ async function renderOverview() {
     const dash = Dash.get();
     const sec = (k, html) => (dash[k] === false ? "" : html);
     const showCharts = hasCharts && ROLE_ACCESS[role]?.has("analytics");
+    const _ovBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:15px 18px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:18px">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">📊 ${lbl('نظرة تنفيذية سريعة','Executive Snapshot')}</div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${lbl('جميع مقاييس المنظومة في مكان واحد — انقر على أي بطاقة للانتقال مباشرةً إلى الصفحة المعنية','All organisation metrics in one view — click any card to navigate directly to that section')}</div>
+      </div>
+      <button class="btn-gold btn-sm" onclick="Panels.load('record')" style="white-space:nowrap;font-size:12px">🎙 ${lbl('تسجيل اجتماع','Record Meeting')}</button>
+    </div>`;
     body.innerHTML = `
       ${roleHeader}
+      ${_ovBanner}
       ${Dash.bar(l)}
-      ${sec("stats", statsHtml)}
-      ${showCharts ? sec("charts", chartsGridHtml) : ""}
-      ${sec("upcoming", `<div style="margin-bottom:14px">${upcomingHtml}</div>`)}
+      ${sec("stats", `<div style="margin-bottom:4px"><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
+      ${showCharts ? sec("charts", `<div>${_secHdr('📈',lbl('الاتجاهات والرسوم البيانية','Trends & Charts'),'','',lbl('بيانات حية من الاجتماعات المسجلة','Live data from recorded sessions'))}${chartsGridHtml}</div>`) : ""}
+      ${sec("upcoming", `<div style="margin-bottom:14px">${_secHdr('📅',lbl('الاجتماعات القادمة','Upcoming Meetings'),'','',lbl('انقر للذهاب إلى الجدول','Click to open full schedule'))}${upcomingHtml}</div>`)}
+      ${overdueHtml ? `<div>${_secHdr('⚠','المهام تحتاج انتباهاً','Needs Immediate Attention','','')}</div>` : ''}
       ${sec("overdue", overdueHtml)}
       ${boardGovHtml}
       ${committeeHtml}`;
@@ -5093,6 +5166,14 @@ async function renderAnalytics() {
     }
 
     body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 18px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:18px">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">📊 ${lbl("لوحة التحليلات التنفيذية","Executive Analytics")}</div>
+          <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${lbl("اتجاهات الأداء للاجتماعات والمهام والقرارات — بيانات حية مُجمَّعة من جميع الجلسات المسجلة","Performance trends for meetings, tasks and decisions — live data aggregated from all recorded sessions")}</div>
+        </div>
+        <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(46,204,138,.1);color:var(--green);border:.5px solid rgba(46,204,138,.25);white-space:nowrap">📈 ${lbl("بيانات حية","Live Data")}</span>
+      </div>
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-inline-start:2px">— ${lbl("الرسوم البيانية التفاعلية","Interactive Charts")} —</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
           <div class="ct" style="margin-bottom:10px;font-size:13px">📅 ${lbl("معدل حضور الاجتماعات", "Meeting Attendance Rate")}</div>
