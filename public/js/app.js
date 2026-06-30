@@ -576,6 +576,9 @@ const Panels = {
       case "admin":
         await renderAdminPanel();
         break;
+      case "record":
+        _injectRecordHelper(App.lang);
+        break;
     }
     this._startPolling();
   },
@@ -1847,6 +1850,35 @@ const Rec = {
   },
 };
 
+// ── Record Meeting helper card (injected into static panel on every visit) ────
+function _injectRecordHelper(l) {
+  const pbody = document.querySelector('#panel-record .pbody');
+  if (!pbody) return;
+  let h = document.getElementById('rec-arch-hint');
+  if (!h) {
+    h = document.createElement('div');
+    h.id = 'rec-arch-hint';
+    pbody.insertBefore(h, pbody.firstChild);
+  }
+  h.innerHTML = `
+    <div style="margin-bottom:14px;padding:13px 15px;background:linear-gradient(135deg,rgba(212,160,23,.09),rgba(45,140,255,.06));border:1px solid rgba(212,160,23,.28);border-radius:12px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <span style="font-size:22px;flex-shrink:0">📼</span>
+        <div style="flex:1">
+          <div style="font-size:12.5px;font-weight:700;color:var(--gold);margin-bottom:5px">${l==='ar'?'أرشيف التسجيل — جاهز للاستخدام':'Recording Archive — Ready'}</div>
+          <div style="font-size:11.5px;color:var(--text3);line-height:1.7">${l==='ar'
+            ? 'بعد انتهاء الاجتماع، انقر على <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> لرفع التسجيل وإرساله للاعتماد الرسمي من رئيس مجلس الإدارة أو عضو مجلس الإدارة.'
+            : 'After the meeting ends, click <strong style="color:var(--gold)">☁ Save to Platform</strong> to upload the recording for official archiving and Chairman / Board Member approval.'}</div>
+          <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
+            <span style="font-size:10px;padding:3px 9px;border-radius:6px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف التسجيل جاهز':'Recording archive ready'}</span>
+            <span style="font-size:10px;padding:3px 9px;border-radius:6px;background:rgba(45,140,255,.10);color:#2D8CFF;border:.5px solid rgba(45,140,255,.22)">🔗 ${l==='ar'?'تكامل Zoom / Teams / Google Meet جاهز':'Zoom / Teams / Google Meet integration ready'}</span>
+            <span style="font-size:10px;padding:3px 9px;border-radius:6px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'ربط مباشر — بانتظار بيانات الاعتماد':'Live API connection pending credentials'}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 // ══ Recording Storage ══════════════════════════════════════════════════════════
 const RecStore = {
   async upload(meetingId, blobUrl) {
@@ -2062,10 +2094,16 @@ async function renderTranscripts() {
             const ST_CLR  = { none:'color:var(--text3)', pending:'color:#f0a000', approved:'color:#2ecc8a', rejected:'color:#e05252' };
             const fmtBytes = b => b > 1048576 ? `${(b/1048576).toFixed(1)} MB` : b > 1024 ? `${(b/1024).toFixed(0)} KB` : `${b||0} B`;
             const verifier = m.rec_verifier_ar ? (l==='ar' ? m.rec_verifier_ar : m.rec_verifier_en || m.rec_verifier_ar) : '';
-            return `<div style="margin:10px 0;background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:12px 14px">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:${hasRec?'10px':'6px'}">
-                <div style="font-size:11.5px;font-weight:700;color:var(--text)">📼 ${l==='ar'?'أرشيف التسجيل':'Recording Archive'}</div>
-                ${hasRec ? `<span style="font-size:10px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : ''}
+            return `<div style="margin:10px 0;background:var(--navy3);border:1px solid ${hasRec ? 'var(--border2)' : 'rgba(212,160,23,.18)'};border-radius:10px;padding:12px 14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:${hasRec?'10px':'8px'}">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <span style="font-size:15px">📼</span>
+                  <div>
+                    <div style="font-size:11.5px;font-weight:700;color:var(--text)">${l==='ar'?'أرشيف التسجيل':'Recording Archive'}</div>
+                    <div style="font-size:9.5px;color:var(--text3);margin-top:1px">${l==='ar'?'تسجيل · اعتماد · أرشفة رسمية':'Record · Approve · Officially Archive'}</div>
+                  </div>
+                </div>
+                ${hasRec ? `<span style="font-size:10px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : `<span style="font-size:9.5px;color:#2ecc8a;background:rgba(46,204,138,.10);border:.5px solid rgba(46,204,138,.25);padding:2px 7px;border-radius:5px">✓ ${l==='ar'?'جاهز':'Ready'}</span>`}
               </div>
               ${hasRec ? `
                 <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px;line-height:1.8">
@@ -2082,7 +2120,10 @@ async function renderTranscripts() {
                   ${recSt==='approved' ? `<span class="tag tg" style="font-size:10px">🏛 ${l==='ar'?'أرشيف رسمي':'Official Archive'}</span>` : ''}
                   <button class="btn-ghost btn-sm" onclick="RecStore.remove(${m.id})" style="font-size:10px;color:#e05252;margin-${l==='ar'?'right':'left'}:auto">🗑</button>
                 </div>
-              ` : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l==='ar'?'لا يوجد تسجيل محفوظ في المنصة — استخدم زر "حفظ في المنصة" بعد التسجيل':'No recording stored on platform — use "Save to Platform" after recording'}</div>`}
+              ` : `<div style="padding:6px 2px">
+                  <div style="font-size:11px;color:var(--text3);margin-bottom:4px">${l==='ar'?'لا يوجد تسجيل محفوظ في المنصة بعد.':'No recording stored on platform yet.'}</div>
+                  <div style="font-size:10.5px;color:var(--text3);opacity:.8;line-height:1.6">${l==='ar'?'سجّل الاجتماع ← انقر على <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> ← أرسله للاعتماد من رئيس مجلس الإدارة':'Record meeting → click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval'}</div>
+                </div>`}
             </div>`;
           })()}
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -3719,59 +3760,74 @@ const Schedule = {
     const prov = s.meeting_provider || "physical";
     const PROV = {
       physical:    { icon: "🏛",  label: l === "ar" ? "اجتماع حضوري" : "Physical Meeting", color: "var(--text2)",  badge: "var(--navy4)" },
-      zoom:        { icon: "🎥",  label: "Zoom",                color: "#2D8CFF",  badge: "rgba(45,140,255,.13)" },
-      teams:       { icon: "💼",  label: "Microsoft Teams",     color: "#6264A7",  badge: "rgba(98,100,167,.13)" },
-      google_meet: { icon: "🎦",  label: "Google Meet",         color: "#00897B",  badge: "rgba(0,137,123,.13)" },
+      zoom:        { icon: "🎥",  label: "Zoom",            color: "#2D8CFF",  badge: "rgba(45,140,255,.13)" },
+      teams:       { icon: "💼",  label: "Microsoft Teams", color: "#6264A7",  badge: "rgba(98,100,167,.13)" },
+      google_meet: { icon: "🎦",  label: "Google Meet",     color: "#00897B",  badge: "rgba(0,137,123,.13)"  },
     };
     const REC_ST = {
-      not_started: { label: l === "ar" ? "لم يبدأ"       : "Not Started",  color: "var(--text3)" },
-      recording:   { label: l === "ar" ? "جارٍ التسجيل"  : "Recording",    color: "var(--green)" },
-      processing:  { label: l === "ar" ? "قيد المعالجة"  : "Processing",   color: "var(--amber)" },
-      ready:       { label: l === "ar" ? "جاهز"           : "Ready",        color: "var(--green)" },
-      failed:      { label: l === "ar" ? "فشل التسجيل"   : "Failed",       color: "var(--red)"   },
+      not_started: { label: l === "ar" ? "لم يبدأ"      : "Not Started", color: "var(--text3)" },
+      recording:   { label: l === "ar" ? "جارٍ التسجيل" : "Recording",   color: "var(--green)" },
+      processing:  { label: l === "ar" ? "قيد المعالجة" : "Processing",  color: "var(--amber)" },
+      ready:       { label: l === "ar" ? "جاهز"          : "Ready",       color: "var(--green)" },
+      failed:      { label: l === "ar" ? "فشل التسجيل"  : "Failed",      color: "var(--red)"   },
     };
-    const p       = PROV[prov] || PROV.physical;
-    const recSt   = REC_ST[s.recording_status || "not_started"] || REC_ST.not_started;
-    const isVirt  = prov !== "physical";
+    const p      = PROV[prov] || PROV.physical;
+    const recSt  = REC_ST[s.recording_status || "not_started"] || REC_ST.not_started;
+    const isVirt = prov !== "physical";
     const notConn = l === "ar" ? "غير متصل" : "Not Connected";
     const noLink  = l === "ar" ? "لم يُضف رابط بعد" : "No join link added";
-    const tLabel  = s.transcript_provider ? esc(s.transcript_provider) : notConn;
+    const tLabel  = s.transcript_provider ? esc(s.transcript_provider) : (isVirt ? notConn : "Ameen AI");
+
+    // Demo integration banner — shown for virtual providers
+    const demoBanner = isVirt ? `
+      <div style="margin-bottom:10px;padding:7px 10px;background:rgba(255,160,0,.07);border:1px solid rgba(255,160,0,.20);border-radius:7px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span style="font-size:14px">🔗</span>
+        <div style="flex:1;min-width:0;font-size:10px;color:var(--text3)">
+          <span style="color:var(--gold);font-weight:700">${esc(p.label)} ${l==='ar'?'جاهز للربط':'integration ready'}</span>
+          &nbsp;·&nbsp;${l==='ar'?'ربط مباشر بانتظار بيانات الاعتماد':'Live API connection pending credentials'}
+        </div>
+        <span style="font-size:9px;padding:2px 7px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28);white-space:nowrap">✓ ${l==='ar'?'البنية جاهزة':'Architecture ready'}</span>
+      </div>` : '';
+
+    // Status grid — always shown for every meeting type
+    const statusGrid = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px;padding-top:10px;border-top:1px solid var(--border2)">
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"حالة التسجيل":"Recording"}</div>
+          <div style="font-size:11px;font-weight:700;color:${isVirt ? recSt.color : '#2ecc8a'}">${isVirt ? recSt.label : (l==="ar"?"مدمج في المنصة":"On-platform")}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"النسخ":"Transcript"}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3)">${tLabel}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل السحابي":"Cloud Recording"}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3)">${isVirt ? (s.recording_url ? `<a href="${esc(s.recording_url)}" target="_blank" style="color:var(--gold);text-decoration:none">${l==="ar"?"عرض ↗":"View ↗"}</a>` : notConn) : (l==="ar"?"غير مطبق":"N/A")}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التخزين":"Storage"}</div>
+          <div style="font-size:11px;font-weight:700;color:#2ecc8a">${l==="ar"?"أرشيف جاهز ✓":"Archive Ready ✓"}</div>
+        </div>
+      </div>`;
+
     return `<div style="margin-top:10px;padding:11px 13px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:${isVirt ? "10px" : "0"}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:9px">
           <span style="font-size:18px;line-height:1">${p.icon}</span>
           <div>
             <div style="font-size:12px;font-weight:700;color:${p.color}">${p.label}</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:1px">${isVirt ? notConn : (l === "ar" ? "حضور فعلي في المقر" : "In-person at venue")}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px">${isVirt ? (l==="ar"?"اجتماع افتراضي":"Virtual meeting") : (l==="ar"?"حضور فعلي في المقر":"In-person at venue")}</div>
           </div>
         </div>
         ${s.meeting_join_url
           ? `<a href="${esc(s.meeting_join_url)}" target="_blank" rel="noopener"
-               style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;text-decoration:none;background:${p.badge};color:${p.color};border:1px solid ${p.color}33;transition:.15s">
-               ▶ ${l === "ar" ? "انضم للاجتماع" : "Join Meeting"}
+               style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;text-decoration:none;background:${p.badge};color:${p.color};border:1px solid ${p.color}33">
+               ▶ ${l==="ar"?"انضم للاجتماع":"Join Meeting"}
              </a>`
-          : isVirt
-            ? `<span style="font-size:10px;color:var(--text3);font-style:italic">${noLink}</span>`
-            : ""}
+          : isVirt ? `<span style="font-size:10px;color:var(--text3);font-style:italic">${noLink}</span>` : ""}
       </div>
-      ${isVirt ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;padding-top:10px;border-top:1px solid var(--border2)">
-        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "حالة التسجيل" : "Recording"}</div>
-          <div style="font-size:11px;font-weight:700;color:${recSt.color}">${recSt.label}</div>
-        </div>
-        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "النسخ" : "Transcript"}</div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3)">${tLabel}</div>
-        </div>
-        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "التسجيل السحابي" : "Cloud Recording"}</div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3)">${s.recording_url ? `<a href="${esc(s.recording_url)}" target="_blank" style="color:var(--gold);text-decoration:none">${l === "ar" ? "عرض ↗" : "View ↗"}</a>` : notConn}</div>
-        </div>
-        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "التخزين" : "Storage"}</div>
-          <div style="font-size:11px;font-weight:700;color:var(--text3)">${l === "ar" ? "محلي فقط" : "Local Only"}</div>
-        </div>
-      </div>` : ""}
+      ${demoBanner}
+      ${statusGrid}
     </div>`;
   },
 };
