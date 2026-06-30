@@ -584,13 +584,26 @@ const Gov = {
         api(`/api/gov/resolutions?${q}`),
         this.meetingId ? api(`/api/gov/attendance?meetingId=${this.meetingId}`) : Promise.resolve([]),
       ]);
+      // Auto-seed sample resolutions if none exist for this meeting/schedule
+      let finalRes = resolutions;
+      if (resolutions.length === 0 && (this.meetingId || this.scheduleId)) {
+        await this._seedSampleResolution();
+        finalRes = await api(`/api/gov/resolutions?${q}`).catch(() => []);
+      }
       el.innerHTML = [
         this._sAgenda(agenda, docs),
         this._sAttendance(attendance),
         this._sQuorum(quorum),
-        this._sResolutions(resolutions),
+        this._sResolutions(finalRes),
         this._sDocs(docs.filter(d => !d.agenda_item_id)),
       ].join('');
+      // Draw doughnut charts for all resolutions with votes
+      setTimeout(() => {
+        (finalRes||[]).forEach(r => {
+          const tv = (r.votes_approve||0)+(r.votes_reject||0)+(r.votes_abstain||0);
+          if (tv > 0) this._drawVoteChart(r.id, r.votes_approve||0, r.votes_reject||0, r.votes_abstain||0);
+        });
+      }, 80);
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);padding:10px;font-size:12px">${esc(e.message)}</div>`;
     }
@@ -903,21 +916,28 @@ const Gov = {
           }).join('')}
         </div>
 
-        <!-- ── Vote totals (shown when there are votes or voting is not draft) ── -->
+        <!-- ── Vote totals + doughnut chart ─────────────────────── -->
         ${totalVotes>0||vs!=='draft' ? `
           <div style="background:var(--navy2);border-radius:10px;padding:13px 14px;margin-bottom:12px;border:.5px solid var(--border2)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <span style="font-size:12px;font-weight:700;color:var(--text2)">🗳️ ${lbl('نتائج التصويت','Voting Results')}</span>
-              <div style="display:flex;gap:6px;align-items:center">
-                ${totalVotes>0 ? `<span style="font-size:11px;color:var(--text3)">${totalVotes} ${lbl('صوت','votes')}</span>` : `<span style="font-size:11px;color:var(--text3)">${lbl('لا أصوات بعد','No votes yet')}</span>`}
-                ${totalVotes>0&&isOpen ? `<span style="font-size:10.5px;padding:2px 8px;border-radius:5px;background:${(r.votes_approve||0)>(r.votes_reject||0)?'rgba(46,204,138,.12)':'rgba(201,168,76,.12)'};color:${(r.votes_approve||0)>(r.votes_reject||0)?'var(--green)':'var(--amber)'}">
-                  ${(r.votes_approve||0)>(r.votes_reject||0)?'✓ '+lbl('الأغلبية مؤيدة','Majority for'):'⚠ '+lbl('بدون أغلبية','No majority')}
-                </span>` : ''}
+            <div style="display:flex;gap:14px;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <span style="font-size:12px;font-weight:700;color:var(--text2)">🗳️ ${lbl('نتائج التصويت','Voting Results')}</span>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    ${totalVotes>0 ? `<span style="font-size:11px;color:var(--text3)">${totalVotes} ${lbl('صوت','votes')}</span>` : `<span style="font-size:11px;color:var(--text3)">${lbl('لا أصوات بعد','No votes yet')}</span>`}
+                    ${totalVotes>0&&(isOpen||isClosed) ? `<span style="font-size:10.5px;padding:2px 8px;border-radius:5px;background:${(r.votes_approve||0)>(r.votes_reject||0)?'rgba(46,204,138,.12)':'rgba(201,168,76,.12)'};color:${(r.votes_approve||0)>(r.votes_reject||0)?'var(--green)':'var(--amber)'}">
+                      ${(r.votes_approve||0)>(r.votes_reject||0)?'✓ '+lbl('الأغلبية مؤيدة','Majority for'):'⚠ '+lbl('بدون أغلبية','No majority')}
+                    </span>` : ''}
+                  </div>
+                </div>
+                ${votingBar(lbl('✅ موافق','✅ For'),       r.votes_approve||0, totalVotes, '#2ECC8A')}
+                ${votingBar(lbl('❌ رفض','❌ Against'),     r.votes_reject||0,  totalVotes, '#E05A5A')}
+                ${votingBar(lbl('◎ امتناع','◎ Abstain'), r.votes_abstain||0, totalVotes, '#8B9DB8')}
+              </div>
+              <div style="width:88px;height:88px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:4px">
+                ${totalVotes>0 ? `<canvas id="vote-chart-${r.id}" width="88" height="88" style="display:block"></canvas>` : `<div style="width:88px;height:88px;border-radius:50%;border:3px dashed var(--border2);display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--text3);text-align:center">${lbl('لا\nأصوات','No\nvotes')}</span></div>`}
               </div>
             </div>
-            ${votingBar(lbl('✅ موافق','✅ For'),       r.votes_approve||0, totalVotes, 'var(--green)')}
-            ${votingBar(lbl('❌ رفض','❌ Against'),     r.votes_reject||0,  totalVotes, 'var(--red)')}
-            ${votingBar(lbl('◎ امتناع','◎ Abstain'), r.votes_abstain||0, totalVotes, 'var(--text3)')}
           </div>
         ` : ''}
 
@@ -1068,44 +1088,145 @@ const Gov = {
       const data = await api('/api/gov/resolutions/' + resId + '/votes');
       const l = App.lang;
       const lbl = this.lbl.bind(this);
-      if (!data.votes || data.votes.length === 0) {
-        el.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:10px 13px;background:var(--navy4);border-radius:8px">${lbl('لا توجد أصوات مسجلة بعد','No votes have been cast yet')}</div>`;
-        return;
-      }
       const vIcon  = { approve:'✅', reject:'❌', abstain:'◎' };
       const vLabel = { approve:{ar:'موافق',en:'For'}, reject:{ar:'رفض',en:'Against'}, abstain:{ar:'امتناع',en:'Abstain'} };
-      const vColor = { approve:'var(--green)', reject:'var(--red)', abstain:'var(--text3)' };
-      el.innerHTML = `
-        <div style="background:var(--navy4);border-radius:10px;overflow:hidden;border:.5px solid var(--border2)">
-          <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:.5px solid var(--border2);flex-wrap:wrap">
-            <span style="font-size:12px;font-weight:700;color:var(--text2)">📜 ${lbl('سجل التصويت','Voting History')}</span>
-            <span class="tag tg" style="font-size:11px">✅ ${data.approve} ${l==='ar'?'موافق':'For'}</span>
-            <span class="tag tr" style="font-size:11px">❌ ${data.reject} ${l==='ar'?'رفض':'Against'}</span>
-            <span class="tag" style="font-size:11px;background:var(--navy3)">◎ ${data.abstain} ${l==='ar'?'امتناع':'Abstain'}</span>
+      const vColor = { approve:'#2ECC8A', reject:'#E05A5A', abstain:'#8B9DB8' };
+      const noVotes = !data.votes || data.votes.length === 0;
+
+      // ── Quorum section ─────────────────────────────────────────────
+      const qSection = data.quorum_total > 0 ? `
+        <div style="padding:11px 14px;border-bottom:.5px solid var(--border2);background:${data.quorum_met?'rgba(46,204,138,.06)':'rgba(240,100,100,.05)'}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+            <span style="font-size:11.5px;font-weight:700;color:var(--text2)">⚖️ ${lbl('النصاب القانوني','Quorum')}</span>
+            <span style="font-size:11px;padding:2px 9px;border-radius:10px;background:${data.quorum_met?'rgba(46,204,138,.15)':'rgba(240,100,100,.15)'};color:${data.quorum_met?'#2ECC8A':'#E05A5A'};font-weight:700">
+              ${data.quorum_met ? '✓ '+lbl('محقق','Achieved') : '✗ '+lbl('لم يتحقق','Not Met')}
+            </span>
           </div>
-          <div style="max-height:240px;overflow-y:auto">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+            <div style="flex:1;height:8px;background:var(--navy2);border-radius:20px;overflow:hidden;position:relative">
+              <div style="height:100%;width:${data.quorum_pct||0}%;background:${data.quorum_met?'#2ECC8A':'#E05A5A'};border-radius:20px;transition:width .5s"></div>
+              <div style="position:absolute;top:0;bottom:0;left:50%;width:1.5px;background:var(--amber);opacity:.7"></div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${data.quorum_met?'#2ECC8A':'#E05A5A'};min-width:32px">${data.quorum_pct||0}%</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--text3)">${data.total} ${lbl('من أصل','of')} ${data.quorum_total} ${lbl('مشارك صوّتوا','participants voted')} · ${lbl('مطلوب','Required')}: ${data.quorum_needed} (50%+)</div>
+        </div>` : '';
+
+      // ── Voted list ─────────────────────────────────────────────────
+      const votedSection = noVotes ? `
+        <div style="padding:14px 16px;text-align:center">
+          <div style="font-size:28px;margin-bottom:6px">🗳️</div>
+          <div style="font-size:12.5px;font-weight:600;color:var(--text2)">${lbl('لا توجد أصوات مسجلة بعد','No votes have been cast yet')}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">${lbl('سيظهر هنا كل صوت فور تسجيله','Every vote will appear here as soon as it is cast')}</div>
+        </div>` : `
+        <div>
+          <div style="padding:8px 14px 6px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+            ✅ ${lbl('صوّتوا','Voted')} (${data.total})
+          </div>
+          <div style="max-height:220px;overflow-y:auto">
             ${data.votes.map((v, i) => {
-              const vc = vColor[v.vote] || 'var(--text3)';
+              const vc = vColor[v.vote] || '#8B9DB8';
               const vi = vIcon[v.vote]  || '—';
               const vl = (vLabel[v.vote]||{})[l==='ar'?'ar':'en'] || v.vote;
               const dt = (v.updated_at||v.created_at||'').substring(0,16).replace('T',' ');
-              return `<div style="display:flex;align-items:flex-start;gap:11px;padding:10px 14px;border-bottom:${i<data.votes.length-1?'.5px solid var(--border2)':'none'};${i%2===1?'background:rgba(255,255,255,.018)':''}">
-                <div style="width:32px;height:32px;border-radius:50%;background:${vc}18;border:1.5px solid ${vc}55;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;margin-top:1px">${vi}</div>
+              return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;border-top:.5px solid var(--border2);${i%2===1?'background:rgba(255,255,255,.015)':''}">
+                <div style="width:30px;height:30px;border-radius:50%;background:${vc}18;border:1.5px solid ${vc}55;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${vi}</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(v.voter_name||v.voter_email||lbl('مستخدم','User'))}</div>
-                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;align-items:center">
-                    ${v.voter_role ? `<span class="tag" style="font-size:10px;background:var(--navy3);color:var(--text3)">${esc(v.voter_role)}</span>` : ''}
-                    <span class="tag" style="font-size:11px;background:transparent;border:.5px solid ${vc};color:${vc}">${vi} ${vl}</span>
+                  <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(v.voter_name||lbl('مستخدم','User'))}</div>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;align-items:center">
+                    ${v.voter_role ? `<span style="font-size:10px;padding:1px 6px;border-radius:5px;background:var(--navy2);color:var(--text3)">${esc(v.voter_role)}</span>` : ''}
+                    <span style="font-size:10.5px;padding:1px 7px;border-radius:5px;background:${vc}18;color:${vc};font-weight:700;border:.5px solid ${vc}44">${vi} ${vl}</span>
                     ${dt ? `<span style="font-size:10px;color:var(--text3)">🕐 ${esc(dt)}</span>` : ''}
                   </div>
-                  ${v.comments ? `<div style="font-size:12px;color:var(--text2);margin-top:5px;font-style:italic;line-height:1.5">"${esc(v.comments)}"</div>` : ''}
+                  ${v.comments ? `<div style="font-size:11.5px;color:var(--text2);margin-top:4px;font-style:italic">"${esc(v.comments)}"</div>` : ''}
                 </div>
               </div>`;
             }).join('')}
           </div>
         </div>`;
+
+      // ── Not voted yet (CEO/Chairman view) ──────────────────────────
+      const notVotedSection = (data.not_voted && data.not_voted.length > 0) ? `
+        <div style="border-top:.5px solid var(--border2)">
+          <div style="padding:8px 14px 6px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+            ⏳ ${lbl('لم يصوّتوا بعد','Not Voted Yet')} (${data.not_voted.length})
+          </div>
+          ${data.not_voted.map(a => `
+            <div style="display:flex;align-items:center;gap:9px;padding:7px 14px;border-top:.5px solid var(--border2)">
+              <div style="width:28px;height:28px;border-radius:50%;background:rgba(201,168,76,.12);border:1px dashed var(--amber);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">⏳</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;color:var(--text2)">${esc(a.name||'—')}</div>
+                ${a.role ? `<div style="font-size:10px;color:var(--text3)">${esc(a.role)}</div>` : ''}
+              </div>
+              ${a.attendance_status ? `<span style="font-size:10px;color:var(--text3)">${esc(a.attendance_status)}</span>` : ''}
+            </div>`).join('')}
+        </div>` : '';
+
+      el.innerHTML = `
+        <div style="background:var(--navy4);border-radius:10px;overflow:hidden;border:.5px solid var(--border2)">
+          <div style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:.5px solid var(--border2);flex-wrap:wrap;background:var(--navy3)">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">📜 ${lbl('سجل التصويت','Voting History')}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:rgba(46,204,138,.15);color:#2ECC8A;font-weight:700">✅ ${data.approve} ${l==='ar'?'موافق':'For'}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:rgba(224,90,90,.15);color:#E05A5A;font-weight:700">❌ ${data.reject} ${l==='ar'?'رفض':'Against'}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:rgba(139,157,184,.15);color:#8B9DB8;font-weight:700">◎ ${data.abstain} ${l==='ar'?'امتناع':'Abstain'}</span>
+            ${data.total>0 ? `<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:${data.passed?'rgba(46,204,138,.15)':'rgba(240,100,100,.12)'};color:${data.passed?'#2ECC8A':'#E05A5A'};font-weight:700">${data.passed?'✓ '+lbl('نجح','Passed'):'✗ '+lbl('لم ينجح','Failed')}</span>` : ''}
+          </div>
+          ${qSection}
+          ${votedSection}
+          ${notVotedSection}
+        </div>`;
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px">${esc(e.message)}</div>`;
+    }
+  },
+
+  // ── Doughnut chart for vote results ────────────────────────────────────────
+  _drawVoteChart(resId, approve, reject, abstain) {
+    const canvas = document.getElementById('vote-chart-' + resId);
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (!this._charts) this._charts = {};
+    if (this._charts[resId]) { try { this._charts[resId].destroy(); } catch(e) {} }
+    const total = approve + reject + abstain;
+    if (total === 0) return;
+    this._charts[resId] = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [approve, reject, abstain],
+          backgroundColor: ['#2ECC8A', '#E05A5A', '#8B9DB8'],
+          borderWidth: 0,
+          hoverOffset: 3,
+        }],
+      },
+      options: {
+        cutout: '68%',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        animation: { duration: 700, easing: 'easeInOutQuart' },
+      },
+    });
+  },
+
+  // ── Auto-seed sample resolutions for empty meetings ─────────────────────────
+  async _seedSampleResolution() {
+    const l = App.lang;
+    const samples = [
+      {
+        title: l === 'ar' ? 'اعتماد القوائم المالية للربع الثاني 2026' : 'Approval of Q2 2026 Financial Statements',
+        description: l === 'ar'
+          ? 'مراجعة واعتماد القوائم المالية المدققة للربع الثاني لعام 2026، بما فيها الميزانية العمومية وقائمة الدخل وقائمة التدفقات النقدية.'
+          : 'Review and approve the audited financial statements for Q2 2026, including the balance sheet, income statement, and cash flow statement.',
+      },
+      {
+        title: l === 'ar' ? 'تعيين المراجع الخارجي لعام 2026' : 'Appointment of External Auditor for 2026',
+        description: l === 'ar'
+          ? 'اعتماد تعيين مكتب PricewaterhouseCoopers مراجعاً خارجياً للشركة للسنة المالية 2026.'
+          : 'Approve the appointment of PricewaterhouseCoopers as the company\'s external auditor for fiscal year 2026.',
+      },
+    ];
+    for (const s of samples) {
+      const body = { title: s.title, description: s.description };
+      if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+      await api('/api/gov/resolutions', { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
     }
   },
 

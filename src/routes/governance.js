@@ -370,14 +370,39 @@ router.get('/general-assemblies', auth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/gov/resolutions/:id/votes — full per-user voting history
+// GET /api/gov/resolutions/:id/votes — full voting history + quorum + CEO "who hasn't voted" view
 router.get('/resolutions/:id/votes', auth, (req, res) => {
   try {
+    const resolution = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
+    if (!resolution) return res.status(404).json({ error: 'Not found' });
     const votes = db.prepare('SELECT * FROM votes WHERE resolution_id=? ORDER BY updated_at DESC').all(req.params.id);
     const approve = votes.filter(v => v.vote === 'approve').length;
     const reject  = votes.filter(v => v.vote === 'reject').length;
     const abstain = votes.filter(v => v.vote === 'abstain').length;
-    res.json({ votes, total: votes.length, approve, reject, abstain, passed: approve > reject });
+    const total   = votes.length;
+    const pct = n => total > 0 ? Math.round((n / total) * 100) : 0;
+    // Attendees for quorum + who-hasn't-voted (cross-reference by email)
+    let attendees = [];
+    if (resolution.meeting_id) {
+      attendees = db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=?').all(resolution.meeting_id);
+    }
+    const voterEmailSet = new Set();
+    votes.forEach(v => {
+      const u = db.prepare('SELECT email FROM users WHERE id=?').get(v.voter_id);
+      if (u && u.email) voterEmailSet.add(u.email.toLowerCase());
+    });
+    const not_voted     = attendees.filter(a => !voterEmailSet.has((a.email||'').toLowerCase()));
+    const quorum_total  = attendees.length;
+    const quorum_needed = quorum_total > 0 ? Math.ceil(quorum_total / 2) : 0;
+    const quorum_met    = quorum_total > 0 && total >= quorum_needed;
+    const quorum_pct    = quorum_total > 0 ? Math.round((total / quorum_total) * 100) : 0;
+    res.json({
+      votes, total, approve, reject, abstain,
+      approve_pct: pct(approve), reject_pct: pct(reject), abstain_pct: pct(abstain),
+      passed: approve > reject && total > 0,
+      quorum_total, quorum_needed, quorum_met, quorum_pct,
+      not_voted, attendees,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
