@@ -152,6 +152,27 @@ const upload = multer({
   }
 });
 
+// ── Recording storage (audio/video files up to 500 MB) ────────────────────────
+const RECORDINGS_DIR = path.join(__dirname, '../../data/recordings');
+if (!fs.existsSync(RECORDINGS_DIR)) fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
+
+const _recStorage = multer.diskStorage({
+  destination: RECORDINGS_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.webm';
+    cb(null, `rec_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
+  }
+});
+const uploadRec = multer({
+  storage: _recStorage,
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.webm', '.mp4', '.mp3', '.wav', '.ogg', '.m4a', '.aac'];
+    const ext = path.extname(file.originalname).toLowerCase() || '.webm';
+    cb(null, allowed.includes(ext));
+  }
+});
+
 async function extractFileText(filePath, originalname) {
   const ext = path.extname(originalname).toLowerCase();
   try {
@@ -319,9 +340,11 @@ router.get('/meetings', auth, (req, res) => {
   const meetings = db.prepare(`
     SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
-      c.name_ar as committee_name_ar, c.name_en as committee_name_en
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en,
+      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en
     FROM meetings m
-    LEFT JOIN users u ON m.recorded_by = u.id
+    LEFT JOIN users u  ON m.recorded_by         = u.id
+    LEFT JOIN users rv ON m.recording_verified_by = rv.id
     LEFT JOIN boards b ON m.board_id = b.id
     LEFT JOIN committees c ON m.committee_id = c.id
     ORDER BY m.meeting_date DESC
@@ -333,9 +356,11 @@ router.get('/meetings/:id', auth, (req, res) => {
   const m = db.prepare(`
     SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
-      c.name_ar as committee_name_ar, c.name_en as committee_name_en
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en,
+      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en
     FROM meetings m
-    LEFT JOIN users u ON m.recorded_by = u.id
+    LEFT JOIN users u  ON m.recorded_by          = u.id
+    LEFT JOIN users rv ON m.recording_verified_by = rv.id
     LEFT JOIN boards b ON m.board_id = b.id
     LEFT JOIN committees c ON m.committee_id = c.id
     WHERE m.id=?
@@ -394,6 +419,93 @@ router.delete('/meetings/:id', auth, (req, res) => {
   });
   tx();
   meetingDocs.forEach(d => { try { fs.unlinkSync(path.join(UPLOADS_DIR, d.file_path)); } catch {} });
+  res.json({ success: true });
+});
+
+// ── Recording Storage & Approval ──────────────────────────────────────────────
+
+// POST /api/meetings/:id/recording — upload audio/video file to platform
+router.post('/meetings/:id/recording', auth, uploadRec.single('recording'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (webm, mp4, mp3, wav, ogg, m4a, aac)' });
+  const meeting = db.prepare('SELECT id, audio_recording_url FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) {
+    try { fs.unlinkSync(req.file.path); } catch {}
+    return res.status(404).json({ error: 'Meeting not found' });
+  }
+  // Remove previous recording file if one existed
+  if (meeting.audio_recording_url) {
+    const prevFile = path.basename(meeting.audio_recording_url);
+    try { fs.unlinkSync(path.join(RECORDINGS_DIR, prevFile)); } catch {}
+  }
+  const publicUrl = `/recordings/${req.file.filename}`;
+  db.prepare(`
+    UPDATE meetings SET
+      audio_recording_url       = ?,
+      recording_file_name       = ?,
+      recording_file_size       = ?,
+      recording_uploaded_at     = CURRENT_TIMESTAMP,
+      recording_approval_status = 'pending'
+    WHERE id = ?
+  `).run(publicUrl, req.file.originalname, req.file.size, meeting.id);
+  res.json({ success: true, audio_recording_url: publicUrl, recording_approval_status: 'pending' });
+});
+
+// PATCH /api/meetings/:id/recording/approve — approval workflow
+// body: { action: 'approve' | 'reject' | 'submit' }
+router.patch('/meetings/:id/recording/approve', auth, (req, res) => {
+  const meeting = db.prepare('SELECT id, audio_recording_url, recording_approval_status FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  if (!meeting.audio_recording_url) return res.status(400).json({ error: 'No recording stored for this meeting' });
+
+  const { action } = req.body;
+  const VALID = ['submit', 'approve', 'reject'];
+  if (!VALID.includes(action)) return res.status(400).json({ error: `action must be one of: ${VALID.join(', ')}` });
+
+  if (action === 'submit') {
+    db.prepare(`UPDATE meetings SET recording_approval_status='pending' WHERE id=?`).run(meeting.id);
+    return res.json({ success: true, recording_approval_status: 'pending' });
+  }
+  if (action === 'approve') {
+    db.prepare(`
+      UPDATE meetings SET
+        recording_approval_status = 'approved',
+        recording_verified_by     = ?,
+        recording_verified_at     = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(req.user.id, meeting.id);
+    return res.json({ success: true, recording_approval_status: 'approved' });
+  }
+  if (action === 'reject') {
+    db.prepare(`
+      UPDATE meetings SET
+        recording_approval_status = 'rejected',
+        recording_verified_by     = ?,
+        recording_verified_at     = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(req.user.id, meeting.id);
+    return res.json({ success: true, recording_approval_status: 'rejected' });
+  }
+});
+
+// DELETE /api/meetings/:id/recording — remove recording file and clear columns
+router.delete('/meetings/:id/recording', auth, (req, res) => {
+  const meeting = db.prepare('SELECT id, audio_recording_url FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  if (meeting.audio_recording_url) {
+    try { fs.unlinkSync(path.join(RECORDINGS_DIR, path.basename(meeting.audio_recording_url))); } catch {}
+  }
+  db.prepare(`
+    UPDATE meetings SET
+      audio_recording_url       = '',
+      video_recording_url       = '',
+      recording_file_name       = '',
+      recording_file_size       = 0,
+      recording_uploaded_at     = NULL,
+      recording_verified_by     = NULL,
+      recording_verified_at     = NULL,
+      recording_approval_status = 'none'
+    WHERE id = ?
+  `).run(meeting.id);
   res.json({ success: true });
 });
 

@@ -1810,12 +1810,14 @@ const Rec = {
       </div>`;
 
     // Dual-side recording download (only when display audio was captured)
+    const _recMid = Rec.currentMeetingId;
     const dualAudio = Rec._dualAudioUrl
       ? `
       <div style="background:rgba(91,155,214,.07);border:1px solid rgba(91,155,214,.18);border-radius:8px;padding:9px 13px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span>🎙+🔊</span>
         <div style="flex:1;font-size:12px;color:var(--text2)">${lbl("تم تسجيل كلا الجانبين — الصوت الكامل للاجتماع متاح للتنزيل", "Both sides recorded — complete meeting audio available for download")}</div>
         <a href="${Rec._dualAudioUrl}" download="meeting-recording-${Date.now()}.webm" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${lbl("تنزيل التسجيل", "Download Recording")}</a>
+        ${_recMid ? `<button id="rec-save-btn" class="btn-ghost btn-sm" style="font-size:11px;color:var(--gold);border-color:var(--gold)" onclick="RecStore.upload(${_recMid}, '${Rec._dualAudioUrl}')">☁ ${lbl("حفظ في المنصة", "Save to Platform")}</button>` : ""}
       </div>`
       : "";
 
@@ -1843,6 +1845,55 @@ const Rec = {
       actions
     );
   },
+};
+
+// ══ Recording Storage ══════════════════════════════════════════════════════════
+const RecStore = {
+  async upload(meetingId, blobUrl) {
+    const l = App.lang;
+    const btn = document.getElementById('rec-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = l === 'ar' ? 'جارٍ الرفع…' : 'Uploading…'; }
+    try {
+      const resp = await fetch(blobUrl);
+      const blob = await resp.blob();
+      const fd   = new FormData();
+      fd.append('recording', blob, `meeting-${meetingId}-${Date.now()}.webm`);
+      const res  = await fetch(`/api/meetings/${meetingId}/recording`, {
+        method: 'POST', credentials: 'include', body: fd
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+      showToast(l === 'ar' ? '✓ تم حفظ التسجيل في المنصة' : '✓ Recording saved to platform', 'success');
+      if (btn) { btn.textContent = l === 'ar' ? '✓ محفوظ' : '✓ Saved'; }
+    } catch (e) {
+      showToast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = l === 'ar' ? '☁ حفظ في المنصة' : '☁ Save to Platform'; }
+    }
+  },
+  async approve(meetingId, action) {
+    const l = App.lang;
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/recording/approve`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast(l === 'ar' ? '✓ تم تحديث حالة الاعتماد' : '✓ Approval status updated', 'success');
+      await renderTranscripts();
+    } catch (e) { showToast(e.message, 'error'); }
+  },
+  async remove(meetingId) {
+    const l = App.lang;
+    if (!confirm(l === 'ar' ? 'حذف التسجيل من المنصة نهائياً؟' : 'Permanently delete recording from platform?')) return;
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/recording`, {
+        method: 'DELETE', credentials: 'include'
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast(l === 'ar' ? 'تم حذف التسجيل' : 'Recording deleted', 'success');
+      await renderTranscripts();
+    } catch (e) { showToast(e.message, 'error'); }
+  }
 };
 
 // ══ Transcripts ═══════════════════════════════════════════════════════════════
@@ -1999,6 +2050,41 @@ async function renderTranscripts() {
               : ""
           }
           <div id="mtg-docs-${m.id}"></div>
+          ${(() => {
+            const hasRec = !!m.audio_recording_url;
+            const recSt  = m.recording_approval_status || 'none';
+            const ST_LABEL = {
+              none:     l==='ar' ? 'لم يُرفع'            : 'Not Archived',
+              pending:  l==='ar' ? 'بانتظار الاعتماد'    : 'Pending Approval',
+              approved: l==='ar' ? 'مؤرشف رسمياً ✓'      : 'Officially Archived ✓',
+              rejected: l==='ar' ? 'مرفوض'               : 'Rejected'
+            };
+            const ST_CLR  = { none:'color:var(--text3)', pending:'color:#f0a000', approved:'color:#2ecc8a', rejected:'color:#e05252' };
+            const fmtBytes = b => b > 1048576 ? `${(b/1048576).toFixed(1)} MB` : b > 1024 ? `${(b/1024).toFixed(0)} KB` : `${b||0} B`;
+            const verifier = m.rec_verifier_ar ? (l==='ar' ? m.rec_verifier_ar : m.rec_verifier_en || m.rec_verifier_ar) : '';
+            return `<div style="margin:10px 0;background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:12px 14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:${hasRec?'10px':'6px'}">
+                <div style="font-size:11.5px;font-weight:700;color:var(--text)">📼 ${l==='ar'?'أرشيف التسجيل':'Recording Archive'}</div>
+                ${hasRec ? `<span style="font-size:10px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : ''}
+              </div>
+              ${hasRec ? `
+                <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px;line-height:1.8">
+                  📁 ${esc(m.recording_file_name||'')} &nbsp;·&nbsp; ${fmtBytes(m.recording_file_size||0)}
+                  ${m.recording_uploaded_at ? ` &nbsp;·&nbsp; 📅 ${m.recording_uploaded_at.substring(0,16)}` : ''}
+                  ${verifier ? `<br>✓ ${l==='ar'?'معتمد بواسطة':'Verified by'}: <strong>${esc(verifier)}</strong>${m.recording_verified_at?' · '+m.recording_verified_at.substring(0,10):''}` : ''}
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <a href="${esc(m.audio_recording_url)}" target="_blank" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">▶ ${l==='ar'?'تشغيل':'Play'}</a>
+                  <a href="${esc(m.audio_recording_url)}" download class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${l==='ar'?'تنزيل':'Download'}</a>
+                  ${(recSt==='none'||recSt==='rejected') ? `<button class="btn-ghost btn-sm" onclick="RecStore.approve(${m.id},'submit')" style="font-size:11px;color:var(--gold);border-color:var(--gold)">📋 ${l==='ar'?'رفع للاعتماد':'Submit for Approval'}</button>` : ''}
+                  ${recSt==='pending' ? `<button class="btn-ghost btn-sm" onclick="RecStore.approve(${m.id},'approve')" style="font-size:11px;color:#2ecc8a;border-color:#2ecc8a">✅ ${l==='ar'?'اعتماد وأرشفة':'Approve & Archive'}</button>` : ''}
+                  ${recSt==='pending' ? `<button class="btn-ghost btn-sm" onclick="RecStore.approve(${m.id},'reject')" style="font-size:11px;color:#e05252;border-color:#e05252">✕ ${l==='ar'?'رفض':'Reject'}</button>` : ''}
+                  ${recSt==='approved' ? `<span class="tag tg" style="font-size:10px">🏛 ${l==='ar'?'أرشيف رسمي':'Official Archive'}</span>` : ''}
+                  <button class="btn-ghost btn-sm" onclick="RecStore.remove(${m.id})" style="font-size:10px;color:#e05252;margin-${l==='ar'?'right':'left'}:auto">🗑</button>
+                </div>
+              ` : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l==='ar'?'لا يوجد تسجيل محفوظ في المنصة — استخدم زر "حفظ في المنصة" بعد التسجيل':'No recording stored on platform — use "Save to Platform" after recording'}</div>`}
+            </div>`;
+          })()}
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
             ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l === "ar" ? "تمت المشاركة" : "Shared"}</span>` : ""}
             <button id="doc-upload-btn-${m.id}" class="btn-ghost btn-sm" onclick="DocLib.upload(${m.id})">📎 ${l === "ar" ? "إرفاق" : "Attach"}</button>

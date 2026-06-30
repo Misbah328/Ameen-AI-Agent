@@ -195,6 +195,16 @@ ensureColumn('schedule', 'recording_provider',  "TEXT DEFAULT ''");
 ensureColumn('schedule', 'recording_url',       "TEXT DEFAULT ''");
 ensureColumn('schedule', 'transcript_provider', "TEXT DEFAULT ''");
 
+// ── Recording storage and approval columns ────────────────────────────────────
+ensureColumn('meetings', 'audio_recording_url',       "TEXT DEFAULT ''");
+ensureColumn('meetings', 'video_recording_url',       "TEXT DEFAULT ''");
+ensureColumn('meetings', 'recording_file_name',       "TEXT DEFAULT ''");
+ensureColumn('meetings', 'recording_file_size',       'INTEGER DEFAULT 0');
+ensureColumn('meetings', 'recording_uploaded_at',     'DATETIME');
+ensureColumn('meetings', 'recording_verified_by',     'INTEGER');
+ensureColumn('meetings', 'recording_verified_at',     'DATETIME');
+ensureColumn('meetings', 'recording_approval_status', "TEXT DEFAULT 'none'");
+
 // Minutes approval audit log
 db.exec(`
   CREATE TABLE IF NOT EXISTS minutes_approval_log (
