@@ -2663,117 +2663,174 @@ async function renderTasks() {
     App.tasksCache = tasks;
     const l = App.lang;
 
-    const overdue = tasks.filter((t) => t.status === "overdue");
-    const inprog = tasks.filter(
-      (t) => t.status === "inprogress" || t.status === "new",
-    );
-    const done = tasks.filter((t) => t.status === "done");
+    const today = new Date().toISOString().substring(0, 10);
+    const overdue    = tasks.filter(t => t.status === "overdue");
+    const inprog     = tasks.filter(t => t.status === "inprogress" || t.status === "new");
+    const done       = tasks.filter(t => t.status === "done");
+    const escalated  = tasks.filter(t => t.escalated_at);
+    const decPending = decisions.filter(d => d.status !== "implemented");
+    const decImpl    = decisions.filter(d => d.status === "implemented");
 
+    // ── KPI cards ─────────────────────────────────────────────────────────────
+    const _kpi = (icon, val, labelAr, labelEn, valColor) => `
+      <div style="padding:14px 16px;background:var(--navy3);border-radius:12px;border:.5px solid var(--border2);text-align:center">
+        <div style="font-size:15px;margin-bottom:5px">${icon}</div>
+        <div style="font-size:26px;font-weight:800;color:${valColor};margin-bottom:4px;line-height:1">${val}</div>
+        <div style="font-size:10.5px;color:var(--text3);line-height:1.35">${l==="ar"?labelAr:labelEn}</div>
+      </div>`;
+
+    const kpiHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-bottom:20px">
+      ${_kpi("📂", inprog.length + overdue.length, "مهام مفتوحة",       "Open Actions",            "var(--text)")}
+      ${_kpi("⚠️", overdue.length,                  "متأخرة",            "Overdue",                 overdue.length   > 0 ? "var(--red)"   : "var(--green)")}
+      ${_kpi("✅", done.length,                      "مكتملة",            "Completed",               "var(--green)")}
+      ${_kpi("↑",  escalated.length,                "مُصعَّدة",          "Escalated",               escalated.length > 0 ? "#9B72DB"      : "var(--text3)")}
+      ${_kpi("⚖️", decPending.length,               "قرارات معلقة",      "Decisions Pending",       decPending.length> 0 ? "var(--amber)" : "var(--text3)")}
+      ${_kpi("🏆", decImpl.length,                  "قرارات منفذة",      "Decisions Implemented",   "var(--green)")}
+    </div>`;
+
+    // ── Improved task card ─────────────────────────────────────────────────────
     const renderTask = (t) => {
-      const text = l === "ar" ? t.text_ar : t.text_en || t.text_ar;
-      const owner =
-        l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
-      const mtg =
-        l === "ar"
-          ? t.source_meeting_title_ar
-          : t.source_meeting_title_en || t.source_meeting_title_ar;
+      const text  = l === "ar" ? t.text_ar : t.text_en || t.text_ar;
+      const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
+      const mtg   = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
       const isOverdue = t.status === "overdue";
-      const isDone = t.status === "done";
-      const isUrgent = t.priority === "urgent";
-      const accentClass = isOverdue ? "trow-overdue" : isUrgent && !isDone ? "trow-urgent" : "";
-      // Days remaining
-      const todayStr = new Date().toISOString().substring(0, 10);
-      const daysLeft = t.due_date ? Math.round((new Date(t.due_date) - new Date(todayStr)) / 86400000) : null;
-      const daysTag = daysLeft !== null && !isDone ? (() => {
-        if (daysLeft < 0) return `<span class="days-badge days-late">⚠ ${Math.abs(daysLeft)}${l === "ar" ? "ي تأخر" : "d late"}</span>`;
-        if (daysLeft === 0) return `<span class="days-badge days-warn">⏰ ${l === "ar" ? "اليوم" : "Today"}</span>`;
-        if (daysLeft <= 3) return `<span class="days-badge days-warn">⏳ ${daysLeft}${l === "ar" ? "ي" : "d"}</span>`;
-        return `<span class="days-badge days-ok">📅 ${daysLeft}${l === "ar" ? "ي" : "d"}</span>`;
+      const isDone    = t.status === "done";
+      const isUrgent  = t.priority === "urgent";
+      const isHigh    = t.priority === "high";
+
+      const daysLeft = t.due_date ? Math.round((new Date(t.due_date) - new Date(today)) / 86400000) : null;
+      const daysTag  = daysLeft !== null && !isDone ? (() => {
+        if (daysLeft < 0)   return `<span class="days-badge days-late">⚠ ${Math.abs(daysLeft)}${l==="ar"?"ي تأخر":"d overdue"}</span>`;
+        if (daysLeft === 0) return `<span class="days-badge days-warn">⏰ ${l==="ar"?"اليوم":"Today"}</span>`;
+        if (daysLeft <= 3)  return `<span class="days-badge days-warn">⏳ ${daysLeft}${l==="ar"?"ي":"d"} ${l==="ar"?"متبقية":"left"}</span>`;
+        return `<span class="days-badge days-ok">📅 ${daysLeft}${l==="ar"?"ي":"d"}</span>`;
       })() : "";
-      // Status label
-      const statusMap = { overdue: ["tr","⚠ " + (l==="ar"?"متأخرة":"Overdue")], inprogress: ["ta","▶ "+(l==="ar"?"جارية":"In Progress")], new: ["tb","◎ "+(l==="ar"?"جديدة":"New")], done: ["tg","✓ "+(l==="ar"?"مكتملة":"Done")], cancelled: ["tgr","✕ "+(l==="ar"?"ملغاة":"Cancelled")] };
+
+      const statusMap = {
+        overdue:    ["tr",  "⚠ "+(l==="ar"?"متأخرة":"Overdue")],
+        inprogress: ["ta",  "▶ "+(l==="ar"?"جارية":"In Progress")],
+        new:        ["tb",  "◎ "+(l==="ar"?"جديدة":"New")],
+        done:       ["tg",  "✓ "+(l==="ar"?"مكتملة":"Done")],
+        cancelled:  ["tgr", "✕ "+(l==="ar"?"ملغاة":"Cancelled")],
+      };
       const [stClass, stLabel] = statusMap[t.status] || ["tgr", t.status];
-      return `<div class="trow ${accentClass}" id="tr-${t.id}">
+
+      const priStyles = {
+        urgent: {c:"var(--red)",   bg:"rgba(220,60,60,.12)",  bd:"rgba(220,60,60,.3)",  lbl:l==="ar"?"🔥 عاجل":"🔥 Urgent"},
+        high:   {c:"var(--amber)", bg:"rgba(212,160,23,.12)", bd:"rgba(212,160,23,.3)", lbl:l==="ar"?"⚡ عالٍ":"⚡ High"},
+        low:    {c:"var(--text3)", bg:"var(--navy4)",         bd:"var(--border2)",      lbl:l==="ar"?"↓ منخفض":"↓ Low"},
+      };
+      const pri = priStyles[t.priority];
+
+      const accentColor = isOverdue ? "var(--red)" : isUrgent ? "var(--red)" : isHigh ? "var(--amber)" : "var(--border2)";
+
+      return `<div class="trow" id="tr-${t.id}" style="border-inline-start:3px solid ${accentColor};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0;${isOverdue?"background:rgba(220,60,60,.04)":""}">
         <div style="display:flex;gap:11px;align-items:flex-start">
-          <input type="checkbox" class="tck" ${isDone ? "checked" : ""} onchange="Tasks.updateStatus(${t.id}, this.checked?'done':'inprogress')" title="${l === "ar" ? "تحديث الحالة" : "Toggle status"}" style="margin-top:4px;flex-shrink:0"/>
+          <input type="checkbox" class="tck" ${isDone?"checked":""} onchange="Tasks.updateStatus(${t.id}, this.checked?'done':'inprogress')" title="${l==="ar"?"تحديث الحالة":"Toggle status"}" style="margin-top:5px;flex-shrink:0"/>
           <div style="flex:1;min-width:0">
-            <div style="font-size:14.5px;color:${isDone ? "var(--text3)" : "var(--text)"};font-weight:${isDone ? "400" : "600"};${isDone ? "text-decoration:line-through;opacity:.55" : ""};line-height:1.45;margin-bottom:7px">${esc(text)}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-              ${owner ? `<span class="tag tgold" style="font-size:11.5px">👤 ${esc(owner)}</span>` : ""}
+            <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
+              ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
               <span class="tag ${stClass}" style="font-size:11px">${stLabel}</span>
+              ${pri ? `<span class="tag" style="font-size:10.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${pri.lbl}</span>` : ""}
               ${daysTag}
-              ${isUrgent && !isDone ? `<span class="tag" style="background:rgba(240,168,48,.14);color:var(--amber);border:.5px solid rgba(240,168,48,.3);font-size:11px">🔥 ${l === "ar" ? "عاجل" : "Urgent"}</span>` : ""}
-              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11px" title="${l === "ar" ? "بحاجة لمراجعة" : "AI was unsure — please verify"}">⚑ ${l === "ar" ? "مراجعة" : "Review"}</span>` : ""}
-              ${t.escalated_at ? `<span class="tag" style="background:var(--purple2);color:var(--purple);border:.5px solid rgba(155,114,219,.25);font-size:11px">↑ ${l === "ar" ? "مُصعَّدة" : "Escalated"}</span>` : ""}
-              ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10.5px;border:.5px solid var(--border2)">📝 ${esc(mtg.length > 32 ? mtg.substring(0,32)+'…' : mtg)}</span>` : ""}
+              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:10.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
+              ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:10.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+              ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"var(--red)":"var(--text3)"}">📅 ${l==="ar"?"الاستحقاق:":"Due:"} <strong style="color:${isOverdue?"var(--red)":"var(--text2)"}">${esc(t.due_date)}</strong></span>` : ""}
+              ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>42?mtg.substring(0,42)+"…":mtg)}</span>` : ""}
+            </div>
+            <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <span style="line-height:1.4">${l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed."}</span>
+              <button onclick="Tasks.edit(${t.id})" style="font-size:10px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
             </div>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
-            <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1;font-weight:500" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l === "ar" ? "تعديل" : "Edit"}">✏️</button>
-            <button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l === "ar" ? "حذف" : "Delete"}">✕</button>
+            <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1;font-weight:500" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l==="ar"?"تعديل":"Edit"}">✏️</button>
+            <button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l==="ar"?"حذف":"Delete"}">✕</button>
           </div>
         </div>
       </div>`;
     };
 
+    // ── Improved decision card ─────────────────────────────────────────────────
     const renderDecision = (d) => {
-      const text = l === "ar" ? d.text_ar : d.text_en || d.text_ar;
-      const mtg =
-        l === "ar"
-          ? d.meeting_title_ar
-          : d.meeting_title_en || d.meeting_title_ar;
-      const isImpl = d.status === "implemented";
-      const decDate = d.created_at ? d.created_at.substring(0, 10) : "";
+      const text      = l === "ar" ? d.text_ar : d.text_en || d.text_ar;
+      const mtg       = l === "ar" ? d.meeting_title_ar : d.meeting_title_en || d.meeting_title_ar;
+      const isImpl    = d.status === "implemented";
+      const decDate   = d.created_at ? d.created_at.substring(0,10) : "";
       const decidedBy = d.decided_by || "";
-      const notes = d.notes || "";
-      return `<div class="trow">
+      const notes     = d.notes || "";
+      return `<div class="trow" style="border-inline-start:3px solid ${isImpl?"var(--green)":"var(--amber)"};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0">
         <div style="display:flex;gap:8px;align-items:flex-start">
-          <input type="checkbox" class="tck" ${isImpl ? "checked" : ""} onchange="Tasks.updateDecisionStatus(${d.id}, this.checked?'implemented':'active')"/>
+          <input type="checkbox" class="tck" ${isImpl?"checked":""} onchange="Tasks.updateDecisionStatus(${d.id}, this.checked?'implemented':'active')" style="margin-top:4px;flex-shrink:0"/>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;color:var(--text);${isImpl ? "text-decoration:line-through;color:var(--text3)" : ""}">${esc(text)}</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
-              ${isImpl ? `<span class="tag tg" style="font-size:10px">✓ ${l === "ar" ? "مُنفَّذ" : "Implemented"}</span>` : `<span class="tag ta" style="font-size:10px">${l === "ar" ? "نشط" : "Active"}</span>`}
-              ${decDate ? `<span class="tag" style="background:var(--navy4);font-size:10px">📅 ${esc(decDate)}</span>` : ""}
-              ${decidedBy ? `<span class="tag tgold" style="font-size:10px">👤 ${esc(decidedBy)}</span>` : ""}
-              ${mtg ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📝 ${esc(mtg)}</span>` : ""}
+            <div style="font-size:13.5px;color:var(--text);font-weight:600;${isImpl?"text-decoration:line-through;color:var(--text3)":""};margin-bottom:8px;line-height:1.45">${esc(text)}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
+              ${isImpl
+                ? `<span class="tag tg" style="font-size:11px">✓ ${l==="ar"?"مُنفَّذ":"Implemented"}</span>`
+                : `<span class="tag" style="font-size:11px;background:rgba(255,160,0,.15);color:#f0a000;border:.5px solid rgba(255,160,0,.3)">⏳ ${l==="ar"?"معلق — قيد التنفيذ":"Pending Implementation"}</span>`}
+              ${decDate   ? `<span class="tag" style="background:var(--navy4);font-size:10.5px">📅 ${esc(decDate)}</span>` : ""}
+              ${decidedBy ? `<span class="tag tgold" style="font-size:10.5px">👤 ${esc(decidedBy)}</span>` : ""}
+              ${mtg       ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px;border:.5px solid var(--border2)">📝 ${esc(mtg.length>38?mtg.substring(0,38)+"…":mtg)}</span>` : ""}
             </div>
-            ${notes ? `<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;line-height:1.5">${esc(notes)}</div>` : ""}
+            ${notes
+              ? `<div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border-inline-start:2px solid var(--gold);font-size:11px;color:var(--text3);line-height:1.5">
+                  <span style="font-size:10px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==="ar"?"الإجراء التالي / ملاحظات:":"Next Action / Notes:"}</span>${esc(notes)}</div>`
+              : `<div style="font-size:10.5px;color:var(--text3);font-style:italic;padding:3px 0;line-height:1.45">${l==="ar"?"لا توجد ملاحظات أو إجراءات محددة لهذا القرار بعد.":"No notes or next actions defined for this decision yet."}</div>`}
           </div>
           <button onclick="Tasks.deleteDecision(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">✕</button>
         </div>
       </div>`;
     };
 
-    const _tasksBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:13px 16px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:16px">
+    // ── Section header helper ──────────────────────────────────────────────────
+    const _secHdrT = (icon, ar, en) => `<div style="display:flex;align-items:center;gap:8px;margin:0 0 14px;padding-bottom:8px;border-bottom:1.5px solid var(--border2)">
+      <span style="font-size:16px">${icon}</span>
+      <div style="font-size:13px;font-weight:800;color:var(--text);letter-spacing:.02em">${l==="ar"?ar:en}</div>
+    </div>`;
+
+    const _tasksBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:13px 16px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:14px">
       <div>
-        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:3px">📋 ${l==="ar"?"لوحة المهام والقرارات":"Task & Decision Board"}</div>
-        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${l==="ar"?"المهام والقرارات تُستخرج تلقائياً من كل اجتماع مسجل — أسندت لأصحابها وتُتابع حتى الإنجاز الكامل":"Tasks and decisions are auto-extracted from every recorded meeting — assigned to owners and tracked to completion"}</div>
+        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:3px">📋 ${l==="ar"?"حوكمة الإجراءات التنفيذية":"Executive Action Governance"}</div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${l==="ar"?"تتبع المهام، الملاك، المواعيد، التحديثات، التصعيدات، والقرارات من كل اجتماع — حتى الإنجاز الكامل.":"Track actions, owners, deadlines, progress updates, escalations, and decisions from every meeting — to full completion."}</div>
       </div>
       <button class="btn-gold btn-sm" onclick="Modals.addTask()" style="white-space:nowrap;font-size:12px">+ ${l==="ar"?"مهمة يدوية":"Add Task"}</button>
     </div>`;
-    body.innerHTML = _tasksBanner + `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
-      <div class="card">
-        <div class="ch" style="margin-bottom:4px"><div class="ct">${l === "ar" ? "⚠ متأخرة / مفتوحة" : "⚠ Overdue / Open"}</div><span class="tag tr">${overdue.length + inprog.length}</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${l==="ar"?"تحتاج انتباهاً فورياً — مرتبة حسب الأولوية":"Require immediate attention — sorted by priority"}</div>
-        ${overdue.length + inprog.length === 0
-          ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">✅</div><div style="font-size:12.5px;font-weight:600;color:var(--green)">${l === "ar" ? "لا مهام متأخرة" : "No overdue tasks"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px">${l==="ar"?"أداء ممتاز — كل المهام في الوقت المحدد":"Excellent — all tasks on schedule"}</div></div>`
-          : [...overdue, ...inprog].map(renderTask).join("")}
-      </div>
-      <div class="card">
-        <div class="ch" style="margin-bottom:4px"><div class="ct">✓ ${l === "ar" ? "مكتملة" : "Done"}</div><span class="tag tg">${done.length}</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${l==="ar"?"مغلقة وموثقة بالسجل":"Closed and logged in the record"}</div>
-        ${done.length === 0
-          ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">📋</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا مهام مكتملة بعد" : "No completed tasks yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"حدّث حالة المهام عند إنجازها":"Mark tasks done as you complete them"}</div></div>`
-          : done.map(renderTask).join("")}
-      </div>
-      <div class="card">
-        <div class="ch" style="margin-bottom:4px"><div class="ct">⚖️ ${l === "ar" ? "القرارات" : "Decisions"}</div><span class="tag" style="background:var(--navy4)">${decisions.length}</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${l==="ar"?"مستخرجة آلياً من محاضر الاجتماعات":"Auto-extracted from meeting minutes"}</div>
-        ${decisions.length === 0
-          ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">⚖️</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا قرارات مسجلة بعد" : "No decisions recorded yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"القرارات تُستخرج تلقائياً عند تسجيل الاجتماعات":"Decisions auto-appear after meetings are recorded"}</div></div>`
-          : decisions.map(renderDecision).join("")}
-      </div>
-    </div>`;
+
+    body.innerHTML = _tasksBanner +
+      kpiHtml +
+      _secHdrT("⚡", "الجدول الزمني لحوكمة الإجراءات", "Action Governance Timeline") +
+      `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
+        <div class="card">
+          <div class="ch" style="margin-bottom:6px">
+            <div><div class="ct">${l==="ar"?"⚠ متأخرة / مفتوحة":"⚠ Overdue / Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"تحتاج انتباهاً فورياً":"Require immediate attention"}</div></div>
+            <span class="tag tr">${overdue.length + inprog.length}</span>
+          </div>
+          ${overdue.length + inprog.length === 0
+            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">✅</div><div style="font-size:12.5px;font-weight:600;color:var(--green)">${l==="ar"?"لا مهام متأخرة":"No overdue tasks"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px">${l==="ar"?"أداء ممتاز — كل المهام في الوقت المحدد":"Excellent — all tasks on schedule"}</div></div>`
+            : [...overdue, ...inprog].map(renderTask).join("")}
+        </div>
+        <div class="card">
+          <div class="ch" style="margin-bottom:6px">
+            <div><div class="ct">✓ ${l==="ar"?"مكتملة":"Done"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"مغلقة وموثقة بالسجل":"Closed and logged in the record"}</div></div>
+            <span class="tag tg">${done.length}</span>
+          </div>
+          ${done.length === 0
+            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">📋</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا مهام مكتملة بعد":"No completed tasks yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"حدّث حالة المهام عند إنجازها":"Mark tasks done as you complete them"}</div></div>`
+            : done.map(renderTask).join("")}
+        </div>
+        <div class="card">
+          <div class="ch" style="margin-bottom:6px">
+            <div><div class="ct">⚖️ ${l==="ar"?"القرارات":"Decisions"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"مستخرجة آلياً من محاضر الاجتماعات":"Auto-extracted from meeting minutes"}</div></div>
+            <span class="tag" style="background:var(--navy4)">${decisions.length}</span>
+          </div>
+          ${decisions.length === 0
+            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">⚖️</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا قرارات مسجلة بعد":"No decisions recorded yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"القرارات تُستخرج تلقائياً عند تسجيل الاجتماعات":"Decisions auto-appear after meetings are recorded"}</div></div>`
+            : decisions.map(renderDecision).join("")}
+        </div>
+      </div>`;
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
