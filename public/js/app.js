@@ -579,6 +579,9 @@ const Panels = {
       case "record":
         _injectRecordHelper(App.lang);
         break;
+      case "integrations":
+        renderIntegrations();
+        break;
     }
     this._startPolling();
   },
@@ -5457,6 +5460,163 @@ const AdminPanel = {
     }
   },
 };
+
+// ══ Integration Center ═════════════════════════════════════════════════════════
+const Integrations = {
+  configure(provider) {
+    const l = App.lang;
+    const names = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' };
+    showToast(
+      l === 'ar'
+        ? `لإعداد ${names[provider]||provider}: أضف بيانات الاعتماد في متغيرات البيئة، ثم فعّل التكامل من هنا.`
+        : `To configure ${names[provider]||provider}: add API credentials to environment variables, then activate the integration here.`,
+      'info'
+    );
+  }
+};
+
+function renderIntegrations() {
+  const body = $('integrations-body');
+  if (!body) return;
+  const l = App.lang;
+
+  const PROVIDERS = [
+    {
+      id: 'zoom',
+      icon: '🎥',
+      name: 'Zoom',
+      color: '#2D8CFF',
+      badge_bg: 'rgba(45,140,255,.12)',
+      border: 'rgba(45,140,255,.35)',
+      features_ar: ['إنشاء اجتماع مباشر من المنصة', 'استيراد التسجيل السحابي تلقائياً', 'استيراد النص التلقائي (Auto-transcript)', 'مزامنة التقويم'],
+      features_en: ['Create meetings directly from platform', 'Auto-import cloud recordings', 'Import Zoom auto-transcripts', 'Calendar sync'],
+      creds_ar: ['Client ID (مفتاح التطبيق)', 'Client Secret (سر التطبيق)', 'Account ID أو OAuth Token'],
+      creds_en: ['Client ID', 'Client Secret', 'Account ID or OAuth Token'],
+      docs: 'https://marketplace.zoom.us/docs/api-reference/introduction',
+    },
+    {
+      id: 'teams',
+      icon: '💼',
+      name: 'Microsoft Teams',
+      color: '#6264A7',
+      badge_bg: 'rgba(98,100,167,.12)',
+      border: 'rgba(98,100,167,.35)',
+      features_ar: ['مزامنة التقويم مع Microsoft 365', 'توليد رابط اجتماع Teams', 'استيراد التسجيل السحابي', 'استيراد نسخ النصوص (Teams Transcripts)'],
+      features_en: ['Microsoft 365 calendar sync', 'Teams meeting link generation', 'Cloud recording import', 'Teams transcript import'],
+      creds_ar: ['App ID / Client ID', 'Client Secret', 'Tenant ID (معرّف المستأجر)'],
+      creds_en: ['App ID / Client ID', 'Client Secret', 'Tenant ID'],
+      docs: 'https://learn.microsoft.com/en-us/graph/teams-concept-overview',
+    },
+    {
+      id: 'google_meet',
+      icon: '🎦',
+      name: 'Google Meet',
+      color: '#00897B',
+      badge_bg: 'rgba(0,137,123,.12)',
+      border: 'rgba(0,137,123,.35)',
+      features_ar: ['مزامنة Google Calendar', 'توليد رابط اجتماع Meet', 'استيراد التسجيل (Google Drive)', 'نسخ النصوص عبر Google Workspace'],
+      features_en: ['Google Calendar sync', 'Meet link generation', 'Recording import from Google Drive', 'Transcripts via Google Workspace'],
+      creds_ar: ['OAuth 2.0 Client ID', 'OAuth 2.0 Client Secret', 'مفتاح حساب الخدمة (Service Account)'],
+      creds_en: ['OAuth 2.0 Client ID', 'OAuth 2.0 Client Secret', 'Service Account key (JSON)'],
+      docs: 'https://developers.google.com/workspace/meet/api/reference',
+    },
+  ];
+
+  const card = (p) => `
+    <div style="background:var(--navy3);border:1.5px solid ${p.border};border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:46px;height:46px;border-radius:12px;background:${p.badge_bg};border:1px solid ${p.border};display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${p.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:${p.color}">${p.name}</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#666;flex-shrink:0"></span>
+            <span style="font-size:11px;color:var(--text3)">${l==='ar'?'غير متصل · بانتظار بيانات الاعتماد':'Not Connected · Awaiting credentials'}</span>
+          </div>
+        </div>
+        <button onclick="Integrations.configure('${p.id}')"
+          style="padding:7px 15px;border-radius:8px;background:${p.badge_bg};color:${p.color};border:1px solid ${p.border};font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          ⚙ ${l==='ar'?'إعداد':'Configure'}
+        </button>
+      </div>
+
+      <div>
+        <div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px">${l==='ar'?'الميزات المتاحة عند الربط':'Features upon connection'}</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${(l==='ar'?p.features_ar:p.features_en).map(f=>`
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="width:6px;height:6px;border-radius:50%;background:${p.color};opacity:.5;flex-shrink:0"></span>
+              <span style="font-size:11.5px;color:var(--text2);flex:1">${f}</span>
+              <span style="font-size:9px;padding:1px 7px;border-radius:10px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.25);white-space:nowrap">${l==='ar'?'بانتظار الربط':'Pending'}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'حالة الاتصال':'Connection'}</div>
+          <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'غير متصل':'Not Connected'}</div>
+        </div>
+        <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'آخر مزامنة':'Last Sync'}</div>
+          <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'لم تتم بعد':'Never'}</div>
+        </div>
+        <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'استيراد التسجيل':'Recording Import'}</div>
+          <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'غير فعّال':'Inactive'}</div>
+        </div>
+        <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'استيراد النص':'Transcript Import'}</div>
+          <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'غير فعّال':'Inactive'}</div>
+        </div>
+      </div>
+
+      <details style="background:var(--navy2);border-radius:9px;border:.5px solid var(--border2);overflow:hidden">
+        <summary style="padding:9px 12px;font-size:11px;font-weight:700;color:var(--text3);cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px">
+          <span>🔑</span>
+          <span style="flex:1">${l==='ar'?'بيانات الاعتماد المطلوبة':'Required Credentials'}</span>
+          <span style="font-size:10px">▾</span>
+        </summary>
+        <div style="padding:0 12px 11px">
+          ${(l==='ar'?p.creds_ar:p.creds_en).map(c=>`
+            <div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-top:.5px solid var(--border2);font-size:11.5px;color:var(--text2)">
+              <span style="color:${p.color};font-size:13px">•</span>${c}
+            </div>`).join('')}
+          <div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--border2)">
+            <a href="${p.docs}" target="_blank" rel="noopener" style="font-size:10.5px;color:${p.color};text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+              📖 ${l==='ar'?'توثيق المطورين ↗':'Developer Docs ↗'}
+            </a>
+          </div>
+        </div>
+      </details>
+    </div>`;
+
+  body.innerHTML = `
+    <div style="padding:14px 16px;background:linear-gradient(135deg,rgba(45,140,255,.07),rgba(98,100,167,.05));border:1px solid rgba(45,140,255,.22);border-radius:12px;margin-bottom:20px;display:flex;align-items:flex-start;gap:11px">
+      <span style="font-size:24px;flex-shrink:0">🔗</span>
+      <div>
+        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:4px">${l==='ar'?'ربط منصة الاجتماعات':'Connect Your Meeting Platform'}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.75;max-width:640px">${l==='ar'
+          ? 'اربط Zoom أو Microsoft Teams أو Google Meet لاستيراد التسجيلات والنصوص تلقائياً بعد كل اجتماع — دون أي تدخل يدوي. حتى إتمام الربط، يمكنك رفع الملفات يدوياً من صفحة <strong style="color:var(--gold)">تسجيل اجتماع</strong>.'
+          : 'Connect Zoom, Microsoft Teams, or Google Meet to automatically import recordings and transcripts after every meeting — no manual steps needed. Until then, upload files manually from the <strong style="color:var(--gold)">Record Meeting</strong> page.'}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <span style="font-size:10px;padding:2px 9px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.30)">✓ ${l==='ar'?'البنية التحتية جاهزة':'Infrastructure ready'}</span>
+          <span style="font-size:10px;padding:2px 9px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.25)">⏳ ${l==='ar'?'بانتظار بيانات اعتماد API':'Awaiting API credentials'}</span>
+          <span style="font-size:10px;padding:2px 9px;border-radius:5px;background:rgba(91,155,214,.10);color:#5B9BD6;border:.5px solid rgba(91,155,214,.25)">📤 ${l==='ar'?'الرفع اليدوي متاح الآن':'Manual upload available now'}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:20px">
+      ${PROVIDERS.map(p => card(p)).join('')}
+    </div>
+
+    <div style="padding:11px 15px;background:var(--navy3);border-radius:10px;border:.5px solid var(--border2);font-size:11.5px;color:var(--text3);line-height:1.75">
+      💡 <strong style="color:var(--gold)">${l==='ar'?'نصيحة:':'Tip:'}</strong>
+      ${l==='ar'
+        ? 'يمكنك الآن رفع التسجيلات من Zoom وTeams وMeet يدوياً من قسم <strong style="color:var(--gold)">رفع تسجيل رسمي</strong> في صفحة التسجيل. يتم تصنيفها تلقائياً كـ "تسجيل كامل للاجتماع" وتظهر في أرشيف المحاضر مع شارة التحقق الخضراء.'
+        : 'You can already upload Zoom, Teams, and Meet recordings manually from the <strong style="color:var(--gold)">Upload Official Recording</strong> section on the Record Meeting page. They are automatically classified as "Full Meeting Recording" and appear in the Transcripts archive with a green verification badge.'}
+    </div>`;
+}
 
 // ══ Analytics Panel ════════════════════════════════════════════════════════════
 async function renderAnalytics() {
