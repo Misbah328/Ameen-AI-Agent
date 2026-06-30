@@ -3295,6 +3295,15 @@ const Schedule = {
         )
         .join("");
   },
+  onProviderChange() {
+    const v = $("nm-plat")?.value || "physical";
+    const row = $("nm-join-row");
+    if (row) row.style.display = v === "physical" ? "none" : "";
+    const inp = $("nm-join-url");
+    if (inp) {
+      inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
+    }
+  },
   async add() {
     const title = $("nm-title").value.trim();
     const data = {
@@ -3303,7 +3312,9 @@ const Schedule = {
       meeting_date: $("nm-date").value,
       meeting_time: $("nm-time").value,
       duration_mins: $("nm-dur").value,
-      platform: $("nm-plat").value,
+      meeting_provider: $("nm-plat").value,
+      meeting_join_url: ($("nm-join-url") && $("nm-join-url").value.trim()) || "",
+      platform: { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet" }[$("nm-plat").value] || "قاعة الاجتماعات",
       attendees: $("nm-att").value,
       agenda_ar: $("nm-agenda-ar").value,
       agenda_en: $("nm-agenda-en").value,
@@ -3341,6 +3352,8 @@ const Schedule = {
       if ($("nm-prev")) $("nm-prev").value = "";
       if ($("nm-recurrence")) $("nm-recurrence").value = "none";
       if ($("nm-template")) $("nm-template").value = "";
+      if ($("nm-join-url")) $("nm-join-url").value = "";
+      if ($("nm-plat")) { $("nm-plat").value = "physical"; Schedule.onProviderChange(); }
       if (rec !== "none")
         showToast(
           App.lang === "ar"
@@ -3614,6 +3627,67 @@ const Schedule = {
         );
       });
   },
+
+  // ── Meeting Platform Card ────────────────────────────────────────────────────
+  _sPlatformCard(s, l) {
+    const prov = s.meeting_provider || "physical";
+    const PROV = {
+      physical:    { icon: "🏛",  label: l === "ar" ? "اجتماع حضوري" : "Physical Meeting", color: "var(--text2)",  badge: "var(--navy4)" },
+      zoom:        { icon: "🎥",  label: "Zoom",                color: "#2D8CFF",  badge: "rgba(45,140,255,.13)" },
+      teams:       { icon: "💼",  label: "Microsoft Teams",     color: "#6264A7",  badge: "rgba(98,100,167,.13)" },
+      google_meet: { icon: "🎦",  label: "Google Meet",         color: "#00897B",  badge: "rgba(0,137,123,.13)" },
+    };
+    const REC_ST = {
+      not_started: { label: l === "ar" ? "لم يبدأ"       : "Not Started",  color: "var(--text3)" },
+      recording:   { label: l === "ar" ? "جارٍ التسجيل"  : "Recording",    color: "var(--green)" },
+      processing:  { label: l === "ar" ? "قيد المعالجة"  : "Processing",   color: "var(--amber)" },
+      ready:       { label: l === "ar" ? "جاهز"           : "Ready",        color: "var(--green)" },
+      failed:      { label: l === "ar" ? "فشل التسجيل"   : "Failed",       color: "var(--red)"   },
+    };
+    const p       = PROV[prov] || PROV.physical;
+    const recSt   = REC_ST[s.recording_status || "not_started"] || REC_ST.not_started;
+    const isVirt  = prov !== "physical";
+    const notConn = l === "ar" ? "غير متصل" : "Not Connected";
+    const noLink  = l === "ar" ? "لم يُضف رابط بعد" : "No join link added";
+    const tLabel  = s.transcript_provider ? esc(s.transcript_provider) : notConn;
+    return `<div style="margin-top:10px;padding:11px 13px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:${isVirt ? "10px" : "0"}">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="font-size:18px;line-height:1">${p.icon}</span>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:${p.color}">${p.label}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px">${isVirt ? notConn : (l === "ar" ? "حضور فعلي في المقر" : "In-person at venue")}</div>
+          </div>
+        </div>
+        ${s.meeting_join_url
+          ? `<a href="${esc(s.meeting_join_url)}" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;text-decoration:none;background:${p.badge};color:${p.color};border:1px solid ${p.color}33;transition:.15s">
+               ▶ ${l === "ar" ? "انضم للاجتماع" : "Join Meeting"}
+             </a>`
+          : isVirt
+            ? `<span style="font-size:10px;color:var(--text3);font-style:italic">${noLink}</span>`
+            : ""}
+      </div>
+      ${isVirt ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;padding-top:10px;border-top:1px solid var(--border2)">
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "حالة التسجيل" : "Recording"}</div>
+          <div style="font-size:11px;font-weight:700;color:${recSt.color}">${recSt.label}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "النسخ" : "Transcript"}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3)">${tLabel}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "التسجيل السحابي" : "Cloud Recording"}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3)">${s.recording_url ? `<a href="${esc(s.recording_url)}" target="_blank" style="color:var(--gold);text-decoration:none">${l === "ar" ? "عرض ↗" : "View ↗"}</a>` : notConn}</div>
+        </div>
+        <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l === "ar" ? "التخزين" : "Storage"}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3)">${l === "ar" ? "محلي فقط" : "Local Only"}</div>
+        </div>
+      </div>` : ""}
+    </div>`;
+  },
 };
 
 async function renderSchedule() {
@@ -3647,6 +3721,7 @@ async function renderSchedule() {
               ${s.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l === "ar" ? s.board_name_ar : s.board_name_en || s.board_name_ar)}</span>` : ""}
               ${s.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l === "ar" ? s.committee_name_ar : s.committee_name_en || s.committee_name_ar)}</span>` : ""}
               ${s.doc_count ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📁 ${s.doc_count}</span>` : ""}
+              ${(s.meeting_provider && s.meeting_provider !== "physical") ? (() => { const _pc = {zoom:{c:"#2D8CFF",b:"rgba(45,140,255,.13)",i:"🎥",n:"Zoom"},teams:{c:"#6264A7",b:"rgba(98,100,167,.13)",i:"💼",n:"Teams"},google_meet:{c:"#00897B",b:"rgba(0,137,123,.13)",i:"🎦",n:"Meet"}}[s.meeting_provider]||{}; return `<span class="tag" style="background:${_pc.b};color:${_pc.c};font-size:10px;border:.5px solid ${_pc.c}33">${_pc.i} ${_pc.n}</span>`; })() : ""}
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">
               📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ""} · ${s.duration_mins || 60} ${l === "ar" ? "د" : "min"} · ${esc(s.platform || "")}
@@ -3666,6 +3741,7 @@ async function renderSchedule() {
           ${isRecurring ? `<button class="btn-ghost btn-sm" onclick="Schedule.deleteSeries(${s.id})" style="font-size:11px;color:var(--red)">🔁 ${l === "ar" ? "حذف السلسلة" : "Delete Series"}</button>` : ""}
           <button class="btn-ghost btn-sm" onclick="Schedule.delete(${s.id})" style="font-size:11px;color:var(--red)">✕ ${l === "ar" ? "حذف" : "Delete"}</button>
         </div>
+        ${Schedule._sPlatformCard(s, l)}
       </div>`;
       })
       .join("");

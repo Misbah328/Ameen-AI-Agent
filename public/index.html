@@ -541,13 +541,17 @@
               </select>
             </div>
             <div class="frow">
-              <div class="fl" data-ar="المنصة" data-en="Platform">المنصة</div>
-              <select class="fi" id="nm-plat">
-                <option value="قاعة الاجتماعات" data-ar="قاعة الاجتماعات" data-en="Meeting Room">قاعة الاجتماعات</option>
-                <option value="Zoom">Zoom</option>
-                <option value="Teams">Teams</option>
-                <option value="Google Meet">Google Meet</option>
+              <div class="fl" data-ar="مزود الاجتماع" data-en="Meeting Provider">مزود الاجتماع</div>
+              <select class="fi" id="nm-plat" onchange="Schedule.onProviderChange()">
+                <option value="physical" data-ar="اجتماع حضوري" data-en="Physical Meeting">🏛 Physical Meeting / اجتماع حضوري</option>
+                <option value="zoom" data-ar="Zoom" data-en="Zoom">🎥 Zoom</option>
+                <option value="teams" data-ar="Microsoft Teams" data-en="Microsoft Teams">💼 Microsoft Teams</option>
+                <option value="google_meet" data-ar="Google Meet" data-en="Google Meet">🎦 Google Meet</option>
               </select>
+            </div>
+            <div class="frow" id="nm-join-row" style="display:none">
+              <div class="fl" data-ar="رابط الانضمام" data-en="Join URL">رابط الانضمام</div>
+              <input class="fi" id="nm-join-url" type="url" dir="ltr" placeholder="https://zoom.us/j/..." style="text-align:left"/>
             </div>
           </div>
           <div class="frow">

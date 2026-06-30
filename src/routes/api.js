@@ -703,23 +703,25 @@ function addNPeriods(originDateStr, recurrence, n) {
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
 
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, force } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   const rec = VALID_RECURRENCES.includes(recurrence) ? recurrence : 'none';
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
   const groupId = rec !== 'none' ? crypto.randomUUID() : null;
+  const prov = ['zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : 'physical';
+  const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[prov] || (platform || 'قاعة الاجتماعات');
   const insertSched = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, recurrence_group_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const dur = duration_mins || 60;
-  const row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId);
+  const row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
   if (rec !== 'none') {
     for (let i = 1; i <= 3; i++) {
       const nextDate = addNPeriods(meeting_date, rec, i);
-      insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, platform || 'قاعة الاجتماعات', attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId);
+      insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
     }
   }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
@@ -770,25 +772,38 @@ router.post('/schedule/:id/remind', auth, async (req, res) => {
 router.patch('/schedule/:id', auth, (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
   const chan = reminder_channel !== undefined
     ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
     : row.reminder_channel;
+  const updProv = meeting_provider !== undefined && ['physical','zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : null;
+  const updPlatform = updProv ? ({ zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[updProv] || 'قاعة الاجتماعات') : platform;
   db.prepare(`UPDATE schedule SET
       title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
       meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
       duration_mins=COALESCE(?,duration_mins), platform=COALESCE(?,platform),
       attendees=COALESCE(?,attendees), agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
       reminder_channel=?, meeting_type=COALESCE(?,meeting_type),
-      board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id), reminder_sent=0
+      board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id),
+      meeting_provider=COALESCE(?,meeting_provider), meeting_join_url=COALESCE(?,meeting_join_url),
+      meeting_id_external=COALESCE(?,meeting_id_external), recording_status=COALESCE(?,recording_status),
+      recording_provider=COALESCE(?,recording_provider), recording_url=COALESCE(?,recording_url),
+      transcript_provider=COALESCE(?,transcript_provider), reminder_sent=0
     WHERE id=?`)
     .run(
       title_ar, title_en !== undefined ? (title_en || title_ar) : null,
-      meeting_date, meeting_time, duration_mins, platform,
+      meeting_date, meeting_time, duration_mins, updPlatform,
       attendees, agenda_ar, agenda_en, chan,
       meeting_type !== undefined ? (meeting_type || null) : null,
       board_id !== undefined ? (board_id || null) : null,
       committee_id !== undefined ? (committee_id || null) : null,
+      updProv,
+      meeting_join_url !== undefined ? (meeting_join_url || '') : null,
+      meeting_id_external !== undefined ? (meeting_id_external || '') : null,
+      recording_status !== undefined ? (recording_status || '') : null,
+      recording_provider !== undefined ? (recording_provider || '') : null,
+      recording_url !== undefined ? (recording_url || '') : null,
+      transcript_provider !== undefined ? (transcript_provider || '') : null,
       req.params.id
     );
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
