@@ -28,6 +28,9 @@ app.get('/m/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'confirm.html'));
 });
 
+// ── Health check (must be before SPA fallback) ───────────────────────────────
+app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
+
 // SPA fallback — login removed, always serve the app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -57,4 +60,13 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✓ Ameen Secretary running at http://localhost:${PORT}`);
   startReminderScheduler();
+
+  // Self-ping every 4 minutes — prevents the Replit runtime from idle-killing
+  // the process when there is no external traffic.
+  const http = require('http');
+  setInterval(() => {
+    http.get(`http://localhost:${PORT}/health`, (r) => {
+      r.resume(); // drain the response so the socket closes cleanly
+    }).on('error', () => {}); // ignore transient errors
+  }, 4 * 60 * 1000);
 });
