@@ -496,6 +496,43 @@ db.exec(`
   );
 `);
 
+// ── Additive bilingual columns for governance entities that were single-
+// language only (title/description free text with no _ar/_en split, unlike
+// meetings/tasks/decisions/schedule which already had full AR/EN parity).
+// Existing columns are left untouched — nothing that reads/writes them
+// changes — these are new, empty-by-default siblings, backfilled once from
+// the legacy single-language column so historical rows aren't blank in
+// either language. Populating them going forward requires the relevant
+// create/edit forms to be updated to capture both languages separately.
+ensureColumn('meeting_documents', 'title_ar', 'TEXT');
+ensureColumn('meeting_documents', 'title_en', 'TEXT');
+ensureColumn('meeting_documents', 'description_ar', 'TEXT');
+ensureColumn('meeting_documents', 'description_en', 'TEXT');
+ensureColumn('meeting_documents', 'ai_summary_ar', 'TEXT');
+ensureColumn('meeting_documents', 'ai_summary_en', 'TEXT');
+ensureColumn('agenda_items', 'title_ar', 'TEXT');
+ensureColumn('agenda_items', 'title_en', 'TEXT');
+ensureColumn('agenda_items', 'description_ar', 'TEXT');
+ensureColumn('agenda_items', 'description_en', 'TEXT');
+ensureColumn('agenda_items', 'expected_outcome_ar', 'TEXT');
+ensureColumn('agenda_items', 'expected_outcome_en', 'TEXT');
+ensureColumn('resolutions', 'title_ar', 'TEXT');
+ensureColumn('resolutions', 'title_en', 'TEXT');
+ensureColumn('resolutions', 'description_ar', 'TEXT');
+ensureColumn('resolutions', 'description_en', 'TEXT');
+ensureColumn('ga_officers', 'role_en', 'TEXT');
+
+db.exec(`
+  UPDATE meeting_documents SET title_ar = COALESCE(title_ar, title), title_en = COALESCE(title_en, title) WHERE title_ar IS NULL OR title_en IS NULL;
+  UPDATE meeting_documents SET description_ar = COALESCE(description_ar, notes), description_en = COALESCE(description_en, notes) WHERE (description_ar IS NULL OR description_en IS NULL) AND notes IS NOT NULL AND notes != '';
+  UPDATE agenda_items SET title_ar = COALESCE(title_ar, title), title_en = COALESCE(title_en, title) WHERE title_ar IS NULL OR title_en IS NULL;
+  UPDATE agenda_items SET description_ar = COALESCE(description_ar, description), description_en = COALESCE(description_en, description) WHERE description_ar IS NULL OR description_en IS NULL;
+  UPDATE agenda_items SET expected_outcome_ar = COALESCE(expected_outcome_ar, expected_outcome), expected_outcome_en = COALESCE(expected_outcome_en, expected_outcome) WHERE expected_outcome_ar IS NULL OR expected_outcome_en IS NULL;
+  UPDATE resolutions SET title_ar = COALESCE(title_ar, title), title_en = COALESCE(title_en, title) WHERE title_ar IS NULL OR title_en IS NULL;
+  UPDATE resolutions SET description_ar = COALESCE(description_ar, description), description_en = COALESCE(description_en, description) WHERE description_ar IS NULL OR description_en IS NULL;
+  UPDATE ga_officers SET role_en = COALESCE(role_en, role) WHERE role_en IS NULL;
+`);
+
 // Default plan = free
 if (!db.prepare('SELECT value FROM settings WHERE key=?').get('plan')) {
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('plan', 'free');

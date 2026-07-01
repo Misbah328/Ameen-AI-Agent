@@ -129,7 +129,7 @@
   <div class="card">
     <div class="logo">
       <h1>⚖️ أمين / Ameen</h1>
-      <p class="subtitle-ar">نظام الأمانة التنفيذية الذكية</p>
+      <p class="subtitle-ar" id="subtitle-text">نظام الأمانة التنفيذية الذكية</p>
     </div>
 
     <div class="lang-toggle">
@@ -156,13 +156,13 @@
 
   <script>
     const T = {
-      ar: { email: 'البريد الإلكتروني', password: 'كلمة المرور', btn: 'تسجيل الدخول', loading: 'جارٍ التحقق...', footer: 'نظام الأمانة التنفيذية الذكية', badCreds: 'البريد الإلكتروني أو كلمة المرور غير صحيحة', networkErr: 'خطأ في الاتصال بالخادم' },
-      en: { email: 'Email Address', password: 'Password', btn: 'Sign In', loading: 'Signing in...', footer: 'Ameen Executive Secretary v3', badCreds: 'Invalid email or password', networkErr: 'Could not connect to server' }
+      ar: { email: 'البريد الإلكتروني', password: 'كلمة المرور', btn: 'تسجيل الدخول', loading: 'جارٍ التحقق...', subtitle: 'نظام الأمانة التنفيذية الذكية', footer: 'نظام الأمانة التنفيذية الذكية', badCreds: 'البريد الإلكتروني أو كلمة المرور غير صحيحة', networkErr: 'خطأ في الاتصال بالخادم' },
+      en: { email: 'Email Address', password: 'Password', btn: 'Sign In', loading: 'Signing in...', subtitle: 'Smart Executive Secretariat System', footer: 'Ameen Executive Secretary v3', badCreds: 'Invalid email or password', networkErr: 'Could not connect to server' }
     };
-    let lang = localStorage.getItem('ameen_lang') || 'ar';
+    let lang = localStorage.getItem('lang') || 'ar';
     function setLang(l) {
       lang = l;
-      localStorage.setItem('ameen_lang', l);
+      localStorage.setItem('lang', l);
       document.documentElement.lang = l;
       document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
       document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
@@ -171,6 +171,7 @@
       document.getElementById('lbl-password').textContent = T[l].password;
       document.getElementById('btn-text').textContent = T[l].btn;
       document.getElementById('footer-note').textContent = T[l].footer;
+      document.getElementById('subtitle-text').textContent = T[l].subtitle;
     }
     setLang(lang);
 
@@ -200,7 +201,7 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          if (data.user && data.user.lang_pref) localStorage.setItem('ameen_lang', data.user.lang_pref);
+          if (data.user && data.user.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
           window.location.replace('/');
         } else {
           showError(data.error || T[lang].badCreds);

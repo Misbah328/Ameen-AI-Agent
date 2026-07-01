@@ -230,6 +230,10 @@ const App = {
 
   async init() {
     this.applyTheme(this.theme);
+    // Apply the stored language/direction immediately — before any network
+    // round-trip below — so a returning user whose preference is 'en' never
+    // sees a flash of Arabic/RTL while /auth/me and /api/plan are in flight.
+    this.applyLang(this.lang);
     try {
       const me = await api("/auth/me");
       this.user = me;
@@ -273,7 +277,7 @@ const App = {
   renderPlan() {
     const pro = this.isPro();
     const txt = $("plan-txt");
-    if (txt) txt.textContent = pro ? "Pro" : "Free";
+    if (txt) txt.textContent = pro ? "Pro" : (this.lang === "ar" ? "مجاني" : "Free");
     const badge = $("plan-badge");
     if (badge) badge.style.color = pro ? "var(--gold)" : "var(--text3)";
     const btn = $("plan-btn");
@@ -328,6 +332,7 @@ const App = {
     this.lang = l;
     localStorage.setItem("lang", l);
     this.applyLang(l);
+    this.renderPlan();
     const cur = document.querySelector(".nb.active") && document.querySelector(".nb.active").dataset.p;
     if (cur) Panels.load(cur);
   },
@@ -6124,23 +6129,24 @@ async function submitChangePassword() {
     btn = document.getElementById("cp-submit-btn");
   if (errEl) errEl.style.display = "none";
   if (okEl) okEl.style.display = "none";
+  var l = App.lang;
   if (!cpv || !npv || !cfv) {
     if (errEl) {
-      errEl.textContent = "Please fill all fields";
+      errEl.textContent = l === "ar" ? "يرجى تعبئة جميع الحقول" : "Please fill all fields";
       errEl.style.display = "block";
     }
     return;
   }
   if (npv.length < 8) {
     if (errEl) {
-      errEl.textContent = "New password must be at least 8 characters";
+      errEl.textContent = l === "ar" ? "يجب أن تتكوّن كلمة المرور الجديدة من ٨ أحرف على الأقل" : "New password must be at least 8 characters";
       errEl.style.display = "block";
     }
     return;
   }
   if (npv !== cfv) {
     if (errEl) {
-      errEl.textContent = "Passwords do not match";
+      errEl.textContent = l === "ar" ? "كلمتا المرور غير متطابقتين" : "Passwords do not match";
       errEl.style.display = "block";
     }
     return;
@@ -6152,7 +6158,7 @@ async function submitChangePassword() {
       body: JSON.stringify({ currentPassword: cpv, newPassword: npv }),
     });
     if (okEl) {
-      okEl.textContent = "Password changed successfully";
+      okEl.textContent = l === "ar" ? "تم تغيير كلمة المرور بنجاح" : "Password changed successfully";
       okEl.style.display = "block";
     }
     ["cp-current", "cp-new", "cp-confirm"].forEach(function (id) {
@@ -6162,7 +6168,7 @@ async function submitChangePassword() {
     setTimeout(closeChangePassword, 2000);
   } catch (err) {
     if (errEl) {
-      errEl.textContent = err.message || "Error";
+      errEl.textContent = err.message || (l === "ar" ? "حدث خطأ" : "Error");
       errEl.style.display = "block";
     }
   } finally {
@@ -6187,7 +6193,7 @@ function openResetPassword(userId, userName) {
     b.disabled = false;
   }
   var nm = document.getElementById("rp-user-name");
-  if (nm) nm.textContent = "Reset password for: " + userName;
+  if (nm) nm.textContent = (App.lang === "ar" ? "إعادة تعيين كلمة المرور لـ: " : "Reset password for: ") + userName;
   m.style.display = "flex";
 }
 function closeResetPassword() {
@@ -6210,9 +6216,10 @@ async function submitResetPassword() {
     npv = inp ? inp.value.trim() : "";
   if (errEl) errEl.style.display = "none";
   if (okEl) okEl.style.display = "none";
+  var l = App.lang;
   if (!npv || npv.length < 8) {
     if (errEl) {
-      errEl.textContent = "Password must be at least 8 characters";
+      errEl.textContent = l === "ar" ? "يجب أن تتكوّن كلمة المرور من ٨ أحرف على الأقل" : "Password must be at least 8 characters";
       errEl.style.display = "block";
     }
     return;
@@ -6225,17 +6232,16 @@ async function submitResetPassword() {
       body: JSON.stringify({ newPassword: npv }),
     });
     if (okEl) {
-      okEl.innerHTML =
-        "Reset done. New password: <strong>" +
-        npv +
-        "</strong><br><small>Share this and ask user to change it immediately.</small>";
+      okEl.innerHTML = l === "ar"
+        ? "تمت إعادة التعيين. كلمة المرور الجديدة: <strong>" + npv + "</strong><br><small>شارك هذه الكلمة مع المستخدم واطلب منه تغييرها فوراً.</small>"
+        : "Reset done. New password: <strong>" + npv + "</strong><br><small>Share this and ask user to change it immediately.</small>";
       okEl.style.display = "block";
     }
     if (inp) inp.value = "";
     if (btn) btn.style.display = "none";
   } catch (err) {
     if (errEl) {
-      errEl.textContent = err.message || "Error";
+      errEl.textContent = err.message || (l === "ar" ? "حدث خطأ" : "Error");
       errEl.style.display = "block";
     }
   } finally {

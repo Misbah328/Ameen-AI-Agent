@@ -833,7 +833,7 @@
     <div class="fs">
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px;background:var(--navy3);border:1px solid var(--border2);border-radius:12px;padding:16px">
-          <div style="font-weight:800;color:var(--text);font-size:15px">Free</div>
+          <div style="font-weight:800;color:var(--text);font-size:15px" data-ar="مجاني" data-en="Free">Free</div>
           <ul style="margin:10px 0 0;padding-inline-start:18px;font-size:12px;color:var(--text3);line-height:1.9">
             <li data-ar="تسجيل ونسخ مباشر" data-en="Live recording & transcription">تسجيل ونسخ مباشر</li>
             <li data-ar="استخراج المهام والمحضر بالذكاء الاصطناعي" data-en="AI task & minutes extraction">استخراج المهام والمحضر</li>
@@ -842,7 +842,7 @@
           </ul>
         </div>
         <div style="flex:1;min-width:200px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:12px;padding:16px">
-          <div style="font-weight:800;color:var(--gold);font-size:15px">⭐ Pro</div>
+          <div style="font-weight:800;color:var(--gold);font-size:15px" data-ar="⭐ Pro" data-en="⭐ Pro">⭐ Pro</div>
           <ul style="margin:10px 0 0;padding-inline-start:18px;font-size:12px;color:var(--text);line-height:1.9">
             <li data-ar="مشاركة النتائج مع الحضور وتأكيد المهام" data-en="Share outcomes & attendee task confirmation">مشاركة النتائج وتأكيد المهام</li>
             <li data-ar="التحكم في من تُشارك معه" data-en="Sharing & audience controls">التحكم في المشاركة</li>
@@ -915,18 +915,18 @@
 <!-- ═══ Change Password Modal ══════════════════════════════════════════════ -->
 <div id="modal-change-password" onclick="if(event.target===this)closeChangePassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">
   <div style="background:var(--surface,#1a1a2e);border:1px solid var(--border,#2a2a45);border-radius:12px;padding:2rem;width:100%;max-width:400px;margin:1rem;box-sizing:border-box;">
-    <h3 style="margin:0 0 1.25rem;color:var(--accent,#C9A84C);font-size:1rem;">🔑 تغيير كلمة المرور / Change Password</h3>
+    <h3 style="margin:0 0 1.25rem;color:var(--accent,#C9A84C);font-size:1rem;">🔑 <span data-ar="تغيير كلمة المرور" data-en="Change Password">تغيير كلمة المرور</span></h3>
     <div id="cp-error" style="display:none;background:rgba(224,90,90,0.12);border:1px solid #e05a5a;color:#e05a5a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;"></div>
     <div id="cp-success" style="display:none;background:rgba(46,204,138,0.12);border:1px solid #2ecc8a;color:#2ecc8a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;"></div>
-    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;">Current Password / كلمة المرور الحالية</label>
-    <input type="password" id="cp-current" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
-    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;">New Password / كلمة المرور الجديدة (min 8)</label>
-    <input type="password" id="cp-new" placeholder="Min 8 characters" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
-    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;">Confirm Password / تأكيد كلمة المرور</label>
-    <input type="password" id="cp-confirm" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:1.25rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="كلمة المرور الحالية" data-en="Current Password">كلمة المرور الحالية</label>
+    <input type="password" id="cp-current" data-ph-ar="••••••••" data-ph-en="••••••••" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="كلمة المرور الجديدة (٨ أحرف على الأقل)" data-en="New Password (min 8 characters)">كلمة المرور الجديدة (٨ أحرف على الأقل)</label>
+    <input type="password" id="cp-new" data-ph-ar="الحد الأدنى ٨ أحرف" data-ph-en="Min 8 characters" placeholder="الحد الأدنى ٨ أحرف" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="تأكيد كلمة المرور" data-en="Confirm Password">تأكيد كلمة المرور</label>
+    <input type="password" id="cp-confirm" data-ph-ar="••••••••" data-ph-en="••••••••" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:1.25rem;outline:none;direction:ltr;box-sizing:border-box;">
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
-      <button onclick="closeChangePassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;">إلغاء / Cancel</button>
-      <button id="cp-submit-btn" onclick="submitChangePassword()" style="background:var(--accent,#C9A84C);color:#1a1a2e;border:none;padding:0.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;">حفظ / Save</button>
+      <button onclick="closeChangePassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      <button id="cp-submit-btn" onclick="submitChangePassword()" style="background:var(--accent,#C9A84C);color:#1a1a2e;border:none;padding:0.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;"><span data-ar="حفظ" data-en="Save">حفظ</span></button>
     </div>
   </div>
 </div>
@@ -934,16 +934,16 @@
 <!-- ═══ Admin Reset Password Modal ══════════════════════════════════════════ -->
 <div id="modal-reset-password" onclick="if(event.target===this)closeResetPassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">
   <div style="background:var(--surface,#1a1a2e);border:1px solid var(--border,#2a2a45);border-radius:12px;padding:2rem;width:100%;max-width:400px;margin:1rem;box-sizing:border-box;">
-    <h3 style="margin:0 0 0.5rem;color:var(--accent,#C9A84C);font-size:1rem;">🔒 إعادة تعيين كلمة المرور / Reset User Password</h3>
+    <h3 style="margin:0 0 0.5rem;color:var(--accent,#C9A84C);font-size:1rem;">🔒 <span data-ar="إعادة تعيين كلمة المرور" data-en="Reset User Password">إعادة تعيين كلمة المرور</span></h3>
     <p id="rp-user-name" style="font-size:0.85rem;color:var(--muted,#888899);margin:0 0 1rem;"></p>
     <div id="rp-error" style="display:none;background:rgba(224,90,90,0.12);border:1px solid #e05a5a;color:#e05a5a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;"></div>
     <div id="rp-success" style="display:none;background:rgba(46,204,138,0.12);border:1px solid #2ecc8a;color:#2ecc8a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;word-break:break-all;"></div>
-    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;">New Password / كلمة المرور الجديدة</label>
-    <input type="text" id="rp-new" placeholder="Min 8 characters" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.5rem;outline:none;direction:ltr;box-sizing:border-box;">
-    <button onclick="generateResetPassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;margin-bottom:1.25rem;display:block;">🎲 توليد تلقائي / Auto-generate</button>
+    <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="كلمة المرور الجديدة" data-en="New Password">كلمة المرور الجديدة</label>
+    <input type="text" id="rp-new" data-ph-ar="الحد الأدنى ٨ أحرف" data-ph-en="Min 8 characters" placeholder="الحد الأدنى ٨ أحرف" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.5rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <button onclick="generateResetPassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;margin-bottom:1.25rem;display:block;">🎲 <span data-ar="توليد تلقائي" data-en="Auto-generate">توليد تلقائي</span></button>
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
-      <button onclick="closeResetPassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;">إلغاء / Cancel</button>
-      <button id="rp-submit-btn" onclick="submitResetPassword()" style="background:var(--accent,#C9A84C);color:#1a1a2e;border:none;padding:0.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;">إعادة التعيين / Reset</button>
+      <button onclick="closeResetPassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      <button id="rp-submit-btn" onclick="submitResetPassword()" style="background:var(--accent,#C9A84C);color:#1a1a2e;border:none;padding:0.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;"><span data-ar="إعادة التعيين" data-en="Reset">إعادة التعيين</span></button>
     </div>
   </div>
 </div>

@@ -3,6 +3,27 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const bidi = require('bidi-js')();
+
+// PDFKit (via fontkit) already applies Arabic contextual letter-joining
+// automatically when rendering, but it lays text out as a plain left-to-right
+// character stream with no bidi reordering of its own — so raw Arabic renders
+// with words in the wrong visual order (verified empirically: pre-shaping
+// with a reshaper library before reordering actually breaks fontkit's own
+// shaping and collapses spacing between words — do NOT reshape, only
+// reorder). Run the Unicode Bidi Algorithm to get the correct left-to-right
+// visual order for PDFKit to draw as-is. Applied per explicit line (not per
+// pdfkit-wrapped line) since wrapping happens after this call — long
+// paragraphs still read correctly, just without perfect bidi-aware
+// re-wrapping exactly at the wrap point.
+function shapeArabicText(text) {
+  if (!text) return text;
+  return String(text).split('\n').map(line => {
+    if (!line.trim() || !/[؀-ۿ]/.test(line)) return line;
+    const levels = bidi.getEmbeddingLevels(line);
+    return bidi.getReorderedString(line, levels);
+  }).join('\n');
+}
 
 // ── Arabic font (Amiri) — downloaded once, cached on disk ────────────────────
 const FONTS_DIR = path.join(__dirname, '../../data/fonts');
@@ -46,6 +67,7 @@ async function buildPdf({ title, lang, content, sections }) {
     const mainFont  = (isAr && arabicFontPath) ? 'Arabic' : 'Helvetica';
     const boldFont  = (isAr && arabicFontPath) ? 'Arabic' : 'Helvetica-Bold';
     const textAlign = isAr ? 'right' : 'left';
+    const az = isAr ? shapeArabicText : (t) => t;
 
     const dateStr = new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', {
       year: 'numeric', month: 'long', day: 'numeric'
@@ -53,13 +75,13 @@ async function buildPdf({ title, lang, content, sections }) {
 
     // Header block
     doc.font(boldFont).fontSize(8.5).fillColor('#666666')
-      .text('Ameen Executive Secretary · أمين للاجتماعات التنفيذية', { align: textAlign });
+      .text(az('Ameen Executive Secretary · أمين للاجتماعات التنفيذية'), { align: textAlign });
     doc.moveDown(0.3);
     doc.font(boldFont).fontSize(17).fillColor('#1a1a2e')
-      .text(title, { align: textAlign });
+      .text(az(title), { align: textAlign });
     doc.moveDown(0.2);
     doc.font(mainFont).fontSize(9.5).fillColor('#888888')
-      .text(dateStr, { align: textAlign });
+      .text(az(dateStr), { align: textAlign });
     doc.moveDown(0.5);
     doc.moveTo(60, doc.y).lineTo(doc.page.width - 60, doc.y)
       .strokeColor('#1a1a2e').lineWidth(2).stroke();
@@ -68,7 +90,7 @@ async function buildPdf({ title, lang, content, sections }) {
     // Single content block
     if (content) {
       doc.font(mainFont).fontSize(11).fillColor('#222222')
-        .text(content, { align: textAlign, lineGap: 4 });
+        .text(az(content), { align: textAlign, lineGap: 4 });
     }
 
     // Multi-section (board pack)
@@ -77,19 +99,19 @@ async function buildPdf({ title, lang, content, sections }) {
         if (!s.text && !(s.items && s.items.length)) continue;
         doc.moveDown(0.9);
         doc.font(boldFont).fontSize(12.5).fillColor('#1a1a2e')
-          .text(s.title, { align: textAlign });
+          .text(az(s.title), { align: textAlign });
         doc.moveDown(0.2);
         doc.moveTo(60, doc.y).lineTo(doc.page.width - 60, doc.y)
           .strokeColor('#cccccc').lineWidth(0.8).stroke();
         doc.moveDown(0.5);
         if (s.text) {
           doc.font(mainFont).fontSize(10.5).fillColor('#333333')
-            .text(s.text, { align: textAlign, lineGap: 3 });
+            .text(az(s.text), { align: textAlign, lineGap: 3 });
         }
         if (s.items) {
           s.items.forEach((item, i) => {
             doc.font(mainFont).fontSize(10.5).fillColor('#333333')
-              .text(`${i + 1}.  ${item}`, { align: textAlign, lineGap: 2, indent: 10 });
+              .text(az(`${i + 1}.  ${item}`), { align: textAlign, lineGap: 2, indent: 10 });
           });
         }
       }
@@ -887,6 +909,7 @@ router.post('/tasks/:id/escalate', auth, async (req, res) => {
   // Resolve escalating user
   const actor = db.prepare('SELECT name_en, name_ar, role_en, role_ar FROM users WHERE id=?').get(req.user.id);
   const actorName = actor ? (actor.name_en || actor.name_ar || req.user.email) : req.user.email;
+  const actorNameAr = actor ? (actor.name_ar || actor.name_en || req.user.email) : req.user.email;
 
   // Update task
   db.prepare(
@@ -904,10 +927,16 @@ router.post('/tasks/:id/escalate', auth, async (req, res) => {
     `INSERT INTO task_updates (task_id, author_id, author_name, author_role, update_text, status_snapshot) VALUES (?,?,?,?,?,?)`
   ).run(task.id, req.user.id, actorName, actorRole, updateText, task.status);
 
-  // Send notification to escalation target (best-effort)
-  const taskTitle = task.text_en || task.text_ar || `Task #${task.id}`;
-  const subject = `Task Escalated to You: ${taskTitle}`;
-  const body = `${actorName} has escalated the following task to you:\n\n"${taskTitle}"\n\n${comments ? `Note: ${comments}\n\n` : ''}Please review and take action.`;
+  // Send notification to escalation target (best-effort). Bilingual — Arabic
+  // block followed by English, same convention as the meeting-reminder email
+  // (src/reminders.js buildReminderMessage), since the recipient's preferred
+  // language isn't known with certainty at send time.
+  const taskTitleEn = task.text_en || task.text_ar || `Task #${task.id}`;
+  const taskTitleAr = task.text_ar || task.text_en || `مهمة #${task.id}`;
+  const subject = `تصعيد مهمة إليك: ${taskTitleAr} / Task Escalated to You: ${taskTitleEn}`;
+  const body =
+    `قام ${actorNameAr} بتصعيد المهمة التالية إليك:\n\n"${taskTitleAr}"\n\n${comments ? `ملاحظة: ${comments}\n\n` : ''}يرجى المراجعة واتخاذ الإجراء اللازم.\n\n———\n\n` +
+    `${actorName} has escalated the following task to you:\n\n"${taskTitleEn}"\n\n${comments ? `Note: ${comments}\n\n` : ''}Please review and take action.`;
   const notifResult = {};
   try {
     if (target.email) {
@@ -1596,19 +1625,30 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
     const mine = tasks.filter(t => (t.owner_ar && a.name && (t.owner_ar.includes(a.name) || a.name.includes(t.owner_ar))) ||
                                    (t.owner_en && a.name && (t.owner_en.toLowerCase().includes(a.name.toLowerCase()))));
     const taskLines = (mine.length ? mine : tasks).map(t => `• ${t.text_ar}`).join('\n');
-    const subject = `محضر ونتائج: ${meeting.title_ar} | Minutes & Actions: ${meeting.title_en || meeting.title_ar}`;
+    const taskLinesEn = (mine.length ? mine : tasks).map(t => `• ${t.text_en || t.text_ar}`).join('\n');
+    const titleEn = meeting.title_en || meeting.title_ar;
+    const subject = `محضر ونتائج: ${meeting.title_ar} | Minutes & Actions: ${titleEn}`;
     // The full minutes / transcript text is included so recipients get the
-    // complete record (boss requirement: "send the full text").
-    const fullMinutes = meeting.ai_minutes_ar || meeting.ai_minutes_en || '';
+    // complete record (boss requirement: "send the full text"). Bilingual —
+    // Arabic block followed by an English block, same convention as the
+    // meeting-reminder email (src/reminders.js buildReminderMessage).
+    const fullMinutesAr = meeting.ai_minutes_ar || meeting.ai_minutes_en || '';
+    const fullMinutesEn = meeting.ai_minutes_en || meeting.ai_minutes_ar || '';
     const fullTranscript = meeting.transcript || '';
     const text =
       `مرحباً ${a.name}،\n\nتمت مشاركة محضر ونتائج اجتماع "${meeting.title_ar}".\n\n` +
       `الملخص:\n${meeting.ai_summary_ar || '-'}\n\n` +
       (decisions.length ? `القرارات:\n${decisions.map(d => '• ' + d.text_ar).join('\n')}\n\n` : '') +
       (taskLines ? `المهام:\n${taskLines}\n\n` : '') +
-      (fullMinutes ? `المحضر الكامل:\n${fullMinutes}\n\n` : '') +
+      (fullMinutesAr ? `المحضر الكامل:\n${fullMinutesAr}\n\n` : '') +
       (fullTranscript ? `النص الكامل للاجتماع:\n${fullTranscript}\n\n` : '') +
-      `لتأكيد مهامك وإضافة ملاحظاتك، افتح الرابط:\n${link}\n\n— أمين السكرتير`;
+      `لتأكيد مهامك وإضافة ملاحظاتك، افتح الرابط:\n${link}\n\n— أمين السكرتير\n\n———\n\n` +
+      `Hello ${a.name},\n\nThe minutes and outcomes for "${titleEn}" have been shared with you.\n\n` +
+      `Summary:\n${meeting.ai_summary_en || meeting.ai_summary_ar || '-'}\n\n` +
+      (decisions.length ? `Decisions:\n${decisions.map(d => '• ' + (d.text_en || d.text_ar)).join('\n')}\n\n` : '') +
+      (taskLinesEn ? `Tasks:\n${taskLinesEn}\n\n` : '') +
+      (fullMinutesEn ? `Full minutes:\n${fullMinutesEn}\n\n` : '') +
+      `To confirm your tasks and add comments, open the link:\n${link}\n\n— Ameen Secretary`;
     const html =
       `<div style="font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right">` +
       `<h2 style="color:#0e7490">محضر ونتائج الاجتماع</h2>` +
@@ -1617,10 +1657,21 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
       `<h3>الملخص</h3><p>${esc(meeting.ai_summary_ar || '-').replace(/\n/g, '<br>')}</p>` +
       (decisions.length ? `<h3>القرارات</h3><ul>${decisions.map(d => '<li>' + esc(d.text_ar) + '</li>').join('')}</ul>` : '') +
       ((mine.length ? mine : tasks).length ? `<h3>المهام</h3><ul>${(mine.length ? mine : tasks).map(t => '<li>' + esc(t.text_ar) + '</li>').join('')}</ul>` : '') +
-      (fullMinutes ? `<h3>المحضر الكامل</h3><div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:12px;font-size:13px">${esc(fullMinutes)}</div>` : '') +
+      (fullMinutesAr ? `<h3>المحضر الكامل</h3><div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:12px;font-size:13px">${esc(fullMinutesAr)}</div>` : '') +
       (fullTranscript ? `<h3>النص الكامل للاجتماع</h3><div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:12px;font-size:13px">${esc(fullTranscript)}</div>` : '') +
       `<p><a href="${link}" style="background:#0e7490;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">تأكيد المهام وإضافة ملاحظات</a></p>` +
-      `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>`;
+      `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>` +
+      `<hr style="margin:20px 0;border:none;border-top:1px solid #e2e8f0">` +
+      `<div style="font-family:Tahoma,Arial,sans-serif;direction:ltr;text-align:left">` +
+      `<h2 style="color:#0e7490">Meeting Minutes &amp; Outcomes</h2>` +
+      `<p>Hello <b>${esc(a.name)}</b>,</p>` +
+      `<p>The minutes and outcomes for &ldquo;${esc(titleEn)}&rdquo; have been shared with you.</p>` +
+      `<h3>Summary</h3><p>${esc(meeting.ai_summary_en || meeting.ai_summary_ar || '-').replace(/\n/g, '<br>')}</p>` +
+      (decisions.length ? `<h3>Decisions</h3><ul>${decisions.map(d => '<li>' + esc(d.text_en || d.text_ar) + '</li>').join('')}</ul>` : '') +
+      ((mine.length ? mine : tasks).length ? `<h3>Tasks</h3><ul>${(mine.length ? mine : tasks).map(t => '<li>' + esc(t.text_en || t.text_ar) + '</li>').join('')}</ul>` : '') +
+      (fullMinutesEn ? `<h3>Full Minutes</h3><div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:12px;font-size:13px">${esc(fullMinutesEn)}</div>` : '') +
+      `<p><a href="${link}" style="background:#0e7490;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">Confirm Tasks &amp; Add Comments</a></p>` +
+      `<p style="color:#888;font-size:12px">— Ameen Secretary</p></div>`;
     const out = await notify.notify({ channel, email: a.email, phone: a.phone, subject, text, html });
     db.prepare('UPDATE meeting_attendees SET shared=1 WHERE id=?').run(a.id);
     results.push({ id: a.id, name: a.name, link, ...out });
@@ -1641,15 +1692,23 @@ router.post('/documents/share', auth, requirePro, async (req, res) => {
   if (!content) return res.status(400).json({ error: 'لا يوجد محتوى للمشاركة / No content to share' });
   const members = db.prepare("SELECT name_ar, name_en, email FROM users WHERE email IS NOT NULL AND email != ''").all();
   if (!members.length) return res.status(400).json({ error: 'لا يوجد أعضاء فريق بعناوين بريد / No team members with emails' });
-  const subject = `تقرير من أمين: ${title}`;
+  const subject = `تقرير من أمين: ${title} | Report from Ameen: ${title}`;
   const results = [];
   for (const mem of members) {
-    const text = `مرحباً ${mem.name_ar || mem.name_en || ''}،\n\nتمت مشاركة التقرير التالي معك:\n\n${content}\n\n— أمين السكرتير`;
+    const name = mem.name_ar || mem.name_en || '';
+    const nameEn = mem.name_en || mem.name_ar || '';
+    const text = `مرحباً ${name}،\n\nتمت مشاركة التقرير التالي معك:\n\n${content}\n\n— أمين السكرتير\n\n———\n\nHello ${nameEn},\n\nThe following report has been shared with you:\n\n${content}\n\n— Ameen Secretary`;
     const html = `<div style="font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right">` +
       `<h2 style="color:#0e7490">${esc(title)}</h2>` +
-      `<p>مرحباً <b>${esc(mem.name_ar || mem.name_en || '')}</b>،</p>` +
+      `<p>مرحباً <b>${esc(name)}</b>،</p>` +
       `<div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:14px;font-size:13px;line-height:1.7">${esc(content)}</div>` +
-      `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>`;
+      `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>` +
+      `<hr style="margin:20px 0;border:none;border-top:1px solid #e2e8f0">` +
+      `<div style="font-family:Tahoma,Arial,sans-serif;direction:ltr;text-align:left">` +
+      `<h2 style="color:#0e7490">${esc(title)}</h2>` +
+      `<p>Hello <b>${esc(nameEn)}</b>,</p>` +
+      `<div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:14px;font-size:13px;line-height:1.7">${esc(content)}</div>` +
+      `<p style="color:#888;font-size:12px">— Ameen Secretary</p></div>`;
     let out;
     try { out = await notify.sendEmail({ to: mem.email, subject, text, html }); }
     catch (e) { out = { error: e.message }; }
