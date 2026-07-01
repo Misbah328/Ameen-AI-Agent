@@ -1047,6 +1047,44 @@ router.get('/schedule/from-template/:id', auth, (req, res) => {
   });
 });
 
+// Create a new schedule entry from a template's defaults, applying any request
+// overrides (date/time required). Mirrors POST /schedule: conflict check + auto
+// recurrence-series generation.
+router.post('/schedule/from-template/:id', auth, (req, res) => {
+  const tpl = db.prepare('SELECT * FROM meeting_templates WHERE id=?').get(req.params.id);
+  if (!tpl) return res.status(404).json({ error: 'Template not found' });
+  const b = req.body || {};
+  const meeting_date = b.meeting_date;
+  const meeting_time = b.meeting_time;
+  if (!meeting_date || !meeting_time) return res.status(400).json({ error: 'meeting_date and meeting_time are required' });
+  const title_ar = b.title_ar || tpl.name_ar;
+  const title_en = b.title_en || tpl.name_en || title_ar;
+  const dur = b.duration_mins || tpl.default_duration || 60;
+  const attendees = b.attendees != null ? b.attendees : (tpl.default_attendees || '');
+  const agenda_ar = b.agenda_ar != null ? b.agenda_ar : (tpl.agenda_ar || '');
+  const agenda_en = b.agenda_en != null ? b.agenda_en : (tpl.agenda_en || '');
+  const meeting_type = b.meeting_type || tpl.meeting_type || '';
+  const chan = ['email', 'whatsapp', 'both'].includes(b.reminder_channel) ? b.reminder_channel : 'email';
+  const rec = VALID_RECURRENCES.includes(b.recurrence) ? b.recurrence : 'none';
+  const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: dur });
+  if (conflicts.length && !b.force) return res.status(409).json(conflictPayload(conflicts));
+  const groupId = rec !== 'none' ? crypto.randomUUID() : null;
+  const prov = ['zoom', 'teams', 'google_meet'].includes(b.meeting_provider) ? b.meeting_provider : 'physical';
+  const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[prov] || (b.platform || 'قاعة الاجتماعات');
+  const insertSched = db.prepare(`
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const row = insertSched.run(title_ar, title_en, meeting_date, meeting_time, dur, provPlatform, attendees, agenda_ar, agenda_en, chan, req.user.id, meeting_type, b.board_id || null, b.committee_id || null, b.prev_meeting_id || null, rec, groupId, prov, b.meeting_join_url || '', b.meeting_id_external || '');
+  if (rec !== 'none') {
+    for (let i = 1; i <= 3; i++) {
+      const nextDate = addNPeriods(meeting_date, rec, i);
+      insertSched.run(title_ar, title_en, nextDate, meeting_time, dur, provPlatform, attendees, agenda_ar, agenda_en, chan, req.user.id, meeting_type, b.board_id || null, b.committee_id || null, null, rec, groupId, prov, b.meeting_join_url || '', b.meeting_id_external || '');
+    }
+  }
+  res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
+});
+
 // ── Push a meeting summary + tasks to WhatsApp (Last Meeting precision tab) ─────
 router.post('/meetings/:id/whatsapp-summary', auth, async (req, res) => {
   const m = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
