@@ -282,6 +282,44 @@ function baseUrl(req) {
   return `${proto}://${req.get('host')}`;
 }
 
+// ── Public attendee confirmation (NO AUTH — token-gated) ───────────────────
+// Must stay ABOVE router.use(auth) below — this is reached by external
+// attendees via an emailed/texted link who have no login session at all.
+// (It previously lived after the auth gate, which silently 401'd every real
+// visitor since they can never carry a valid session cookie.)
+router.get('/public/:token', (req, res) => {
+  const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
+  if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(a.meeting_id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  let tasks = [], decisions = [];
+  try { tasks = JSON.parse(meeting.ai_tasks || '[]'); } catch { tasks = []; }
+  try { decisions = JSON.parse(meeting.ai_decisions || '[]'); } catch { decisions = []; }
+  const mine = tasks.filter(t => (t.owner_ar && (t.owner_ar.includes(a.name) || a.name.includes(t.owner_ar))) ||
+                                 (t.owner_en && a.name && t.owner_en.toLowerCase().includes(a.name.toLowerCase())));
+  res.json({
+    attendee: { name: a.name, confirmed: !!a.confirmed, comment: a.comment || '' },
+    meeting: {
+      title_ar: meeting.title_ar, title_en: meeting.title_en,
+      date: (meeting.meeting_date || '').substring(0, 10),
+      summary_ar: meeting.ai_summary_ar || '', summary_en: meeting.ai_summary_en || '',
+      minutes_ar: meeting.ai_minutes_ar || '', minutes_en: meeting.ai_minutes_en || '',
+    },
+    my_tasks: mine.length ? mine : tasks,
+    decisions,
+  });
+});
+
+router.post('/public/:token', (req, res) => {
+  const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
+  if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
+  const confirmed = req.body.confirmed ? 1 : 0;
+  const comment = (req.body.comment || '').toString().slice(0, 2000);
+  db.prepare('UPDATE meeting_attendees SET confirmed=?, confirmed_at=CURRENT_TIMESTAMP, comment=?, responded_at=CURRENT_TIMESTAMP WHERE id=?')
+    .run(confirmed, comment, a.id);
+  res.json({ success: true });
+});
+
 // ── Require authentication for all API routes ─────────────────────────────────
 router.use(auth);
 
@@ -952,6 +990,12 @@ const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly']
 router.post('/schedule', auth, (req, res) => {
   const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
+  if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
+    return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
+    return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
+  }
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   const rec = VALID_RECURRENCES.includes(recurrence) ? recurrence : 'none';
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
@@ -1028,6 +1072,12 @@ router.patch('/schedule/:id', auth, (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
+  if (meeting_date !== undefined && (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime()))) {
+    return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
+  }
+  if (meeting_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
+    return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
+  }
   const chan = reminder_channel !== undefined
     ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
     : row.reminder_channel;
@@ -1816,40 +1866,6 @@ router.post('/meetings/:id/board-pack', auth, async (req, res) => {
     console.error('Board pack PDF error:', e.message);
     res.status(500).json({ error: 'Board pack PDF generation failed', detail: e.message });
   }
-});
-
-// ── Public attendee confirmation (NO AUTH — token-gated) ───────────────────
-router.get('/public/:token', (req, res) => {
-  const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
-  if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
-  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(a.meeting_id);
-  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
-  let tasks = [], decisions = [];
-  try { tasks = JSON.parse(meeting.ai_tasks || '[]'); } catch { tasks = []; }
-  try { decisions = JSON.parse(meeting.ai_decisions || '[]'); } catch { decisions = []; }
-  const mine = tasks.filter(t => (t.owner_ar && (t.owner_ar.includes(a.name) || a.name.includes(t.owner_ar))) ||
-                                 (t.owner_en && a.name && t.owner_en.toLowerCase().includes(a.name.toLowerCase())));
-  res.json({
-    attendee: { name: a.name, confirmed: !!a.confirmed, comment: a.comment || '' },
-    meeting: {
-      title_ar: meeting.title_ar, title_en: meeting.title_en,
-      date: (meeting.meeting_date || '').substring(0, 10),
-      summary_ar: meeting.ai_summary_ar || '', summary_en: meeting.ai_summary_en || '',
-      minutes_ar: meeting.ai_minutes_ar || '', minutes_en: meeting.ai_minutes_en || '',
-    },
-    my_tasks: mine.length ? mine : tasks,
-    decisions,
-  });
-});
-
-router.post('/public/:token', (req, res) => {
-  const a = db.prepare('SELECT * FROM meeting_attendees WHERE share_token=?').get(req.params.token);
-  if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
-  const confirmed = req.body.confirmed ? 1 : 0;
-  const comment = (req.body.comment || '').toString().slice(0, 2000);
-  db.prepare('UPDATE meeting_attendees SET confirmed=?, confirmed_at=CURRENT_TIMESTAMP, comment=?, responded_at=CURRENT_TIMESTAMP WHERE id=?')
-    .run(confirmed, comment, a.id);
-  res.json({ success: true });
 });
 
 // ── Minutes Approval Workflow ────────────────────────────────────────────────

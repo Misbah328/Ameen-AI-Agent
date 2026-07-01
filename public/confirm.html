@@ -71,6 +71,7 @@
       document.documentElement.dir = LANG === 'ar' ? 'rtl' : 'ltr';
       document.getElementById('brandText').textContent = LANG === 'ar' ? 'أمين السكرتير' : 'Ameen Secretary';
       document.getElementById('langBtn').textContent = LANG === 'ar' ? 'English' : 'العربية';
+      if (!DATA) return; // still loading (or load failed) — nothing to render yet
       const m = DATA.meeting, a = DATA.attendee;
       const title = LANG === 'ar' ? m.title_ar : (m.title_en || m.title_ar);
       const summary = LANG === 'ar' ? m.summary_ar : (m.summary_en || m.summary_ar);

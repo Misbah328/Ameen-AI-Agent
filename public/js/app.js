@@ -4222,11 +4222,19 @@ const Schedule = {
         (s.meeting_date || "").substring(0, 10),
       );
       if (date === null) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim()) || isNaN(new Date(date.trim()).getTime())) {
+        alert(l === "ar" ? "صيغة التاريخ غير صحيحة. استخدم YYYY-MM-DD" : "Invalid date format. Use YYYY-MM-DD");
+        return;
+      }
       const time = prompt(
         l === "ar" ? "الوقت (HH:MM):" : "Time (HH:MM):",
         (s.meeting_time || "").substring(0, 5),
       );
       if (time === null) return;
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time.trim())) {
+        alert(l === "ar" ? "صيغة الوقت غير صحيحة. استخدم HH:MM" : "Invalid time format. Use HH:MM");
+        return;
+      }
       const attendees = prompt(
         l === "ar"
           ? "المشاركون (أسماء، إيميلات، أرق_�م جوال):"
