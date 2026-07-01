@@ -1294,7 +1294,7 @@ const Gov = {
 
   async updateFollowup(id, status) {
     try { await api(`/api/gov/followups/${id}`, { method:'PATCH', body: JSON.stringify({ status }) }); }
-    catch (e) { /* silent */ }
+    catch (e) { showToast(e.message, 'error'); }
   },
 
   async delFollowup(id) {
