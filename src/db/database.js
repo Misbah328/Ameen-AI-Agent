@@ -5,7 +5,10 @@ const fs = require('fs');
 const DATA_DIR = path.join(__dirname, '../../data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(path.join(DATA_DIR, 'ameen.db'));
+// DB_PATH env var lets the smoke-test suite point at a temporary copy of the
+// database so no test data leaks into the live ameen.db file.
+const DB_FILE = process.env.DB_PATH || path.join(DATA_DIR, 'ameen.db');
+const db = new Database(DB_FILE);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');

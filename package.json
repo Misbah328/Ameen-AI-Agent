@@ -7,7 +7,11 @@
     "start": "node server.js",
     "dev": "node server.js",
     "lint": "bash scripts/lint-compat.sh",
+    "smoke": "node scripts/ui-smoke-test.js",
     "setup-hooks": "bash scripts/install-hooks.sh"
+  },
+  "devDependencies": {
+    "puppeteer": "^10.4.0"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
