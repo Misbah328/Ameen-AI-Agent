@@ -210,7 +210,7 @@ const Gov = {
             return `<div style="display:flex;align-items:center;gap:14px;padding:11px 15px;background:var(--navy3);border-radius:10px;border:1px solid var(--border2)">
               <div style="min-width:44px;text-align:center;flex-shrink:0">
                 <div style="font-size:20px;font-weight:800;color:var(--gold);line-height:1">${(s.meeting_date||'').substring(8,10)||'–'}</div>
-                <div style="font-size:10px;color:var(--text3);letter-spacing:.06em">${(s.meeting_date||'').substring(5,7)||''}</div>
+                <div style="font-size:11px;color:var(--text3);letter-spacing:.06em">${(s.meeting_date||'').substring(5,7)||''}</div>
               </div>
               <div style="width:1px;background:var(--border2);align-self:stretch"></div>
               <div style="flex:1">
@@ -319,7 +319,7 @@ const Gov = {
                   <div style="display:flex;align-items:center;gap:6px;min-width:120px;padding-inline-end:18px">
                     <span style="font-size:15px">${ic}</span>
                     <div>
-                      <div style="font-size:10px;color:var(--text3)">${lbl2}</div>
+                      <div style="font-size:11px;color:var(--text3)">${lbl2}</div>
                       <div style="font-size:13px;font-weight:600;color:var(--text)">${val}</div>
                     </div>
                   </div>`).join('')}
@@ -681,15 +681,15 @@ const Gov = {
                   <div style="font-size:13px;font-weight:600;color:var(--text)">${idx+1}. ${esc(item.title)}</div>
                   ${item.description ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(item.description)}</div>` : ''}
                   <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
-                    ${item.presenter ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:10px">👤 ${esc(item.presenter)}</span>` : ''}
-                    ${item.duration_mins ? `<span class="tag" style="background:var(--navy4);font-size:10px">⏱ ${item.duration_mins} ${lbl('د','min')}</span>` : ''}
-                    ${item.expected_outcome ? `<span class="tag tb" style="font-size:10px">🎯 ${esc(item.expected_outcome.substring(0,40))}${item.expected_outcome.length>40?'…':''}</span>` : ''}
+                    ${item.presenter ? `<span class="tag" style="background:var(--gold-dim);color:var(--gold);font-size:11px">👤 ${esc(item.presenter)}</span>` : ''}
+                    ${item.duration_mins ? `<span class="tag" style="background:var(--navy4);font-size:11px">⏱ ${item.duration_mins} ${lbl('د','min')}</span>` : ''}
+                    ${item.expected_outcome ? `<span class="tag tb" style="font-size:11px">🎯 ${esc(item.expected_outcome.substring(0,40))}${item.expected_outcome.length>40?'…':''}</span>` : ''}
                   </div>
                   <div style="margin-top:7px;padding-inline-start:10px;border-inline-start:2px solid var(--border2)">
                     <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:${itemDocs.length?'5px':'0'}">
-                      ${itemDocs.length ? `<span style="font-size:10px;color:var(--text3)">📎 ${lbl('مرفقات','Attachments')}:</span>` : ''}
-                      ${itemDocs.map(d => { const st = DOC_STATUS[d.status]||DOC_STATUS.draft; return `<span class="tag" title="${esc(d.description||'')}" style="font-size:10px;background:${st.bg};color:${st.c}">${dicon(d.doc_type)} ${esc(d.title.substring(0,28))}${d.title.length>28?'…':''}</span>`; }).join('')}
-                      <button class="btn-ghost btn-sm" onclick="Gov._showForm('ai-doc-${item.id}')" style="font-size:10px">📎 ${lbl('إرفاق','Attach')}</button>
+                      ${itemDocs.length ? `<span style="font-size:11px;color:var(--text3)">📎 ${lbl('مرفقات','Attachments')}:</span>` : ''}
+                      ${itemDocs.map(d => { const st = DOC_STATUS[d.status]||DOC_STATUS.draft; return `<span class="tag" title="${esc(d.description||'')}" style="font-size:11px;background:${st.bg};color:${st.c}">${dicon(d.doc_type)} ${esc(d.title.substring(0,28))}${d.title.length>28?'…':''}</span>`; }).join('')}
+                      <button class="btn-ghost btn-sm" onclick="Gov._showForm('ai-doc-${item.id}')" style="font-size:11px">📎 ${lbl('إرفاق','Attach')}</button>
                     </div>
                     <div id="ai-doc-${item.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:10px;margin-top:4px">
                       <div class="fs" style="gap:6px">
@@ -783,7 +783,7 @@ const Gov = {
             return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--navy3);border-radius:8px">
               <div style="flex:1">
                 <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(a.name)}</div>
-                ${role ? `<div style="font-size:10px;color:var(--text3)">${esc(role)}</div>` : ''}
+                ${role ? `<div style="font-size:11px;color:var(--text3)">${esc(role)}</div>` : ''}
               </div>
               <select style="font-size:11px;padding:3px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--navy4);color:var(--text2);cursor:pointer"
                 onchange="Gov.updateAttStatus(${a.id},this.value)">
@@ -792,8 +792,8 @@ const Gov = {
                 <option value="excused" ${a.attendance_status==='excused'?'selected':''}>${lbl('معتذر','Excused')}</option>
                 <option value="pending" ${!a.attendance_status||a.attendance_status==='pending'?'selected':''}>${lbl('—','—')}</option>
               </select>
-              <span style="font-size:10px;font-weight:600;color:${st.c};min-width:36px;text-align:center">${st[l]}</span>
-              <button class="btn-ghost btn-sm" onclick="Gov.delAttendee(${a.id})" style="color:var(--red);font-size:10px">✕</button>
+              <span style="font-size:11px;font-weight:600;color:${st.c};min-width:36px;text-align:center">${st[l]}</span>
+              <button class="btn-ghost btn-sm" onclick="Gov.delAttendee(${a.id})" style="color:var(--red);font-size:11px">✕</button>
             </div>`;
           }).join('')}
         </div>`
@@ -900,7 +900,7 @@ const Gov = {
 
     const stBadge = s => {
       const st = RESOLUTION_ST[s]||RESOLUTION_ST.pending;
-      return `<span class="tag" style="font-size:10.5px;background:transparent;border:1px solid ${st.c};color:${st.c}">${st[l]||s}</span>`;
+      return `<span class="tag" style="font-size:11.5px;background:transparent;border:1px solid ${st.c};color:${st.c}">${st[l]||s}</span>`;
     };
 
     const votingBar = (label, count, total, color) => {
@@ -911,7 +911,7 @@ const Gov = {
           <div style="height:100%;width:${pct}%;background:${color};border-radius:20px;transition:width .5s ease"></div>
         </div>
         <span style="font-size:12px;font-weight:700;color:${color};min-width:24px;text-align:end">${count}</span>
-        <span style="font-size:10.5px;color:var(--text3);min-width:32px">${pct}%</span>
+        <span style="font-size:11.5px;color:var(--text3);min-width:32px">${pct}%</span>
       </div>`;
     };
 
@@ -930,8 +930,8 @@ const Gov = {
           <div style="flex:1;min-width:0">
             <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
               ${stBadge(r.status)}
-              <span style="font-size:10.5px;padding:2px 9px;border-radius:10px;background:${vsi.bg};color:${vsi.c};font-weight:700;border:.5px solid ${vsi.c}55">${vsi[l==='ar'?'ar':'en']}</span>
-              ${totalVotes>0&&(isClosed||isArchived) ? `<span class="tag ${r.status==='approved'?'tg':'tr'}" style="font-size:10px">${r.status==='approved'?'✓ '+lbl('نجح القرار','Passed'):'✗ '+lbl('لم ينجح','Failed')}</span>` : ''}
+              <span style="font-size:11.5px;padding:2px 9px;border-radius:10px;background:${vsi.bg};color:${vsi.c};font-weight:700;border:.5px solid ${vsi.c}55">${vsi[l==='ar'?'ar':'en']}</span>
+              ${totalVotes>0&&(isClosed||isArchived) ? `<span class="tag ${r.status==='approved'?'tg':'tr'}" style="font-size:11px">${r.status==='approved'?'✓ '+lbl('نجح القرار','Passed'):'✗ '+lbl('لم ينجح','Failed')}</span>` : ''}
             </div>
             <div style="font-size:14.5px;font-weight:700;color:var(--text);line-height:1.4">${esc(r.title)}</div>
             ${r.description ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;line-height:1.6">${esc(r.description)}</div>` : ''}
@@ -954,8 +954,8 @@ const Gov = {
             const c = done?'var(--green)':active?vsi.c:'var(--text3)';
             return `${i>0?`<div style="flex:1;height:1.5px;background:${done?'var(--green)':'var(--border2)'}"></div>`:''}
               <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
-                <div style="width:22px;height:22px;border-radius:50%;background:${done?'rgba(46,204,138,.15)':active?vsi.bg:'var(--navy4)'};border:2px solid ${c};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${c}">${done?'✓':i+1}</div>
-                <div style="font-size:9px;color:${c};white-space:nowrap">${l==='ar'?w.ar:w.en}</div>
+                <div style="width:22px;height:22px;border-radius:50%;background:${done?'rgba(46,204,138,.15)':active?vsi.bg:'var(--navy4)'};border:2px solid ${c};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:${c}">${done?'✓':i+1}</div>
+                <div style="font-size:10.5px;color:${c};white-space:nowrap">${l==='ar'?w.ar:w.en}</div>
               </div>`;
           }).join('')}
         </div>
@@ -969,7 +969,7 @@ const Gov = {
                   <span style="font-size:12px;font-weight:700;color:var(--text2)">🗳️ ${lbl('نتائج التصويت','Voting Results')}</span>
                   <div style="display:flex;gap:6px;align-items:center">
                     ${totalVotes>0 ? `<span style="font-size:11px;color:var(--text3)">${totalVotes} ${lbl('صوت','votes')}</span>` : `<span style="font-size:11px;color:var(--text3)">${lbl('لا أصوات بعد','No votes yet')}</span>`}
-                    ${totalVotes>0&&(isOpen||isClosed) ? `<span style="font-size:10.5px;padding:2px 8px;border-radius:5px;background:${(r.votes_approve||0)>(r.votes_reject||0)?'rgba(46,204,138,.12)':'rgba(201,168,76,.12)'};color:${(r.votes_approve||0)>(r.votes_reject||0)?'var(--green)':'var(--amber)'}">
+                    ${totalVotes>0&&(isOpen||isClosed) ? `<span style="font-size:11.5px;padding:2px 8px;border-radius:5px;background:${(r.votes_approve||0)>(r.votes_reject||0)?'rgba(46,204,138,.12)':'rgba(201,168,76,.12)'};color:${(r.votes_approve||0)>(r.votes_reject||0)?'var(--green)':'var(--amber)'}">
                       ${(r.votes_approve||0)>(r.votes_reject||0)?'✓ '+lbl('الأغلبية مؤيدة','Majority for'):'⚠ '+lbl('بدون أغلبية','No majority')}
                     </span>` : ''}
                   </div>
@@ -979,7 +979,7 @@ const Gov = {
                 ${votingBar(lbl('◎ امتناع','◎ Abstain'), r.votes_abstain||0, totalVotes, '#8B9DB8')}
               </div>
               <div style="width:88px;height:88px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:4px">
-                ${totalVotes>0 ? `<canvas id="vote-chart-${r.id}" width="88" height="88" style="display:block"></canvas>` : `<div style="width:88px;height:88px;border-radius:50%;border:3px dashed var(--border2);display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--text3);text-align:center">${lbl('لا\nأصوات','No\nvotes')}</span></div>`}
+                ${totalVotes>0 ? `<canvas id="vote-chart-${r.id}" width="88" height="88" style="display:block"></canvas>` : `<div style="width:88px;height:88px;border-radius:50%;border:3px dashed var(--border2);display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:var(--text3);text-align:center">${lbl('لا\nأصوات','No\nvotes')}</span></div>`}
               </div>
             </div>
           </div>
@@ -1021,7 +1021,7 @@ const Gov = {
         <div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <span style="font-size:12px;font-weight:700;color:var(--text2)">📌 ${lbl('إجراءات المتابعة','Follow-up Actions')}</span>
-            <button class="btn-ghost btn-sm" onclick="Gov._showForm('fu-form-${r.id}')" style="font-size:10.5px">+ ${lbl('إضافة','Add')}</button>
+            <button class="btn-ghost btn-sm" onclick="Gov._showForm('fu-form-${r.id}')" style="font-size:11.5px">+ ${lbl('إضافة','Add')}</button>
           </div>
           <div id="fu-form-${r.id}" style="display:none;background:var(--navy4);border-radius:8px;padding:11px;margin-bottom:8px">
             <div class="fs" style="gap:6px">
@@ -1044,7 +1044,7 @@ const Gov = {
                   ${f.due_date ? `<span style="color:var(--text3)"> · 📅 ${esc(f.due_date)}</span>` : ''}
                   ${f.notes ? `<span style="color:var(--text2)"> · ${esc(f.notes)}</span>` : ''}
                 </div>
-                <select style="font-size:10px;padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2)"
+                <select style="font-size:11px;padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2)"
                   onchange="Gov.updateFollowup(${f.id},this.value)">
                   ${Object.keys(FOLLOWUP_ST).map(k=>`<option value="${k}" ${f.status===k?'selected':''}>${esc((FOLLOWUP_ST[k]||{})[l]||k)}</option>`).join('')}
                 </select>
@@ -1154,7 +1154,7 @@ const Gov = {
             </div>
             <span style="font-size:11px;font-weight:700;color:${data.quorum_met?'#2ECC8A':'#E05A5A'};min-width:32px">${data.quorum_pct||0}%</span>
           </div>
-          <div style="font-size:10.5px;color:var(--text3)">${data.total} ${lbl('من أصل','of')} ${data.quorum_total} ${lbl('مشارك صوّتوا','participants voted')} · ${lbl('مطلوب','Required')}: ${data.quorum_needed} (50%+)</div>
+          <div style="font-size:11.5px;color:var(--text3)">${data.total} ${lbl('من أصل','of')} ${data.quorum_total} ${lbl('مشارك صوّتوا','participants voted')} · ${lbl('مطلوب','Required')}: ${data.quorum_needed} (50%+)</div>
         </div>` : '';
 
       // ── Voted list ─────────────────────────────────────────────────
@@ -1165,7 +1165,7 @@ const Gov = {
           <div style="font-size:11px;color:var(--text3);margin-top:4px">${lbl('سيظهر هنا كل صوت فور تسجيله','Every vote will appear here as soon as it is cast')}</div>
         </div>` : `
         <div>
-          <div style="padding:8px 14px 6px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+          <div style="padding:8px 14px 6px;font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
             ✅ ${lbl('صوّتوا','Voted')} (${data.total})
           </div>
           <div style="max-height:220px;overflow-y:auto">
@@ -1179,9 +1179,9 @@ const Gov = {
                 <div style="flex:1;min-width:0">
                   <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(v.voter_name||lbl('مستخدم','User'))}</div>
                   <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;align-items:center">
-                    ${v.voter_role ? `<span style="font-size:10px;padding:1px 6px;border-radius:5px;background:var(--navy2);color:var(--text3)">${esc(v.voter_role)}</span>` : ''}
-                    <span style="font-size:10.5px;padding:1px 7px;border-radius:5px;background:${vc}18;color:${vc};font-weight:700;border:.5px solid ${vc}44">${vi} ${vl}</span>
-                    ${dt ? `<span style="font-size:10px;color:var(--text3)">🕐 ${esc(dt)}</span>` : ''}
+                    ${v.voter_role ? `<span style="font-size:11px;padding:1px 6px;border-radius:5px;background:var(--navy2);color:var(--text3)">${esc(v.voter_role)}</span>` : ''}
+                    <span style="font-size:11.5px;padding:1px 7px;border-radius:5px;background:${vc}18;color:${vc};font-weight:700;border:.5px solid ${vc}44">${vi} ${vl}</span>
+                    ${dt ? `<span style="font-size:11px;color:var(--text3)">🕐 ${esc(dt)}</span>` : ''}
                   </div>
                   ${v.comments ? `<div style="font-size:11.5px;color:var(--text2);margin-top:4px;font-style:italic">"${esc(v.comments)}"</div>` : ''}
                 </div>
@@ -1193,7 +1193,7 @@ const Gov = {
       // ── Not voted yet (CEO/Chairman view) ──────────────────────────
       const notVotedSection = (data.not_voted && data.not_voted.length > 0) ? `
         <div style="border-top:.5px solid var(--border2)">
-          <div style="padding:8px 14px 6px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+          <div style="padding:8px 14px 6px;font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
             ⏳ ${lbl('لم يصوّتوا بعد','Not Voted Yet')} (${data.not_voted.length})
           </div>
           ${data.not_voted.map(a => `
@@ -1201,9 +1201,9 @@ const Gov = {
               <div style="width:28px;height:28px;border-radius:50%;background:rgba(201,168,76,.12);border:1px dashed var(--amber);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">⏳</div>
               <div style="flex:1;min-width:0">
                 <div style="font-size:12px;font-weight:600;color:var(--text2)">${esc(a.name||'—')}</div>
-                ${a.role ? `<div style="font-size:10px;color:var(--text3)">${esc(a.role)}</div>` : ''}
+                ${a.role ? `<div style="font-size:11px;color:var(--text3)">${esc(a.role)}</div>` : ''}
               </div>
-              ${a.attendance_status ? `<span style="font-size:10px;color:var(--text3)">${esc(a.attendance_status)}</span>` : ''}
+              ${a.attendance_status ? `<span style="font-size:11px;color:var(--text3)">${esc(a.attendance_status)}</span>` : ''}
             </div>`).join('')}
         </div>` : '';
 
@@ -1349,21 +1349,21 @@ const Gov = {
                 <div style="flex:1;min-width:0">
                   <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
                     <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</div>
-                    <span class="tag" style="font-size:10px;background:${st.bg};color:${st.c}">${esc(st[l==='ar'?'ar':'en'])}</span>
-                    <span class="tag" style="font-size:10px;background:var(--navy4);color:var(--text3)">${esc((DOC_TYPES[d.doc_type]||{ar:'',en:''})[l]||d.doc_type||'')}</span>
-                    ${d.is_mock ? `<span class="tag ta" style="font-size:10px">${lbl('نموذج','Sample')}</span>` : ''}
+                    <span class="tag" style="font-size:11px;background:${st.bg};color:${st.c}">${esc(st[l==='ar'?'ar':'en'])}</span>
+                    <span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3)">${esc((DOC_TYPES[d.doc_type]||{ar:'',en:''})[l]||d.doc_type||'')}</span>
+                    ${d.is_mock ? `<span class="tag ta" style="font-size:11px">${lbl('نموذج','Sample')}</span>` : ''}
                   </div>
                   ${d.description ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(d.description)}</div>` : ''}
                   <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:4px">
-                    ${d.uploaded_by ? `<span style="font-size:10px;color:var(--text3)">👤 ${esc(d.uploaded_by)}</span>` : ''}
-                    ${d.upload_date ? `<span style="font-size:10px;color:var(--text3)">📅 ${esc(d.upload_date)}</span>` : ''}
+                    ${d.uploaded_by ? `<span style="font-size:11px;color:var(--text3)">👤 ${esc(d.uploaded_by)}</span>` : ''}
+                    ${d.upload_date ? `<span style="font-size:11px;color:var(--text3)">📅 ${esc(d.upload_date)}</span>` : ''}
                   </div>
                 </div>
                 <div style="display:flex;gap:4px;align-items:flex-start;flex-shrink:0">
-                  <select style="font-size:10px;background:var(--navy4);border:1px solid var(--border2);border-radius:6px;color:var(--text2);padding:2px 4px;cursor:pointer" onchange="Gov.updateDocStatus(${d.id},this.value)">
+                  <select style="font-size:11px;background:var(--navy4);border:1px solid var(--border2);border-radius:6px;color:var(--text2);padding:2px 4px;cursor:pointer" onchange="Gov.updateDocStatus(${d.id},this.value)">
                     ${Object.keys(DOC_STATUS).map(k => `<option value="${k}"${d.status===k?' selected':''}>${esc((DOC_STATUS[k]||{})[l==='ar'?'ar':'en']||k)}</option>`).join('')}
                   </select>
-                  <button class="btn-ghost btn-sm" onclick="Gov.delDocument(${d.id})" style="color:var(--red);font-size:10px">✕</button>
+                  <button class="btn-ghost btn-sm" onclick="Gov.delDocument(${d.id})" style="color:var(--red);font-size:11px">✕</button>
                 </div>
               </div>
             </div>`;
@@ -1556,7 +1556,7 @@ const Gov = {
           ['📊', lbl('الحالة','Status'), stL],
         ].map(([ic,lb,val]) => `<div style="padding:11px 14px;background:var(--navy3);border-radius:10px;display:flex;align-items:flex-start;gap:9px">
             <span style="font-size:18px;flex-shrink:0;margin-top:1px">${ic}</span>
-            <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${lb}</div>
+            <div><div style="font-size:11.5px;color:var(--text3);margin-bottom:2px">${lb}</div>
             <div style="font-size:13px;font-weight:600;color:var(--text)">${val}</div></div>
           </div>`).join('')}
       </div>
@@ -1589,7 +1589,7 @@ const Gov = {
               <td style="padding:9px 10px;color:var(--text2)">${fmt(s.voteRights)}</td>
               <td style="padding:9px 10px"><span class="tag" style="font-size:11px;color:${atC[s.attendance]||'var(--text3)'};background:transparent;border:1px solid ${atC[s.attendance]||'var(--border2)'}">${atL[s.attendance]||s.attendance}</span></td>
               <td style="padding:9px 10px;color:var(--text3)">${s.proxy}</td>
-              ${canManage && apiDetail && s.id ? `<td style="padding:9px 10px"><button class="btn-ghost btn-sm" onclick="Gov.deleteShareholder(${s.id},${ga.id})" style="font-size:10px;color:var(--red);border-color:var(--red)">✕</button></td>` : ''}
+              ${canManage && apiDetail && s.id ? `<td style="padding:9px 10px"><button class="btn-ghost btn-sm" onclick="Gov.deleteShareholder(${s.id},${ga.id})" style="font-size:11px;color:var(--red);border-color:var(--red)">✕</button></td>` : ''}
             </tr>`).join('')}
           </tbody>
         </table>
@@ -1648,9 +1648,9 @@ const Gov = {
           <div style="position:absolute;top:0;bottom:0;left:${q.required}%;width:2px;background:var(--amber);opacity:.8"></div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:5px">
-          <span style="font-size:10px;color:var(--text3)">0%</span>
-          <span style="font-size:10px;color:var(--amber)">${lbl('الحد الأدنى','Minimum')} ${q.required}%</span>
-          <span style="font-size:10px;color:var(--text3)">100%</span>
+          <span style="font-size:11px;color:var(--text3)">0%</span>
+          <span style="font-size:11px;color:var(--amber)">${lbl('الحد الأدنى','Minimum')} ${q.required}%</span>
+          <span style="font-size:11px;color:var(--text3)">100%</span>
         </div>
       </div>
     </div>`;
@@ -1713,26 +1713,26 @@ const Gov = {
           return `<div style="background:var(--navy3);border-radius:10px;padding:14px;border-inline-start:3px solid ${hasVotes?(v.passed?'var(--green)':'var(--red)'):'var(--border2)'}">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:${hasVotes?'10px':'4px'};flex-wrap:wrap">
               <div style="flex:1;min-width:0">
-                <div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${lbl('اقتراح','Motion')} ${i+1}</div>
+                <div style="font-size:11.5px;color:var(--text3);margin-bottom:2px">${lbl('اقتراح','Motion')} ${i+1}</div>
                 <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(v.motionAr):esc(v.motionEn)}</div>
               </div>
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
                 ${hasVotes ? `<span class="tag" style="font-size:12px;color:${v.passed?'var(--green)':'var(--red)'};border:1px solid ${v.passed?'var(--green)':'var(--red)'};background:transparent">${v.passed?'✓ '+lbl('نجح','Passed'):'✗ '+lbl('رُفض','Failed')}</span>` : `<span class="tag ta" style="font-size:11px">${lbl('لم يُصوَّت بعد','No votes yet')}</span>`}
-                ${canManage && apiDetail && v.id ? `<button class="btn-ghost btn-sm" onclick="Gov.deleteGAVote(${v.id},${ga.id})" style="font-size:10px;color:var(--red);border-color:var(--red)">✕</button>` : ''}
+                ${canManage && apiDetail && v.id ? `<button class="btn-ghost btn-sm" onclick="Gov.deleteGAVote(${v.id},${ga.id})" style="font-size:11px;color:var(--red);border-color:var(--red)">✕</button>` : ''}
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
               <div style="background:rgba(46,204,138,.1);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(46,204,138,.3)">
                 <div style="font-size:14px;font-weight:800;color:var(--green)">${fmt(v.for)}</div>
-                <div style="font-size:10px;color:var(--text3)">${lbl('مع','For')} · ${forPct}%</div>
+                <div style="font-size:11px;color:var(--text3)">${lbl('مع','For')} · ${forPct}%</div>
               </div>
               <div style="background:rgba(240,90,90,.08);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(240,90,90,.25)">
                 <div style="font-size:14px;font-weight:800;color:var(--red)">${fmt(v.against)}</div>
-                <div style="font-size:10px;color:var(--text3)">${lbl('ضد','Against')} · ${agPct}%</div>
+                <div style="font-size:11px;color:var(--text3)">${lbl('ضد','Against')} · ${agPct}%</div>
               </div>
               <div style="background:rgba(255,193,7,.08);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(255,193,7,.25)">
                 <div style="font-size:14px;font-weight:800;color:var(--amber)">${fmt(v.abstain)}</div>
-                <div style="font-size:10px;color:var(--text3)">${lbl('امتناع','Abstain')} · ${absPct}%</div>
+                <div style="font-size:11px;color:var(--text3)">${lbl('امتناع','Abstain')} · ${absPct}%</div>
               </div>
             </div>
             <div style="background:var(--navy4);border-radius:20px;height:8px;overflow:hidden;display:flex">
@@ -1757,7 +1757,7 @@ const Gov = {
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${ress.map(r=>`<div style="display:flex;gap:12px;align-items:flex-start;padding:13px;background:var(--navy3);border-radius:10px;border-inline-start:3px solid ${resC[r.status]||'var(--border2)'}">
-            <span style="font-size:10px;font-weight:700;color:var(--gold);background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);border-radius:6px;padding:3px 7px;white-space:nowrap;flex-shrink:0;margin-top:1px">${r.no}</span>
+            <span style="font-size:11px;font-weight:700;color:var(--gold);background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);border-radius:6px;padding:3px 7px;white-space:nowrap;flex-shrink:0;margin-top:1px">${r.no}</span>
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px">${l==='ar'?esc(r.descAr):esc(r.descEn)}</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -1843,8 +1843,8 @@ const Gov = {
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap">
               <div style="flex:1">
                 <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;flex-wrap:wrap">
-                  <span class="tag" style="font-size:10px;color:${priC[a.priority]||'var(--text3)'};background:transparent;border:.5px solid ${priC[a.priority]||'var(--border2)'}">${priL[a.priority]||a.priority}</span>
-                  ${a.progress===100?`<span class="tag tg" style="font-size:10px">✓ ${lbl('مكتمل','Done')}</span>`:''}
+                  <span class="tag" style="font-size:11px;color:${priC[a.priority]||'var(--text3)'};background:transparent;border:.5px solid ${priC[a.priority]||'var(--border2)'}">${priL[a.priority]||a.priority}</span>
+                  ${a.progress===100?`<span class="tag tg" style="font-size:11px">✓ ${lbl('مكتمل','Done')}</span>`:''}
                 </div>
                 <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(a.descAr):esc(a.descEn)}</div>
               </div>
@@ -1877,7 +1877,7 @@ const Gov = {
               <div style="font-size:11px;color:${ev.done?'var(--gold)':'var(--text3)'};margin-top:2px">${ev.done&&ev.date?'📅 '+ev.date:lbl('قادم','Upcoming')}</div>
             </div>
             <div style="flex-shrink:0;padding-top:10px">
-              <span class="tag" style="font-size:10.5px;${ev.done?'background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3)':'background:var(--navy3);color:var(--text3)'}">${ev.done?'✓ '+lbl('مكتمل','Done'):lbl('قادم','Upcoming')}</span>
+              <span class="tag" style="font-size:11.5px;${ev.done?'background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3)':'background:var(--navy3);color:var(--text3)'}">${ev.done?'✓ '+lbl('مكتمل','Done'):lbl('قادم','Upcoming')}</span>
             </div>
           </div>`).join('')}
       </div>
@@ -1890,7 +1890,7 @@ const Gov = {
           <div style="font-size:12.5px;font-weight:700;color:#8B5CF6">${lbl('التقرير التفصيلي للجمعية العمومية','Detailed General Assembly Report')}</div>
           <div style="font-size:11px;color:var(--text3)">${apiDetail ? lbl('10 أقسام · بيانات حقيقية من قاعدة البيانات','10 sections · Live data from database') : lbl('10 أقسام · بيانات توضيحية','10 sections · Demo data')}</div>
         </div>
-        <span class="tag ${apiDetail?'tg':'ta'}" style="font-size:10px;flex-shrink:0">${apiDetail ? lbl('بيانات حقيقية','Live Data') : lbl('بيانات توضيحية','Demo Data')}</span>
+        <span class="tag ${apiDetail?'tg':'ta'}" style="font-size:11px;flex-shrink:0">${apiDetail ? lbl('بيانات حقيقية','Live Data') : lbl('بيانات توضيحية','Demo Data')}</span>
       </div>
       ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}
       <div style="text-align:center;padding:10px">

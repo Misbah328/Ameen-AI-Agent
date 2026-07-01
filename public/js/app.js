@@ -764,14 +764,14 @@ const DocLib = {
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
               <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</span>
-              ${d.doc_classification ? `<span class="tag" style="background:var(--navy4);font-size:10px">${esc(d.doc_classification)}</span>` : ""}
-              <span style="font-size:10px;color:var(--text3)">${esc(d.upload_date || "")}</span>
+              ${d.doc_classification ? `<span class="tag" style="background:var(--navy4);font-size:11px">${esc(d.doc_classification)}</span>` : ""}
+              <span style="font-size:11px;color:var(--text3)">${esc(d.upload_date || "")}</span>
             </div>
             ${d.ai_summary ? `<details><summary style="font-size:11px;color:var(--text3);cursor:pointer">${l === "ar" ? "🤖 ملخص ذكاء اصطناعي" : "🤖 AI Summary"}</summary><div style="font-size:11px;color:var(--text);margin-top:5px;line-height:1.6;padding:6px 0">${esc(d.ai_summary)}</div></details>` : ""}
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0">
-            <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:10px;padding:3px 7px;text-decoration:none" title="${l === "ar" ? "تنزيل" : "Download"}">⬇</a>
-            <button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 7px;color:var(--red)" onclick="DocLib.deleteDoc(${d.id},${meetingId})" title="${l === "ar" ? "حذف" : "Delete"}">🗑</button>
+            <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:11px;padding:3px 7px;text-decoration:none" title="${l === "ar" ? "تنزيل" : "Download"}">⬇</a>
+            <button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 7px;color:var(--red)" onclick="DocLib.deleteDoc(${d.id},${meetingId})" title="${l === "ar" ? "حذف" : "Delete"}">🗑</button>
           </div>
         </div>`,
           )
@@ -832,11 +832,11 @@ const DocLib = {
             <div style="font-size:26px;flex-shrink:0">${this.icon(d.doc_type)}</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${esc(d.title)}</div>
-              <div style="font-size:10px;color:var(--text3);margin-bottom:5px">${esc(d.meeting_title_ar || "")} · ${esc(d.upload_date || "")}${d.doc_classification ? " · " + esc(d.doc_classification) : ""}</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px">${esc(d.meeting_title_ar || "")} · ${esc(d.upload_date || "")}${d.doc_classification ? " · " + esc(d.doc_classification) : ""}</div>
               ${d.ai_summary ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:7px">${esc(d.ai_summary.slice(0, 130))}${d.ai_summary.length > 130 ? "…" : ""}</div>` : ""}
               <div style="display:flex;gap:5px;flex-wrap:wrap">
-                <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;text-decoration:none">⬇ ${l === "ar" ? "تنزيل" : "Download"}</a>
-                <button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;color:var(--red)" onclick="DocLib.deleteDoc(${d.id},${d.meeting_id})">🗑</button>
+                <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none">⬇ ${l === "ar" ? "تنزيل" : "Download"}</a>
+                <button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;color:var(--red)" onclick="DocLib.deleteDoc(${d.id},${d.meeting_id})">🗑</button>
               </div>
             </div>
           </div>
@@ -1432,7 +1432,7 @@ const Rec = {
           .toUpperCase() || "?";
       html +=
         `<div style="display:flex;gap:7px;align-items:flex-start;padding:5px 0;border-bottom:.5px solid var(--border2)">` +
-        `<div style="width:24px;height:24px;border-radius:50%;background:${color.bg};border:1px solid ${color.border};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${color.fg};flex-shrink:0;margin-top:2px">${esc(initials)}</div>` +
+        `<div style="width:24px;height:24px;border-radius:50%;background:${color.bg};border:1px solid ${color.border};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:${color.fg};flex-shrink:0;margin-top:2px">${esc(initials)}</div>` +
         `<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:${color.fg};margin-bottom:1px">${esc(speaker)}</div>` +
         `<div style="font-size:12px;color:var(--text);line-height:1.6">${esc(content)}</div></div></div>`;
     }
@@ -1519,7 +1519,7 @@ const Rec = {
                     : t.owner_en || t.owner_ar || "";
                 return `<div class="ex-item" style="font-size:11px;padding:5px 0;border-bottom:.5px solid var(--border2);color:var(--text);display:flex;gap:6px;align-items:flex-start">
             <span style="color:var(--gold);flex-shrink:0">✅</span>
-            <span style="flex:1">${esc(txt || "")}${own ? ` <span class="tag tgold" style="font-size:9px">${esc(own)}</span>` : ""}</span></div>`;
+            <span style="flex:1">${esc(txt || "")}${own ? ` <span class="tag tgold" style="font-size:10.5px">${esc(own)}</span>` : ""}</span></div>`;
               })
               .join("")
           : `<div style="font-size:11px;color:var(--text3);font-style:italic">${l === "ar" ? "لم تُكتشف مهام بعد..." : "No tasks detected yet..."}</div>`;
@@ -1667,7 +1667,7 @@ const Rec = {
           .map(
             (s) => `
           <div style="display:flex;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2);align-items:flex-start">
-            <div style="width:26px;height:26px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gold);flex-shrink:0">${esc(
+            <div style="width:26px;height:26px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0">${esc(
               String(s.speaker || "?")
                 .split(" ")
                 .slice(0, 2)
@@ -1724,7 +1724,7 @@ const Rec = {
                   .join(""),
               )}</div>
               <div style="font-size:12px;font-weight:700;color:var(--text)">${esc(owner)}</div>
-              <span class="tag" style="background:var(--navy4);font-size:10px">${ownerTasks.length} ${lbl("مهمة", "task")}</span>
+              <span class="tag" style="background:var(--navy4);font-size:11px">${ownerTasks.length} ${lbl("مهمة", "task")}</span>
             </div>
             ${ownerTasks
               .map(
@@ -1732,8 +1732,8 @@ const Rec = {
               <div style="display:flex;gap:8px;padding:7px 0 7px 12px;border-bottom:.5px solid var(--border2);align-items:flex-start">
                 <div style="width:5px;height:5px;border-radius:50%;background:${t.priority === "urgent" ? "var(--red)" : "var(--gold)"};margin-top:5px;flex-shrink:0"></div>
                 <div style="flex:1;font-size:12px;color:var(--text);line-height:1.6">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
-                ${t.priority === "urgent" ? `<span class="tag tr" style="font-size:10px">${lbl("عاجل", "Urgent")}</span>` : ""}
-                ${t.due ? `<span class="tag" style="background:var(--navy4);font-size:10px">${esc(t.due)}</span>` : ""}
+                ${t.priority === "urgent" ? `<span class="tag tr" style="font-size:11px">${lbl("عاجل", "Urgent")}</span>` : ""}
+                ${t.due ? `<span class="tag" style="background:var(--navy4);font-size:11px">${esc(t.due)}</span>` : ""}
               </div>`,
               )
               .join("")}
@@ -1816,7 +1816,7 @@ const Rec = {
               <div style="flex:1">
                 <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
                   <span style="font-size:12px;color:var(--text)">${esc(text || "")}</span>
-                  <span class="tag" style="font-size:10px;background:${sevColor}22;color:${sevColor}">${sevLbl}</span>
+                  <span class="tag" style="font-size:11px;background:${sevColor}22;color:${sevColor}">${sevLbl}</span>
                 </div>
                 ${mit ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;padding-inline-start:2px">→ ${esc(mit)}</div>` : ""}
               </div>
@@ -1960,16 +1960,16 @@ function _meetingLifecycle(m, l) {
       ? `<div style="width:10px;height:1px;flex-shrink:0;background:${s.state==='done'?'rgba(46,204,138,.4)':'var(--border2)'}"></div>`
       : '';
     return `${sep}<div style="display:flex;align-items:center;gap:3px;padding:3px 7px;border-radius:20px;background:${c.bg};border:.5px solid ${c.bd};white-space:nowrap" title="${s.state==='done'?ar('مكتمل','Completed'):s.state==='current'?ar('جارٍ','Current'):ar('معلق','Pending')}">
-      <span style="font-size:10px">${s.icon}</span>
-      <span style="font-size:10px;font-weight:${s.state==='current'?'700':'500'};color:${c.fg}">${l==='ar'?s.ar:s.en}</span>
-      <span style="font-size:8px;color:${c.fg}">${dot}</span>
+      <span style="font-size:11px">${s.icon}</span>
+      <span style="font-size:11px;font-weight:${s.state==='current'?'700':'500'};color:${c.fg}">${l==='ar'?s.ar:s.en}</span>
+      <span style="font-size:10px;color:${c.fg}">${dot}</span>
     </div>`;
   }).join('');
 
   return `<div style="margin:10px 0 6px;padding:10px 12px;background:var(--navy3);border-radius:10px;border:.5px solid var(--border2)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap">
-      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">⚡ ${ar('مسار الاجتماع','Meeting Lifecycle')}</span>
-      <span style="font-size:10px;font-weight:700;color:${barColor}">${doneCount}/${steps.length} ${ar('مكتملة','complete')} · ${pct}%</span>
+      <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">⚡ ${ar('مسار الاجتماع','Meeting Lifecycle')}</span>
+      <span style="font-size:11px;font-weight:700;color:${barColor}">${doneCount}/${steps.length} ${ar('مكتملة','complete')} · ${pct}%</span>
     </div>
     <div style="background:var(--navy4);border-radius:20px;height:4px;overflow:hidden;margin-bottom:8px">
       <div style="height:100%;border-radius:20px;background:${barColor};width:${pct}%;transition:width .5s"></div>
@@ -2008,24 +2008,24 @@ function _injectRecordHelper(l) {
       <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">🎙 ${l==='ar'?'نوع الالتقاط — اختر المصدر المناسب':'Capture Type — Choose Your Source'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
         <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:1px solid rgba(212,160,23,.25)">
-          <div style="font-size:10.5px;font-weight:700;color:var(--gold)">🖥 ${l==='ar'?'ميكروفون المتصفح':'Browser Microphone'}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'النطاق: ميكروفون محلي فقط':'Scope: local mic only'}</div>
-          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⚠ ${l==='ar'?'محلي فقط':'Local only'}</div>
+          <div style="font-size:11.5px;font-weight:700;color:var(--gold)">🖥 ${l==='ar'?'ميكروفون المتصفح':'Browser Microphone'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'النطاق: ميكروفون محلي فقط':'Scope: local mic only'}</div>
+          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⚠ ${l==='ar'?'محلي فقط':'Local only'}</div>
         </div>
         <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
-          <div style="font-size:10.5px;font-weight:700;color:#5B9BD6">📤 ${l==='ar'?'رفع تسجيل رسمي':'Upload Official Recording'}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'ملف من Zoom / Teams / Meet':'File from Zoom/Teams/Meet'}</div>
-          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(46,204,138,.10);color:#2ecc8a;border-radius:4px">✓ ${l==='ar'?'تسجيل كامل ممكن':'Full recording possible'}</div>
+          <div style="font-size:11.5px;font-weight:700;color:#5B9BD6">📤 ${l==='ar'?'رفع تسجيل رسمي':'Upload Official Recording'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'ملف من Zoom / Teams / Meet':'File from Zoom/Teams/Meet'}</div>
+          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(46,204,138,.10);color:#2ecc8a;border-radius:4px">✓ ${l==='ar'?'تسجيل كامل ممكن':'Full recording possible'}</div>
         </div>
         <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
-          <div style="font-size:10.5px;font-weight:700;color:#2D8CFF">☁ Zoom Cloud</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
-          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
+          <div style="font-size:11.5px;font-weight:700;color:#2D8CFF">☁ Zoom Cloud</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
+          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
         </div>
         <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
-          <div style="font-size:10.5px;font-weight:700;color:#6264A7">💼 Teams / Meet</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
-          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
+          <div style="font-size:11.5px;font-weight:700;color:#6264A7">💼 Teams / Meet</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
+          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
         </div>
       </div>
     </div>
@@ -2038,9 +2038,9 @@ function _injectRecordHelper(l) {
             ? 'بعد التسجيل، انقر <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> ← إرساله للاعتماد الرسمي من رئيس مجلس الإدارة ← أرشفة موثقة.'
             : 'After recording, click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval → officially archive.'}</div>
           <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
-            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف جاهز':'Archive ready'}</span>
-            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'الرفع اليدوي فعّال':'Manual upload active'}</span>
-            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'Zoom/Teams/Meet: التكامل جاهز — تتطلب بيانات اعتماد API':'Zoom/Teams/Meet: Integration Ready - API credentials required'}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف جاهز':'Archive ready'}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'الرفع اليدوي فعّال':'Manual upload active'}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'Zoom/Teams/Meet: التكامل جاهز — تتطلب بيانات اعتماد API':'Zoom/Teams/Meet: Integration Ready - API credentials required'}</span>
           </div>
         </div>
       </div>
@@ -2050,26 +2050,26 @@ function _injectRecordHelper(l) {
         <span style="font-size:20px">📤</span>
         <div>
           <div style="font-size:13px;font-weight:700;color:#5B9BD6">${l==='ar'?'رفع تسجيل رسمي للاجتماع':'Upload Official Meeting Recording'}</div>
-          <div style="font-size:10.5px;color:var(--text3);margin-top:1px">${l==='ar'?'Zoom · Microsoft Teams · Google Meet · قاعة اجتماعات':'Zoom · Microsoft Teams · Google Meet · Boardroom'}</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:1px">${l==='ar'?'Zoom · Microsoft Teams · Google Meet · قاعة اجتماعات':'Zoom · Microsoft Teams · Google Meet · Boardroom'}</div>
         </div>
-        <span style="margin-inline-start:auto;font-size:9.5px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.3)">✓ ${l==='ar'?'تسجيل كامل للاجتماع':'Full meeting capture'}</span>
+        <span style="margin-inline-start:auto;font-size:10.5px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.3)">✓ ${l==='ar'?'تسجيل كامل للاجتماع':'Full meeting capture'}</span>
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.65;margin-bottom:10px">${l==='ar'
         ? 'استخدم هذا الخيار لرفع التسجيل الرسمي من <strong style="color:#5B9BD6">Zoom أو Microsoft Teams أو Google Meet</strong> أو تسجيل قاعة الاجتماعات. يتيح التقاط أصوات جميع المشاركين وتصنيفه كـ <strong style="color:#2ecc8a">تسجيل كامل للاجتماع</strong>.'
         : 'Use this to upload the official recording from <strong style="color:#5B9BD6">Zoom, Microsoft Teams, Google Meet</strong>, or a boardroom system. This captures all participants and is classified as a <strong style="color:#2ecc8a">full meeting recording</strong>.'}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <div>
-          <label style="font-size:10.5px;color:var(--text3);display:block;margin-bottom:4px">📋 ${l==='ar'?'اختر الاجتماع:':'Select Meeting:'}</label>
+          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">📋 ${l==='ar'?'اختر الاجتماع:':'Select Meeting:'}</label>
           <select id="official-rec-meeting-sel" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11.5px">
             <option value="">${l==='ar'?'— جارٍ التحميل —':'— Loading —'}</option>
           </select>
         </div>
         <div>
-          <label style="font-size:10.5px;color:var(--text3);display:block;margin-bottom:4px">🎞 ${l==='ar'?'ملف التسجيل (صوت أو فيديو):':'Recording File (audio or video):'}</label>
+          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">🎞 ${l==='ar'?'ملف التسجيل (صوت أو فيديو):':'Recording File (audio or video):'}</label>
           <input type="file" id="official-rec-file"
             accept=".mp4,.mov,.webm,.mp3,.wav,.m4a,.aac,.ogg,.wma"
             style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11px;box-sizing:border-box">
-          <div style="font-size:9.5px;color:var(--text3);margin-top:3px">${l==='ar'?'الصيغ المدعومة: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — حتى 500 MB':'Supported: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — up to 500 MB'}</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:3px">${l==='ar'?'الصيغ المدعومة: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — حتى 500 MB':'Supported: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — up to 500 MB'}</div>
         </div>
         <button id="official-rec-btn" onclick="RecStore.uploadOfficial()"
           style="align-self:flex-start;padding:8px 20px;border-radius:8px;background:rgba(45,140,255,.15);color:#5B9BD6;border:1px solid rgba(45,140,255,.4);font-size:12px;font-weight:700;cursor:pointer">
@@ -2244,7 +2244,7 @@ async function renderTranscripts() {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'final-approve')" style="color:#2878dc;border-color:#2878dc">🏆 ${l==='ar'?'اعتماد نهائي':'Final Approve'}</button>`);
             }
             if (mStatus !== 'draft') {
-              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:10px">📋 ${l==='ar'?'سجل الاعتماد':'Approval Log'}</button>`);
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:11px">📋 ${l==='ar'?'سجل الاعتماد':'Approval Log'}</button>`);
             }
             return btns.join('');
           })();
@@ -2280,7 +2280,7 @@ async function renderTranscripts() {
                       ? s.text_ar || s.text_en || ""
                       : s.text_en || s.text_ar || "";
                   return `<div style="display:flex;gap:7px;padding:5px 0;border-bottom:.5px solid var(--border2);align-items:flex-start">
-                  <div style="width:22px;height:22px;border-radius:50%;background:${palette.bg};border:1px solid ${palette.border};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${palette.fg};flex-shrink:0;margin-top:1px">${esc(initials)}</div>
+                  <div style="width:22px;height:22px;border-radius:50%;background:${palette.bg};border:1px solid ${palette.border};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:${palette.fg};flex-shrink:0;margin-top:1px">${esc(initials)}</div>
                   <div style="flex:1;min-width:0">
                     <div style="font-size:11px;font-weight:700;color:${palette.fg}">${esc(spk)}</div>
                     <div style="font-size:12px;color:var(--text);line-height:1.6">${esc(txt)}</div>
@@ -2326,7 +2326,7 @@ async function renderTranscripts() {
                 ) => `<div style="display:flex;gap:7px;padding:4px 0;border-bottom:.5px solid var(--border2);font-size:11px;color:var(--text)">
               <span style="color:var(--gold)">→</span>
               <span style="flex:1">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
-              ${t.owner_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l === "ar" ? t.owner_ar : t.owner_en || t.owner_ar)}</span>` : ""}
+              ${t.owner_ar ? `<span class="tag tgold" style="font-size:11px">${esc(l === "ar" ? t.owner_ar : t.owner_en || t.owner_ar)}</span>` : ""}
             </div>`,
               )
               .join("")}
@@ -2395,44 +2395,44 @@ async function renderTranscripts() {
                   <span style="font-size:15px">📼</span>
                   <div>
                     <div style="font-size:11.5px;font-weight:700;color:var(--text)">${l==='ar'?'أرشيف التسجيل':'Recording Archive'}</div>
-                    <div style="font-size:9.5px;color:var(--text3);margin-top:1px">${l==='ar'?'تسجيل · اعتماد · أرشفة رسمية':'Record · Approve · Officially Archive'}</div>
+                    <div style="font-size:10.5px;color:var(--text3);margin-top:1px">${l==='ar'?'تسجيل · اعتماد · أرشفة رسمية':'Record · Approve · Officially Archive'}</div>
                   </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
-                  ${hasRec ? `<span style="font-size:10px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : `<span style="font-size:9.5px;color:#2ecc8a;background:rgba(46,204,138,.10);border:.5px solid rgba(46,204,138,.25);padding:2px 7px;border-radius:5px">✓ ${l==='ar'?'جاهز':'Ready'}</span>`}
-                  <span style="font-size:9.5px;font-weight:600;color:${stInfo.c}">${l==='ar'?stInfo.ar:stInfo.en}</span>
+                  ${hasRec ? `<span style="font-size:11px;font-weight:700;${ST_CLR[recSt]||''}">${ST_LABEL[recSt]||recSt}</span>` : `<span style="font-size:10.5px;color:#2ecc8a;background:rgba(46,204,138,.10);border:.5px solid rgba(46,204,138,.25);padding:2px 7px;border-radius:5px">✓ ${l==='ar'?'جاهز':'Ready'}</span>`}
+                  <span style="font-size:10.5px;font-weight:600;color:${stInfo.c}">${l==='ar'?stInfo.ar:stInfo.en}</span>
                 </div>
               </div>
               ${hasRec ? `
                 <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
-                  ${capInfo ? `<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:${capInfo.bg};color:${capInfo.c};border:.5px solid ${capInfo.bd}">${l==='ar'?capInfo.ar:capInfo.en}</span>` : ''}
-                  ${scopeInfo ? `<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:${scopeInfo.bg};color:${scopeInfo.c};border:.5px solid ${scopeInfo.bd}">${l==='ar'?scopeInfo.ar:scopeInfo.en}</span>` : ''}
+                  ${capInfo ? `<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${capInfo.bg};color:${capInfo.c};border:.5px solid ${capInfo.bd}">${l==='ar'?capInfo.ar:capInfo.en}</span>` : ''}
+                  ${scopeInfo ? `<span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${scopeInfo.bg};color:${scopeInfo.c};border:.5px solid ${scopeInfo.bd}">${l==='ar'?scopeInfo.ar:scopeInfo.en}</span>` : ''}
                 </div>
-                ${isLocalOnly ? `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.22);border-radius:7px;font-size:10.5px;color:#f0a000;line-height:1.5">⚠️ ${l==='ar'?'هذا التسجيل يحتوي على الميكروفون المحلي فقط — لا يشمل أصوات المشاركين الآخرين عبر منصات الاجتماع الافتراضية.':'This recording may only contain local microphone audio — other participants on virtual platforms are not captured.'}</div>` : ''}
-                ${m.recording_scope === 'full_meeting_recording' ? `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(46,204,138,.08);border:1px solid rgba(46,204,138,.25);border-radius:7px;font-size:10.5px;color:#2ecc8a;line-height:1.5">✓ ${l==='ar'?'تسجيل كامل للاجتماع متاح — يشمل جميع المشاركين.':'Full meeting recording available — captures all participants.'}</div>` : ''}
-                <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px;line-height:1.8">
+                ${isLocalOnly ? `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.22);border-radius:7px;font-size:11.5px;color:#f0a000;line-height:1.5">⚠️ ${l==='ar'?'هذا التسجيل يحتوي على الميكروفون المحلي فقط — لا يشمل أصوات المشاركين الآخرين عبر منصات الاجتماع الافتراضية.':'This recording may only contain local microphone audio — other participants on virtual platforms are not captured.'}</div>` : ''}
+                ${m.recording_scope === 'full_meeting_recording' ? `<div style="margin-bottom:8px;padding:6px 10px;background:rgba(46,204,138,.08);border:1px solid rgba(46,204,138,.25);border-radius:7px;font-size:11.5px;color:#2ecc8a;line-height:1.5">✓ ${l==='ar'?'تسجيل كامل للاجتماع متاح — يشمل جميع المشاركين.':'Full meeting recording available — captures all participants.'}</div>` : ''}
+                <div style="font-size:11.5px;color:var(--text3);margin-bottom:8px;line-height:1.8">
                   📁 ${esc(m.recording_file_name||'')} &nbsp;·&nbsp; ${fmtBytes(m.recording_file_size||0)}
                   ${m.recording_uploaded_at ? ` &nbsp;·&nbsp; 📅 ${m.recording_uploaded_at.substring(0,16)}` : ''}
                   ${verifier ? `<br>✓ ${l==='ar'?'معتمد بواسطة':'Verified by'}: <strong>${esc(verifier)}</strong>${m.recording_verified_at?' · '+m.recording_verified_at.substring(0,10):''}` : ''}
                 </div>
-                ${m.recording_notes ? `<div style="margin-bottom:8px;padding:5px 9px;background:var(--navy2);border-radius:7px;border-inline-start:2px solid var(--gold);font-size:10.5px;color:var(--text3);line-height:1.5"><span style="font-size:10px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==='ar'?'ملاحظات التسجيل:':'Recording Notes:'}</span>${esc(m.recording_notes)}</div>` : ''}
+                ${m.recording_notes ? `<div style="margin-bottom:8px;padding:5px 9px;background:var(--navy2);border-radius:7px;border-inline-start:2px solid var(--gold);font-size:11.5px;color:var(--text3);line-height:1.5"><span style="font-size:11px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==='ar'?'ملاحظات التسجيل:':'Recording Notes:'}</span>${esc(m.recording_notes)}</div>` : ''}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                   <a href="${esc(m.audio_recording_url)}" target="_blank" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">▶ ${l==='ar'?'تشغيل':'Play'}</a>
                   <a href="${esc(m.audio_recording_url)}" download class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${l==='ar'?'تنزيل':'Download'}</a>
                   ${(recSt==='none'||recSt==='rejected') ? `<button class="btn-ghost btn-sm" onclick="RecStore.approve(${m.id},'submit')" style="font-size:11px;color:var(--gold);border-color:var(--gold)">📋 ${l==='ar'?'رفع للاعتماد':'Submit for Approval'}</button>` : ''}
                   ${recSt==='pending' ? `<button class="btn-ghost btn-sm" onclick="RecStore.approve(${m.id},'approve')" style="font-size:11px;color:#2ecc8a;border-color:#2ecc8a">✅ ${l==='ar'?'اعتماد وأرشفة':'Approve & Archive'}</button>` : ''}
                   ${recSt==='pending' ? `<button class="btn-ghost btn-sm" onclick="RecStore.approve(${m.id},'reject')" style="font-size:11px;color:#e05252;border-color:#e05252">✕ ${l==='ar'?'رفض':'Reject'}</button>` : ''}
-                  ${recSt==='approved' ? `<span class="tag tg" style="font-size:10px">🏛 ${l==='ar'?'أرشيف رسمي':'Official Archive'}</span>` : ''}
-                  <button class="btn-ghost btn-sm" onclick="RecStore.remove(${m.id})" style="font-size:10px;color:#e05252;margin-${l==='ar'?'right':'left'}:auto">🗑</button>
+                  ${recSt==='approved' ? `<span class="tag tg" style="font-size:11px">🏛 ${l==='ar'?'أرشيف رسمي':'Official Archive'}</span>` : ''}
+                  <button class="btn-ghost btn-sm" onclick="RecStore.remove(${m.id})" style="font-size:11px;color:#e05252;margin-${l==='ar'?'right':'left'}:auto">🗑</button>
                 </div>
               ` : `<div style="padding:6px 2px">
                   <div style="font-size:11px;color:var(--text3);margin-bottom:4px">${l==='ar'?'لا يوجد تسجيل محفوظ في المنصة بعد.':'No recording stored on platform yet.'}</div>
-                  <div style="font-size:10.5px;color:var(--text3);opacity:.8;line-height:1.6">${l==='ar'?'سجّل الاجتماع ← انقر على <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> ← أرسله للاعتماد من رئيس مجلس الإدارة':'Record meeting → click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval'}</div>
+                  <div style="font-size:11.5px;color:var(--text3);opacity:.8;line-height:1.6">${l==='ar'?'سجّل الاجتماع ← انقر على <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> ← أرسله للاعتماد من رئيس مجلس الإدارة':'Record meeting → click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval'}</div>
                 </div>`}
             </div>`;
           })()}
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
-            ${m.shared ? `<span class="tag tg" style="font-size:10px">📤 ${l === "ar" ? "تمت المشاركة" : "Shared"}</span>` : ""}
+            ${m.shared ? `<span class="tag tg" style="font-size:11px">📤 ${l === "ar" ? "تمت المشاركة" : "Shared"}</span>` : ""}
             <button id="doc-upload-btn-${m.id}" class="btn-ghost btn-sm" onclick="DocLib.upload(${m.id})">📎 ${l === "ar" ? "إرفاق" : "Attach"}</button>
             <button class="btn-ghost btn-sm" onclick="TranscriptModal.open(${m.id})" title="${l === "ar" ? "إضافة أو تعديل النص" : "Add or edit transcript"}">✏️ ${l === "ar" ? "إضافة نص" : "Add Notes"}</button>
             ${isProcessed ? `<button id="bp-btn-${m.id}" class="btn-ghost btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l === "ar" ? "حزمة المجلس" : "Board Pack"}</button>` : ""}
@@ -2686,8 +2686,8 @@ async function renderLastMeeting() {
       <div style="background:var(--navy3);border-radius:8px;padding:10px;margin-bottom:6px">
         <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
-          ${t.owner_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l === "ar" ? t.owner_ar : t.owner_en || t.owner_ar)}</span>` : ""}
-          ${t.due_date ? `<span class="tag" style="background:var(--navy4);font-size:10px">${esc(t.due_date)}</span>` : ""}
+          ${t.owner_ar ? `<span class="tag tgold" style="font-size:11px">${esc(l === "ar" ? t.owner_ar : t.owner_en || t.owner_ar)}</span>` : ""}
+          ${t.due_date ? `<span class="tag" style="background:var(--navy4);font-size:11px">${esc(t.due_date)}</span>` : ""}
         </div>
       </div>`,
           )
@@ -2709,9 +2709,9 @@ async function renderLastMeeting() {
             <div style="font-size:18px;font-weight:800;color:var(--text)">⭐ ${title}</div>
             <div style="display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap">
               <div style="font-size:12px;color:var(--text3)">📅 ${esc((m.meeting_date || "").substring(0, 10))}</div>
-              ${meetingTypeLbl ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(meetingTypeLbl)}</span>` : ""}
-              ${m.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l === "ar" ? m.board_name_ar : m.board_name_en || m.board_name_ar)}</span>` : ""}
-              ${m.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l === "ar" ? m.committee_name_ar : m.committee_name_en || m.committee_name_ar)}</span>` : ""}
+              ${meetingTypeLbl ? `<span class="tag tgold" style="font-size:11px;padding:2px 7px">${esc(meetingTypeLbl)}</span>` : ""}
+              ${m.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:11px">🏛 ${esc(l === "ar" ? m.board_name_ar : m.board_name_en || m.board_name_ar)}</span>` : ""}
+              ${m.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:11px">⚙️ ${esc(l === "ar" ? m.committee_name_ar : m.committee_name_en || m.committee_name_ar)}</span>` : ""}
             </div>
           </div>
           <button class="btn-gold btn-sm" onclick="pushLastMeetingWhatsApp(${m.id})">📲 ${lbl("إرسال عبر واتساب", "Push to WhatsApp")}</button>
@@ -2787,10 +2787,10 @@ async function renderLastMeeting() {
               <span style="font-size:15px">${_ic}</span>
               <div style="flex:1;min-width:0">
                 <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(d.title)}</div>
-                ${d.description ? `<div style="font-size:10px;color:var(--text3)">${esc(d.description.substring(0, 65))}${d.description.length > 65 ? "…" : ""}</div>` : ""}
+                ${d.description ? `<div style="font-size:11px;color:var(--text3)">${esc(d.description.substring(0, 65))}${d.description.length > 65 ? "…" : ""}</div>` : ""}
               </div>
-              <span class="tag" style="font-size:10px;background:${_st.bg};color:${_st.c};flex-shrink:0">${_st[l === "ar" ? "ar" : "en"]}</span>
-              ${d.uploaded_by ? `<span style="font-size:10px;color:var(--text3);flex-shrink:0">👤 ${esc(d.uploaded_by)}</span>` : ""}
+              <span class="tag" style="font-size:11px;background:${_st.bg};color:${_st.c};flex-shrink:0">${_st[l === "ar" ? "ar" : "en"]}</span>
+              ${d.uploaded_by ? `<span style="font-size:11px;color:var(--text3);flex-shrink:0">👤 ${esc(d.uploaded_by)}</span>` : ""}
             </div>`;
             })
             .join("")}
@@ -2856,7 +2856,7 @@ async function renderTasks() {
       <div style="padding:14px 16px;background:var(--navy3);border-radius:12px;border:.5px solid var(--border2);text-align:center">
         <div style="font-size:15px;margin-bottom:5px">${icon}</div>
         <div style="font-size:26px;font-weight:800;color:${valColor};margin-bottom:4px;line-height:1">${val}</div>
-        <div style="font-size:10.5px;color:var(--text3);line-height:1.35">${l==="ar"?labelAr:labelEn}</div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.35">${l==="ar"?labelAr:labelEn}</div>
       </div>`;
 
     const kpiHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-bottom:20px">
@@ -2912,10 +2912,10 @@ async function renderTasks() {
             <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
               ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
               <span class="tag ${stClass}" style="font-size:11px">${stLabel}</span>
-              ${pri ? `<span class="tag" style="font-size:10.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${pri.lbl}</span>` : ""}
+              ${pri ? `<span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${pri.lbl}</span>` : ""}
               ${daysTag}
-              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:10.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
-              ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:10.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
+              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
+              ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:11.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
               ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"var(--red)":"var(--text3)"}">📅 ${l==="ar"?"الاستحقاق:":"Due:"} <strong style="color:${isOverdue?"var(--red)":"var(--text2)"}">${esc(t.due_date)}</strong></span>` : ""}
@@ -2923,7 +2923,7 @@ async function renderTasks() {
             </div>
             <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
               <span style="line-height:1.4">${l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed."}</span>
-              <button onclick="Tasks.edit(${t.id})" style="font-size:10px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
+              <button onclick="Tasks.edit(${t.id})" style="font-size:11px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
             </div>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
@@ -2951,14 +2951,14 @@ async function renderTasks() {
               ${isImpl
                 ? `<span class="tag tg" style="font-size:11px">✓ ${l==="ar"?"مُنفَّذ":"Implemented"}</span>`
                 : `<span class="tag" style="font-size:11px;background:rgba(255,160,0,.15);color:#f0a000;border:.5px solid rgba(255,160,0,.3)">⏳ ${l==="ar"?"معلق — قيد التنفيذ":"Pending Implementation"}</span>`}
-              ${decDate   ? `<span class="tag" style="background:var(--navy4);font-size:10.5px">📅 ${esc(decDate)}</span>` : ""}
-              ${decidedBy ? `<span class="tag tgold" style="font-size:10.5px">👤 ${esc(decidedBy)}</span>` : ""}
-              ${mtg       ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px;border:.5px solid var(--border2)">📝 ${esc(mtg.length>38?mtg.substring(0,38)+"…":mtg)}</span>` : ""}
+              ${decDate   ? `<span class="tag" style="background:var(--navy4);font-size:11.5px">📅 ${esc(decDate)}</span>` : ""}
+              ${decidedBy ? `<span class="tag tgold" style="font-size:11.5px">👤 ${esc(decidedBy)}</span>` : ""}
+              ${mtg       ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:11px;border:.5px solid var(--border2)">📝 ${esc(mtg.length>38?mtg.substring(0,38)+"…":mtg)}</span>` : ""}
             </div>
             ${notes
               ? `<div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border-inline-start:2px solid var(--gold);font-size:11px;color:var(--text3);line-height:1.5">
-                  <span style="font-size:10px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==="ar"?"الإجراء التالي / ملاحظات:":"Next Action / Notes:"}</span>${esc(notes)}</div>`
-              : `<div style="font-size:10.5px;color:var(--text3);font-style:italic;padding:3px 0;line-height:1.45">${l==="ar"?"لا توجد ملاحظات أو إجراءات محددة لهذا القرار بعد.":"No notes or next actions defined for this decision yet."}</div>`}
+                  <span style="font-size:11px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==="ar"?"الإجراء التالي / ملاحظات:":"Next Action / Notes:"}</span>${esc(notes)}</div>`
+              : `<div style="font-size:11.5px;color:var(--text3);font-style:italic;padding:3px 0;line-height:1.45">${l==="ar"?"لا توجد ملاحظات أو إجراءات محددة لهذا القرار بعد.":"No notes or next actions defined for this decision yet."}</div>`}
           </div>
           <button onclick="Tasks.deleteDecision(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">✕</button>
         </div>
@@ -3172,8 +3172,8 @@ const TaskTimeline = {
       ${dot('var(--gold)')}
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:700;color:var(--gold)">${l==='ar'?'تم الإنشاء':'Created'}</div>
-        ${task.created_at ? `<div style="font-size:10px;color:var(--text3)">${fmt(task.created_at)}</div>` : ''}
-        ${task.owner_name_en||task.owner_name_ar ? `<div style="font-size:10px;color:var(--text3)">${l==='ar'?'المسؤول: ':'Owner: '}${esc(l==='ar'?task.owner_name_ar:task.owner_name_en||task.owner_name_ar)}</div>` : ''}
+        ${task.created_at ? `<div style="font-size:11px;color:var(--text3)">${fmt(task.created_at)}</div>` : ''}
+        ${task.owner_name_en||task.owner_name_ar ? `<div style="font-size:11px;color:var(--text3)">${l==='ar'?'المسؤول: ':'Owner: '}${esc(l==='ar'?task.owner_name_ar:task.owner_name_en||task.owner_name_ar)}</div>` : ''}
       </div>
     </div>`);
 
@@ -3184,11 +3184,11 @@ const TaskTimeline = {
         <div style="flex:1;min-width:0">
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
             <span style="font-size:11px;font-weight:700;color:var(--text)">${esc(u.author_name||'')}</span>
-            ${u.author_role ? `<span style="font-size:10px;color:var(--text3)">· ${esc(u.author_role)}</span>` : ''}
-            ${u.status_snapshot ? `<span class="tag" style="font-size:9px;padding:1px 5px;${statusStyle(u.status_snapshot)}">${statusLabel(u.status_snapshot)}</span>` : ''}
+            ${u.author_role ? `<span style="font-size:11px;color:var(--text3)">· ${esc(u.author_role)}</span>` : ''}
+            ${u.status_snapshot ? `<span class="tag" style="font-size:10.5px;padding:1px 5px;${statusStyle(u.status_snapshot)}">${statusLabel(u.status_snapshot)}</span>` : ''}
           </div>
           <div style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:2px">${esc(u.update_text)}</div>
-          <div style="font-size:10px;color:var(--text3)">${fmt(u.created_at)}</div>
+          <div style="font-size:11px;color:var(--text3)">${fmt(u.created_at)}</div>
         </div>
       </div>`);
     });
@@ -3204,7 +3204,7 @@ const TaskTimeline = {
     container.innerHTML = `
       <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px">
         📋 ${l==='ar'?'سجل التحديثات':'Progress History'}
-        ${updates.length ? `<span class="tag" style="background:var(--navy4);font-size:10px;margin-${l==='ar'?'right':'left'}:4px">${updates.length}</span>` : ''}
+        ${updates.length ? `<span class="tag" style="background:var(--navy4);font-size:11px;margin-${l==='ar'?'right':'left'}:4px">${updates.length}</span>` : ''}
       </div>
       <div style="position:relative">
         <div style="position:absolute;top:5px;bottom:5px;left:4px;width:1px;background:var(--border2)"></div>
@@ -4162,38 +4162,38 @@ const Schedule = {
     const demoBanner = isVirt ? `
       <div style="margin-bottom:10px;padding:7px 10px;background:rgba(255,160,0,.07);border:1px solid rgba(255,160,0,.20);border-radius:7px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">
         <span style="font-size:14px">🔗</span>
-        <div style="flex:1;min-width:0;font-size:10px;color:var(--text3)">
+        <div style="flex:1;min-width:0;font-size:11px;color:var(--text3)">
           <span style="color:var(--gold);font-weight:700">${esc(p.label)} ${l==='ar'?'جاهز للربط':'integration ready'}</span>
           &nbsp;·&nbsp;${l==='ar'?'ربط مباشر بانتظار بيانات الاعتماد':'Live API connection pending credentials'}
         </div>
-        <span style="font-size:9px;padding:2px 7px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28);white-space:nowrap">✓ ${l==='ar'?'البنية جاهزة':'Architecture ready'}</span>
+        <span style="font-size:10.5px;padding:2px 7px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28);white-space:nowrap">✓ ${l==='ar'?'البنية جاهزة':'Architecture ready'}</span>
       </div>` : '';
 
     // Status grid — always shown for every meeting type
     const statusGrid = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px;padding-top:10px;border-top:1px solid var(--border2)">
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"حالة التسجيل":"Recording Status"}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"حالة التسجيل":"Recording Status"}</div>
           <div style="font-size:11px;font-weight:700;color:${isVirt ? recSt.color : '#2ecc8a'}">${isVirt ? recSt.label : (l==="ar"?"مدمج في المنصة":"On-platform")}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"النسخ":"Transcript"}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"النسخ":"Transcript"}</div>
           <div style="font-size:11px;font-weight:700;color:var(--text3)">${tLabel}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل السحابي":"Cloud Recording"}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل السحابي":"Cloud Recording"}</div>
           <div style="font-size:11px;font-weight:700;color:${isVirt?'var(--text3)':'#2ecc8a'}">${isVirt ? (s.recording_url ? `<a href="${esc(s.recording_url)}" target="_blank" style="color:var(--gold);text-decoration:none">${l==="ar"?"عرض ↗":"View ↗"}</a>` : (l==="ar"?"غير متصل":"Not Connected")) : (l==="ar"?"غير مطبق":"N/A")}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل الكامل":"Full Capture"}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التسجيل الكامل":"Full Capture"}</div>
           <div style="font-size:11px;font-weight:700;color:${isVirt?'#f0a000':'#2ecc8a'}">${isVirt ? (l==="ar"?"يتطلب بيانات الاعتماد":"Requires credentials") : (l==="ar"?"رفع يدوي متاح":"Manual upload available")}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"رفع يدوي":"Manual Upload"}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"رفع يدوي":"Manual Upload"}</div>
           <div style="font-size:11px;font-weight:700;color:#2ecc8a">${l==="ar"?"متاح ✓":"Available ✓"}</div>
         </div>
         <div style="background:var(--navy2);border:1px solid var(--border2);border-radius:7px;padding:8px 10px">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التخزين":"Storage"}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:3px">${l==="ar"?"التخزين":"Storage"}</div>
           <div style="font-size:11px;font-weight:700;color:#2ecc8a">${l==="ar"?"أرشيف جاهز ✓":"Archive Ready ✓"}</div>
         </div>
       </div>`;
@@ -4204,7 +4204,7 @@ const Schedule = {
           <span style="font-size:18px;line-height:1">${p.icon}</span>
           <div>
             <div style="font-size:12px;font-weight:700;color:${p.color}">${p.label}</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:1px">${isVirt ? (l==="ar"?"اجتماع افتراضي":"Virtual meeting") : (l==="ar"?"حضور فعلي في المقر":"In-person at venue")}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:1px">${isVirt ? (l==="ar"?"اجتماع افتراضي":"Virtual meeting") : (l==="ar"?"حضور فعلي في المقر":"In-person at venue")}</div>
           </div>
         </div>
         ${s.meeting_join_url
@@ -4212,7 +4212,7 @@ const Schedule = {
                style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;text-decoration:none;background:${p.badge};color:${p.color};border:1px solid ${p.color}33">
                ▶ ${l==="ar"?"انضم للاجتماع":"Join Meeting"}
              </a>`
-          : isVirt ? `<span style="font-size:10px;color:var(--text3);font-style:italic">${noLink}</span>` : ""}
+          : isVirt ? `<span style="font-size:11px;color:var(--text3);font-style:italic">${noLink}</span>` : ""}
       </div>
       ${demoBanner}
       ${statusGrid}
@@ -4256,22 +4256,22 @@ async function renderSchedule() {
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(title)}</div>
-              ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 7px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
-              ${isRecurring ? `<span class="tag" style="background:rgba(147,112,219,.15);color:#9370DB;font-size:10px">🔁 ${esc(recurrenceLabel(s.recurrence, l))}</span>` : ""}
-              ${s.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:10px">🏛 ${esc(l === "ar" ? s.board_name_ar : s.board_name_en || s.board_name_ar)}</span>` : ""}
-              ${s.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:10px">⚙️ ${esc(l === "ar" ? s.committee_name_ar : s.committee_name_en || s.committee_name_ar)}</span>` : ""}
-              ${s.doc_count ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:10px">📁 ${s.doc_count}</span>` : ""}
-              ${(s.meeting_provider && s.meeting_provider !== "physical") ? (() => { const _pc = {zoom:{c:"#2D8CFF",b:"rgba(45,140,255,.13)",i:"🎥",n:"Zoom"},teams:{c:"#6264A7",b:"rgba(98,100,167,.13)",i:"💼",n:"Teams"},google_meet:{c:"#00897B",b:"rgba(0,137,123,.13)",i:"🎦",n:"Meet"}}[s.meeting_provider]||{}; return `<span class="tag" style="background:${_pc.b};color:${_pc.c};font-size:10px;border:.5px solid ${_pc.c}33">${_pc.i} ${_pc.n}</span>`; })() : ""}
+              ${s.meeting_type ? `<span class="tag tgold" style="font-size:11px;padding:2px 7px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
+              ${isRecurring ? `<span class="tag" style="background:rgba(147,112,219,.15);color:#9370DB;font-size:11px">🔁 ${esc(recurrenceLabel(s.recurrence, l))}</span>` : ""}
+              ${s.board_name_ar ? `<span class="tag" style="background:rgba(91,155,214,.12);color:#5B9BD6;font-size:11px">🏛 ${esc(l === "ar" ? s.board_name_ar : s.board_name_en || s.board_name_ar)}</span>` : ""}
+              ${s.committee_name_ar ? `<span class="tag" style="background:rgba(46,204,138,.10);color:var(--green);font-size:11px">⚙️ ${esc(l === "ar" ? s.committee_name_ar : s.committee_name_en || s.committee_name_ar)}</span>` : ""}
+              ${s.doc_count ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:11px">📁 ${s.doc_count}</span>` : ""}
+              ${(s.meeting_provider && s.meeting_provider !== "physical") ? (() => { const _pc = {zoom:{c:"#2D8CFF",b:"rgba(45,140,255,.13)",i:"🎥",n:"Zoom"},teams:{c:"#6264A7",b:"rgba(98,100,167,.13)",i:"💼",n:"Teams"},google_meet:{c:"#00897B",b:"rgba(0,137,123,.13)",i:"🎦",n:"Meet"}}[s.meeting_provider]||{}; return `<span class="tag" style="background:${_pc.b};color:${_pc.c};font-size:11px;border:.5px solid ${_pc.c}33">${_pc.i} ${_pc.n}</span>`; })() : ""}
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">
               📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ""} · ${s.duration_mins || 60} ${l === "ar" ? "د" : "min"} · ${esc(s.platform || "")}
             </div>
             ${s.attendees ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">👥 ${esc(s.attendees)}</div>` : ""}
             ${agenda ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">📋 ${esc(agenda.substring(0, 80))}${agenda.length > 80 ? "…" : ""}</div>` : ""}
-            ${isDraft && s.source_meeting_id ? `<div style="font-size:10px;color:#d4a017;margin-top:3px">🤖 ${l === "ar" ? "مُقترح تلقائياً من نص اجتماع" : "Auto-suggested from a meeting transcript"}</div>` : ""}
+            ${isDraft && s.source_meeting_id ? `<div style="font-size:11px;color:#d4a017;margin-top:3px">🤖 ${l === "ar" ? "مُقترح تلقائياً من نص اجتماع" : "Auto-suggested from a meeting transcript"}</div>` : ""}
           </div>
           <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
-            ${isDraft ? `<span class="tag" style="background:#7c5e10;color:#ffd969;font-size:10px">📝 ${l === "ar" ? "مسودة" : "Draft"}</span>` : isUpcoming ? `<span class="tag tg" style="font-size:10px">${l === "ar" ? "قادم" : "Upcoming"}</span>` : `<span class="tag" style="background:var(--navy4);font-size:10px">${l === "ar" ? "مضى" : "Past"}</span>`}
+            ${isDraft ? `<span class="tag" style="background:#7c5e10;color:#ffd969;font-size:11px">📝 ${l === "ar" ? "مسودة" : "Draft"}</span>` : isUpcoming ? `<span class="tag tg" style="font-size:11px">${l === "ar" ? "قادم" : "Upcoming"}</span>` : `<span class="tag" style="background:var(--navy4);font-size:11px">${l === "ar" ? "مضى" : "Past"}</span>`}
           </div>
         </div>
         ${_meetingLifecycle(s, l)}
@@ -4325,11 +4325,11 @@ async function renderTemplates() {
             <span style="font-size:17px">${t.is_builtin ? "⭐" : "📋"}</span>
             <span style="font-size:12px;font-weight:700;color:var(--text)">${esc(name)}</span>
           </div>
-          ${type ? `<div style="font-size:10px;color:var(--gold);margin-bottom:3px">${esc(mtLabel(type, l))}</div>` : ""}
-          <div style="font-size:10px;color:var(--text3)">${dur} ${l === "ar" ? "دقيقة" : "min"}</div>
+          ${type ? `<div style="font-size:11px;color:var(--gold);margin-bottom:3px">${esc(mtLabel(type, l))}</div>` : ""}
+          <div style="font-size:11px;color:var(--text3)">${dur} ${l === "ar" ? "دقيقة" : "min"}</div>
           <div style="display:flex;gap:5px;margin-top:8px">
-            <button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 9px" onclick="event.stopPropagation();Schedule.applyTemplate(${t.id})">▶ ${l === "ar" ? "استخدام" : "Use"}</button>
-            ${!t.is_builtin ? `<button class="btn-ghost btn-sm" style="font-size:10px;padding:3px 7px;color:var(--red)" onclick="event.stopPropagation();Templates.deleteTemplate(${t.id})">✕</button>` : ""}
+            <button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();Schedule.applyTemplate(${t.id})">▶ ${l === "ar" ? "استخدام" : "Use"}</button>
+            ${!t.is_builtin ? `<button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 7px;color:var(--red)" onclick="event.stopPropagation();Templates.deleteTemplate(${t.id})">✕</button>` : ""}
           </div>
         </div>`;
         })
@@ -4669,7 +4669,7 @@ const Team = {
             memberTasks.length > 0
               ? `
           <div>
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:5px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:5px">
               <span>${l === "ar" ? "الإنجاز" : "Completion"}</span><span>${completion}%</span>
             </div>
             <div style="height:4px;background:var(--navy4);border-radius:4px;overflow:hidden">
@@ -4682,7 +4682,7 @@ const Team = {
             ${overdueTasks ? `<span class="tag tr">${overdueTasks} ${l === "ar" ? "متأخرة" : "overdue"}</span>` : ""}
             ${inProgTasks ? `<span class="tag ta">${inProgTasks} ${l === "ar" ? "جارٍ" : "in progress"}</span>` : ""}
             ${doneTasks ? `<span class="tag tg">${doneTasks} ${l === "ar" ? "مكتملة" : "done"}</span>` : ""}
-            ${!memberTasks.length ? `<span class="tag" style="background:var(--navy4);font-size:10px">${l === "ar" ? "لا مهام مسندة" : "No tasks assigned"}</span>` : ""}
+            ${!memberTasks.length ? `<span class="tag" style="background:var(--navy4);font-size:11px">${l === "ar" ? "لا مهام مسندة" : "No tasks assigned"}</span>` : ""}
           </div>
           ${
             canManage
@@ -5012,7 +5012,7 @@ async function renderOverview() {
             <div style="padding:8px 0;border-bottom:.5px solid var(--border2)">
               <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
                 <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
-                ${s.meeting_type ? `<span class="tag tgold" style="font-size:10px;padding:2px 6px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
+                ${s.meeting_type ? `<span class="tag tgold" style="font-size:11px;padding:2px 6px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
               </div>
               <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? "🕐 " + esc(s.meeting_time) : ""} · ${esc(s.platform || "")}</div>
             </div>`,
@@ -5035,8 +5035,8 @@ async function renderOverview() {
             <div style="background:var(--navy3);border-radius:8px;padding:10px;border:1px solid rgba(224,90,90,.2)">
               <div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
               <div style="display:flex;gap:5px;flex-wrap:wrap">
-                ${t.owner_name_ar ? `<span class="tag tgold" style="font-size:10px">${esc(l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar)}</span>` : ""}
-                ${t.due_date ? `<span class="tag tr" style="font-size:10px">${esc(t.due_date)}</span>` : ""}
+                ${t.owner_name_ar ? `<span class="tag tgold" style="font-size:11px">${esc(l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar)}</span>` : ""}
+                ${t.due_date ? `<span class="tag tr" style="font-size:11px">${esc(t.due_date)}</span>` : ""}
               </div>
             </div>`,
             )
@@ -5069,7 +5069,7 @@ async function renderOverview() {
                 .map(
                   (d) => `
           <div style="padding:9px 0;border-bottom:.5px solid var(--border2);display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:10px;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap;background:${d.status === "implemented" ? "rgba(46,204,113,.15)" : "rgba(255,193,7,.15)"};color:${d.status === "implemented" ? "var(--green)" : "var(--amber)"}">
+            <span style="font-size:11px;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap;background:${d.status === "implemented" ? "rgba(46,204,113,.15)" : "rgba(255,193,7,.15)"};color:${d.status === "implemented" ? "var(--green)" : "var(--amber)"}">
               ${esc(lbl(d.status === "implemented" ? "منفَّذ" : "قيد التنفيذ", d.status === "implemented" ? "Implemented" : "Pending"))}
             </span>
             <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? d.text_ar : d.text_en || d.text_ar)}</div>
@@ -5105,8 +5105,8 @@ async function renderOverview() {
             <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
               <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
               <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
-                ${t.due_date ? `<span class="tag ${t.status === "overdue" ? "tr" : "ta"}" style="font-size:10px">${esc(t.due_date)}</span>` : ""}
-                <span class="tag" style="font-size:10px;background:var(--navy4)">${esc(t.status)}</span>
+                ${t.due_date ? `<span class="tag ${t.status === "overdue" ? "tr" : "ta"}" style="font-size:11px">${esc(t.due_date)}</span>` : ""}
+                <span class="tag" style="font-size:11px;background:var(--navy4)">${esc(t.status)}</span>
               </div>
             </div>`,
                   )
@@ -5149,7 +5149,7 @@ async function renderOverview() {
       ${roleHeader}
       ${_ovBanner}
       ${Dash.bar(l)}
-      ${sec("stats", `<div style="margin-bottom:4px"><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
+      ${sec("stats", `<div style="margin-bottom:4px"><div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
       ${showCharts ? sec("charts", `<div>${_secHdr('📈',lbl('الاتجاهات والرسوم البيانية','Trends & Charts'),'','',lbl('بيانات حية من الاجتماعات المسجلة','Live data from recorded sessions'))}${chartsGridHtml}</div>`) : ""}
       ${sec("upcoming", `<div style="margin-bottom:14px">${_secHdr('📅',lbl('الاجتماعات القادمة','Upcoming Meetings'),'','',lbl('انقر للذهاب إلى الجدول','Click to open full schedule'))}${upcomingHtml}</div>`)}
       ${overdueHtml ? `<div>${_secHdr('⚠','المهام تحتاج انتباهاً','Needs Immediate Attention','','')}</div>` : ''}
@@ -5370,13 +5370,13 @@ async function renderAdminPanel() {
               <div class="uav" style="width:36px;height:36px;font-size:13px;flex-shrink:0">${esc(initials)}</div>
               <div style="flex:1;min-width:130px">
                 <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(name)}</div>
-                <div style="font-size:10px;color:var(--text3)">${esc(jobRole)} · ${esc(m.email)}</div>
+                <div style="font-size:11px;color:var(--text3)">${esc(jobRole)} · ${esc(m.email)}</div>
               </div>
               <select class="fi" style="width:auto;min-width:155px;font-size:12px;padding:6px 10px"
                 onchange="AdminPanel.changeRole(${m.id}, this.value)">
                 ${SYSTEM_ROLES.map((r) => `<option value="${r}" ${sysRole === r ? "selected" : ""}>${r}</option>`).join("")}
               </select>
-              <span id="role-badge-${m.id}" style="font-size:10px;padding:3px 9px;border-radius:12px;border:1px solid ${color}44;color:${color};background:${color}14;white-space:nowrap">${sysRole}</span>
+              <span id="role-badge-${m.id}" style="font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid ${color}44;color:${color};background:${color}14;white-space:nowrap">${sysRole}</span>
             </div>`;
             })
             .join("")}
@@ -5565,32 +5565,32 @@ function renderIntegrations() {
       </div>
 
       <div>
-        <div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px">${l==='ar'?'الميزات المتاحة عند الربط':'Features upon connection'}</div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px">${l==='ar'?'الميزات المتاحة عند الربط':'Features upon connection'}</div>
         <div style="display:flex;flex-direction:column;gap:5px">
           ${(l==='ar'?p.features_ar:p.features_en).map(f=>`
             <div style="display:flex;align-items:center;gap:7px">
               <span style="width:6px;height:6px;border-radius:50%;background:${p.color};opacity:.5;flex-shrink:0"></span>
               <span style="font-size:11.5px;color:var(--text2);flex:1">${f}</span>
-              <span style="font-size:9px;padding:1px 7px;border-radius:10px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.25);white-space:nowrap">${l==='ar'?'بانتظار الربط':'Pending'}</span>
+              <span style="font-size:10.5px;padding:1px 7px;border-radius:10px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.25);white-space:nowrap">${l==='ar'?'بانتظار الربط':'Pending'}</span>
             </div>`).join('')}
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
         <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'حالة الاتصال':'Connection'}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'حالة الاتصال':'Connection'}</div>
           <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'غير متصل':'Not Connected'}</div>
         </div>
         <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'آخر مزامنة':'Last Sync'}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'آخر مزامنة':'Last Sync'}</div>
           <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'لم تتم بعد':'Never'}</div>
         </div>
         <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'استيراد التسجيل':'Recording Import'}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'استيراد التسجيل':'Recording Import'}</div>
           <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'غير فعّال':'Inactive'}</div>
         </div>
         <div style="background:var(--navy2);border-radius:8px;padding:8px 10px;border:.5px solid var(--border2)">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'استيراد النص':'Transcript Import'}</div>
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:3px">${l==='ar'?'استيراد النص':'Transcript Import'}</div>
           <div style="font-size:11px;font-weight:600;color:#888">${l==='ar'?'غير فعّال':'Inactive'}</div>
         </div>
       </div>
@@ -5599,7 +5599,7 @@ function renderIntegrations() {
         <summary style="padding:9px 12px;font-size:11px;font-weight:700;color:var(--text3);cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px">
           <span>🔑</span>
           <span style="flex:1">${l==='ar'?'بيانات الاعتماد المطلوبة':'Required Credentials'}</span>
-          <span style="font-size:10px">▾</span>
+          <span style="font-size:11px">▾</span>
         </summary>
         <div style="padding:0 12px 11px">
           ${(l==='ar'?p.creds_ar:p.creds_en).map(c=>`
@@ -5607,7 +5607,7 @@ function renderIntegrations() {
               <span style="color:${p.color};font-size:13px">•</span>${c}
             </div>`).join('')}
           <div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--border2)">
-            <a href="${p.docs}" target="_blank" rel="noopener" style="font-size:10.5px;color:${p.color};text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+            <a href="${p.docs}" target="_blank" rel="noopener" style="font-size:11.5px;color:${p.color};text-decoration:none;display:inline-flex;align-items:center;gap:4px">
               📖 ${l==='ar'?'توثيق المطورين ↗':'Developer Docs ↗'}
             </a>
           </div>
@@ -5624,9 +5624,9 @@ function renderIntegrations() {
           ? 'اربط Zoom أو Microsoft Teams أو Google Meet لاستيراد التسجيلات والنصوص تلقائياً بعد كل اجتماع — دون أي تدخل يدوي. حتى إتمام الربط، يمكنك رفع الملفات يدوياً من صفحة <strong style="color:var(--gold)">تسجيل اجتماع</strong>.'
           : 'Connect Zoom, Microsoft Teams, or Google Meet to automatically import recordings and transcripts after every meeting — no manual steps needed. Until then, upload files manually from the <strong style="color:var(--gold)">Record Meeting</strong> page.'}</div>
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-          <span style="font-size:10px;padding:2px 9px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.30)">✓ ${l==='ar'?'البنية التحتية جاهزة':'Infrastructure ready'}</span>
-          <span style="font-size:10px;padding:2px 9px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.25)">⏳ ${l==='ar'?'بانتظار بيانات اعتماد API':'Awaiting API credentials'}</span>
-          <span style="font-size:10px;padding:2px 9px;border-radius:5px;background:rgba(91,155,214,.10);color:#5B9BD6;border:.5px solid rgba(91,155,214,.25)">📤 ${l==='ar'?'الرفع اليدوي متاح الآن':'Manual upload available now'}</span>
+          <span style="font-size:11px;padding:2px 9px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.30)">✓ ${l==='ar'?'البنية التحتية جاهزة':'Infrastructure ready'}</span>
+          <span style="font-size:11px;padding:2px 9px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.25)">⏳ ${l==='ar'?'بانتظار بيانات اعتماد API':'Awaiting API credentials'}</span>
+          <span style="font-size:11px;padding:2px 9px;border-radius:5px;background:rgba(91,155,214,.10);color:#5B9BD6;border:.5px solid rgba(91,155,214,.25)">📤 ${l==='ar'?'الرفع اليدوي متاح الآن':'Manual upload available now'}</span>
         </div>
       </div>
     </div>
@@ -5665,7 +5665,7 @@ async function renderAnalytics() {
         </div>
         <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(46,204,138,.1);color:var(--green);border:.5px solid rgba(46,204,138,.25);white-space:nowrap">📈 ${lbl("بيانات حية","Live Data")}</span>
       </div>
-      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-inline-start:2px">— ${lbl("الرسوم البيانية التفاعلية","Interactive Charts")} —</div>
+      <div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-inline-start:2px">— ${lbl("الرسوم البيانية التفاعلية","Interactive Charts")} —</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
           <div class="ct" style="margin-bottom:10px;font-size:13px">📅 ${lbl("معدل حضور الاجتماعات", "Meeting Attendance Rate")}</div>
@@ -5728,7 +5728,7 @@ async function renderAnalytics() {
             <div class="card" style="text-align:center;padding:14px 10px">
               <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
               <div style="font-size:22px;font-weight:800;color:${s.color}">${s.val}</div>
-              <div style="font-size:10px;color:var(--text3);margin-top:3px">${s.label}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">${s.label}</div>
             </div>`,
             )
             .join("")}

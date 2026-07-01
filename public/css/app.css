@@ -470,5 +470,32 @@ textarea.fi{min-height:88px}
 /* ── Light theme ──────────────────────────────────────────────── */
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:var(--border2)}
 [data-theme="light"] .card-gold{background:linear-gradient(135deg,var(--navy2) 65%,rgba(156,124,30,.04))}
-.spk-nm{font-size:10px;color:var(--text2);white-space:nowrap;max-width:64px;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.spk-nm{font-size:10.5px;color:var(--text2);white-space:nowrap;max-width:64px;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .spk-btn.spk-active .spk-nm{color:var(--gold);font-weight:600}
+
+/* ═══════════════════════════════════════════════════════════════
+   READABILITY REFINEMENT  ·  larger small-labels, looser dense text
+   Appended override layer — no base rules removed
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Smallest labels lifted for legibility (min ~10.5px) */
+.brand-en{font-size:10px}
+.nsec{font-size:10.5px;letter-spacing:.16em}
+.nbg{font-size:10.5px}
+.mts{font-size:11px}
+.stat-lbl{font-size:13px}
+
+/* Dense metadata rows: a touch more breathing room */
+.smeta{line-height:1.7}
+.task-meta{line-height:1.7;gap:10px}
+.el{line-height:1.5}
+.ctsub,.ptitle-sub{line-height:1.6}
+
+/* Empty states: clearer, calmer, more readable */
+.es{gap:15px;padding:60px 28px}
+.es-title{font-size:18px}
+.es-sub{font-size:14px;line-height:1.85;max-width:340px}
+
+/* Button consistency: unified min-height & alignment across variants */
+.btn-gold,.btn-ghost{min-height:40px;justify-content:center}
+.btn-sm{min-height:32px}
