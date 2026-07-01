@@ -1181,6 +1181,15 @@ const Rec = {
             App.lang === "ar"
               ? "تم رفض إذن الميكروفون — فعّله من إعدادات المتصفح ثم أعد المحاولة"
               : "Microphone permission denied — enable it in your browser settings and try again";
+        // Permission was revoked mid-session — surface it and stop cleanly so the
+        // UI never sits in a half-recording state (button stuck on ⏹, no captions).
+        showToast(
+          App.lang === "ar"
+            ? "تم رفض إذن الميكروفون — تم إيقاف التسجيل"
+            : "Microphone permission denied — recording stopped",
+          "error",
+        );
+        if (this.isRecording) this.stop();
       } else if (e.error !== "aborted" && e.error !== "no-speech") {
         console.warn("SR error:", e.error);
       }
@@ -1271,9 +1280,23 @@ const Rec = {
           App.lang === "ar" ? "🎙+🔊 كلا الجانبين" : "🎙+🔊 Both sides";
         badge.style.display = "";
       }
-      displayStream
-        .getAudioTracks()[0]
-        .addEventListener("ended", () => this._stopSystemAudio());
+      displayStream.getAudioTracks()[0].addEventListener("ended", () => {
+        // The track ends on programmatic stop() during a normal Rec.stop (no
+        // "ended" fires there) OR when the user revokes/stops the share mid-call.
+        // If we're still recording, this second case means the capture broke
+        // unexpectedly — tell the coordinator and reset the record button state.
+        const wasRecording = this.isRecording;
+        this._stopSystemAudio();
+        if (wasRecording) {
+          showToast(
+            App.lang === "ar"
+              ? "توقف التقاط صوت النظام بشكل غير متوقع — تم إيقاف التسجيل"
+              : "System audio capture ended unexpectedly — recording stopped",
+            "error",
+          );
+          this.stop();
+        }
+      });
     } catch (_e) {
       // User dismissed the screen-share prompt — mic-only recording continues.
     }
