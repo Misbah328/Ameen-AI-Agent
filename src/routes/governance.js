@@ -589,7 +589,8 @@ router.patch('/general-assemblies/:id', auth, (req, res) => {
 
 // ── Shareholders CRUD ─────────────────────────────────────────────────────────
 router.get('/general-assemblies/:id/shareholders', auth, (req, res) => {
-  res.json(db.prepare('SELECT * FROM ga_shareholders WHERE ga_schedule_id=? ORDER BY shares DESC').all(req.params.id));
+  try { res.json(db.prepare('SELECT * FROM ga_shareholders WHERE ga_schedule_id=? ORDER BY shares DESC').all(req.params.id)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.post('/general-assemblies/:id/shareholders', auth, (req, res) => {
   try {
@@ -618,7 +619,8 @@ router.delete('/ga-shareholders/:id', auth, (req, res) => {
 
 // ── GA Votes CRUD ─────────────────────────────────────────────────────────────
 router.get('/general-assemblies/:id/ga-votes', auth, (req, res) => {
-  res.json(db.prepare('SELECT * FROM ga_votes WHERE ga_schedule_id=? ORDER BY sort_order,id').all(req.params.id));
+  try { res.json(db.prepare('SELECT * FROM ga_votes WHERE ga_schedule_id=? ORDER BY sort_order,id').all(req.params.id)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.post('/general-assemblies/:id/ga-votes', auth, (req, res) => {
   try {
@@ -654,7 +656,8 @@ router.delete('/ga-votes/:id', auth, (req, res) => {
 
 // ── Officers CRUD ─────────────────────────────────────────────────────────────
 router.get('/general-assemblies/:id/officers', auth, (req, res) => {
-  res.json(db.prepare('SELECT * FROM ga_officers WHERE ga_schedule_id=? ORDER BY id').all(req.params.id));
+  try { res.json(db.prepare('SELECT * FROM ga_officers WHERE ga_schedule_id=? ORDER BY id').all(req.params.id)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.post('/general-assemblies/:id/officers', auth, (req, res) => {
   try {
