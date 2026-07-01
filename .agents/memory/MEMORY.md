@@ -6,3 +6,4 @@
 - [Live-extract catch path](live-extract-catch.md) — /api/live-extract catch block must return all four keys (tasks/decisions/risks/followups) or frontend render crashes on undefined.
 - [Dual-side audio capture](dual-audio-capture.md) — getDisplayMedia captures both sides of browser video calls; SpeechRecognition reads mic only (browser API limitation); blob download shown in renderResult when Rec._dualAudioUrl is set.
 - [Meeting provider integrations](meeting-provider-integrations.md) — Zoom/Teams/Meet are UI-only manual-URL; never label "Connected" without real API wiring.
+- [Button wiring & "do nothing" audits](button-wiring-audit.md) — inline onclick resolves top-level const; nav is delegated & downloads are <a> — both false-positive onclick-only audits; full audit found 0 broken buttons.
