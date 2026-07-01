@@ -525,15 +525,15 @@ const Gov = {
   },
 
   async addBoard() {
-    const ar = $('b-name-ar')?.value.trim();
+    const ar = (($('b-name-ar') || {}).value || '').trim();
     if (!ar) { showToast(this.lbl('يرجى إدخال اسم المجلس','Please enter a board name'), 'error'); return; }
     try {
       await api('/api/gov/boards', { method:'POST', body: JSON.stringify({
-        name_ar: ar, name_en: $('b-name-en')?.value.trim()||ar,
-        description: $('b-desc')?.value.trim()||'',
-        chairperson: $('b-chair')?.value.trim()||'',
-        total_members: parseInt($('b-total')?.value)||0,
-        default_quorum: parseInt($('b-quorum')?.value)||0,
+        name_ar: ar, name_en: (($('b-name-en') || {}).value || '').trim() || ar,
+        description: (($('b-desc') || {}).value || '').trim() || '',
+        chairperson: (($('b-chair') || {}).value || '').trim() || '',
+        total_members: parseInt(($('b-total') || {}).value) || 0,
+        default_quorum: parseInt(($('b-quorum') || {}).value) || 0,
       })});
       // Reload boards + refresh App cache
       await this._reloadBoards();
@@ -548,15 +548,15 @@ const Gov = {
   },
 
   async addCommittee(boardId) {
-    const ar = $(`c-name-ar-${boardId}`)?.value.trim();
+    const ar = (($('c-name-ar-' + boardId) || {}).value || '').trim();
     if (!ar) { showToast(this.lbl('يرجى إدخال اسم اللجنة','Please enter a committee name'), 'error'); return; }
     try {
       await api('/api/gov/committees', { method:'POST', body: JSON.stringify({
         board_id: boardId,
-        name_ar: ar, name_en: $(`c-name-en-${boardId}`)?.value.trim()||ar,
-        description: $(`c-desc-${boardId}`)?.value.trim()||'',
-        chairperson: $(`c-chair-${boardId}`)?.value.trim()||'',
-        total_members: parseInt($(`c-total-${boardId}`)?.value)||0,
+        name_ar: ar, name_en: (($('c-name-en-' + boardId) || {}).value || '').trim() || ar,
+        description: (($('c-desc-' + boardId) || {}).value || '').trim() || '',
+        chairperson: (($('c-chair-' + boardId) || {}).value || '').trim() || '',
+        total_members: parseInt(($('c-total-' + boardId) || {}).value) || 0,
       })});
       await this._reloadBoards();
       showToast(this.lbl('تم إضافة اللجنة','Committee added'), 'success');
@@ -710,11 +710,11 @@ const Gov = {
   },
 
   async addAgendaItem() {
-    const t = $('ai-title')?.value.trim();
+    const t = (($('ai-title') || {}).value || '').trim();
     if (!t) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
-    const body = { title: t, description: $('ai-desc')?.value.trim() || '',
-      presenter: $('ai-pres')?.value.trim() || '', duration_mins: parseInt($('ai-dur')?.value)||15,
-      expected_outcome: $('ai-out')?.value.trim() || '' };
+    const body = { title: t, description: (($('ai-desc') || {}).value || '').trim() || '',
+      presenter: (($('ai-pres') || {}).value || '').trim() || '', duration_mins: parseInt(($('ai-dur') || {}).value) || 15,
+      expected_outcome: (($('ai-out') || {}).value || '').trim() || '' };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
     try { await api('/api/gov/agenda', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
@@ -793,14 +793,14 @@ const Gov = {
   },
 
   async addAttendee() {
-    const name = $('att-name')?.value.trim();
+    const name = (($('att-name') || {}).value || '').trim();
     if (!name) { showToast(this.lbl('يرجى إدخال الاسم','Please enter a name'), 'error'); return; }
     try {
       await api('/api/gov/attendance', { method:'POST', body: JSON.stringify({
         meeting_id: this.meetingId, name,
-        email: $('att-email')?.value.trim()||'',
-        role: $('att-role')?.value||'Member',
-        attendance_status: $('att-status')?.value||'pending',
+        email: (($('att-email') || {}).value || '').trim() || '',
+        role: ($('att-role') || {}).value || 'Member',
+        attendance_status: ($('att-status') || {}).value || 'pending',
       })});
       await this._loadSections();
     } catch (e) { showToast(e.message, 'error'); }
@@ -846,7 +846,7 @@ const Gov = {
   _autoSaveQuorum() { clearTimeout(this._qTimer); this._qTimer = setTimeout(() => this.saveQuorum(), 900); },
 
   async saveQuorum() {
-    const body = { required_members: parseInt($('q-req')?.value)||0, present_members: parseInt($('q-pres')?.value)||0, notes: $('q-notes')?.value.trim()||'' };
+    const body = { required_members: parseInt(($('q-req') || {}).value) || 0, present_members: parseInt(($('q-pres') || {}).value) || 0, notes: (($('q-notes') || {}).value || '').trim() || '' };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
     try {
       await api('/api/gov/quorum', { method:'PUT', body: JSON.stringify(body) });
@@ -1063,16 +1063,16 @@ const Gov = {
   },
 
   async addResolution() {
-    const title = $('res-title')?.value.trim();
+    const title = (($('res-title') || {}).value || '').trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
-    const body = { title, description: $('res-desc')?.value.trim()||'' };
+    const body = { title, description: (($('res-desc') || {}).value || '').trim() || '' };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
     try { await api('/api/gov/resolutions', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
   },
 
   async vote(resId, vote) {
-    const comment = ($(`vote-comment-${resId}`)?.value || '').trim();
+    const comment = (($('vote-comment-' + resId) || {}).value || '').trim();
     try {
       await api(`/api/gov/resolutions/${resId}/vote`, { method:'POST', body: JSON.stringify({ vote, comments: comment }) });
       showToast(this.lbl('تم تسجيل صوتك','Vote recorded successfully'), 'success');
@@ -1260,7 +1260,7 @@ const Gov = {
   },
 
   async addFollowup(resId) {
-    const body = { owner: $(`fu-owner-${resId}`)?.value.trim()||'', due_date: $(`fu-due-${resId}`)?.value||'', notes: $(`fu-notes-${resId}`)?.value.trim()||'', status:'pending' };
+    const body = { owner: (($('fu-owner-' + resId) || {}).value || '').trim() || '', due_date: ($('fu-due-' + resId) || {}).value || '', notes: (($('fu-notes-' + resId) || {}).value || '').trim() || '', status:'pending' };
     try { await api(`/api/gov/resolutions/${resId}/followups`, { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
   },
@@ -1347,15 +1347,15 @@ const Gov = {
   },
 
   async addDocument() {
-    const title = $('doc-title')?.value.trim();
+    const title = (($('doc-title') || {}).value || '').trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
     const body = {
       title,
-      doc_type: $('doc-type')?.value || 'other',
-      description: $('doc-desc')?.value.trim() || '',
-      uploaded_by: $('doc-by')?.value.trim() || '',
-      upload_date: $('doc-date')?.value || '',
-      status: $('doc-status')?.value || 'draft',
+      doc_type: ($('doc-type') || {}).value || 'other',
+      description: (($('doc-desc') || {}).value || '').trim() || '',
+      uploaded_by: (($('doc-by') || {}).value || '').trim() || '',
+      upload_date: ($('doc-date') || {}).value || '',
+      status: ($('doc-status') || {}).value || 'draft',
     };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
     try { await api('/api/gov/documents', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
@@ -1363,13 +1363,13 @@ const Gov = {
   },
 
   async addAgendaDoc(itemId) {
-    const title = $(`ai-doc-title-${itemId}`)?.value.trim();
+    const title = (($('ai-doc-title-' + itemId) || {}).value || '').trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
     const body = {
       title,
-      doc_type: $(`ai-doc-type-${itemId}`)?.value || 'other',
-      uploaded_by: $(`ai-doc-by-${itemId}`)?.value.trim() || '',
-      status: $(`ai-doc-status-${itemId}`)?.value || 'draft',
+      doc_type: ($('ai-doc-type-' + itemId) || {}).value || 'other',
+      uploaded_by: (($('ai-doc-by-' + itemId) || {}).value || '').trim() || '',
+      status: ($('ai-doc-status-' + itemId) || {}).value || 'draft',
       agenda_item_id: itemId,
     };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
@@ -1879,7 +1879,7 @@ const Gov = {
   },
 
   async createGA() {
-    const title_ar = ($('cga-title-ar')||{}).value?.trim();
+    const title_ar = (($('cga-title-ar') || {}).value || '').trim();
     const meeting_date = ($('cga-date')||{}).value;
     if (!title_ar || !meeting_date) return showToast(this.lbl('حقل الاسم والتاريخ مطلوبان','Title and date are required'), 'error');
     try {
@@ -1905,7 +1905,7 @@ const Gov = {
   },
 
   async saveShareholder(gaId) {
-    const name_en = ($('sh-en-' + gaId)||{}).value?.trim();
+    const name_en = (($('sh-en-' + gaId) || {}).value || '').trim();
     if (!name_en) return showToast(this.lbl('الاسم مطلوب','Name is required'), 'error');
     const body = {
       name_en, name_ar: ($('sh-ar-' + gaId)||{}).value || name_en,
@@ -1931,7 +1931,7 @@ const Gov = {
   },
 
   async saveGAVote(gaId) {
-    const motion_en = ($('vt-en-' + gaId)||{}).value?.trim();
+    const motion_en = (($('vt-en-' + gaId) || {}).value || '').trim();
     if (!motion_en) return showToast(this.lbl('نص الاقتراح مطلوب','Motion text is required'), 'error');
     const body = {
       motion_en, motion_ar: ($('vt-ar-' + gaId)||{}).value || motion_en,

@@ -24,8 +24,8 @@
     setTimeout(function () { location.reload(); }, RELOAD_DELAY_MS);
   }
   window.addEventListener('error', function (e) {
-    var fromApp = !e.filename || /\/js\/app\.js/.test(e.filename);
-    if (e && e.message && /Unexpected end of input/.test(e.message) && fromApp) {
+    var fromApp = !e.filename || /\/js\/(app|governance)\.js/.test(e.filename);
+    if (e && e.message && /Unexpected (end of input|token)/.test(e.message) && fromApp) {
       if (e.preventDefault) e.preventDefault();
       recover();
     }
