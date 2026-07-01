@@ -3051,7 +3051,16 @@ const Tasks = {
   async delete(id) {
     if (!confirm(App.lang === "ar" ? "حذف هذه المهمة؟" : "Delete this task?"))
       return;
-    await api(`/api/tasks/${id}`, { method: "DELETE" });
+    try {
+      await api(`/api/tasks/${id}`, { method: "DELETE" });
+    } catch (e) {
+      showToast(
+        (App.lang === "ar" ? "تعذّر حذف المهمة: " : "Could not delete task: ") +
+          e.message,
+        "error",
+      );
+      return;
+    }
     var _tr = document.getElementById("tr-" + id); if (_tr) _tr.remove();
     await loadBadges();
   },
