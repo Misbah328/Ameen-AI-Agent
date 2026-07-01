@@ -357,8 +357,12 @@ router.get('/general-assemblies', auth, (req, res) => {
   try {
     const gas = db.prepare(`
       SELECT s.*,
-        (SELECT COUNT(*) FROM resolutions WHERE schedule_id=s.id) as resolution_count,
-        (SELECT COUNT(*) FROM agenda_items WHERE schedule_id=s.id) as agenda_count,
+        (SELECT COUNT(*) FROM resolutions     WHERE schedule_id=s.id) as resolution_count,
+        (SELECT COUNT(*) FROM agenda_items    WHERE schedule_id=s.id) as agenda_count,
+        (SELECT COUNT(*) FROM ga_shareholders WHERE ga_schedule_id=s.id) as shareholder_count,
+        (SELECT SUM(shares) FROM ga_shareholders WHERE ga_schedule_id=s.id) as total_shares,
+        (SELECT json_group_array(json_object('role',role,'role_ar',role_ar,'name_en',name_en,'name_ar',name_ar))
+         FROM ga_officers WHERE ga_schedule_id=s.id) as officers_json,
         mq.quorum_achieved, mq.required_members as quorum_required,
         mq.present_members as quorum_present, mq.notes as quorum_notes
       FROM schedule s
@@ -421,6 +425,274 @@ router.post('/resolutions/:id/voting-status', auth, (req, res) => {
     }
   }
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  GENERAL ASSEMBLY — Full CRUD (shareholders, votes, officers, minutes, docs)
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /api/gov/general-assemblies/:id/detail — comprehensive GA report
+router.get('/general-assemblies/:id/detail', auth, (req, res) => {
+  try {
+    const gaId = parseInt(req.params.id);
+    const ga = db.prepare("SELECT * FROM schedule WHERE id=? AND meeting_type='general_assembly'").get(gaId);
+    if (!ga) return res.status(404).json({ error: 'GA not found' });
+
+    const shareholders = db.prepare('SELECT * FROM ga_shareholders WHERE ga_schedule_id=? ORDER BY shares DESC').all(gaId);
+    const gaVotes      = db.prepare('SELECT * FROM ga_votes WHERE ga_schedule_id=? ORDER BY sort_order,id').all(gaId);
+    const officers     = db.prepare('SELECT * FROM ga_officers WHERE ga_schedule_id=? ORDER BY id').all(gaId);
+    const agenda       = db.prepare('SELECT * FROM agenda_items WHERE schedule_id=? ORDER BY sort_order,id').all(gaId);
+    const resolutions  = db.prepare(`
+      SELECT r.*,
+        (SELECT json_group_array(json_object('id',rf.id,'owner',rf.owner,'due_date',rf.due_date,'status',rf.status,'notes',rf.notes))
+         FROM resolution_followups rf WHERE rf.resolution_id=r.id) as followups_json
+      FROM resolutions r WHERE r.schedule_id=? ORDER BY r.id
+    `).all(gaId);
+    const documents    = db.prepare('SELECT * FROM meeting_documents WHERE schedule_id=? ORDER BY upload_date DESC,id DESC').all(gaId);
+    const minutes      = db.prepare('SELECT * FROM ga_minutes WHERE ga_schedule_id=?').get(gaId);
+
+    // Share-based quorum
+    const totalShares   = shareholders.reduce((s, sh) => s + (sh.shares || 0), 0);
+    const presentShares = shareholders.filter(sh => ['present','proxy'].includes(sh.attendance_status))
+                                       .reduce((s, sh) => s + (sh.shares || 0), 0);
+    const quorumPct = totalShares > 0 ? Math.round((presentShares / totalShares) * 100) : 0;
+    const year = (ga.meeting_date || '2026').substring(0, 4);
+
+    // Shape shareholders → frontend _gaDemo format
+    const shareholdersOut = shareholders.map(sh => ({
+      id: sh.id, ga_schedule_id: gaId,
+      nameAr: sh.name_ar || sh.name_en, nameEn: sh.name_en,
+      shares: sh.shares, pct: sh.share_pct,
+      voteRights: sh.vote_rights || sh.shares,
+      attendance: sh.attendance_status,
+      proxy: sh.proxy_name || '—', notes: sh.notes || '',
+    }));
+
+    // Shape GA votes
+    const votesOut = gaVotes.map(v => {
+      const tot = v.total_votes || (v.votes_for + v.votes_against + v.votes_abstain);
+      return { id: v.id, ga_schedule_id: gaId,
+        motionAr: v.motion_ar || v.motion_en, motionEn: v.motion_en,
+        for: v.votes_for, against: v.votes_against, abstain: v.votes_abstain,
+        total: tot, passed: v.passed === 1, notes: v.notes || '' };
+    });
+
+    // Shape agenda
+    const agendaOut = agenda.map((ag, i) => ({
+      id: ag.id, no: ag.sort_order || (i + 1),
+      titleAr: ag.title, titleEn: ag.title,
+      presenter: ag.presenter || '—', status: 'approved',
+    }));
+
+    // Shape resolutions
+    const resolutionsOut = resolutions.map((r, i) => {
+      const fus = r.followups_json ? JSON.parse(r.followups_json).filter(Boolean) : [];
+      const fu  = fus[0] || {};
+      return { id: r.id,
+        no: 'GA-' + year + '-' + String(i + 1).padStart(3, '0'),
+        descAr: r.title, descEn: r.title,
+        ownerAr: fu.owner || '—', ownerEn: fu.owner || '—',
+        due: fu.due_date || '',
+        status: r.status || 'pending',
+        votes_approve: r.votes_approve || 0, votes_reject: r.votes_reject || 0 };
+    });
+
+    // Minutes workflow steps
+    const m = minutes || {};
+    const minutesWorkflow = [
+      { stepAr:'مسودة',            stepEn:'Draft',                icon:'📄', done:!!m.draft_date,       doneBy:m.draft_by||null, date:m.draft_date||null },
+      { stepAr:'مراجعة أمين السر', stepEn:'Secretary Review',    icon:'🔍', done:!!m.circulated_date,  doneBy:null,             date:m.circulated_date||null },
+      { stepAr:'مراجعة الرئيس',    stepEn:'Chairman Review',     icon:'👑', done:!!m.approved_date,    doneBy:null,             date:m.approved_date||null },
+      { stepAr:'موافقة المساهمين', stepEn:'Shareholder Approval',icon:'🗳', done:!!m.final_date,       doneBy:null,             date:m.final_date||null },
+      { stepAr:'اعتماد نهائي',     stepEn:'Final Approved',      icon:'✅', done:m.status==='final',   doneBy:null,             date:m.final_date||null },
+    ];
+
+    // Shape documents
+    const iconMap = { notice:'📨', agenda:'📋', board_pack:'📦', financial:'💰', minutes:'📝' };
+    const documentsOut = documents.map(d => ({
+      id: d.id, icon: iconMap[d.doc_type] || '📄',
+      nameAr: d.title, nameEn: d.title,
+      date: (d.upload_date || d.created_at || '').substring(0, 10),
+      status: d.status || 'draft', by: d.uploaded_by || '—', doc_type: d.doc_type,
+    }));
+
+    // Action items from resolution followups
+    const followups = db.prepare(`
+      SELECT rf.*, r.title as res_title FROM resolution_followups rf
+      JOIN resolutions r ON rf.resolution_id=r.id
+      WHERE r.schedule_id=? ORDER BY rf.due_date ASC
+    `).all(gaId);
+    const actionItemsOut = followups.map(f => ({
+      id: f.id,
+      descAr: f.notes || f.res_title || '', descEn: f.notes || f.res_title || '',
+      ownerAr: f.owner || '—', ownerEn: f.owner || '—',
+      priority: 'normal', due: f.due_date || '',
+      progress: f.status === 'completed' ? 100 : f.status === 'in_progress' ? 60 : 20,
+    }));
+
+    // Timeline derived from GA data
+    const today = new Date().toISOString().substring(0, 10);
+    const isHeld = !!(ga.meeting_date && ga.meeting_date <= today);
+    const noticeDoc = documents.find(d => d.doc_type === 'notice');
+    const timeline = [
+      { eventAr:'إنشاء الجمعية',        eventEn:'GA Created',       icon:'🏗', done:true,     date:(ga.created_at||'').substring(0,10) },
+      { eventAr:'إصدار الإشعار الرسمي', eventEn:'Notice Issued',    icon:'📨', done:!!noticeDoc, date:noticeDoc?(noticeDoc.upload_date||'').substring(0,10):null },
+      { eventAr:'توزيع وثائق الجمعية',  eventEn:'Documents Shared', icon:'📦', done:documents.some(d=>d.status==='approved'), date:null },
+      { eventAr:'انعقاد الجمعية',        eventEn:'GA Held',          icon:'🏢', done:isHeld,   date:ga.meeting_date||null },
+      { eventAr:'إغلاق التصويت',         eventEn:'Voting Closed',    icon:'🗳', done:isHeld&&gaVotes.some(v=>v.total_votes>0), date:isHeld?ga.meeting_date:null },
+      { eventAr:'اعتماد المحضر',         eventEn:'Minutes Approved', icon:'✅', done:!!(m.approved_date), date:m.approved_date||null },
+      { eventAr:'أرشفة الوثائق',         eventEn:'Archived',         icon:'🗄', done:ga.status==='archived', date:null },
+    ];
+
+    const officersOut = officers.map(o => ({
+      id: o.id, role: o.role, roleAr: o.role_ar || o.role,
+      nameAr: o.name_ar || o.name_en, nameEn: o.name_en,
+    }));
+
+    res.json({
+      ga, quorum: { totalShares, sharesPresent: presentShares, required: 50, pct: quorumPct, achieved: quorumPct >= 50 },
+      shareholders: shareholdersOut, votes: votesOut, agenda: agendaOut,
+      resolutions: resolutionsOut, minutesWorkflow, documents: documentsOut,
+      actionItems: actionItemsOut, timeline, officers: officersOut, minutes,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/general-assemblies — create new GA
+router.post('/general-assemblies', auth, (req, res) => {
+  try {
+    const { title_ar, title_en, ga_type, meeting_date, meeting_time, duration_mins, platform, attendees } = req.body;
+    if (!title_ar || !meeting_date) return res.status(400).json({ error: 'title_ar and meeting_date required' });
+    const row = db.prepare(`
+      INSERT INTO schedule (title_ar,title_en,meeting_date,meeting_time,duration_mins,platform,attendees,created_by,meeting_type,status)
+      VALUES (?,?,?,?,?,?,?,?,'general_assembly','draft')
+    `).run(title_ar, title_en||title_ar, meeting_date, meeting_time||'10:00', duration_mins||120, platform||'', attendees||0, req.user.id);
+    const gaId = row.lastInsertRowid;
+    db.prepare(`INSERT OR IGNORE INTO ga_minutes (ga_schedule_id,status) VALUES (?,?)`).run(gaId,'draft');
+    res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(gaId));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH /api/gov/general-assemblies/:id — update GA header
+router.patch('/general-assemblies/:id', auth, (req, res) => {
+  try {
+    const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, status } = req.body;
+    db.prepare(`UPDATE schedule SET title_ar=COALESCE(?,title_ar),title_en=COALESCE(?,title_en),
+      meeting_date=COALESCE(?,meeting_date),meeting_time=COALESCE(?,meeting_time),
+      duration_mins=COALESCE(?,duration_mins),platform=COALESCE(?,platform),
+      attendees=COALESCE(?,attendees),status=COALESCE(?,status) WHERE id=?`)
+      .run(title_ar||null,title_en||null,meeting_date||null,meeting_time||null,
+           duration_mins||null,platform||null,attendees||null,status||null,req.params.id);
+    res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Shareholders CRUD ─────────────────────────────────────────────────────────
+router.get('/general-assemblies/:id/shareholders', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM ga_shareholders WHERE ga_schedule_id=? ORDER BY shares DESC').all(req.params.id));
+});
+router.post('/general-assemblies/:id/shareholders', auth, (req, res) => {
+  try {
+    const { name_ar, name_en, shares, share_pct, vote_rights, attendance_status, proxy_name, notes } = req.body;
+    if (!name_en) return res.status(400).json({ error: 'name_en required' });
+    const row = db.prepare(`INSERT INTO ga_shareholders (ga_schedule_id,name_ar,name_en,shares,share_pct,vote_rights,attendance_status,proxy_name,notes)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(req.params.id, name_ar||name_en, name_en, shares||0, share_pct||0, vote_rights||shares||0, attendance_status||'pending', proxy_name||null, notes||null);
+    res.json(db.prepare('SELECT * FROM ga_shareholders WHERE id=?').get(row.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.patch('/ga-shareholders/:id', auth, (req, res) => {
+  try {
+    const { name_ar, name_en, shares, share_pct, vote_rights, attendance_status, proxy_name, notes } = req.body;
+    db.prepare(`UPDATE ga_shareholders SET name_ar=COALESCE(?,name_ar),name_en=COALESCE(?,name_en),
+      shares=COALESCE(?,shares),share_pct=COALESCE(?,share_pct),vote_rights=COALESCE(?,vote_rights),
+      attendance_status=COALESCE(?,attendance_status),proxy_name=COALESCE(?,proxy_name),notes=COALESCE(?,notes) WHERE id=?`)
+      .run(name_ar||null,name_en||null,shares??null,share_pct??null,vote_rights??null,attendance_status||null,proxy_name||null,notes||null,req.params.id);
+    res.json(db.prepare('SELECT * FROM ga_shareholders WHERE id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/ga-shareholders/:id', auth, (req, res) => {
+  try { db.prepare('DELETE FROM ga_shareholders WHERE id=?').run(req.params.id); res.json({ ok:true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GA Votes CRUD ─────────────────────────────────────────────────────────────
+router.get('/general-assemblies/:id/ga-votes', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM ga_votes WHERE ga_schedule_id=? ORDER BY sort_order,id').all(req.params.id));
+});
+router.post('/general-assemblies/:id/ga-votes', auth, (req, res) => {
+  try {
+    const { motion_ar, motion_en, votes_for=0, votes_against=0, votes_abstain=0, notes, sort_order } = req.body;
+    if (!motion_en && !motion_ar) return res.status(400).json({ error: 'motion required' });
+    const tot = (votes_for||0)+(votes_against||0)+(votes_abstain||0);
+    const row = db.prepare(`INSERT INTO ga_votes (ga_schedule_id,motion_ar,motion_en,votes_for,votes_against,votes_abstain,total_votes,passed,notes,sort_order)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .run(req.params.id, motion_ar||motion_en, motion_en||motion_ar, votes_for, votes_against, votes_abstain,
+           tot, votes_for > votes_against ? 1:0, notes||null, sort_order||0);
+    res.json(db.prepare('SELECT * FROM ga_votes WHERE id=?').get(row.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.patch('/ga-votes/:id', auth, (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM ga_votes WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    const { motion_ar, motion_en, votes_for, votes_against, votes_abstain, notes, sort_order } = req.body;
+    const vf = votes_for    !== undefined ? Number(votes_for)    : existing.votes_for;
+    const va = votes_against!== undefined ? Number(votes_against): existing.votes_against;
+    const vb = votes_abstain!== undefined ? Number(votes_abstain): existing.votes_abstain;
+    db.prepare(`UPDATE ga_votes SET motion_ar=COALESCE(?,motion_ar),motion_en=COALESCE(?,motion_en),
+      votes_for=?,votes_against=?,votes_abstain=?,total_votes=?,passed=?,
+      notes=COALESCE(?,notes),sort_order=COALESCE(?,sort_order) WHERE id=?`)
+      .run(motion_ar||null,motion_en||null,vf,va,vb,vf+va+vb,vf>va?1:0,notes||null,sort_order??null,req.params.id);
+    res.json(db.prepare('SELECT * FROM ga_votes WHERE id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/ga-votes/:id', auth, (req, res) => {
+  try { db.prepare('DELETE FROM ga_votes WHERE id=?').run(req.params.id); res.json({ ok:true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Officers CRUD ─────────────────────────────────────────────────────────────
+router.get('/general-assemblies/:id/officers', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM ga_officers WHERE ga_schedule_id=? ORDER BY id').all(req.params.id));
+});
+router.post('/general-assemblies/:id/officers', auth, (req, res) => {
+  try {
+    const { role, role_ar, name_en, name_ar } = req.body;
+    if (!name_en || !role) return res.status(400).json({ error: 'name_en and role required' });
+    const row = db.prepare(`INSERT INTO ga_officers (ga_schedule_id,role,role_ar,name_en,name_ar) VALUES (?,?,?,?,?)`)
+      .run(req.params.id, role, role_ar||role, name_en, name_ar||name_en);
+    res.json(db.prepare('SELECT * FROM ga_officers WHERE id=?').get(row.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.patch('/ga-officers/:id', auth, (req, res) => {
+  try {
+    const { role, role_ar, name_en, name_ar } = req.body;
+    db.prepare(`UPDATE ga_officers SET role=COALESCE(?,role),role_ar=COALESCE(?,role_ar),name_en=COALESCE(?,name_en),name_ar=COALESCE(?,name_ar) WHERE id=?`)
+      .run(role||null,role_ar||null,name_en||null,name_ar||null,req.params.id);
+    res.json(db.prepare('SELECT * FROM ga_officers WHERE id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/ga-officers/:id', auth, (req, res) => {
+  try { db.prepare('DELETE FROM ga_officers WHERE id=?').run(req.params.id); res.json({ ok:true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Minutes workflow PATCH ────────────────────────────────────────────────────
+router.patch('/general-assemblies/:id/minutes', auth, (req, res) => {
+  try {
+    const { status, draft_date, circulated_date, approved_date, final_date, draft_by, notes } = req.body;
+    db.prepare(`INSERT INTO ga_minutes (ga_schedule_id,status,draft_date,circulated_date,approved_date,final_date,draft_by,notes)
+      VALUES (?,?,?,?,?,?,?,?)
+      ON CONFLICT(ga_schedule_id) DO UPDATE SET
+        status=COALESCE(excluded.status,status),draft_date=COALESCE(excluded.draft_date,draft_date),
+        circulated_date=COALESCE(excluded.circulated_date,circulated_date),
+        approved_date=COALESCE(excluded.approved_date,approved_date),
+        final_date=COALESCE(excluded.final_date,final_date),
+        draft_by=COALESCE(excluded.draft_by,draft_by),notes=COALESCE(excluded.notes,notes)`)
+      .run(req.params.id,status||null,draft_date||null,circulated_date||null,approved_date||null,final_date||null,draft_by||null,notes||null);
+    res.json(db.prepare('SELECT * FROM ga_minutes WHERE ga_schedule_id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

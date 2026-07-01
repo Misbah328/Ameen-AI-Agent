@@ -252,7 +252,25 @@ const Gov = {
           <div class="ct">🏢 ${lbl('الجمعيات العمومية','General Assemblies')}</div>
           <div class="ctsub">${lbl('الجمعية العمومية العادية وغير العادية — مجموعة أمين هولدينج','Ordinary & Extraordinary General Assemblies — Ameen Holdings Group')}</div>
         </div>
-        <span class="tag tb" style="font-size:12px">${gas.length} ${lbl('جمعية','assembly')}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="tag tb" style="font-size:12px">${gas.length} ${lbl('جمعية','assembly')}</span>
+          ${App.user && ['Admin','CEO','Chairman','Secretary'].includes(App.user.role_en) ? `<button class="btn-gold btn-sm" onclick="Gov._showCreateGA()" style="font-size:12px">+ ${lbl('جمعية عمومية جديدة','New GA')}</button>` : ''}
+        </div>
+      </div>
+      <div id="create-ga-form" style="display:none;background:var(--navy3);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid rgba(212,160,23,.3)">
+        <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:12px">🏢 ${lbl('إنشاء جمعية عمومية جديدة','Create New General Assembly')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <input class="fi" id="cga-title-ar" placeholder="${lbl('اسم الجمعية (بالعربية)','Meeting Title (Arabic)')}*" style="grid-column:1/-1"/>
+          <input class="fi" id="cga-title-en" placeholder="${lbl('اسم الجمعية (بالإنجليزية)','Meeting Title (English)')}" style="grid-column:1/-1"/>
+          <input class="fi" type="date" id="cga-date" placeholder="${lbl('تاريخ الاجتماع','Meeting Date')}*"/>
+          <input class="fi" type="time" id="cga-time" value="10:00"/>
+          <input class="fi" id="cga-venue" placeholder="${lbl('مقر الاجتماع','Venue')}"/>
+          <input class="fi" type="number" id="cga-duration" placeholder="${lbl('المدة (دقيقة)','Duration (mins)')}" value="120"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-gold btn-sm" onclick="Gov.createGA()">${lbl('إنشاء','Create')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov._hideForm('create-ga-form')">${lbl('إلغاء','Cancel')}</button>
+        </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px">
         ${gas.map((ga, idx) => {
@@ -312,15 +330,20 @@ const Gov = {
                 <!-- Key people -->
                 <div style="background:var(--navy4);border-radius:10px;padding:13px">
                   <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${lbl('الهيئة الرئاسية','Key Roles')}</div>
-                  ${[
-                    ['👑', lbl('رئيس الجمعية','Chairman'), 'Mohammed Al-Otaibi'],
-                    ['📝', lbl('أمين السر','Secretary'), 'Fatima Al-Harbi'],
-                    ['⚖️', lbl('المستشار القانوني','Legal Advisor'), 'Omar Hassan'],
-                  ].map(([ic,role,name]) => `<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
-                    <span style="font-size:14px;flex-shrink:0">${ic}</span>
-                    <span style="font-size:11.5px;color:var(--text3);flex-shrink:0">${role}:</span>
-                    <span style="font-size:12.5px;font-weight:600;color:var(--text)">${name}</span>
-                  </div>`).join('')}
+                  ${(() => {
+                    const roleIcon = { chairman:'👑', secretary:'📝', legal_advisor:'⚖️', scrutineer:'🔍', other:'👤' };
+                    const roleEnLabel = { chairman:'Chairman', secretary:'Secretary', legal_advisor:'Legal Advisor', scrutineer:'Scrutineer' };
+                    const roleArLabel = { chairman:'رئيس الجمعية', secretary:'أمين السر', legal_advisor:'مستشار قانوني', scrutineer:'مدقق أصوات' };
+                    let officers = [];
+                    try { officers = ga.officers_json ? JSON.parse(ga.officers_json) : []; } catch(e) {}
+                    officers = officers.filter(Boolean).slice(0,3);
+                    if (!officers.length) return `<div style="font-size:12px;color:var(--text3);font-style:italic">${lbl('لم يُعيَّن مسؤولون بعد','No officers assigned yet')}</div>`;
+                    return officers.map(o => `<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+                      <span style="font-size:14px;flex-shrink:0">${roleIcon[o.role]||'👤'}</span>
+                      <span style="font-size:11.5px;color:var(--text3);flex-shrink:0">${l==='ar'?(o.role_ar||(roleArLabel[o.role]||o.role)):(roleEnLabel[o.role]||o.role)}:</span>
+                      <span style="font-size:12.5px;font-weight:600;color:var(--text)">${l==='ar'?(o.name_ar||o.name_en):o.name_en}</span>
+                    </div>`).join('');
+                  })()}
                 </div>
                 <!-- Quorum -->
                 <div style="background:var(--navy4);border-radius:10px;padding:13px">
@@ -1366,20 +1389,43 @@ const Gov = {
   },
 
   // ── General Assembly: toggle detail panel ──────────────────────────────────
-  _toggleGADetail(gaId) {
+  async _toggleGADetail(gaId) {
     const el = document.getElementById('ga-detail-' + gaId);
     const btn = document.getElementById('ga-toggle-' + gaId);
     if (!el) return;
     const l = App.lang;
     if (el.style.display === 'none' || !el.style.display) {
-      const ga = (this._gas || []).find(g => g.id === gaId) || { id: gaId };
-      el.innerHTML = this._sGADetail(ga);
       el.style.display = '';
+      el.innerHTML = `<div style="padding:20px;text-align:center;border-top:2px solid rgba(139,92,246,.25);margin-top:4px">
+        <div class="loading"></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:10px">${l==='ar'?'جارٍ تحميل التقرير الكامل...':'Loading full GA report...'}</div>
+      </div>`;
       if (btn) btn.textContent = (l === 'ar' ? '▲ طي التقرير' : '▲ Collapse');
+      const ga = (this._gas || []).find(g => g.id === gaId) || { id: gaId };
+      try {
+        const detail = await api('/api/gov/general-assemblies/' + gaId + '/detail');
+        const gaData = detail.ga || ga;
+        el.innerHTML = this._sGADetail(gaData, detail);
+      } catch(e) {
+        el.innerHTML = this._sGADetail(ga, null);
+      }
       setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     } else {
       el.style.display = 'none';
       if (btn) btn.innerHTML = '📊 ' + (l === 'ar' ? 'التقرير الكامل' : 'Full GA Report');
+    }
+  },
+
+  async _reloadGADetail(gaId) {
+    const el = document.getElementById('ga-detail-' + gaId);
+    if (!el || el.style.display === 'none') return;
+    el.innerHTML = '<div style="padding:14px;text-align:center"><div class="loading"></div></div>';
+    const ga = (this._gas || []).find(g => g.id === gaId) || { id: gaId };
+    try {
+      const detail = await api('/api/gov/general-assemblies/' + gaId + '/detail');
+      el.innerHTML = this._sGADetail(detail.ga || ga, detail);
+    } catch(e) {
+      el.innerHTML = this._sGADetail(ga, null);
     }
   },
 
@@ -1449,10 +1495,11 @@ const Gov = {
   },
 
   // ── Full 10-section GA Detail Panel ────────────────────────────────────────
-  _sGADetail(ga) {
+  _sGADetail(ga, apiDetail) {
     const l = App.lang;
     const lbl = this.lbl.bind(this);
     const demo = this._gaDemo(ga);
+    const data = apiDetail || demo;
     const fmt = n => n ? Number(n).toLocaleString() : '0';
 
     // ── 1. Overview Card ──────────────────────────────────────────────────
@@ -1487,20 +1534,23 @@ const Gov = {
     </div>`;
 
     // ── 2. Shareholders ───────────────────────────────────────────────────
-    const sh = demo.shareholders;
+    const sh = data.shareholders;
     const atC = { present:'var(--green)', absent:'var(--red)', proxy:'var(--amber)', excused:'var(--text3)' };
     const atL = { present:lbl('حاضر','Present'), absent:lbl('غائب','Absent'), proxy:lbl('وكيل','Proxy'), excused:lbl('معتذر','Excused') };
+    const canManage = App.user && ['Admin','CEO','Chairman','Secretary'].includes(App.user.role_en);
     const s2 = `<div class="card">
       <div class="ch" style="margin-bottom:14px">
         <div><div class="ct">👥 ${lbl('المساهمون','Shareholders')}</div>
         <div class="ctsub">${lbl('سجل الحضور وحقوق التصويت','Attendance and voting rights register')}</div></div>
-        <span class="tag tb">${sh.length} ${lbl('مساهم','shareholders')}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="tag tb">${sh.length} ${lbl('مساهم','shareholders')}</span>
+          ${canManage && apiDetail ? `<button class="btn-ghost btn-sm" onclick="Gov._toggleForm('sh-add-form-${ga.id}')" style="font-size:11px">+ ${lbl('إضافة','Add')}</button>` : ''}
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="border-bottom:1px solid var(--border2)">
-            ${[lbl('المساهم','Shareholder'),lbl('الأسهم','Shares'),lbl('النسبة','%'),lbl('حقوق التصويت','Vote Rights'),lbl('الحضور','Attendance'),lbl('الوكيل','Proxy')]
-              .map(h=>`<th style="text-align:start;padding:7px 10px;color:var(--text3);font-size:11px;font-weight:700">${h}</th>`).join('')}
+            ${['المساهم/Shareholder','الأسهم/Shares','النسبة/%','حقوق التصويت/Vote Rights','الحضور/Attendance','الوكيل/Proxy'].map(h=>{ const [a,e]=h.split('/'); return `<th style="text-align:start;padding:7px 10px;color:var(--text3);font-size:11px;font-weight:700">${lbl(a,e)}</th>`; }).join('')}${canManage && apiDetail ? '<th style="padding:7px 10px"></th>' : ''}
           </tr></thead>
           <tbody>
             ${sh.map((s,i)=>`<tr style="border-bottom:.5px solid var(--border2);${i%2===1?'background:rgba(255,255,255,.02)':''}">
@@ -1510,14 +1560,37 @@ const Gov = {
               <td style="padding:9px 10px;color:var(--text2)">${fmt(s.voteRights)}</td>
               <td style="padding:9px 10px"><span class="tag" style="font-size:11px;color:${atC[s.attendance]||'var(--text3)'};background:transparent;border:1px solid ${atC[s.attendance]||'var(--border2)'}">${atL[s.attendance]||s.attendance}</span></td>
               <td style="padding:9px 10px;color:var(--text3)">${s.proxy}</td>
+              ${canManage && apiDetail && s.id ? `<td style="padding:9px 10px"><button class="btn-ghost btn-sm" onclick="Gov.deleteShareholder(${s.id},${ga.id})" style="font-size:10px;color:var(--red);border-color:var(--red)">✕</button></td>` : ''}
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
+      ${canManage && apiDetail ? `
+      <div id="sh-add-form-${ga.id}" style="display:none;margin-top:12px;background:var(--navy3);border-radius:10px;padding:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">+ ${lbl('إضافة مساهم','Add Shareholder')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <input class="fi" id="sh-en-${ga.id}" placeholder="${lbl('الاسم (بالإنجليزية)','Name (English)')}*"/>
+          <input class="fi" id="sh-ar-${ga.id}" placeholder="${lbl('الاسم (بالعربية)','Name (Arabic)')}"/>
+          <input class="fi" type="number" id="sh-shares-${ga.id}" placeholder="${lbl('عدد الأسهم','Shares')}"/>
+          <input class="fi" type="number" id="sh-pct-${ga.id}" placeholder="${lbl('نسبة الملكية %','% Ownership')}" step="0.1"/>
+          <select class="fi" id="sh-att-${ga.id}">
+            <option value="pending">${lbl('مجهول','Unknown')}</option>
+            <option value="present">${lbl('حاضر','Present')}</option>
+            <option value="absent">${lbl('غائب','Absent')}</option>
+            <option value="proxy">${lbl('وكيل','Proxy')}</option>
+            <option value="excused">${lbl('معتذر','Excused')}</option>
+          </select>
+          <input class="fi" id="sh-proxy-${ga.id}" placeholder="${lbl('اسم الوكيل (إذا وكيل)','Proxy Name (if proxy)')}"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-gold btn-sm" onclick="Gov.saveShareholder(${ga.id})">${lbl('حفظ','Save')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov._toggleForm('sh-add-form-${ga.id}')">${lbl('إلغاء','Cancel')}</button>
+        </div>
+      </div>` : ''}
     </div>`;
 
     // ── 3. Quorum ─────────────────────────────────────────────────────────
-    const q = demo.quorum;
+    const q = data.quorum;
     const qPct = Math.round((q.sharesPresent / q.totalShares) * 100);
     const s3 = `<div class="card" style="border:1px solid ${q.achieved?'rgba(46,204,138,.3)':'rgba(240,100,100,.3)'}">
       <div class="ch" style="margin-bottom:14px">
@@ -1554,7 +1627,7 @@ const Gov = {
     </div>`;
 
     // ── 4. Agenda ─────────────────────────────────────────────────────────
-    const agItems = demo.agenda;
+    const agItems = data.agenda;
     const agStC = { approved:'var(--green)', closed:'var(--text3)', deferred:'var(--amber)', pending:'var(--amber)' };
     const agStL = { approved:lbl('مُقرَّر','Approved'), closed:lbl('مُغلق','Closed'), deferred:lbl('مُؤجَّل','Deferred'), pending:lbl('معلق','Pending') };
     const s4 = `<div class="card">
@@ -1576,25 +1649,48 @@ const Gov = {
     </div>`;
 
     // ── 5. Voting ─────────────────────────────────────────────────────────
-    const votes = demo.votes;
+    const votes = data.votes;
     const s5 = `<div class="card">
       <div class="ch" style="margin-bottom:14px">
         <div><div class="ct">🗳 ${lbl('نتائج التصويت','Voting Results')}</div>
         <div class="ctsub">${lbl('نتائج التصويت على القرارات الرسمية','Formal voting results')}</div></div>
-        <span class="tag tg">${votes.filter(v=>v.passed).length}/${votes.length} ${lbl('نجح','passed')}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="tag tg">${votes.filter(v=>v.passed).length}/${votes.length} ${lbl('نجح','passed')}</span>
+          ${canManage && apiDetail ? `<button class="btn-ghost btn-sm" onclick="Gov._toggleForm('vt-add-form-${ga.id}')" style="font-size:11px">+ ${lbl('اقتراح','Motion')}</button>` : ''}
+        </div>
       </div>
+      ${canManage && apiDetail ? `
+      <div id="vt-add-form-${ga.id}" style="display:none;background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">+ ${lbl('إضافة اقتراح تصويت','Add Vote Motion')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <input class="fi" id="vt-en-${ga.id}" placeholder="${lbl('الاقتراح (بالإنجليزية)','Motion (English)')}*" style="grid-column:1/-1"/>
+          <input class="fi" id="vt-ar-${ga.id}" placeholder="${lbl('الاقتراح (بالعربية)','Motion (Arabic)')}"/>
+          <input class="fi" type="number" id="vt-for-${ga.id}" placeholder="${lbl('أصوات مع','Votes For')}" min="0"/>
+          <input class="fi" type="number" id="vt-against-${ga.id}" placeholder="${lbl('أصوات ضد','Votes Against')}" min="0"/>
+          <input class="fi" type="number" id="vt-abstain-${ga.id}" placeholder="${lbl('امتناع','Abstain')}" min="0"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-gold btn-sm" onclick="Gov.saveGAVote(${ga.id})">${lbl('حفظ','Save')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov._toggleForm('vt-add-form-${ga.id}')">${lbl('إلغاء','Cancel')}</button>
+        </div>
+      </div>` : ''}
       <div style="display:flex;flex-direction:column;gap:12px">
         ${votes.map((v,i)=>{
-          const forPct = Math.round((v.for/v.total)*100);
-          const agPct  = Math.round((v.against/v.total)*100);
-          const absPct = Math.round((v.abstain/v.total)*100);
-          return `<div style="background:var(--navy3);border-radius:10px;padding:14px;border-inline-start:3px solid ${v.passed?'var(--green)':'var(--red)'}">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-              <div>
+          const tot = v.total || 1;
+          const forPct = Math.round((v.for/tot)*100);
+          const agPct  = Math.round((v.against/tot)*100);
+          const absPct = Math.round((v.abstain/tot)*100);
+          const hasVotes = v.total > 0;
+          return `<div style="background:var(--navy3);border-radius:10px;padding:14px;border-inline-start:3px solid ${hasVotes?(v.passed?'var(--green)':'var(--red)'):'var(--border2)'}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:${hasVotes?'10px':'4px'};flex-wrap:wrap">
+              <div style="flex:1;min-width:0">
                 <div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${lbl('اقتراح','Motion')} ${i+1}</div>
                 <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(v.motionAr):esc(v.motionEn)}</div>
               </div>
-              <span class="tag" style="font-size:12px;color:${v.passed?'var(--green)':'var(--red)'};border:1px solid ${v.passed?'var(--green)':'var(--red)'};background:transparent;flex-shrink:0">${v.passed?'✓ '+lbl('نجح','Passed'):'✗ '+lbl('رُفض','Failed')}</span>
+              <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+                ${hasVotes ? `<span class="tag" style="font-size:12px;color:${v.passed?'var(--green)':'var(--red)'};border:1px solid ${v.passed?'var(--green)':'var(--red)'};background:transparent">${v.passed?'✓ '+lbl('نجح','Passed'):'✗ '+lbl('رُفض','Failed')}</span>` : `<span class="tag ta" style="font-size:11px">${lbl('لم يُصوَّت بعد','No votes yet')}</span>`}
+                ${canManage && apiDetail && v.id ? `<button class="btn-ghost btn-sm" onclick="Gov.deleteGAVote(${v.id},${ga.id})" style="font-size:10px;color:var(--red);border-color:var(--red)">✕</button>` : ''}
+              </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
               <div style="background:rgba(46,204,138,.1);border-radius:8px;padding:8px;text-align:center;border:.5px solid rgba(46,204,138,.3)">
@@ -1621,7 +1717,7 @@ const Gov = {
     </div>`;
 
     // ── 6. Resolutions ────────────────────────────────────────────────────
-    const ress = demo.resolutions;
+    const ress = data.resolutions;
     const resC = { implemented:'var(--green)', in_progress:'#5B9BD6', pending:'var(--amber)', rejected:'var(--red)' };
     const resL = { implemented:lbl('مُنفَّذ','Implemented'), in_progress:lbl('جارٍ','In Progress'), pending:lbl('معلق','Pending'), rejected:lbl('مرفوض','Rejected') };
     const s6 = `<div class="card">
@@ -1646,7 +1742,7 @@ const Gov = {
     </div>`;
 
     // ── 7. Minutes Approval Workflow ──────────────────────────────────────
-    const mw = demo.minutesWorkflow;
+    const mw = data.minutesWorkflow;
     const doneCount = mw.filter(s => s.done).length;
     const mPct = Math.round((doneCount / mw.length) * 100);
     const s7 = `<div class="card">
@@ -1679,7 +1775,7 @@ const Gov = {
     </div>`;
 
     // ── 8. Documents ──────────────────────────────────────────────────────
-    const docs = demo.documents;
+    const docs = data.documents;
     const docStC = { shared:'#5B9BD6', approved:'var(--green)', reviewed:'var(--amber)', draft:'var(--text3)' };
     const docStL = { shared:lbl('مُوزَّع','Shared'), approved:lbl('مُعتمَد','Approved'), reviewed:lbl('مُراجَع','Reviewed'), draft:lbl('مسودة','Draft') };
     const s8 = `<div class="card">
@@ -1702,7 +1798,7 @@ const Gov = {
     </div>`;
 
     // ── 9. Action Items ───────────────────────────────────────────────────
-    const acts = demo.actionItems;
+    const acts = data.actionItems;
     const priC = { urgent:'var(--red)', high:'var(--amber)', normal:'#5B9BD6', low:'var(--text3)' };
     const priL = { urgent:lbl('عاجل','Urgent'), high:lbl('عالي','High'), normal:lbl('عادي','Normal'), low:lbl('منخفض','Low') };
     const s9 = `<div class="card">
@@ -1735,7 +1831,7 @@ const Gov = {
     </div>`;
 
     // ── 10. Timeline ──────────────────────────────────────────────────────
-    const tl = demo.timeline;
+    const tl = data.timeline;
     const s10 = `<div class="card">
       <div class="ch" style="margin-bottom:16px">
         <div><div class="ct">🕐 ${lbl('مسار الجمعية العمومية','General Assembly Timeline')}</div>
@@ -1763,15 +1859,100 @@ const Gov = {
         <span style="font-size:16px">📊</span>
         <div style="flex:1">
           <div style="font-size:12.5px;font-weight:700;color:#8B5CF6">${lbl('التقرير التفصيلي للجمعية العمومية','Detailed General Assembly Report')}</div>
-          <div style="font-size:11px;color:var(--text3)">${lbl('10 أقسام · بيانات توضيحية · يُستبدل ببيانات حقيقية عند ربط الواجهة الخلفية','10 sections · Demo data · Replaced with real data when backend is connected')}</div>
+          <div style="font-size:11px;color:var(--text3)">${apiDetail ? lbl('10 أقسام · بيانات حقيقية من قاعدة البيانات','10 sections · Live data from database') : lbl('10 أقسام · بيانات توضيحية','10 sections · Demo data')}</div>
         </div>
-        <span class="tag ta" style="font-size:10px;flex-shrink:0">${lbl('بيانات توضيحية','Demo Data')}</span>
+        <span class="tag ${apiDetail?'tg':'ta'}" style="font-size:10px;flex-shrink:0">${apiDetail ? lbl('بيانات حقيقية','Live Data') : lbl('بيانات توضيحية','Demo Data')}</span>
       </div>
       ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}
       <div style="text-align:center;padding:10px">
         <button class="btn-ghost btn-sm" onclick="Gov._toggleGADetail(${ga.id})" style="color:var(--text3);font-size:12px">▲ ${lbl('طي التقرير الكامل','Collapse Full Report')}</button>
       </div>
     </div>`;
+  },
+
+  // ── GA CRUD helpers ────────────────────────────────────────────────────────
+  _showCreateGA() { this._toggleForm('create-ga-form'); },
+  _toggleForm(id) {
+    const el = $(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' || !el.style.display ? '' : 'none';
+  },
+
+  async createGA() {
+    const title_ar = ($('cga-title-ar')||{}).value?.trim();
+    const meeting_date = ($('cga-date')||{}).value;
+    if (!title_ar || !meeting_date) return showToast(this.lbl('حقل الاسم والتاريخ مطلوبان','Title and date are required'), 'error');
+    try {
+      await api('/api/gov/general-assemblies', { method:'POST', body:JSON.stringify({
+        title_ar, title_en: ($('cga-title-en')||{}).value || title_ar,
+        meeting_date, meeting_time: ($('cga-time')||{}).value || '10:00',
+        duration_mins: parseInt(($('cga-duration')||{}).value||'120'),
+        platform: ($('cga-venue')||{}).value || '',
+      })});
+      showToast(this.lbl('تم إنشاء الجمعية العمومية بنجاح','General Assembly created'), 'success');
+      this._hideForm('create-ga-form');
+      await this.loadGAs();
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  async loadGAs() {
+    try {
+      const gas = await api('/api/gov/general-assemblies');
+      this._gas = gas;
+      const sec = $('sec-ga');
+      if (sec) sec.outerHTML = this._sGASection(gas);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  async saveShareholder(gaId) {
+    const name_en = ($('sh-en-' + gaId)||{}).value?.trim();
+    if (!name_en) return showToast(this.lbl('الاسم مطلوب','Name is required'), 'error');
+    const body = {
+      name_en, name_ar: ($('sh-ar-' + gaId)||{}).value || name_en,
+      shares: parseInt(($('sh-shares-' + gaId)||{}).value || '0'),
+      share_pct: parseFloat(($('sh-pct-' + gaId)||{}).value || '0'),
+      attendance_status: ($('sh-att-' + gaId)||{}).value || 'pending',
+      proxy_name: ($('sh-proxy-' + gaId)||{}).value || null,
+    };
+    try {
+      await api('/api/gov/general-assemblies/' + gaId + '/shareholders', { method:'POST', body:JSON.stringify(body) });
+      showToast(this.lbl('تم إضافة المساهم','Shareholder added'), 'success');
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  async deleteShareholder(id, gaId) {
+    if (!confirm(this.lbl('حذف هذا المساهم من السجل؟','Remove this shareholder from the register?'))) return;
+    try {
+      await api('/api/gov/ga-shareholders/' + id, { method:'DELETE' });
+      showToast(this.lbl('تم الحذف','Deleted'), 'success');
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  async saveGAVote(gaId) {
+    const motion_en = ($('vt-en-' + gaId)||{}).value?.trim();
+    if (!motion_en) return showToast(this.lbl('نص الاقتراح مطلوب','Motion text is required'), 'error');
+    const body = {
+      motion_en, motion_ar: ($('vt-ar-' + gaId)||{}).value || motion_en,
+      votes_for:     parseInt(($('vt-for-' + gaId)||{}).value     || '0'),
+      votes_against: parseInt(($('vt-against-' + gaId)||{}).value || '0'),
+      votes_abstain: parseInt(($('vt-abstain-' + gaId)||{}).value || '0'),
+    };
+    try {
+      await api('/api/gov/general-assemblies/' + gaId + '/ga-votes', { method:'POST', body:JSON.stringify(body) });
+      showToast(this.lbl('تم إضافة الاقتراح','Motion added'), 'success');
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  async deleteGAVote(id, gaId) {
+    if (!confirm(this.lbl('حذف هذا الاقتراح؟','Delete this motion?'))) return;
+    try {
+      await api('/api/gov/ga-votes/' + id, { method:'DELETE' });
+      showToast(this.lbl('تم الحذف','Deleted'), 'success');
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
   },
 
   // ── Helpers ────────────────────────────────────────────────────────────────

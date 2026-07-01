@@ -247,6 +247,62 @@ db.exec(`CREATE TABLE IF NOT EXISTS votes (
 )`);
 ensureColumn('resolutions', 'voting_status', "TEXT DEFAULT 'draft'");
 
+// ── General Assembly dedicated tables ─────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ga_shareholders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ga_schedule_id INTEGER NOT NULL,
+    name_ar TEXT,
+    name_en TEXT NOT NULL,
+    shares INTEGER DEFAULT 0,
+    share_pct REAL DEFAULT 0,
+    vote_rights INTEGER DEFAULT 0,
+    attendance_status TEXT DEFAULT 'pending',
+    proxy_name TEXT,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ga_schedule_id) REFERENCES schedule(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS ga_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ga_schedule_id INTEGER NOT NULL,
+    motion_ar TEXT,
+    motion_en TEXT NOT NULL,
+    votes_for INTEGER DEFAULT 0,
+    votes_against INTEGER DEFAULT 0,
+    votes_abstain INTEGER DEFAULT 0,
+    total_votes INTEGER DEFAULT 0,
+    passed INTEGER DEFAULT 0,
+    notes TEXT,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ga_schedule_id) REFERENCES schedule(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS ga_officers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ga_schedule_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    role_ar TEXT,
+    name_ar TEXT,
+    name_en TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ga_schedule_id) REFERENCES schedule(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS ga_minutes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ga_schedule_id INTEGER NOT NULL UNIQUE,
+    status TEXT DEFAULT 'draft',
+    draft_date TEXT,
+    circulated_date TEXT,
+    approved_date TEXT,
+    final_date TEXT,
+    draft_by TEXT,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ga_schedule_id) REFERENCES schedule(id) ON DELETE CASCADE
+  );
+`);
+
 // Task progress history
 db.exec(`
   CREATE TABLE IF NOT EXISTS task_updates (
@@ -713,6 +769,49 @@ if (!db.prepare("SELECT id FROM schedule WHERE meeting_type='general_assembly' A
   iFu.run(gr4,'Ahmed Al-Qahtani','2026-10-30','pending','تحديد موعد صرف الأرباح وإشعار المساهمين');
   iFu.run(gr5,'Omar Hassan','2026-10-25','pending','إعداد الوثائق القانونية لهيئة السوق المالية');
   console.log('✓ General Assembly meetings, agenda, resolutions seeded');
+}
+
+// ── Seed GA dedicated tables (shareholders, votes, officers, minutes, docs) ───
+if (!db.prepare('SELECT id FROM ga_shareholders WHERE ga_schedule_id=33').get()) {
+  const ga1 = 33, ga2 = 34;
+  const iOff = db.prepare(`INSERT INTO ga_officers (ga_schedule_id,role,role_ar,name_en,name_ar) VALUES (?,?,?,?,?)`);
+  [ga1, ga2].forEach(gid => {
+    iOff.run(gid,'chairman',      'رئيس الجمعية',       'Mohammed Al-Otaibi','محمد العتيبي');
+    iOff.run(gid,'secretary',     'أمين السر',           'Fatima Al-Harbi',  'فاطمة الحربي');
+    iOff.run(gid,'legal_advisor', 'المستشار القانوني',   'Omar Hassan',       'عمر حسن');
+    iOff.run(gid,'scrutineer',    'مدقق الأصوات',        'Ahmed Al-Rashid',   'أحمد الراشد');
+  });
+  const iSh = db.prepare(`INSERT INTO ga_shareholders (ga_schedule_id,name_ar,name_en,shares,share_pct,vote_rights,attendance_status,proxy_name) VALUES (?,?,?,?,?,?,?,?)`);
+  iSh.run(ga1,'محمد العتيبي',        'Mohammed Al-Otaibi',      2500000,35.7,2500000,'present', null);
+  iSh.run(ga1,'خالد الراشد',          'Khalid Al-Rashid',         1800000,25.7,1800000,'present', null);
+  iSh.run(ga1,'صندوق أمين القابضة', 'Ameen Holdings Fund',       1200000,17.1,1200000,'proxy',   'M. Hassan');
+  iSh.run(ga1,'سارة العمري',           'Sarah Al-Amri',              800000,11.4, 800000,'present', null);
+  iSh.run(ga1,'شركاء دوليون م.م.',    'International Partners LLC', 700000,10.0, 700000,'absent',  null);
+  iSh.run(ga2,'محمد العتيبي',        'Mohammed Al-Otaibi',      2500000,35.7,2500000,'present', null);
+  iSh.run(ga2,'خالد الراشد',          'Khalid Al-Rashid',         1800000,25.7,1800000,'present', null);
+  iSh.run(ga2,'صندوق أمين القابضة', 'Ameen Holdings Fund',       1200000,17.1,1200000,'proxy',   'M. Hassan');
+  iSh.run(ga2,'سارة العمري',           'Sarah Al-Amri',              800000,11.4, 800000,'excused', null);
+  iSh.run(ga2,'شركاء دوليون م.م.',    'International Partners LLC', 700000,10.0, 700000,'absent',  null);
+  const iVt = db.prepare(`INSERT INTO ga_votes (ga_schedule_id,motion_ar,motion_en,votes_for,votes_against,votes_abstain,total_votes,passed,sort_order) VALUES (?,?,?,?,?,?,?,?,?)`);
+  iVt.run(ga1,'اعتماد القوائم المالية للسنة المالية 2025',  'Approve FY2025 Financial Statements',            5800000,200000,300000,6300000,1,1);
+  iVt.run(ga1,'إعادة انتخاب أعضاء مجلس الإدارة 2026–2028','Re-elect Board of Directors 2026–2028',           6100000,100000,100000,6300000,1,2);
+  iVt.run(ga1,'تعيين ديلويت مراجعاً خارجياً',               'Appoint Deloitte as External Auditors',           5900000,150000,250000,6300000,1,3);
+  iVt.run(ga1,'الموافقة على توزيع أرباح بنسبة 8%',          'Approve 8% Dividend Distribution',               5400000,600000,300000,6300000,1,4);
+  iVt.run(ga2,'اعتماد زيادة رأس المال إلى 750 مليون ريال', 'Approve Capital Increase SAR 500M→750M',          0,0,0,0,0,1);
+  iVt.run(ga2,'تفويض مجلس الإدارة بتنفيذ قرار الزيادة',    'Authorize Board to Execute Capital Increase',     0,0,0,0,0,2);
+  iVt.run(ga2,'تعديل النظام الأساسي للشركة',                 'Amend Articles of Association',                  0,0,0,0,0,3);
+  db.prepare(`INSERT OR IGNORE INTO ga_minutes (ga_schedule_id,status,draft_date,circulated_date,draft_by) VALUES (?,?,?,?,?)`).run(ga1,'circulated','2026-09-22','2026-09-25','Fatima Al-Harbi');
+  db.prepare(`INSERT OR IGNORE INTO ga_minutes (ga_schedule_id,status) VALUES (?,?)`).run(ga2,'draft');
+  const iMd = db.prepare(`INSERT INTO meeting_documents (schedule_id,title,doc_type,description,uploaded_by,upload_date,status,is_mock,created_by) VALUES (?,?,?,?,?,?,?,1,1)`);
+  iMd.run(ga1,'إشعار انعقاد الجمعية العمومية السنوية 2026',  'notice',    'دعوة رسمية للمساهمين',                  'Fatima Al-Harbi','2026-08-15','shared');
+  iMd.run(ga1,'جدول أعمال الجمعية العمومية',                   'agenda',    'جدول الأعمال المفصّل',                    'Fatima Al-Harbi','2026-08-15','approved');
+  iMd.run(ga1,'حقيبة المساهمين',                                'board_pack','وثائق الجمعية الشاملة للمساهمين',        'Fatima Al-Harbi','2026-08-20','approved');
+  iMd.run(ga1,'القوائم المالية للسنة المالية 2025',            'financial', 'القوائم المالية المدققة من ديلويت',        'Deloitte',        '2026-08-20','approved');
+  iMd.run(ga1,'مسودة محضر الجمعية العمومية',                   'minutes',   'المسودة الأولى للمحضر الرسمي',             'Fatima Al-Harbi','2026-09-22','reviewed');
+  iMd.run(ga2,'إشعار انعقاد الجمعية العمومية غير العادية',   'notice',    'دعوة رسمية للمساهمين',                  'Fatima Al-Harbi','2026-09-20','shared');
+  iMd.run(ga2,'جدول أعمال الجمعية غير العادية',                'agenda',    'جدول أعمال اعتماد زيادة رأس المال',       'Fatima Al-Harbi','2026-09-20','approved');
+  iMd.run(ga2,'تقرير مقترح زيادة رأس المال',                  'financial', 'تقرير CFO التفصيلي عن زيادة رأس المال',   'CFO',             '2026-09-25','reviewed');
+  console.log('✓ GA shareholders, votes, officers, minutes, documents seeded');
 }
 
 // ── Ensure admin user has a valid bcrypt password ────────────────────────────
