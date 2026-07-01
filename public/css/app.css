@@ -498,4 +498,93 @@ textarea.fi{min-height:88px}
 
 /* Button consistency: unified min-height & alignment across variants */
 .btn-gold,.btn-ghost{min-height:40px;justify-content:center}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONSISTENCY PASS  ·  cross-component harmonisation
+   Appended override layer — no base rules removed, no logic touched
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Typography: consistent numeric rendering & heading rhythm ──── */
+.stat-val,.rec-tm,.smeta,.task-meta,.days-badge,.stat-trend,.stime .t{font-variant-numeric:tabular-nums}
+.ptitle,.ct,.modal-title,.es-title,.stat-val{text-wrap:balance}
+.ctsub,.ptitle-sub,.es-sub,.stat-sub,.hint-bar,.smeta,.task-meta{text-wrap:pretty}
+
+/* ── Buttons: full alignment parity across every variant ───────── */
+.btn-sm{min-height:32px;justify-content:center}
+.btn-gold,.btn-ghost,.btn-sm,.sbtn,.theme-toggle,.ai-key-btn,.lb,.qc{vertical-align:middle}
+.btn-ghost:disabled,.btn-sm:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+/* action rows: consistent alignment + wrapping so buttons never misalign */
+.fa,.ch,.ph-row,.ctsub+*{align-items:center}
+.fa{gap:10px}
+
+/* ── Section headers: shared weight & spacing scale ────────────── */
+.ph-row{min-height:38px}
+.ch{align-items:center}
+
+/* ── Cards: uniform hover + header rhythm ──────────────────────── */
+.card,.stat-c{border-radius:14px}
+.card>.ch:first-child{margin-top:0}
+
+/* ── Badges & pills: one consistent chip system ────────────────── */
+.tag,.pill,.days-badge,.stat-trend,.ai-pill,.nbg,.task-owner{
+  line-height:1.4;white-space:nowrap;vertical-align:middle}
+/* every colour tag gets an equally-weighted border for uniform edges */
+.tb{border:.5px solid var(--blue2);border-color:rgba(91,150,212,.28)}
+.ta{border:.5px solid rgba(240,168,48,.28)}
+.tr{border:.5px solid rgba(224,85,85,.24)}
+.tgr{border:.5px solid var(--border2)}
+
+/* ── Tables: match the app's row-list conventions ──────────────── */
+.pbody table{border-collapse:collapse;width:100%}
+.pbody thead th{letter-spacing:.04em}
+.pbody tbody tr{transition:background var(--t)}
+.pbody tbody tr:hover{background:var(--navy3)}
+
+/* ── Forms: consistent focus ring & disabled state everywhere ──── */
+select.fi,textarea.fi{transition:border-color var(--t),background var(--t),box-shadow var(--t)}
+.fi:disabled{opacity:.55;cursor:not-allowed}
+.st-select:focus,.ci:focus{box-shadow:0 0 0 3px var(--gold-glow),0 0 0 1px var(--gold)}
+.fr2{align-items:start}
+
+/* ── Loading & success/error surfaces: consistent tokens ───────── */
+.loading{border-color:var(--border2);border-top-color:var(--gold)}
+.toast{line-height:1.4}
+#global-toast-host{max-width:min(360px,calc(100vw - 40px))}
+
+/* ── Keyboard focus: one on-brand focus ring across controls ───── */
+.btn-gold:focus-visible,.btn-ghost:focus-visible,.btn-sm:focus-visible,
+.nb:focus-visible,.sbtn:focus-visible,.qc:focus-visible,.lb:focus-visible,
+.theme-toggle:focus-visible,.ai-key-btn:focus-visible,.st-select:focus-visible,
+.stat-clickable:focus-visible,.spk-btn:focus-visible{
+  outline:2px solid var(--gold);outline-offset:2px}
+
+/* ── Accessibility: respect reduced-motion preference ──────────── */
+@media (prefers-reduced-motion:reduce){
+  *,::before,::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+
+/* ── Mobile responsiveness (safe, additive) ────────────────────── */
+@media (max-width:900px){
+  .shell{grid-template-columns:210px 1fr}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .topbar{padding:0 18px}
+  .ph{padding:18px 20px 14px}
+  .pbody{padding:18px 20px;gap:16px}
+  .card{padding:18px 20px}
+  .eg,.fr2{grid-template-columns:1fr}
+  .mb{max-width:88%}
+}
+@media (max-width:600px){
+  .shell{grid-template-columns:60px 1fr}
+  .nb{justify-content:center;padding:10px 0;margin:2px 6px;gap:0}
+  .nb-label{display:none}
+  .nb .nbg{position:absolute;top:3px;inset-inline-end:6px;margin:0}
+  .nb{position:relative}
+  .nsec{justify-content:center;font-size:0;padding:14px 6px 4px}
+  .nsec::after{display:none}
+  .stat-grid{grid-template-columns:1fr}
+  .topbar-mid{display:none}
+  .ptitle{font-size:19px}
+  .modal{padding:24px}
+}
 .btn-sm{min-height:32px}

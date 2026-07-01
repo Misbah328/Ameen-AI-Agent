@@ -490,10 +490,10 @@ function showToast(message, type = "success") {
   const ok = type === "success";
   const t = document.createElement("div");
   t.style.cssText =
-    `pointer-events:auto;display:flex;align-items:center;gap:7px;padding:11px 15px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 22px rgba(0,0,0,.35);animation:fi .25s ease;` +
+    `pointer-events:auto;display:flex;align-items:center;gap:7px;padding:11px 15px;border-radius:10px;font-size:13px;font-weight:600;line-height:1.4;box-shadow:var(--shadow-md);animation:fi .25s ease;` +
     (ok
-      ? "background:rgba(46,204,138,.14);border:1px solid rgba(46,204,138,.45);color:#2ecc8a"
-      : "background:rgba(224,90,90,.14);border:1px solid rgba(224,90,90,.45);color:#e05a5a");
+      ? "background:var(--green2);border:1px solid rgba(39,196,126,.45);color:var(--green)"
+      : "background:var(--red2);border:1px solid rgba(224,85,85,.45);color:var(--red)");
   t.textContent = `${ok ? "✓" : "⚠"} ${message}`;
   host.appendChild(t);
   setTimeout(() => {
