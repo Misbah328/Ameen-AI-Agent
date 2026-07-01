@@ -1809,7 +1809,7 @@ const Rec = {
       <div style="background:rgba(46,204,138,.07);border:1px solid rgba(46,204,138,.18);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
         <span style="font-size:18px">✅</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:700;color:#2ecc8a">${lbl("متصل بمتتبع المهام", "Connected to Task Tracker")}</div>
+          <div style="font-size:12px;font-weight:700;color:#2ecc8a">${lbl("متتبع المهام المدمج", "Built-in Task Tracker")}</div>
           <div style="font-size:11px;color:var(--text3)">${tasks.length} ${lbl("مهمة أُضيفت تلقائياً", "tasks added automatically")} · ${decisions.length} ${lbl("قرار", "decisions")} · ${risks.length} ${lbl("مخاطر مُكتشفة", "risks identified")}</div>
         </div>
         <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')" style="font-size:11px">${lbl("عرض المهام", "View Tasks")} →</button>
@@ -1997,12 +1997,12 @@ function _injectRecordHelper(l) {
         <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
           <div style="font-size:10.5px;font-weight:700;color:#2D8CFF">☁ Zoom Cloud</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
-          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(45,140,255,.10);color:#2D8CFF;border-radius:4px">⏳ ${l==='ar'?'بانتظار بيانات الاعتماد':'Awaiting credentials'}</div>
+          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
         </div>
         <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
           <div style="font-size:10.5px;font-weight:700;color:#6264A7">💼 Teams / Meet</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
-          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(98,100,167,.10);color:#6264A7;border-radius:4px">⏳ ${l==='ar'?'بانتظار بيانات الاعتماد':'Awaiting credentials'}</div>
+          <div style="font-size:9px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
         </div>
       </div>
     </div>
@@ -2016,8 +2016,8 @@ function _injectRecordHelper(l) {
             : 'After recording, click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval → officially archive.'}</div>
           <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف جاهز':'Archive ready'}</span>
-            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(45,140,255,.10);color:#2D8CFF;border:.5px solid rgba(45,140,255,.22)">🔗 ${l==='ar'?'Zoom/Teams/Meet جاهز للربط':'Zoom/Teams/Meet ready'}</span>
-            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'ربط مباشر بانتظار بيانات الاعتماد':'Live API pending credentials'}</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'الرفع اليدوي فعّال':'Manual upload active'}</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'Zoom/Teams/Meet: التكامل جاهز — تتطلب بيانات اعتماد API':'Zoom/Teams/Meet: Integration Ready - API credentials required'}</span>
           </div>
         </div>
       </div>
@@ -3781,6 +3781,8 @@ const Schedule = {
     const v = ($("nm-plat") && $("nm-plat").value) || "physical";
     const row = $("nm-join-row");
     if (row) row.style.display = v === "physical" ? "none" : "";
+    const note = $("nm-provider-note");
+    if (note) note.style.display = v === "physical" ? "none" : "";
     const inp = $("nm-join-url");
     if (inp) {
       inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
@@ -5468,8 +5470,8 @@ const Integrations = {
     const names = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' };
     showToast(
       l === 'ar'
-        ? `لإعداد ${names[provider]||provider}: أضف بيانات الاعتماد في متغيرات البيئة، ثم فعّل التكامل من هنا.`
-        : `To configure ${names[provider]||provider}: add API credentials to environment variables, then activate the integration here.`,
+        ? `تكامل ${names[provider]||provider} جاهز — يتطلب بيانات اعتماد API. أضف البيانات في متغيرات البيئة لتفعيله (يتطلب إعداداً من المطوّر).`
+        : `${names[provider]||provider} integration is ready — API credentials required. Add credentials to environment variables to enable it (requires developer setup).`,
       'info'
     );
   }
@@ -5529,8 +5531,8 @@ function renderIntegrations() {
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;font-weight:700;color:${p.color}">${p.name}</div>
           <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#666;flex-shrink:0"></span>
-            <span style="font-size:11px;color:var(--text3)">${l==='ar'?'غير متصل · بانتظار بيانات الاعتماد':'Not Connected · Awaiting credentials'}</span>
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f0a000;flex-shrink:0"></span>
+            <span style="font-size:11px;color:#f0a000">${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</span>
           </div>
         </div>
         <button onclick="Integrations.configure('${p.id}')"

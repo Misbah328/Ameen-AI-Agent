@@ -5,3 +5,4 @@
 - [Pipeline risks field](pipeline-risks.md) — ai_risks added to meetings table + pipeline schema; UPDATE .run() param order must stay in sync with the SET clause.
 - [Live-extract catch path](live-extract-catch.md) — /api/live-extract catch block must return all four keys (tasks/decisions/risks/followups) or frontend render crashes on undefined.
 - [Dual-side audio capture](dual-audio-capture.md) — getDisplayMedia captures both sides of browser video calls; SpeechRecognition reads mic only (browser API limitation); blob download shown in renderResult when Rec._dualAudioUrl is set.
+- [Meeting provider integrations](meeting-provider-integrations.md) — Zoom/Teams/Meet are UI-only manual-URL; never label "Connected" without real API wiring.
