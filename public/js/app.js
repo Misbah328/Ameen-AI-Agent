@@ -311,7 +311,7 @@ const App = {
       this.plan = r.plan;
       this.renderPlan();
       this.closePlan();
-      const cur = document.querySelector(".nb.active")?.dataset.p;
+      const cur = document.querySelector(".nb.active") && document.querySelector(".nb.active").dataset.p;
       if (cur) Panels.load(cur);
     } catch (e) {
       alert(e.message);
@@ -328,7 +328,7 @@ const App = {
     this.lang = l;
     localStorage.setItem("lang", l);
     this.applyLang(l);
-    const cur = document.querySelector(".nb.active")?.dataset.p;
+    const cur = document.querySelector(".nb.active") && document.querySelector(".nb.active").dataset.p;
     if (cur) Panels.load(cur);
   },
 
@@ -681,7 +681,7 @@ async function loadDocMeetings() {
         mtgs
           .map(
             (m) =>
-              `<option value="${m.id}">${esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar)} (${m.meeting_date?.substring(0, 10) || ""})</option>`,
+              `<option value="${m.id}">${esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar)} (${(m.meeting_date && m.meeting_date.substring(0, 10)) || ""})</option>`,
           )
           .join("");
   } catch (e) {}
@@ -1104,7 +1104,7 @@ const Rec = {
         }),
       });
       // Finalise dual-side recording blob for download in the results panel.
-      if (this._mixedChunks?.length) {
+      if (this._mixedChunks && this._mixedChunks.length) {
         const blob = new Blob(this._mixedChunks, { type: "audio/webm" });
         this._dualAudioUrl = URL.createObjectURL(blob);
       }
@@ -1235,7 +1235,7 @@ const Rec = {
   // download in the results panel. The Web Speech API continues to read the
   // physical microphone for real-time captions (browser limitation).
   async _startSystemAudio() {
-    if (!navigator.mediaDevices?.getDisplayMedia) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return;
     try {
       let displayStream;
       try {
@@ -1262,7 +1262,7 @@ const Rec = {
       this._mixedRec = new MediaRecorder(displayStream, { mimeType });
       this._mixedChunks = [];
       this._mixedRec.ondataavailable = (e) => {
-        if (e.data?.size > 0) this._mixedChunks.push(e.data);
+        if (e.data && e.data.size > 0) this._mixedChunks.push(e.data);
       };
       this._mixedRec.start(5000);
       const badge = $("dual-audio-badge");
@@ -1631,7 +1631,7 @@ const Rec = {
       <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
         <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:6px">📋 ${lbl("ملخص الاجتماع", "Meeting Summary")}</div>
         <div style="font-size:13px;color:var(--text);line-height:1.7">${esc(l === "ar" ? r.summary_ar : r.summary_en)}</div>
-        ${r.key_topics_ar?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(l === "ar" ? r.key_topics_ar : r.key_topics_en || r.key_topics_ar).map((t) => `<span class="tag" style="background:var(--gold-dim);color:var(--gold)">${esc(t)}</span>`).join("")}</div>` : ""}
+        ${(r.key_topics_ar && r.key_topics_ar.length) ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(l === "ar" ? r.key_topics_ar : r.key_topics_en || r.key_topics_ar).map((t) => `<span class="tag" style="background:var(--gold-dim);color:var(--gold)">${esc(t)}</span>`).join("")}</div>` : ""}
       </div>`;
 
     // Speaker-attributed transcript (Gemini-in-Meet style)
@@ -2084,9 +2084,9 @@ const RecStore = {
     const sel = document.getElementById('official-rec-meeting-sel');
     const fi  = document.getElementById('official-rec-file');
     const btn = document.getElementById('official-rec-btn');
-    const meetingId = sel?.value;
+    const meetingId = sel && sel.value;
     if (!meetingId) { showToast(l==='ar'?'الرجاء اختيار اجتماع أولاً':'Please select a meeting first', 'error'); return; }
-    if (!fi?.files?.[0]) { showToast(l==='ar'?'الرجاء اختيار ملف تسجيل':'Please select a recording file', 'error'); return; }
+    if (!(fi && fi.files && fi.files[0])) { showToast(l==='ar'?'الرجاء اختيار ملف تسجيل':'Please select a recording file', 'error'); return; }
     const f = fi.files[0];
     if (btn) { btn.disabled = true; btn.textContent = l==='ar'?'جارٍ الرفع…':'Uploading…'; }
     try {
@@ -2102,7 +2102,7 @@ const RecStore = {
       fi.value = '';
       sel.value = '';
       const panels = document.getElementById('panel-transcripts');
-      if (panels?.classList.contains('active')) await renderTranscripts();
+      if (panels && panels.classList.contains('active')) await renderTranscripts();
     } catch (e) {
       showToast(e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = l==='ar'?'📤 رفع التسجيل الرسمي':'📤 Upload Official Recording'; }
@@ -2277,7 +2277,7 @@ async function renderTranscripts() {
                 <span id="mtg-title-${m.id}">${esc(title)}</span>
                 <button class="btn-ghost btn-sm" style="padding:2px 7px;font-size:11px" title="${l === "ar" ? "تعديل العنوان" : "Edit title"}" onclick='editMeetingTitle(${m.id}, ${JSON.stringify(m.title_ar || "")}, ${JSON.stringify(m.title_en || m.title_ar || "")})'>✏️</button>
               </div>
-              <div class="ctsub">${m.meeting_date?.substring(0, 10) || ""} ${m.duration ? `· ${Math.floor(m.duration / 60)}:${String(m.duration % 60).padStart(2, "0")} ${l === "ar" ? "دقيقة" : "min"}` : ""} · ${esc(m.recorder_ar || "")}</div>
+              <div class="ctsub">${(m.meeting_date && m.meeting_date.substring(0, 10)) || ""} ${m.duration ? `· ${Math.floor(m.duration / 60)}:${String(m.duration % 60).padStart(2, "0")} ${l === "ar" ? "دقيقة" : "min"}` : ""} · ${esc(m.recorder_ar || "")}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               ${isProcessed ? `<span class="tag tg">✓ ${l === "ar" ? "مُعالج" : "Processed"}</span>` : `<span class="tag ta">${l === "ar" ? "جديد" : "New"}</span>`}
@@ -2557,7 +2557,7 @@ const TranscriptModal = {
     }
   },
 };
-$("modal-transcript")?.addEventListener("click", (e) => {
+$("modal-transcript") && $("modal-transcript").addEventListener("click", (e) => {
   if (e.target === $("modal-transcript")) TranscriptModal.close();
 });
 
@@ -3029,7 +3029,7 @@ const Tasks = {
     if (!confirm(App.lang === "ar" ? "حذف هذه المهمة؟" : "Delete this task?"))
       return;
     await api(`/api/tasks/${id}`, { method: "DELETE" });
-    document.getElementById("tr-" + id)?.remove();
+    var _tr = document.getElementById("tr-" + id); if (_tr) _tr.remove();
     await loadBadges();
   },
   async updateDecisionStatus(id, status) {
@@ -3325,7 +3325,7 @@ const Chat = {
   },
 };
 function removeTyping() {
-  $("typ")?.remove();
+  var _typ = $("typ"); if (_typ) _typ.remove();
 }
 function buildWelcomeMsg() {
   const d = document.createElement("div");
@@ -3400,9 +3400,9 @@ const DocGen = {
     }
     const typeSel = $("doc-type");
     const title =
-      typeSel?.options[typeSel.selectedIndex]?.text ||
+      (typeSel && typeSel.options[typeSel.selectedIndex] && typeSel.options[typeSel.selectedIndex].text) ||
       (l === "ar" ? "وثيقة" : "Document");
-    const lang = $("doc-lang")?.value || l;
+    const lang = ($("doc-lang") && $("doc-lang").value) || l;
     try {
       const resp = await fetch("/api/reports/pdf", {
         method: "POST",
@@ -3760,7 +3760,7 @@ const Schedule = {
     } catch {}
   },
   onBoardChange() {
-    const boardId = parseInt($("nm-board")?.value) || 0;
+    const boardId = parseInt($("nm-board") && $("nm-board").value) || 0;
     const l = App.lang;
     const all = App._committees || [];
     const committees = boardId
@@ -3778,7 +3778,7 @@ const Schedule = {
         .join("");
   },
   onProviderChange() {
-    const v = $("nm-plat")?.value || "physical";
+    const v = ($("nm-plat") && $("nm-plat").value) || "physical";
     const row = $("nm-join-row");
     if (row) row.style.display = v === "physical" ? "none" : "";
     const inp = $("nm-join-url");
@@ -3802,9 +3802,9 @@ const Schedule = {
       agenda_en: $("nm-agenda-en").value,
       reminder_channel: ($("nm-channel") && $("nm-channel").value) || "email",
       meeting_type: ($("nm-type") && $("nm-type").value) || "",
-      board_id: parseInt($("nm-board")?.value) || null,
-      committee_id: parseInt($("nm-committee")?.value) || null,
-      prev_meeting_id: parseInt($("nm-prev")?.value) || null,
+      board_id: parseInt($("nm-board") && $("nm-board").value) || null,
+      committee_id: parseInt($("nm-committee") && $("nm-committee").value) || null,
+      prev_meeting_id: parseInt($("nm-prev") && $("nm-prev").value) || null,
       recurrence: ($("nm-recurrence") && $("nm-recurrence").value) || "none",
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
@@ -3889,11 +3889,11 @@ const Schedule = {
         body: JSON.stringify({
           name_ar: name.trim(),
           name_en: name.trim(),
-          meeting_type: $("nm-type")?.value || "",
-          agenda_ar: $("nm-agenda-ar")?.value || "",
-          agenda_en: $("nm-agenda-en")?.value || "",
-          default_duration: parseInt($("nm-dur")?.value) || 60,
-          default_attendees: $("nm-att")?.value || "",
+          meeting_type: ($("nm-type") && $("nm-type").value) || "",
+          agenda_ar: ($("nm-agenda-ar") && $("nm-agenda-ar").value) || "",
+          agenda_en: ($("nm-agenda-en") && $("nm-agenda-en").value) || "",
+          default_duration: parseInt($("nm-dur") && $("nm-dur").value) || 60,
+          default_attendees: ($("nm-att") && $("nm-att").value) || "",
         }),
       });
       showToast(l === "ar" ? "✓ تم حفظ القالب" : "✓ Template saved");
@@ -4494,7 +4494,7 @@ const Share = {
           : `✓ Shared & sent ${sent} link(s)`,
         true,
       );
-      if (document.querySelector(".nb.active")?.dataset.p === "transcripts")
+      if (document.querySelector(".nb.active") && document.querySelector(".nb.active").dataset.p === "transcripts")
         await renderTranscripts();
       setTimeout(() => this.close(), 1600);
     } catch (e) {
@@ -4551,7 +4551,7 @@ const EmailReminder = {
       );
       setTimeout(() => this.close(), 2000);
     } catch (e) {
-      if (e.message === "SMTP_NOT_CONFIGURED" || e.message?.includes("SMTP")) {
+      if (e.message === "SMTP_NOT_CONFIGURED" || (e.message && e.message.includes("SMTP"))) {
         status.style.display = "block";
         status.style.cssText =
           "display:block;padding:9px 12px;border-radius:8px;font-size:12px;margin-top:4px;background:rgba(201,168,76,.08);color:var(--amber)";
@@ -5112,7 +5112,7 @@ async function renderOverview() {
 
     const dash = Dash.get();
     const sec = (k, html) => (dash[k] === false ? "" : html);
-    const showCharts = hasCharts && ROLE_ACCESS[role]?.has("analytics");
+    const showCharts = hasCharts && ROLE_ACCESS[role] && ROLE_ACCESS[role].has("analytics");
     const _ovBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:15px 18px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:18px">
       <div>
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">📊 ${lbl('نظرة تنفيذية سريعة','Executive Snapshot')}</div>
