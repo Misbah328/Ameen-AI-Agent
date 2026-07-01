@@ -233,6 +233,53 @@ db.exec(`
   )
 `);
 
+// ── Meeting lifecycle state machine ───────────────────────────────────────────
+// created → invited → scheduled → recording → uploaded → transcript_generated →
+// ai_minutes_generated → secretary_review → chairman_approval → board_approval →
+// archived  (secretary_review can be re-entered from chairman_approval via a
+// revision request — the one legitimate backward transition in the chain).
+ensureColumn('meetings', 'lifecycle_stage', "TEXT DEFAULT 'created'");
+ensureColumn('meetings', 'lifecycle_updated_at', 'DATETIME');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meeting_lifecycle_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    from_stage TEXT,
+    to_stage TEXT NOT NULL,
+    actor_id INTEGER,
+    actor_name TEXT,
+    note TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+  )
+`);
+
+// One-time backfill for meetings created before this state machine existed —
+// infer the furthest stage each legacy row already reached from its existing
+// status columns so the timeline isn't wrong for pre-existing data. Only
+// touches rows still sitting at the untouched 'created' default.
+db.exec(`
+  UPDATE meetings SET lifecycle_stage = CASE
+    WHEN minutes_status = 'final_approved'                 THEN 'archived'
+    WHEN minutes_status = 'approved'                        THEN 'chairman_approval'
+    WHEN minutes_status IN ('circulated','revision_requested') THEN 'secretary_review'
+    WHEN status = 'processed'                                THEN 'ai_minutes_generated'
+    WHEN transcript IS NOT NULL AND transcript != ''         THEN 'transcript_generated'
+    WHEN recording_status IN ('stopped','uploaded')          THEN 'uploaded'
+    WHEN recording_status = 'recording'                      THEN 'recording'
+    ELSE lifecycle_stage
+  END,
+  lifecycle_updated_at = COALESCE(lifecycle_updated_at, created_at)
+  WHERE lifecycle_stage = 'created'
+    AND (
+      minutes_status IS NOT NULL AND minutes_status != 'draft'
+      OR status = 'processed'
+      OR (transcript IS NOT NULL AND transcript != '')
+      OR recording_status NOT IN ('not_started')
+    )
+`);
+
 // Resolution per-user vote tracking
 db.exec(`CREATE TABLE IF NOT EXISTS votes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

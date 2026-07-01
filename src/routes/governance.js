@@ -368,9 +368,13 @@ router.get('/general-assemblies', auth, (req, res) => {
         (SELECT json_group_array(json_object('role',role,'role_ar',role_ar,'name_en',name_en,'name_ar',name_ar))
          FROM ga_officers WHERE ga_schedule_id=s.id) as officers_json,
         mq.quorum_achieved, mq.required_members as quorum_required,
-        mq.present_members as quorum_present, mq.notes as quorum_notes
+        mq.present_members as quorum_present, mq.notes as quorum_notes,
+        gm.status as minutes_status, gm.draft_date as minutes_draft_date,
+        gm.circulated_date as minutes_circulated_date, gm.approved_date as minutes_approved_date,
+        gm.final_date as minutes_final_date
       FROM schedule s
       LEFT JOIN meeting_quorum mq ON mq.schedule_id=s.id
+      LEFT JOIN ga_minutes gm ON gm.ga_schedule_id=s.id
       WHERE s.meeting_type='general_assembly'
       ORDER BY s.meeting_date ASC
     `).all();
@@ -600,19 +604,35 @@ router.post('/general-assemblies/:id/shareholders', auth, (req, res) => {
   try {
     const { name_ar, name_en, shares, share_pct, vote_rights, attendance_status, proxy_name, notes } = req.body;
     if (!name_en) return res.status(400).json({ error: 'name_en required' });
+    const sharesN = Number(shares);
+    if (!Number.isFinite(sharesN) || sharesN < 1) return res.status(400).json({ error: 'shares must be a number of at least 1' });
+    const pctN = Number(share_pct);
+    if (!Number.isFinite(pctN) || pctN <= 0 || pctN > 100) return res.status(400).json({ error: 'share_pct must be a number between 0.01 and 100' });
     const row = db.prepare(`INSERT INTO ga_shareholders (ga_schedule_id,name_ar,name_en,shares,share_pct,vote_rights,attendance_status,proxy_name,notes)
       VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(req.params.id, name_ar||name_en, name_en, shares||0, share_pct||0, vote_rights||shares||0, attendance_status||'pending', proxy_name||null, notes||null);
+      .run(req.params.id, name_ar||name_en, name_en, sharesN, pctN, vote_rights||sharesN, attendance_status||'pending', proxy_name||null, notes||null);
     res.json(db.prepare('SELECT * FROM ga_shareholders WHERE id=?').get(row.lastInsertRowid));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.patch('/ga-shareholders/:id', auth, (req, res) => {
   try {
+    const existing = db.prepare('SELECT id FROM ga_shareholders WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const { name_ar, name_en, shares, share_pct, vote_rights, attendance_status, proxy_name, notes } = req.body;
+    let sharesN = null;
+    if (shares !== undefined && shares !== null && shares !== '') {
+      sharesN = Number(shares);
+      if (!Number.isFinite(sharesN) || sharesN < 1) return res.status(400).json({ error: 'shares must be a number of at least 1' });
+    }
+    let pctN = null;
+    if (share_pct !== undefined && share_pct !== null && share_pct !== '') {
+      pctN = Number(share_pct);
+      if (!Number.isFinite(pctN) || pctN <= 0 || pctN > 100) return res.status(400).json({ error: 'share_pct must be a number between 0.01 and 100' });
+    }
     db.prepare(`UPDATE ga_shareholders SET name_ar=COALESCE(?,name_ar),name_en=COALESCE(?,name_en),
       shares=COALESCE(?,shares),share_pct=COALESCE(?,share_pct),vote_rights=COALESCE(?,vote_rights),
       attendance_status=COALESCE(?,attendance_status),proxy_name=COALESCE(?,proxy_name),notes=COALESCE(?,notes) WHERE id=?`)
-      .run(name_ar||null,name_en||null,shares??null,share_pct??null,vote_rights??null,attendance_status||null,proxy_name||null,notes||null,req.params.id);
+      .run(name_ar||null,name_en||null,sharesN,pctN,vote_rights??null,attendance_status||null,proxy_name||null,notes||null,req.params.id);
     res.json(db.prepare('SELECT * FROM ga_shareholders WHERE id=?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -674,6 +694,7 @@ router.post('/general-assemblies/:id/officers', auth, (req, res) => {
 });
 router.patch('/ga-officers/:id', auth, (req, res) => {
   try {
+    if (!db.prepare('SELECT id FROM ga_officers WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
     const { role, role_ar, name_en, name_ar } = req.body;
     db.prepare(`UPDATE ga_officers SET role=COALESCE(?,role),role_ar=COALESCE(?,role_ar),name_en=COALESCE(?,name_en),name_ar=COALESCE(?,name_ar) WHERE id=?`)
       .run(role||null,role_ar||null,name_en||null,name_ar||null,req.params.id);
@@ -689,6 +710,13 @@ router.delete('/ga-officers/:id', auth, (req, res) => {
 router.patch('/general-assemblies/:id/minutes', auth, (req, res) => {
   try {
     const { status, draft_date, circulated_date, approved_date, final_date, draft_by, notes } = req.body;
+    const validStatuses = ['draft', 'circulated', 'approved', 'final'];
+    if (status !== undefined && status !== null && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'status must be one of: ' + validStatuses.join(', ') });
+    }
+    if (!db.prepare("SELECT id FROM schedule WHERE id=? AND meeting_type='general_assembly'").get(req.params.id)) {
+      return res.status(404).json({ error: 'GA not found' });
+    }
     db.prepare(`INSERT INTO ga_minutes (ga_schedule_id,status,draft_date,circulated_date,approved_date,final_date,draft_by,notes)
       VALUES (?,?,?,?,?,?,?,?)
       ON CONFLICT(ga_schedule_id) DO UPDATE SET

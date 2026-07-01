@@ -130,6 +130,49 @@ const { processMeeting, findConflicts } = require('../services/pipeline');
 const { readRecent } = require('../utils/ailog');
 const { isValidEmail, isValidPhone, splitRecipients, partition } = require('../utils/validate');
 
+// ── Meeting lifecycle state machine ───────────────────────────────────────────
+// created → invited → scheduled → recording → uploaded → transcript_generated →
+// ai_minutes_generated → secretary_review → chairman_approval → board_approval →
+// archived. Every transition is persisted to meeting_lifecycle_log so the UI can
+// render a real, auditable timeline instead of a decorative status label.
+const LIFECYCLE_STAGES = [
+  'created', 'invited', 'scheduled', 'recording', 'uploaded',
+  'transcript_generated', 'ai_minutes_generated', 'secretary_review',
+  'chairman_approval', 'board_approval', 'archived',
+];
+
+// req.user only carries { id, email, system_role } (see src/middleware/auth.js) —
+// resolve a display name/role from the users table for audit-log entries instead
+// of reading undefined user.name/user.role fields.
+function resolveActor(userId) {
+  if (!userId) return { name: null, role: null };
+  const u = db.prepare('SELECT name_ar, name_en, role_ar, role_en, system_role FROM users WHERE id=?').get(userId);
+  if (!u) return { name: null, role: null };
+  return { name: u.name_en || u.name_ar || null, role: u.role_en || u.role_ar || u.system_role || null };
+}
+
+// Advances a meeting to `toStage` and logs the transition. Forward-only, except
+// the one legitimate backward loop in the process: chairman_approval →
+// secretary_review when a revision is requested. No-ops (returns the current
+// stage, does not log) if the meeting is already at or past `toStage`.
+function transitionMeeting(meetingId, toStage, userId, note) {
+  if (!LIFECYCLE_STAGES.includes(toStage)) throw new Error(`Unknown lifecycle stage: ${toStage}`);
+  const meeting = db.prepare('SELECT lifecycle_stage FROM meetings WHERE id=?').get(meetingId);
+  if (!meeting) return null;
+  const fromStage = meeting.lifecycle_stage || 'created';
+  const fromIdx = LIFECYCLE_STAGES.indexOf(fromStage);
+  const toIdx = LIFECYCLE_STAGES.indexOf(toStage);
+  const isRevisionLoop = fromStage === 'chairman_approval' && toStage === 'secretary_review';
+  if (toIdx <= fromIdx && !isRevisionLoop) return fromStage;
+  db.prepare('UPDATE meetings SET lifecycle_stage=?, lifecycle_updated_at=CURRENT_TIMESTAMP WHERE id=?').run(toStage, meetingId);
+  const actor = resolveActor(userId);
+  db.prepare(
+    `INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(meetingId, fromStage, toStage, userId || null, actor.name, note || null);
+  return toStage;
+}
+
 // ── File upload setup (multer + extractors) ──────────────────────────────────
 const multer = require('multer');
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
@@ -375,6 +418,11 @@ router.post('/meetings', auth, (req, res) => {
     INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '');
+  const actor = resolveActor(req.user.id);
+  db.prepare(
+    `INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+     VALUES (?, NULL, 'created', ?, ?, 'Meeting created')`
+  ).run(row.lastInsertRowid, req.user.id, actor.name);
   res.json({ id: row.lastInsertRowid });
 });
 
@@ -401,6 +449,10 @@ router.patch('/meetings/:id', auth, (req, res) => {
         .run(newTitleAr, newTitleEn, req.params.id);
     }
   })();
+
+  if (transcript !== undefined && newTranscript) {
+    transitionMeeting(req.params.id, 'transcript_generated', req.user.id, 'Transcript saved');
+  }
 
   res.json({ success: true, title_ar: newTitleAr, title_en: newTitleEn });
 });
@@ -456,6 +508,7 @@ router.post('/meetings/:id/recording', auth, uploadRec.single('recording'), (req
       recording_scope           = ?
     WHERE id = ?
   `).run(publicUrl, req.file.originalname, req.file.size, capture_type || '', resolvedScope, meeting.id);
+  transitionMeeting(meeting.id, 'uploaded', req.user.id, 'Recording file uploaded');
   res.json({ success: true, audio_recording_url: publicUrl, recording_approval_status: 'pending', recording_status: 'uploaded' });
 });
 
@@ -550,6 +603,7 @@ router.post('/meetings/:id/recording/start', auth, (req, res) => {
       recording_scope        = COALESCE(NULLIF(?, ''), recording_scope, 'unknown')
     WHERE id = ?
   `).run(req.user.id, capture_type || '', source || '', scope || '', meeting.id);
+  transitionMeeting(meeting.id, 'recording', req.user.id, 'Recording started');
   res.json({ success: true, recording_status: 'recording' });
 });
 
@@ -565,6 +619,7 @@ router.post('/meetings/:id/recording/stop', auth, (req, res) => {
       recording_notes      = COALESCE(NULLIF(?, ''), recording_notes, '')
     WHERE id = ?
   `).run(notes || '', meeting.id);
+  transitionMeeting(meeting.id, 'uploaded', req.user.id, 'Recording stopped');
   res.json({ success: true, recording_status: 'stopped' });
 });
 
@@ -666,9 +721,15 @@ router.post('/meetings/:id/process', auth, async (req, res) => {
   if (!meeting) return res.status(404).json({ error: 'Not found' });
   try {
     const out = await processMeeting({ meetingId: meeting.id, userId: req.user.id });
+    transitionMeeting(meeting.id, 'ai_minutes_generated', req.user.id, 'AI minutes generated');
     res.json({ success: true, ...out });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    // NO_API_KEY (or any AI-side failure) is an environment/configuration
+    // condition, not a server bug — 422 so the frontend can show a clear
+    // "AI unavailable" message instead of a generic crash. The pipeline
+    // deliberately never fabricates and persists fake minutes/tasks on
+    // failure (see services/pipeline.js), so there is no demo fallback here.
+    res.status(422).json({ error: e.message, code: /NO_API_KEY/i.test(e.message) ? 'AI_UNAVAILABLE' : 'PROCESS_FAILED' });
   }
 });
 
@@ -690,9 +751,13 @@ router.get('/tasks', auth, (req, res) => {
   const user = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
   const role = (user && user.system_role) || 'Admin';
   const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'inprogress' THEN 2 WHEN 'new' THEN 3 ELSE 4 END, due_date ASC";
+  const UPDATE_COLS = `,
+      (SELECT COUNT(*) FROM task_updates WHERE task_id=t.id) AS update_count,
+      (SELECT update_text FROM task_updates WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1) AS latest_update_text,
+      (SELECT author_name FROM task_updates WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1) AS latest_update_author`;
   const tasks = (role === 'Employee')
-    ? db.prepare(`SELECT * FROM tasks WHERE owner_id=? ${ORDER}`).all(req.user.id)
-    : db.prepare(`SELECT * FROM tasks ${ORDER}`).all();
+    ? db.prepare(`SELECT t.* ${UPDATE_COLS} FROM tasks t WHERE owner_id=? ${ORDER}`).all(req.user.id)
+    : db.prepare(`SELECT t.* ${UPDATE_COLS} FROM tasks t ${ORDER}`).all();
   res.json(tasks);
 });
 
@@ -1103,7 +1168,8 @@ router.post('/meetings/:id/whatsapp-summary', auth, async (req, res) => {
   if (!validPhones.length) return res.status(400).json({ error: `رقم جوال غير صالح / Invalid phone number(s): ${badPhones.join(', ')}` });
   // Canonicalize so the provider only ever sees E.164-ish numbers.
   const phones = validPhones.map(normalizePhone);
-  const tasks = JSON.parse(m.ai_tasks || '[]');
+  let tasks = [];
+  try { tasks = JSON.parse(m.ai_tasks || '[]'); } catch { tasks = []; }
   const taskLines = tasks.map(t => `• ${t.text_ar}${t.owner_ar ? ' — ' + t.owner_ar : ''}`).join('\n');
   const body = `📋 ملخص الاجتماع: ${m.title_ar}\n${(m.meeting_date || '').substring(0, 10)}\n\n` +
     `${m.ai_summary_ar || '-'}\n\n` +
@@ -1440,6 +1506,14 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
     });
   });
   tx();
+  if (list.length) {
+    // Adding attendees both invites them and confirms the meeting has a fixed
+    // date/time — the schedule and meetings tables aren't linked by a foreign
+    // key in this data model, so "scheduled" is tracked as an attribute of the
+    // meeting record itself rather than a separate calendar-confirmation step.
+    transitionMeeting(meetingId, 'invited', req.user.id, `${list.length} attendee(s) invited`);
+    transitionMeeting(meetingId, 'scheduled', req.user.id, 'Meeting date/time confirmed');
+  }
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(meetingId));
 });
 
@@ -1750,8 +1824,9 @@ router.get('/public/:token', (req, res) => {
   if (!a) return res.status(404).json({ error: 'NOT_FOUND' });
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(a.meeting_id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
-  const tasks = JSON.parse(meeting.ai_tasks || '[]');
-  const decisions = JSON.parse(meeting.ai_decisions || '[]');
+  let tasks = [], decisions = [];
+  try { tasks = JSON.parse(meeting.ai_tasks || '[]'); } catch { tasks = []; }
+  try { decisions = JSON.parse(meeting.ai_decisions || '[]'); } catch { decisions = []; }
   const mine = tasks.filter(t => (t.owner_ar && (t.owner_ar.includes(a.name) || a.name.includes(t.owner_ar))) ||
                                  (t.owner_en && a.name && t.owner_en.toLowerCase().includes(a.name.toLowerCase())));
   res.json({
@@ -1780,6 +1855,7 @@ router.post('/public/:token', (req, res) => {
 // ── Minutes Approval Workflow ────────────────────────────────────────────────
 
 function logApprovalAction(meeting_id, action, user, comments, version) {
+  const actor = user ? resolveActor(user.id) : { name: null, role: null };
   db.prepare(
     `INSERT INTO minutes_approval_log (meeting_id, action, actor_id, actor_name, actor_role, comments, version)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -1787,8 +1863,8 @@ function logApprovalAction(meeting_id, action, user, comments, version) {
     meeting_id,
     action,
     user ? user.id : null,
-    user ? (user.name || user.email || null) : null,
-    user ? (user.role || null) : null,
+    (user && (actor.name || user.email)) || null,
+    actor.role,
     comments || null,
     version || 1
   );
@@ -1804,6 +1880,7 @@ router.post('/meetings/:id/circulate', (req, res) => {
     `UPDATE meetings SET minutes_status='circulated', circulated_at=CURRENT_TIMESTAMP, circulated_by=?, approval_comments=? WHERE id=?`
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'circulated', req.user, comments, version);
+  transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Minutes circulated for review');
   res.json({ success: true, minutes_status: 'circulated' });
 });
 
@@ -1817,6 +1894,7 @@ router.post('/meetings/:id/approve', (req, res) => {
     `UPDATE meetings SET minutes_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP, approval_comments=? WHERE id=?`
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'approved', req.user, comments, version);
+  transitionMeeting(meeting.id, 'chairman_approval', req.user && req.user.id, 'Minutes approved by chairman');
   res.json({ success: true, minutes_status: 'approved' });
 });
 
@@ -1830,6 +1908,7 @@ router.post('/meetings/:id/request-revision', (req, res) => {
     `UPDATE meetings SET minutes_status='revision_requested', minutes_version=?, approval_comments=? WHERE id=?`
   ).run(version + 1, comments, meeting.id);
   logApprovalAction(meeting.id, 'revision_requested', req.user, comments, version);
+  transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Revision requested — back to secretary review');
   res.json({ success: true, minutes_status: 'revision_requested', new_version: version + 1 });
 });
 
@@ -1843,7 +1922,22 @@ router.post('/meetings/:id/final-approve', (req, res) => {
     `UPDATE meetings SET minutes_status='final_approved', final_approved_by=?, final_approved_at=CURRENT_TIMESTAMP, approval_comments=? WHERE id=?`
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'final_approved', req.user, comments, version);
+  transitionMeeting(meeting.id, 'board_approval', req.user && req.user.id, 'Minutes given final board approval');
   res.json({ success: true, minutes_status: 'final_approved' });
+});
+
+// POST /api/meetings/:id/archive — final step of the lifecycle, only reachable
+// once the board has given final approval.
+router.post('/meetings/:id/archive', (req, res) => {
+  const meeting = db.prepare('SELECT id, lifecycle_stage FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (meeting.lifecycle_stage === 'archived') return res.json({ success: true, lifecycle_stage: 'archived' });
+  if (meeting.lifecycle_stage !== 'board_approval') {
+    return res.status(400).json({ error: 'Meeting must reach Board Approval before it can be archived' });
+  }
+  const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
+  transitionMeeting(meeting.id, 'archived', req.user && req.user.id, comments || 'Meeting archived');
+  res.json({ success: true, lifecycle_stage: 'archived' });
 });
 
 // GET /api/meetings/:id/approval-log
@@ -1854,6 +1948,21 @@ router.get('/meetings/:id/approval-log', (req, res) => {
     `SELECT * FROM minutes_approval_log WHERE meeting_id=? ORDER BY created_at ASC`
   ).all(meeting.id);
   res.json({ success: true, log });
+});
+
+// GET /api/meetings/:id/lifecycle — current stage + full transition history
+router.get('/meetings/:id/lifecycle', (req, res) => {
+  const meeting = db.prepare('SELECT id, lifecycle_stage, lifecycle_updated_at FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const log = db.prepare(
+    `SELECT * FROM meeting_lifecycle_log WHERE meeting_id=? ORDER BY created_at ASC`
+  ).all(meeting.id);
+  res.json({
+    stage: meeting.lifecycle_stage || 'created',
+    updated_at: meeting.lifecycle_updated_at,
+    stages: LIFECYCLE_STAGES,
+    log,
+  });
 });
 
 module.exports = router;

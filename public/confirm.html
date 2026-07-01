@@ -49,8 +49,8 @@
     let LANG = 'ar';
     let DATA = null;
     const T = {
-      ar: { minutes:'محضر الاجتماع', summary:'الملخص', decisions:'القرارات', mytasks:'مهامي', confirm:'أؤكد استلام مهامي والموافقة عليها', confirmSub:'بالضغط هنا فإنك تقر باستلام المهام أعلاه', comment:'ملاحظاتك (اختياري)', commentPh:'أضف أي ملاحظة أو تعليق على المحضر أو المهام…', send:'إرسال التأكيد', sending:'جارٍ الإرسال…', thanksTitle:'تم استلام ردك', thanksSub:'شكراً لك، تم تسجيل تأكيدك وملاحظاتك بنجاح.', notfound:'الرابط غير صالح أو منتهي الصلاحية.', hello:'مرحباً', owner:'المسؤول' },
-      en: { minutes:'Meeting Minutes', summary:'Summary', decisions:'Decisions', mytasks:'My Tasks', confirm:'I confirm receipt and acceptance of my tasks', confirmSub:'By checking this you acknowledge the tasks above', comment:'Your comments (optional)', commentPh:'Add any note or comment on the minutes or tasks…', send:'Send Confirmation', sending:'Sending…', thanksTitle:'Response Received', thanksSub:'Thank you, your confirmation and comments were recorded.', notfound:'This link is invalid or has expired.', hello:'Hello', owner:'Owner' }
+      ar: { minutes:'محضر الاجتماع', summary:'الملخص', decisions:'القرارات', mytasks:'مهامي', confirm:'أؤكد استلام مهامي والموافقة عليها', confirmSub:'بالضغط هنا فإنك تقر باستلام المهام أعلاه', comment:'ملاحظاتك (اختياري)', commentPh:'أضف أي ملاحظة أو تعليق على المحضر أو المهام…', send:'إرسال التأكيد', sending:'جارٍ الإرسال…', thanksTitle:'تم استلام ردك', thanksSub:'شكراً لك، تم تسجيل تأكيدك وملاحظاتك بنجاح.', notfound:'الرابط غير صالح أو منتهي الصلاحية.', hello:'مرحباً', owner:'المسؤول', senderr:'حدث خطأ ولم يتم حفظ تأكيدك — يرجى المحاولة مرة أخرى.' },
+      en: { minutes:'Meeting Minutes', summary:'Summary', decisions:'Decisions', mytasks:'My Tasks', confirm:'I confirm receipt and acceptance of my tasks', confirmSub:'By checking this you acknowledge the tasks above', comment:'Your comments (optional)', commentPh:'Add any note or comment on the minutes or tasks…', send:'Send Confirmation', sending:'Sending…', thanksTitle:'Response Received', thanksSub:'Thank you, your confirmation and comments were recorded.', notfound:'This link is invalid or has expired.', hello:'Hello', owner:'Owner', senderr:'Something went wrong — your confirmation was not saved. Please try again.' }
     };
     const esc = s => (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
@@ -110,13 +110,24 @@
       const btn = document.getElementById('send');
       btn.disabled = true; btn.textContent = t.sending;
       try {
-        await fetch('/api/public/' + TOKEN, {
+        const r = await fetch('/api/public/' + TOKEN, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ confirmed: document.getElementById('cf').checked, comment: document.getElementById('cm').value })
         });
+        if (!r.ok) throw new Error('send-failed');
         DATA.attendee.confirmed = true;
         done();
-      } catch (e) { btn.disabled = false; btn.textContent = t.send; }
+      } catch (e) {
+        btn.disabled = false; btn.textContent = t.send;
+        let err = document.getElementById('send-err');
+        if (!err) {
+          err = document.createElement('div');
+          err.id = 'send-err';
+          err.style.cssText = 'color:#dc2626;font-size:13px;text-align:center;margin-top:10px';
+          btn.insertAdjacentElement('afterend', err);
+        }
+        err.textContent = t.senderr;
+      }
     }
 
     function done() {

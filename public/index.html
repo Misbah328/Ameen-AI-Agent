@@ -48,7 +48,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/css/app.css"/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/js/vendor/chart.umd.js" defer></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -852,8 +852,9 @@
         </div>
       </div>
       <div id="plan-current" style="font-size:12px;color:var(--text3);text-align:center"></div>
+      <div style="font-size:11px;color:var(--text3);background:var(--navy3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;text-align:center" data-ar="ℹ️ هذا تفعيل داخلي للمشرفين فقط — لا توجد عملية دفع أو فوترة حالياً." data-en="ℹ️ This is an admin-only internal toggle — no payment or billing is processed.">ℹ️ هذا تفعيل داخلي للمشرفين فقط — لا توجد عملية دفع أو فوترة حالياً.</div>
       <div class="fa">
-        <button class="btn-gold" id="plan-upgrade-btn" onclick="App.setPlan('pro')">⭐ <span data-ar="الترقية إلى Pro" data-en="Upgrade to Pro">الترقية إلى Pro</span></button>
+        <button class="btn-gold" id="plan-upgrade-btn" onclick="App.setPlan('pro')">⭐ <span data-ar="تفعيل Pro (إداري)" data-en="Enable Pro (Admin)">تفعيل Pro (إداري)</span></button>
         <button class="btn-ghost" id="plan-downgrade-btn" onclick="App.setPlan('free')"><span data-ar="الرجوع إلى Free" data-en="Switch to Free">الرجوع إلى Free</span></button>
         <button class="btn-ghost" onclick="App.closePlan()"><span data-ar="إغلاق" data-en="Close">إغلاق</span></button>
       </div>

@@ -932,6 +932,10 @@ const Rec = {
         }),
       });
       this.currentMeetingId = row.id;
+      await api(`/api/meetings/${row.id}/recording/start`, {
+        method: "POST",
+        body: JSON.stringify({ capture_type: "browser_microphone", scope: "local_microphone_only" }),
+      }).catch(() => {});
     } catch (e) {
       alert(e.message);
       return;
@@ -1093,6 +1097,13 @@ const Rec = {
 
     // One final live extraction pass so nothing said near the end is missed.
     await this.liveExtract();
+
+    if (this.currentMeetingId) {
+      await api(`/api/meetings/${this.currentMeetingId}/recording/stop`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }).catch(() => {});
+    }
 
     if (this.currentMeetingId && this.fullTranscript) {
       const dur = Math.floor((Date.now() - this.startTime) / 1000);
@@ -1601,10 +1612,23 @@ const Rec = {
     }
   },
 
-  saveOnly() {
+  async saveOnly() {
     if (!this.currentMeetingId) return;
-    const t = $("sched-toast") || document.createElement("div");
-    t.textContent = App.lang === "ar" ? "✓ تم الحفظ" : "✓ Saved";
+    if (this.fullTranscript) {
+      try {
+        await api(`/api/meetings/${this.currentMeetingId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ transcript: this.fullTranscript }),
+        });
+      } catch (e) {
+        showToast(
+          (App.lang === "ar" ? "تعذّر الحفظ: " : "Could not save: ") + e.message,
+          "error",
+        );
+        return;
+      }
+    }
+    showToast(App.lang === "ar" ? "تم الحفظ" : "Saved");
     Panels.load("transcripts");
   },
 
@@ -1896,10 +1920,91 @@ function _secHdr(icon, labelAr, labelEn, subAr = '', subEn = '') {
   </div>`;
 }
 
-// ── Meeting Lifecycle Strip ────────────────────────────────────────────────────
-// Renders a compact 10-step lifecycle bar for any meeting or schedule item.
-// Works with both schedule items (s) and recorded meetings (m).
+// Canonical order — must mirror LIFECYCLE_STAGES in src/routes/api.js.
+const LIFECYCLE_STAGE_ORDER = [
+  'created', 'invited', 'scheduled', 'recording', 'uploaded',
+  'transcript_generated', 'ai_minutes_generated', 'secretary_review',
+  'chairman_approval', 'board_approval', 'archived',
+];
+const LIFECYCLE_STAGE_META = {
+  created:               { ar: 'إنشاء',       en: 'Created',       icon: '🏗' },
+  invited:               { ar: 'الدعوات',     en: 'Invited',       icon: '📧' },
+  scheduled:             { ar: 'مجدول',       en: 'Scheduled',     icon: '📅' },
+  recording:             { ar: 'التسجيل',     en: 'Recording',     icon: '🎙' },
+  uploaded:              { ar: 'تم الرفع',    en: 'Uploaded',      icon: '⬆️' },
+  transcript_generated:  { ar: 'النص',        en: 'Transcript',    icon: '📝' },
+  ai_minutes_generated:  { ar: 'محضر AI',     en: 'AI Minutes',    icon: '🤖' },
+  secretary_review:      { ar: 'مراجعة السكرتير', en: 'Secretary Review', icon: '🗂️' },
+  chairman_approval:     { ar: 'اعتماد الرئيس',   en: 'Chairman Approval', icon: '✅' },
+  board_approval:        { ar: 'اعتماد المجلس',   en: 'Board Approval',    icon: '🏛️' },
+  archived:              { ar: 'أرشفة',       en: 'Archived',      icon: '🗄' },
+};
+
+// Renders the meeting lifecycle strip. For a real `meetings` row (which carries
+// a persisted `lifecycle_stage`), the strip reflects the actual database state
+// machine — every step here corresponds to a real, logged transition. For
+// `schedule` table rows (pre-recording calendar entries with no lifecycle_stage
+// column) it falls back to a heuristic estimate from the fields that do exist.
 function _meetingLifecycle(m, l) {
+  const ar = (a, e) => l === 'ar' ? a : e;
+  if (m.lifecycle_stage) return _meetingLifecycleReal(m, l);
+  return _meetingLifecycleHeuristic(m, l);
+}
+
+function _meetingLifecycleReal(m, l) {
+  const ar = (a, e) => l === 'ar' ? a : e;
+  const stage = m.lifecycle_stage || 'created';
+  const currentIdx = Math.max(0, LIFECYCLE_STAGE_ORDER.indexOf(stage));
+  const resolved = LIFECYCLE_STAGE_ORDER.map((key, i) => {
+    const meta = LIFECYCLE_STAGE_META[key];
+    const state = i < currentIdx ? 'done' : i === currentIdx ? (stage === 'archived' ? 'done' : 'current') : 'pending';
+    return { key, ar: meta.ar, en: meta.en, icon: meta.icon, state };
+  });
+  const doneCount = resolved.filter(s => s.state === 'done').length;
+  const pct = Math.round(((doneCount + (stage === 'archived' ? 0 : 0.5)) / resolved.length) * 100);
+  const barColor = stage === 'archived' ? 'var(--green)' : pct >= 50 ? '#5B9BD6' : 'var(--gold)';
+
+  const SC = {
+    done:    { bg: 'rgba(46,204,138,.12)',  fg: 'var(--green)', bd: 'rgba(46,204,138,.3)'  },
+    current: { bg: 'rgba(212,160,23,.13)', fg: 'var(--gold)',  bd: 'rgba(212,160,23,.4)'  },
+    pending: { bg: 'transparent',          fg: 'var(--text3)', bd: 'var(--border2)'        },
+  };
+  const chips = resolved.map((s, i) => {
+    const c = SC[s.state] || SC.pending;
+    const dot = s.state === 'done' ? '✓' : s.state === 'current' ? '●' : '○';
+    const sep = i > 0
+      ? `<div style="width:10px;height:1px;flex-shrink:0;background:${s.state==='done'?'rgba(46,204,138,.4)':'var(--border2)'}"></div>`
+      : '';
+    return `${sep}<div style="display:flex;align-items:center;gap:3px;padding:3px 7px;border-radius:20px;background:${c.bg};border:.5px solid ${c.bd};white-space:nowrap" title="${s.state==='done'?ar('مكتمل','Completed'):s.state==='current'?ar('جارٍ','Current'):ar('معلق','Pending')}">
+      <span style="font-size:11px">${s.icon}</span>
+      <span style="font-size:11px;font-weight:${s.state==='current'?'700':'500'};color:${c.fg}">${l==='ar'?s.ar:s.en}</span>
+      <span style="font-size:10px;color:${c.fg}">${dot}</span>
+    </div>`;
+  }).join('');
+
+  return `<div style="margin:10px 0 6px;padding:10px 12px;background:var(--navy3);border-radius:10px;border:.5px solid var(--border2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">⚡ ${ar('مسار الاجتماع','Meeting Lifecycle')}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:${barColor}">${doneCount}/${resolved.length} ${ar('مكتملة','complete')}</span>
+        <button class="btn-ghost btn-sm" style="font-size:10.5px;padding:2px 8px" onclick="showLifecycleLog(${m.id})">📋 ${ar('السجل','Log')}</button>
+      </span>
+    </div>
+    <div style="background:var(--navy4);border-radius:20px;height:4px;overflow:hidden;margin-bottom:8px">
+      <div style="height:100%;border-radius:20px;background:${barColor};width:${pct}%;transition:width .5s"></div>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <div style="display:flex;align-items:center;min-width:max-content">
+        ${chips}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Meeting Lifecycle Strip (heuristic fallback for schedule-table rows) ──────
+// Renders a compact 10-step lifecycle bar for schedule items, which don't carry
+// a persisted lifecycle_stage (the schedule and meetings tables aren't linked).
+function _meetingLifecycleHeuristic(m, l) {
   const ar = (a, e) => l === 'ar' ? a : e;
   const today = new Date().toISOString().substring(0, 10);
   const meetingDate = m.meeting_date || '';
@@ -2222,6 +2327,7 @@ async function renderTranscripts() {
               ? m.ai_summary_ar || ""
               : m.ai_summary_en || m.ai_summary_ar || "";
           const isProcessed = m.status === "processed";
+          const lcStage = m.lifecycle_stage || 'created';
           const mStatus = m.minutes_status || 'draft';
           const mVersion = m.minutes_version || 1;
           const mStatusBadge = (() => {
@@ -2245,6 +2351,9 @@ async function renderTranscripts() {
             }
             if (mStatus !== 'draft') {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:11px">📋 ${l==='ar'?'سجل الاعتماد':'Approval Log'}</button>`);
+            }
+            if (lcStage === 'board_approval') {
+              btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'archive')" style="color:var(--text3);border-color:var(--text3)">🗄️ ${l==='ar'?'أرشفة':'Archive'}</button>`);
             }
             return btns.join('');
           })();
@@ -2466,6 +2575,7 @@ async function minutesApprovalAction(meetingId, action) {
     'approve': l === 'ar' ? 'اعتماد' : 'Approve',
     'request-revision': l === 'ar' ? 'طلب مراجعة' : 'Request Revision',
     'final-approve': l === 'ar' ? 'اعتماد نهائي' : 'Final Approve',
+    'archive': l === 'ar' ? 'أرشفة الاجتماع' : 'Archive Meeting',
   };
   const label = actionLabels[action] || action;
   const comments = prompt(
@@ -2506,6 +2616,28 @@ async function minutesShowLog(meetingId) {
     alert((l === 'ar' ? 'سجل الاعتماد:\n\n' : 'Approval Log:\n\n') + lines);
   } catch (e) {
     alert(l === 'ar' ? 'خطأ في تحميل السجل' : 'Error loading log');
+  }
+}
+
+async function showLifecycleLog(meetingId) {
+  const l = App.lang;
+  try {
+    const data = await api(`/api/meetings/${meetingId}/lifecycle`);
+    const log = data.log || [];
+    if (!log.length) {
+      alert(l === 'ar' ? 'لا يوجد سجل مراحل بعد.' : 'No lifecycle transitions logged yet.');
+      return;
+    }
+    const lines = log.map(row => {
+      const date = (row.created_at || '').substring(0, 16).replace('T', ' ');
+      const actor = row.actor_name || (l === 'ar' ? 'النظام' : 'System');
+      const from = row.from_stage ? `${row.from_stage} → ` : '';
+      const note = row.note ? `\n   💬 ${row.note}` : '';
+      return `• ${date}  ${actor}  —  ${from}${row.to_stage}${note}`;
+    }).join('\n\n');
+    alert((l === 'ar' ? `سجل مراحل الاجتماع (الحالة: ${data.stage}):\n\n` : `Meeting Lifecycle Log (current: ${data.stage}):\n\n`) + lines);
+  } catch (e) {
+    alert(l === 'ar' ? 'خطأ في تحميل سجل المراحل' : 'Error loading lifecycle log');
   }
 }
 
@@ -2922,7 +3054,11 @@ async function renderTasks() {
               ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>42?mtg.substring(0,42)+"…":mtg)}</span>` : ""}
             </div>
             <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-              <span style="line-height:1.4">${l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed."}</span>
+              <span style="line-height:1.4">${
+                t.update_count
+                  ? `💬 ${esc((t.latest_update_text || "").length > 90 ? t.latest_update_text.substring(0,90)+"…" : (t.latest_update_text||""))}${t.latest_update_author ? ` — ${esc(t.latest_update_author)}` : ""}${t.update_count > 1 ? ` (${t.update_count} ${l==="ar"?"تحديثات":"updates"})` : ""}`
+                  : (l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed.")
+              }</span>
               <button onclick="Tasks.edit(${t.id})" style="font-size:11px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
             </div>
           </div>
@@ -3075,7 +3211,16 @@ const Tasks = {
       !confirm(App.lang === "ar" ? "حذف هذا القرار؟" : "Delete this decision?")
     )
       return;
-    await api(`/api/decisions/${id}`, { method: "DELETE" });
+    try {
+      await api(`/api/decisions/${id}`, { method: "DELETE" });
+    } catch (e) {
+      showToast(
+        (App.lang === "ar" ? "تعذّر حذف القرار: " : "Could not delete decision: ") +
+          e.message,
+        "error",
+      );
+      return;
+    }
     renderTasks();
   },
 };
@@ -3229,6 +3374,23 @@ const TaskTimeline = {
             ✓ ${l==='ar'?'حفظ التحديث':'Save Update'}
           </button>
         </div>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--border2);padding-top:10px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">${l==='ar'?'تصعيد المهمة إلى:':'Escalate task to:'}</div>
+        <select id="task-escalate-target" class="fi" style="width:100%;margin-bottom:6px">
+          <option value="">-- ${l==='ar'?'اختر عضواً':'Select a member'} --</option>
+          ${(App._members || []).filter(u => u.id !== task.owner_id).map(u =>
+            `<option value="${u.id}">${esc(l==='ar'?u.name_ar:(u.name_en||u.name_ar))}</option>`
+          ).join('')}
+        </select>
+        <input id="task-escalate-comment" class="fi" dir="${l==='ar'?'rtl':'ltr'}"
+          style="width:100%;font-size:12px;box-sizing:border-box;margin-bottom:6px"
+          placeholder="${l==='ar'?'ملاحظة (اختياري)':'Comment (optional)'}"/>
+        <div style="display:flex;justify-content:flex-end">
+          <button class="btn-ghost btn-sm" id="task-escalate-btn" onclick="TaskTimeline.escalate(${taskId})" style="color:#9B72DB;border-color:rgba(155,114,219,.4)">
+            ↑ ${l==='ar'?'تصعيد':'Escalate'}
+          </button>
+        </div>
       </div>`;
   },
 
@@ -3255,6 +3417,34 @@ const TaskTimeline = {
     } catch (e) {
       showToast(e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = `✓ ${l==='ar'?'حفظ التحديث':'Save Update'}`; }
+    }
+  },
+
+  async escalate(taskId) {
+    const l = App.lang;
+    const sel = document.getElementById("task-escalate-target");
+    const commentEl = document.getElementById("task-escalate-comment");
+    if (!sel) return;
+    const escalate_to_id = sel.value;
+    if (!escalate_to_id) { showToast(l==='ar'?'اختر عضواً للتصعيد إليه':'Select a member to escalate to', 'error'); return; }
+    const btn = document.getElementById("task-escalate-btn");
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    try {
+      await api(`/api/tasks/${taskId}/escalate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ escalate_to_id: Number(escalate_to_id), comments: (commentEl && commentEl.value.trim()) || '' }),
+      });
+      const task = (App.tasksCache || []).find(x => x.id === taskId) || {};
+      const updates = await api(`/api/tasks/${taskId}/updates`);
+      const container = document.getElementById("task-timeline-container");
+      if (container) this.render(container, taskId, task, updates, l);
+      showToast(l==='ar'?'تم تصعيد المهمة':'Task escalated', 'success');
+      await renderTasks();
+      await loadBadges();
+    } catch (e) {
+      showToast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = `↑ ${l==='ar'?'تصعيد':'Escalate'}`; }
     }
   },
 };
@@ -3388,6 +3578,8 @@ const DocGen = {
     btn.innerHTML = `<span class="loading"></span> ${App.lang === "ar" ? "أمين يُولّد..." : "Generating..."}`;
     $("doc-result").innerHTML =
       `<div style="text-align:center;padding:20px;color:var(--text3)">${App.lang === "ar" ? "أمين يُنشئ الوثيقة..." : "Generating document..."}</div>`;
+    const oldNote = $("doc-demo-note");
+    if (oldNote) oldNote.remove();
     try {
       const r = await api("/api/ai/document", {
         method: "POST",
@@ -3397,6 +3589,7 @@ const DocGen = {
       $("doc-result").style.direction = data.lang === "en" ? "ltr" : "rtl";
       $("doc-result").style.textAlign = data.lang === "en" ? "left" : "right";
       $("doc-result").textContent = r.content;
+      if (r.demo) this.showDemoNote();
       $("doc-toast").style.display = "flex";
       setTimeout(() => ($("doc-toast").style.display = "none"), 2500);
     } catch (e) {
@@ -3414,6 +3607,20 @@ const DocGen = {
   },
   print() {
     window.print();
+  },
+  showDemoNote() {
+    const old = document.getElementById("doc-demo-note");
+    if (old) old.remove();
+    const note = document.createElement("div");
+    note.id = "doc-demo-note";
+    note.style.cssText =
+      "font-size:12px;color:var(--amber);padding:8px 12px;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);border-radius:6px;margin:8px 0;text-align:center;font-weight:600";
+    note.textContent =
+      App.lang === "ar"
+        ? "⚠️ وثيقة تجريبية — أضف مفتاح Anthropic API لتوليد وثائق حقيقية"
+        : "⚠️ Demo document — Add an Anthropic API key to generate real documents";
+    const result = $("doc-result");
+    if (result && result.parentNode) result.parentNode.insertBefore(note, result);
   },
   async downloadPDF() {
     const l = App.lang;
@@ -4061,7 +4268,16 @@ const Schedule = {
       )
     )
       return;
-    await api(`/api/schedule/${id}`, { method: "DELETE" });
+    try {
+      await api(`/api/schedule/${id}`, { method: "DELETE" });
+    } catch (e) {
+      showToast(
+        (App.lang === "ar" ? "تعذّر الحذف: " : "Could not delete: ") +
+          e.message,
+        "error",
+      );
+      return;
+    }
     await renderSchedule();
     await loadBadges();
   },
@@ -4697,6 +4913,7 @@ const Team = {
             canManage
               ? `<div style="display:flex;gap:7px;border-top:1px solid var(--border2);padding-top:10px">
             <button class="btn-ghost btn-sm" onclick="Team.edit(${m.id})" style="flex:1;font-size:11px">✏️ ${l === "ar" ? "تعديل" : "Edit"}</button>
+            <button class="btn-ghost btn-sm" onclick="openResetPassword(${m.id}, '${esc(name).replace(/'/g, "\\'")}')" style="font-size:11px" title="${l === "ar" ? "إعادة تعيين كلمة المرور" : "Reset Password"}">🔒</button>
             <button class="btn-ghost btn-sm" onclick="Team.delete(${m.id})" style="color:var(--red);font-size:11px">✕ ${l === "ar" ? "حذف" : "Delete"}</button>
           </div>`
               : ""

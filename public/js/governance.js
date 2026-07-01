@@ -61,6 +61,8 @@ const Gov = {
   _summary: null,
   _gas: [],
   _qTimer: null,
+  _editingShareholderId: null,
+  _editingOfficerId: null,
 
   lbl(ar, en) { return App.lang === 'ar' ? ar : en; },
 
@@ -366,10 +368,10 @@ const Gov = {
               <div style="display:flex;gap:0;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--navy4);border-radius:10px;row-gap:6px">
                 <span style="font-size:12.5px;font-weight:600;color:var(--text2);padding-inline-end:12px">${lbl('حالة المحاضر:','Minutes Status:')}</span>
                 ${[
-                  ['📄', lbl('مسودة','Draft'), !isUpcoming],
-                  ['📤', lbl('تُعمَّم','Circulated'), !isUpcoming],
-                  ['✓', lbl('مُعتمَد','Approved'), !isUpcoming && (ga.quorum_achieved===1)],
-                  ['✅', lbl('اعتماد نهائي','Final Approved'), !isUpcoming && (ga.quorum_achieved===1)],
+                  ['📄', lbl('مسودة','Draft'), !!ga.minutes_draft_date],
+                  ['📤', lbl('تُعمَّم','Circulated'), !!ga.minutes_circulated_date],
+                  ['✓', lbl('مُعتمَد','Approved'), !!ga.minutes_approved_date],
+                  ['✅', lbl('اعتماد نهائي','Final Approved'), ga.minutes_status === 'final'],
                 ].map(([ic, step, done]) => `
                   <div style="display:flex;align-items:center;gap:5px;padding-inline-end:14px">
                     <div style="width:22px;height:22px;border-radius:50%;background:${done?'var(--green)':'var(--navy3)'};border:2px solid ${done?'var(--green)':'var(--border2)'};display:flex;align-items:center;justify-content:center;font-size:11px;color:${done?'#fff':'var(--text3)'};flex-shrink:0">${ic}</div>
@@ -1562,18 +1564,68 @@ const Gov = {
       </div>
     </div>`;
 
+    // ── 1b. GA Officers ───────────────────────────────────────────────────
+    const canManage = App.user && ['Admin','CEO','Chairman','Secretary'].includes(App.user.role_en);
+    const officers = data.officers || [];
+    const officerRoleOpts = [
+      ['chairman',      lbl('رئيس الجمعية','Chairman')],
+      ['secretary',     lbl('أمين السر','Secretary')],
+      ['legal_advisor', lbl('مستشار قانوني','Legal Advisor')],
+      ['scrutineer',    lbl('مدقق أصوات','Scrutineer')],
+      ['other',         lbl('أخرى','Other')],
+    ];
+    const officerRoleIcon = { chairman:'👑', secretary:'📝', legal_advisor:'⚖️', scrutineer:'🔍', other:'👤' };
+    const sOff = `<div class="card">
+      <div class="ch" style="margin-bottom:14px">
+        <div><div class="ct">👑 ${lbl('مسؤولو الجمعية','GA Officers')}</div>
+        <div class="ctsub">${lbl('الرئيس وأمين السر والمسؤولون الآخرون','Chairman, Secretary, and other assigned officers')}</div></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="tag tb">${officers.length} ${lbl('مسؤول','officer(s)')}</span>
+          ${canManage && apiDetail ? `<button class="btn-ghost btn-sm" onclick="Gov._showOfficerForm(${ga.id})" style="font-size:11px">+ ${lbl('إضافة','Add')}</button>` : ''}
+        </div>
+      </div>
+      ${officers.length ? `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:${canManage && apiDetail ? '12px' : '0'}">
+        ${officers.map(o => `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--navy3);border-radius:10px">
+          <span style="font-size:16px;flex-shrink:0">${officerRoleIcon[o.role]||'👤'}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11.5px;color:var(--text3)">${l==='ar'?esc(o.roleAr||o.role):esc(o.role)}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${l==='ar'?esc(o.nameAr||o.nameEn):esc(o.nameEn)}</div>
+          </div>
+          ${canManage && apiDetail && o.id ? `<div style="display:flex;gap:5px;flex-shrink:0">
+            <button class="btn-ghost btn-sm" data-role="${esc(o.role||'other')}" data-role-ar="${esc(o.roleAr||'')}" data-name-en="${esc(o.nameEn||'')}" data-name-ar="${esc(o.nameAr||'')}" onclick="Gov._editOfficer(${ga.id},${o.id},this)" style="font-size:11px">✎</button>
+            <button class="btn-ghost btn-sm" onclick="Gov.deleteOfficer(${o.id},${ga.id})" style="font-size:11px;color:var(--red);border-color:var(--red)">✕</button>
+          </div>` : ''}
+        </div>`).join('')}
+      </div>` : `<div style="font-size:12px;color:var(--text3);font-style:italic;margin-bottom:${canManage && apiDetail ? '12px' : '0'}">${lbl('لم يُعيَّن مسؤولون بعد','No officers assigned yet')}</div>`}
+      ${canManage && apiDetail ? `
+      <div id="off-form-${ga.id}" style="display:none;background:var(--navy3);border-radius:10px;padding:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px" id="off-form-title-${ga.id}">+ ${lbl('إضافة مسؤول','Add Officer')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <select class="fi" id="off-role-${ga.id}">
+            ${officerRoleOpts.map(([v,label])=>`<option value="${v}">${label}</option>`).join('')}
+          </select>
+          <input class="fi" id="off-role-ar-${ga.id}" placeholder="${lbl('اسم الدور (عربي، اختياري)','Role label (Arabic, optional)')}"/>
+          <input class="fi" id="off-en-${ga.id}" placeholder="${lbl('الاسم (بالإنجليزية)','Name (English)')}*"/>
+          <input class="fi" id="off-ar-${ga.id}" placeholder="${lbl('الاسم (بالعربية)','Name (Arabic)')}"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-gold btn-sm" onclick="Gov.saveOfficer(${ga.id})">${lbl('حفظ','Save')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov._hideOfficerForm(${ga.id})">${lbl('إلغاء','Cancel')}</button>
+        </div>
+      </div>` : ''}
+    </div>`;
+
     // ── 2. Shareholders ───────────────────────────────────────────────────
     const sh = data.shareholders;
     const atC = { present:'var(--green)', absent:'var(--red)', proxy:'var(--amber)', excused:'var(--text3)' };
     const atL = { present:lbl('حاضر','Present'), absent:lbl('غائب','Absent'), proxy:lbl('وكيل','Proxy'), excused:lbl('معتذر','Excused') };
-    const canManage = App.user && ['Admin','CEO','Chairman','Secretary'].includes(App.user.role_en);
     const s2 = `<div class="card">
       <div class="ch" style="margin-bottom:14px">
         <div><div class="ct">👥 ${lbl('المساهمون','Shareholders')}</div>
         <div class="ctsub">${lbl('سجل الحضور وحقوق التصويت','Attendance and voting rights register')}</div></div>
         <div style="display:flex;gap:6px;align-items:center">
           <span class="tag tb">${sh.length} ${lbl('مساهم','shareholders')}</span>
-          ${canManage && apiDetail ? `<button class="btn-ghost btn-sm" onclick="Gov._toggleForm('sh-add-form-${ga.id}')" style="font-size:11px">+ ${lbl('إضافة','Add')}</button>` : ''}
+          ${canManage && apiDetail ? `<button class="btn-ghost btn-sm" onclick="Gov._showShareholderForm(${ga.id})" style="font-size:11px">+ ${lbl('إضافة','Add')}</button>` : ''}
         </div>
       </div>
       <div style="overflow-x:auto">
@@ -1589,14 +1641,17 @@ const Gov = {
               <td style="padding:9px 10px;color:var(--text2)">${fmt(s.voteRights)}</td>
               <td style="padding:9px 10px"><span class="tag" style="font-size:11px;color:${atC[s.attendance]||'var(--text3)'};background:transparent;border:1px solid ${atC[s.attendance]||'var(--border2)'}">${atL[s.attendance]||s.attendance}</span></td>
               <td style="padding:9px 10px;color:var(--text3)">${s.proxy}</td>
-              ${canManage && apiDetail && s.id ? `<td style="padding:9px 10px"><button class="btn-ghost btn-sm" onclick="Gov.deleteShareholder(${s.id},${ga.id})" style="font-size:11px;color:var(--red);border-color:var(--red)">✕</button></td>` : ''}
+              ${canManage && apiDetail && s.id ? `<td style="padding:9px 10px;white-space:nowrap">
+                <button class="btn-ghost btn-sm" data-name-en="${esc(s.nameEn||'')}" data-name-ar="${esc(s.nameAr||'')}" data-shares="${s.shares||0}" data-pct="${s.pct||0}" data-att="${esc(s.attendance||'pending')}" data-proxy="${esc(s.proxy && s.proxy!=='—' ? s.proxy : '')}" onclick="Gov._editShareholder(${ga.id},${s.id},this)" style="font-size:11px;margin-inline-end:4px">✎</button>
+                <button class="btn-ghost btn-sm" onclick="Gov.deleteShareholder(${s.id},${ga.id})" style="font-size:11px;color:var(--red);border-color:var(--red)">✕</button>
+              </td>` : ''}
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
       ${canManage && apiDetail ? `
       <div id="sh-add-form-${ga.id}" style="display:none;margin-top:12px;background:var(--navy3);border-radius:10px;padding:14px">
-        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">+ ${lbl('إضافة مساهم','Add Shareholder')}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px" id="sh-form-title-${ga.id}">+ ${lbl('إضافة مساهم','Add Shareholder')}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
           <input class="fi" id="sh-en-${ga.id}" placeholder="${lbl('الاسم (بالإنجليزية)','Name (English)')}*"/>
           <input class="fi" id="sh-ar-${ga.id}" placeholder="${lbl('الاسم (بالعربية)','Name (Arabic)')}"/>
@@ -1613,7 +1668,7 @@ const Gov = {
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn-gold btn-sm" onclick="Gov.saveShareholder(${ga.id})">${lbl('حفظ','Save')}</button>
-          <button class="btn-ghost btn-sm" onclick="Gov._toggleForm('sh-add-form-${ga.id}')">${lbl('إلغاء','Cancel')}</button>
+          <button class="btn-ghost btn-sm" onclick="Gov._cancelShareholderForm(${ga.id})">${lbl('إلغاء','Cancel')}</button>
         </div>
       </div>` : ''}
     </div>`;
@@ -1801,6 +1856,21 @@ const Gov = {
             </div>
           </div>`).join('')}
       </div>
+      ${canManage && apiDetail ? (() => {
+        const m2 = data.minutes || {};
+        let actionAr = null, actionEn = null;
+        if (!m2.draft_date) { actionAr = 'وضع علامة كمسودة مكتملة'; actionEn = 'Mark Draft Complete'; }
+        else if (!m2.circulated_date) { actionAr = 'تعميم على أمين السر للمراجعة'; actionEn = 'Circulate for Secretary Review'; }
+        else if (!m2.approved_date) { actionAr = 'تسجيل اعتماد الرئيس'; actionEn = 'Record Chairman Approval'; }
+        else if (!m2.final_date) { actionAr = 'تسجيل موافقة المساهمين'; actionEn = 'Record Shareholder Approval'; }
+        else if (m2.status !== 'final') { actionAr = 'اعتماد نهائي وأرشفة المحضر'; actionEn = 'Final Approve Minutes'; }
+        return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text3)">${lbl('الحالة الحالية:','Current status:')} <strong style="color:var(--text2)">${esc(m2.status||'draft')}</strong></span>
+          ${actionEn
+            ? `<button class="btn-gold btn-sm" onclick="Gov.advanceMinutes(${ga.id})">→ ${lbl(actionAr, actionEn)}</button>`
+            : `<span class="tag tg" style="font-size:12px">✓ ${lbl('اكتملت جميع خطوات الاعتماد','All approval steps complete')}</span>`}
+        </div>`;
+      })() : ''}
     </div>`;
 
     // ── 8. Documents ──────────────────────────────────────────────────────
@@ -1892,7 +1962,7 @@ const Gov = {
         </div>
         <span class="tag ${apiDetail?'tg':'ta'}" style="font-size:11px;flex-shrink:0">${apiDetail ? lbl('بيانات حقيقية','Live Data') : lbl('بيانات توضيحية','Demo Data')}</span>
       </div>
-      ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}
+      ${s1}${sOff}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}
       <div style="text-align:center;padding:10px">
         <button class="btn-ghost btn-sm" onclick="Gov._toggleGADetail(${ga.id})" style="color:var(--text3);font-size:12px">▲ ${lbl('طي التقرير الكامل','Collapse Full Report')}</button>
       </div>
@@ -1934,6 +2004,32 @@ const Gov = {
     } catch(e) { showToast(e.message, 'error'); }
   },
 
+  _showShareholderForm(gaId) {
+    this._editingShareholderId = null;
+    const t = $('sh-form-title-' + gaId); if (t) t.textContent = '+ ' + this.lbl('إضافة مساهم','Add Shareholder');
+    ['sh-en-','sh-ar-','sh-shares-','sh-pct-','sh-proxy-'].forEach(p => { const el = $(p + gaId); if (el) el.value = ''; });
+    const att = $('sh-att-' + gaId); if (att) att.value = 'pending';
+    this._showForm('sh-add-form-' + gaId);
+  },
+
+  _cancelShareholderForm(gaId) {
+    this._editingShareholderId = null;
+    this._hideForm('sh-add-form-' + gaId);
+  },
+
+  _editShareholder(gaId, id, btnEl) {
+    this._editingShareholderId = id;
+    const d = btnEl.dataset;
+    const t = $('sh-form-title-' + gaId); if (t) t.textContent = '✎ ' + this.lbl('تعديل بيانات المساهم','Edit Shareholder');
+    const en = $('sh-en-' + gaId); if (en) en.value = d.nameEn || '';
+    const ar = $('sh-ar-' + gaId); if (ar) ar.value = d.nameAr || '';
+    const shEl = $('sh-shares-' + gaId); if (shEl) shEl.value = d.shares || '';
+    const pcEl = $('sh-pct-' + gaId); if (pcEl) pcEl.value = d.pct || '';
+    const atEl = $('sh-att-' + gaId); if (atEl) atEl.value = d.att || 'pending';
+    const pxEl = $('sh-proxy-' + gaId); if (pxEl) pxEl.value = d.proxy || '';
+    this._showForm('sh-add-form-' + gaId);
+  },
+
   async saveShareholder(gaId) {
     if (!this._guardEls('sh-en-'+gaId,'sh-ar-'+gaId,'sh-shares-'+gaId,'sh-pct-'+gaId,'sh-att-'+gaId,'sh-proxy-'+gaId)) return;
     const name_en = (($('sh-en-' + gaId) || {}).value || '').trim();
@@ -1948,9 +2044,16 @@ const Gov = {
       attendance_status: ($('sh-att-' + gaId) || {}).value || 'pending',
       proxy_name: ($('sh-proxy-' + gaId) || {}).value || null,
     };
+    const editId = this._editingShareholderId;
     try {
-      await api('/api/gov/general-assemblies/' + gaId + '/shareholders', { method:'POST', body:JSON.stringify(body) });
-      showToast(this.lbl('تم إضافة المساهم','Shareholder added'), 'success');
+      if (editId) {
+        await api('/api/gov/ga-shareholders/' + editId, { method:'PATCH', body:JSON.stringify(body) });
+        showToast(this.lbl('تم تحديث بيانات المساهم','Shareholder updated'), 'success');
+      } else {
+        await api('/api/gov/general-assemblies/' + gaId + '/shareholders', { method:'POST', body:JSON.stringify(body) });
+        showToast(this.lbl('تم إضافة المساهم','Shareholder added'), 'success');
+      }
+      this._editingShareholderId = null;
       await this._reloadGADetail(gaId);
     } catch(e) { showToast(e.message, 'error'); }
   },
@@ -1986,6 +2089,89 @@ const Gov = {
     try {
       await api('/api/gov/ga-votes/' + id, { method:'DELETE' });
       showToast(this.lbl('تم الحذف','Deleted'), 'success');
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  // ── GA Officers CRUD ──────────────────────────────────────────────────────
+  _showOfficerForm(gaId) {
+    this._editingOfficerId = null;
+    const t = $('off-form-title-' + gaId); if (t) t.textContent = '+ ' + this.lbl('إضافة مسؤول','Add Officer');
+    const roleEl = $('off-role-' + gaId); if (roleEl) roleEl.value = 'chairman';
+    ['off-role-ar-','off-en-','off-ar-'].forEach(p => { const el = $(p + gaId); if (el) el.value = ''; });
+    this._showForm('off-form-' + gaId);
+  },
+
+  _hideOfficerForm(gaId) {
+    this._editingOfficerId = null;
+    this._hideForm('off-form-' + gaId);
+  },
+
+  _editOfficer(gaId, id, btnEl) {
+    this._editingOfficerId = id;
+    const d = btnEl.dataset;
+    const t = $('off-form-title-' + gaId); if (t) t.textContent = '✎ ' + this.lbl('تعديل المسؤول','Edit Officer');
+    const roleEl = $('off-role-' + gaId); if (roleEl) roleEl.value = d.role || 'other';
+    const roleArEl = $('off-role-ar-' + gaId); if (roleArEl) roleArEl.value = d.roleAr || '';
+    const enEl = $('off-en-' + gaId); if (enEl) enEl.value = d.nameEn || '';
+    const arEl = $('off-ar-' + gaId); if (arEl) arEl.value = d.nameAr || '';
+    this._showForm('off-form-' + gaId);
+  },
+
+  async saveOfficer(gaId) {
+    if (!this._guardEls('off-role-'+gaId,'off-role-ar-'+gaId,'off-en-'+gaId,'off-ar-'+gaId)) return;
+    const name_en = (($('off-en-' + gaId) || {}).value || '').trim();
+    if (!name_en) { showToast(this.lbl('يرجى إدخال اسم المسؤول (إنجليزي)','Please enter the officer name (English)'), 'error'); return; }
+    const role = ($('off-role-' + gaId) || {}).value || 'other';
+    const body = {
+      role,
+      role_ar: (($('off-role-ar-' + gaId) || {}).value || '').trim() || null,
+      name_en,
+      name_ar: (($('off-ar-' + gaId) || {}).value || '').trim() || name_en,
+    };
+    const editId = this._editingOfficerId;
+    try {
+      if (editId) {
+        await api('/api/gov/ga-officers/' + editId, { method:'PATCH', body:JSON.stringify(body) });
+        showToast(this.lbl('تم تحديث بيانات المسؤول','Officer updated'), 'success');
+      } else {
+        await api('/api/gov/general-assemblies/' + gaId + '/officers', { method:'POST', body:JSON.stringify(body) });
+        showToast(this.lbl('تم إضافة المسؤول','Officer added'), 'success');
+      }
+      this._editingOfficerId = null;
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  async deleteOfficer(id, gaId) {
+    if (!confirm(this.lbl('حذف هذا المسؤول؟','Remove this officer?'))) return;
+    try {
+      await api('/api/gov/ga-officers/' + id, { method:'DELETE' });
+      showToast(this.lbl('تم الحذف','Deleted'), 'success');
+      await this._reloadGADetail(gaId);
+    } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  // ── GA Minutes Approval Workflow ───────────────────────────────────────────
+  async advanceMinutes(gaId) {
+    try {
+      const detail = await api('/api/gov/general-assemblies/' + gaId + '/detail');
+      const m = detail.minutes || {};
+      const today = new Date().toISOString().substring(0, 10);
+      const u = App.user || {};
+      const by = u.name_en || u.name_ar || u.email || '';
+      let body = null;
+      if (!m.draft_date) body = { status: 'draft', draft_date: today, draft_by: by };
+      else if (!m.circulated_date) body = { status: 'circulated', circulated_date: today };
+      else if (!m.approved_date) body = { status: 'approved', approved_date: today };
+      else if (!m.final_date) body = { status: 'approved', final_date: today };
+      else if (m.status !== 'final') body = { status: 'final' };
+      if (!body) {
+        showToast(this.lbl('جميع خطوات الاعتماد مكتملة بالفعل','All approval steps are already complete'), 'success');
+        return;
+      }
+      await api('/api/gov/general-assemblies/' + gaId + '/minutes', { method:'PATCH', body: JSON.stringify(body) });
+      showToast(this.lbl('تم تحديث حالة المحضر','Minutes status updated'), 'success');
       await this._reloadGADetail(gaId);
     } catch(e) { showToast(e.message, 'error'); }
   },

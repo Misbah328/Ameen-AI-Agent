@@ -562,13 +562,22 @@ const TEST_PORT = 5099;
 
             // ── B8: No uncaught JS errors ──────────────────────────────────────
             // Filter network errors caused by aborting the in-flight AI XHR when
-            // we navigate away — these are expected and not a code defect.
+            // we navigate away — these are expected and not a code defect. Also
+            // filter Chromium's connectivity errors for the external Google
+            // Fonts stylesheet (index.html progressively enhances with it —
+            // sandboxes/firewalls that block fonts.googleapis.com fall back to
+            // system fonts with no functional impact) and the AI-process route's
+            // deliberate 422 when no AI API key is configured (handled in-app via
+            // a toast — see TranscriptModal.saveAndProcess / Rec.processAI).
             const real = jsErrors.filter(e =>
               !e.includes('chrome-extension') &&
               !e.includes('favicon') &&
               !e.includes('Failed to fetch') &&
               !e.includes('NetworkError') &&
-              !e.includes('AbortError')
+              !e.includes('AbortError') &&
+              !e.includes('ERR_CONNECTION_CLOSED') &&
+              !e.includes('ERR_TUNNEL_CONNECTION_FAILED') &&
+              !e.includes('status of 422')
             );
             if (real.length === 0) pass('B8: No uncaught JS errors during browser session');
             else                   fail('B8: Uncaught JS errors', real.slice(0,3).join(' | '));
