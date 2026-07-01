@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "lint": "bash scripts/lint-compat.sh",
+    "setup-hooks": "bash scripts/install-hooks.sh"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
