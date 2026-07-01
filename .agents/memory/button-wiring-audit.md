@@ -1,19 +1,23 @@
 ---
 name: Button wiring & "buttons do nothing" audits
-description: How buttons are wired in the SPA and how to audit "buttons do nothing" reports without a wild goose chase
+description: How buttons are wired in this SPA and the real root-cause classes behind "buttons do nothing" reports
 ---
 
-# Button wiring in the Ameen SPA
+# Button wiring model
 
-- Handlers are NOT on `window` (only `__AMEEN_READY` is). Objects like `App`, `Gov`, `Panels`, `Rec`, `Tasks`, `Modals`, `Schedule`, `Team`, `DocGen`, `Share`, `Chat`, `Integrations` are **top-level `const`** in `public/js/app.js` / `public/js/governance.js`.
-- Inline `onclick="App.foo()"` resolves against **global scope, which includes the top-level lexical (script) environment** — so top-level `const` objects ARE reachable from inline handlers. This is correct and works; do not "fix" it by moving things onto `window`.
-- Sidebar nav (`.nb[data-p=...]`) is wired via **event delegation** in `Panels.init()` (addEventListener), NOT inline onclick. An audit that only checks for `onclick` will false-positive these 12 nav buttons as "dead."
-- Several download "buttons" are actually `<a href="/uploads/..." download>` styled with `.btn-ghost` — functional native links with no onclick. An onclick-only check false-positives them too.
-- Only the active panel is `display:flex` (`.panel.active`); all others are `display:none`, so their buttons have 0 dimensions. Audits must switch panels (click the real `.nb`) before enumerating a panel's buttons.
-- Pro-gated actions call `App.requirePro()` → opens the plan modal when plan is `free` (default). That's visible feedback, not a no-op.
-- AI features (`Chat.send`, etc.) degrade to a demo reply when no AI key is set (`r.demo`), not a dead button.
-- Toasts (`showToast`) render into `#global-toast-host` with `animation:fi .25s` and no `forwards` fill — momentarily `opacity:0` at frame 0, then settle at 1. Checking opacity immediately after firing gives a false "invisible" reading; wait ~300ms.
+- Inline `onclick="App.foo()"` handlers are NOT on `window`. Objects like `App`, `Gov`, `Panels`, etc. are **top-level `const`** in the frontend scripts. Inline handlers resolve them via global scope (which includes the top-level lexical environment) — this is correct; do NOT "fix" it by moving handlers onto `window`.
+- Sidebar navigation is wired by **event delegation** (a single addEventListener), not inline onclick. Several download "buttons" are `<a href download>` anchors with no handler. An audit that only checks for `onclick` will **false-positive** both as dead buttons — they work.
+- Only the active panel is displayed; inactive panels are `display:none`, so their buttons have 0 dimensions. Any DOM audit must activate a panel (click its real nav item) before enumerating that panel's controls.
+- Pro-gated actions open an upgrade modal; AI actions degrade to a demo reply when no key is set. Both are visible feedback, not dead buttons.
 
-**Why:** A user reported "many buttons do nothing." A full static + runtime (headless Chromium, real login) audit found **zero broken buttons**: all onclick roots resolve, all 13 panels activate, modals/inline forms open, downloads valid, 0 console/page errors, all API GETs 2xx. The apparent "dead" buttons were audit false-positives (delegated nav + `<a download>`).
+**How to apply:** to judge button health, click the real nav item, then within the active panel accept a control as live if it has an onclick OR an anchor href OR a delegated listener before calling it dead.
 
-**How to apply:** To audit button health, log in via `/auth/login` (admin creds in project notes), set the JWT cookie in Puppeteer, click each real `.nb[data-p]`, then within `#panel-<name>` check each button for onclick OR an anchor href OR a delegated listener before calling it dead. Screenshots can't test inner pages (auth cookie can't be injected into the screenshot tool) — use Puppeteer.
+# The "button spins forever" hang class (highest-value root cause)
+
+**Rule:** in this Express 4 app, an `async` route handler that throws/rejects **anywhere outside a try/catch** is never caught by the global error middleware (which only rescues sync throws / `next(err)`). The request hangs indefinitely → the frontend button shows a permanent loading state and appears to "do nothing". `process.on('unhandledRejection')` only logs; it never responds.
+
+**Why:** an async function turns even a *synchronous* throw into a rejected promise, so the sync-only global handler cannot help. Every async handler must have a try/catch covering the entire body (all `await`s and any throwable pre-await code), sending a JSON error in the catch — OR be wrapped by an async wrapper that funnels rejections to `next`.
+
+**Notify contract (the usual throw source):** `notify.notify(...)` swallows per-channel failures and returns `{emailError,...}` — safe to call unguarded. `notify.sendEmail(...)` / `sendWhatsApp(...)` **can throw** (provider failure, and for email the Replit-Mail fallback can also throw). Wrap each call in a loop so one bad recipient neither aborts the loop nor hangs the request.
+
+**How to apply:** when a user reports "buttons do nothing," audit async handlers first for an `await` (or throwable statement) sitting outside a try/catch — that is the prime suspect, far more than missing onclick handlers.

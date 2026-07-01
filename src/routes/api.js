@@ -568,6 +568,7 @@ router.post('/meetings/:id/recording/stop', auth, (req, res) => {
 
 // ── File Upload ────────────────────────────────────────────────────────────────
 router.post('/meetings/:id/upload', auth, upload.single('file'), async (req, res) => {
+ try {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (PDF, DOCX, XLSX, PPTX, TXT only)' });
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) {
@@ -614,6 +615,11 @@ ${text.slice(0, 3500)}
     docClassification
   );
   res.json({ success: true, id: row.lastInsertRowid, filename: req.file.filename, original: req.file.originalname, summary: aiSummary, classification: docClassification });
+ } catch (e) {
+  console.error('✗ /meetings/:id/upload failed:', e.message);
+  try { if (req.file) fs.unlinkSync(req.file.path); } catch {}
+  res.status(500).json({ error: e.message });
+ }
 });
 
 // ── Documents for a specific meeting ──────────────────────────────────────────
@@ -760,6 +766,7 @@ router.post('/tasks/:id/updates', auth, (req, res) => {
 
 // ── Task Escalation ────────────────────────────────────────────────────────────
 router.post('/tasks/:id/escalate', auth, async (req, res) => {
+ try {
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
@@ -807,6 +814,10 @@ router.post('/tasks/:id/escalate', auth, async (req, res) => {
 
   const updatedTask = db.prepare('SELECT * FROM tasks WHERE id=?').get(task.id);
   res.json({ success: true, task: updatedTask, notification: notifResult });
+ } catch (e) {
+  console.error('✗ /tasks/:id/escalate failed:', e.message);
+  res.status(500).json({ error: e.message });
+ }
 });
 
 // ── Decisions ─────────────────────────────────────────────────────────────────
@@ -912,6 +923,7 @@ router.patch('/schedule/:id/confirm', auth, (req, res) => {
 });
 
 router.post('/schedule/:id/remind', auth, async (req, res) => {
+ try {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Meeting not found' });
   const channel = ['email','whatsapp','both'].includes(row.reminder_channel) ? row.reminder_channel : 'email';
@@ -936,6 +948,10 @@ router.post('/schedule/:id/remind', auth, async (req, res) => {
   const allFailed = results.errors.length > 0 && results.emails_attempted === 0 && results.whatsapp_attempted === 0;
   if (allFailed) return res.status(500).json({ error: results.errors.map(e => e.error).join('; '), results });
   res.json({ success: true, ...results });
+ } catch (e) {
+  console.error('✗ /schedule/:id/remind failed:', e.message);
+  res.status(500).json({ error: e.message });
+ }
 });
 
 router.patch('/schedule/:id', auth, (req, res) => {
@@ -1449,6 +1465,7 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
 
 // ── Share a generated document with the whole team (email) ─────────────────
 router.post('/documents/share', auth, requirePro, async (req, res) => {
+ try {
   const content = (req.body.content || '').toString().trim();
   const title = (req.body.title || 'تقرير / Report').toString().trim();
   if (!content) return res.status(400).json({ error: 'لا يوجد محتوى للمشاركة / No content to share' });
@@ -1463,10 +1480,16 @@ router.post('/documents/share', auth, requirePro, async (req, res) => {
       `<p>مرحباً <b>${esc(mem.name_ar || mem.name_en || '')}</b>،</p>` +
       `<div style="white-space:pre-wrap;background:#f6f8fa;border-radius:8px;padding:14px;font-size:13px;line-height:1.7">${esc(content)}</div>` +
       `<p style="color:#888;font-size:12px">— أمين السكرتير</p></div>`;
-    const out = await notify.sendEmail({ to: mem.email, subject, text, html });
+    let out;
+    try { out = await notify.sendEmail({ to: mem.email, subject, text, html }); }
+    catch (e) { out = { error: e.message }; }
     results.push({ name: mem.name_ar || mem.name_en, email: mem.email, ...out });
   }
   res.json({ success: true, shared: results.length, results });
+ } catch (e) {
+  console.error('✗ /documents/share failed:', e.message);
+  res.status(500).json({ error: e.message });
+ }
 });
 
 // ── Executive Weekly Report ───────────────────────────────────────────────────
