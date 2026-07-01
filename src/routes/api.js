@@ -1125,7 +1125,8 @@ ${schedule.map(s => `- ${s.title_ar} | ${s.meeting_date} ${s.meeting_time} | ${s
     const reply = await callClaude(messages, system, 1000, req.user.id);
     res.json({ reply });
   } catch (e) {
-    res.json({ reply: getDemoReply(messages[messages.length - 1]?.content || '', lang), demo: true });
+    const lastMsg = Array.isArray(messages) ? (messages[messages.length - 1]?.content || '') : '';
+    res.json({ reply: getDemoReply(lastMsg, lang), demo: true });
   }
 });
 
