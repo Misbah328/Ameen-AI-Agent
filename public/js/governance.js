@@ -525,6 +525,7 @@ const Gov = {
   },
 
   async addBoard() {
+    if (!this._guardEls('b-name-ar','b-name-en','b-desc','b-chair','b-total','b-quorum')) return;
     const ar = (($('b-name-ar') || {}).value || '').trim();
     if (!ar) { showToast(this.lbl('يرجى إدخال اسم المجلس','Please enter a board name'), 'error'); return; }
     try {
@@ -548,6 +549,7 @@ const Gov = {
   },
 
   async addCommittee(boardId) {
+    if (!this._guardEls('c-name-ar-'+boardId,'c-name-en-'+boardId,'c-desc-'+boardId,'c-chair-'+boardId,'c-total-'+boardId)) return;
     const ar = (($('c-name-ar-' + boardId) || {}).value || '').trim();
     if (!ar) { showToast(this.lbl('يرجى إدخال اسم اللجنة','Please enter a committee name'), 'error'); return; }
     try {
@@ -710,6 +712,7 @@ const Gov = {
   },
 
   async addAgendaItem() {
+    if (!this._guardEls('ai-title','ai-desc','ai-pres','ai-dur','ai-out')) return;
     const t = (($('ai-title') || {}).value || '').trim();
     if (!t) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
     const body = { title: t, description: (($('ai-desc') || {}).value || '').trim() || '',
@@ -793,6 +796,7 @@ const Gov = {
   },
 
   async addAttendee() {
+    if (!this._guardEls('att-name','att-email','att-role','att-status')) return;
     const name = (($('att-name') || {}).value || '').trim();
     if (!name) { showToast(this.lbl('يرجى إدخال الاسم','Please enter a name'), 'error'); return; }
     try {
@@ -1063,6 +1067,7 @@ const Gov = {
   },
 
   async addResolution() {
+    if (!this._guardEls('res-title','res-desc')) return;
     const title = (($('res-title') || {}).value || '').trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
     const body = { title, description: (($('res-desc') || {}).value || '').trim() || '' };
@@ -1347,6 +1352,7 @@ const Gov = {
   },
 
   async addDocument() {
+    if (!this._guardEls('doc-title','doc-type','doc-desc','doc-by','doc-date','doc-status')) return;
     const title = (($('doc-title') || {}).value || '').trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
     const body = {
@@ -1363,6 +1369,7 @@ const Gov = {
   },
 
   async addAgendaDoc(itemId) {
+    if (!this._guardEls('ai-doc-title-'+itemId,'ai-doc-type-'+itemId,'ai-doc-by-'+itemId,'ai-doc-status-'+itemId)) return;
     const title = (($('ai-doc-title-' + itemId) || {}).value || '').trim();
     if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
     const body = {
@@ -1879,6 +1886,7 @@ const Gov = {
   },
 
   async createGA() {
+    if (!this._guardEls('cga-title-ar','cga-date','cga-title-en','cga-time','cga-duration','cga-venue')) return;
     const title_ar = (($('cga-title-ar') || {}).value || '').trim();
     const meeting_date = ($('cga-date')||{}).value;
     if (!title_ar || !meeting_date) return showToast(this.lbl('حقل الاسم والتاريخ مطلوبان','Title and date are required'), 'error');
@@ -1905,6 +1913,7 @@ const Gov = {
   },
 
   async saveShareholder(gaId) {
+    if (!this._guardEls('sh-en-'+gaId,'sh-ar-'+gaId,'sh-shares-'+gaId,'sh-pct-'+gaId,'sh-att-'+gaId,'sh-proxy-'+gaId)) return;
     const name_en = (($('sh-en-' + gaId) || {}).value || '').trim();
     if (!name_en) return showToast(this.lbl('الاسم مطلوب','Name is required'), 'error');
     const body = {
@@ -1931,6 +1940,7 @@ const Gov = {
   },
 
   async saveGAVote(gaId) {
+    if (!this._guardEls('vt-en-'+gaId,'vt-ar-'+gaId,'vt-for-'+gaId,'vt-against-'+gaId,'vt-abstain-'+gaId)) return;
     const motion_en = (($('vt-en-' + gaId) || {}).value || '').trim();
     if (!motion_en) return showToast(this.lbl('نص الاقتراح مطلوب','Motion text is required'), 'error');
     const body = {
@@ -1953,6 +1963,24 @@ const Gov = {
       showToast(this.lbl('تم الحذف','Deleted'), 'success');
       await this._reloadGADetail(gaId);
     } catch(e) { showToast(e.message, 'error'); }
+  },
+
+  // ── DOM guard ──────────────────────────────────────────────────────────────
+  // Returns true when all expected form elements are present in the DOM.
+  // When any element is missing it logs a warning and shows a user-facing
+  // toast so the problem is visible rather than silently submitting empty data.
+  _guardEls(...ids) {
+    const missing = ids.filter(id => !$(id));
+    if (missing.length === 0) return true;
+    missing.forEach(id => console.warn('[Gov] expected form element not found in DOM:', id));
+    showToast(
+      this.lbl(
+        'خطأ: حقل مفقود في النموذج — يرجى إعادة فتح النموذج والمحاولة مجدداً',
+        'Form error: expected field is missing — please re-open the form and try again'
+      ),
+      'error'
+    );
+    return false;
   },
 
   // ── Helpers ────────────────────────────────────────────────────────────────
