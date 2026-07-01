@@ -389,16 +389,18 @@ router.patch('/meetings/:id', auth, (req, res) => {
   const newDuration = duration !== undefined ? duration : meeting.duration;
   const newMeetingType = meeting_type !== undefined ? meeting_type : meeting.meeting_type;
 
-  db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=? WHERE id=?')
-    .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, req.params.id);
+  db.transaction(() => {
+    db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=? WHERE id=?')
+      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, req.params.id);
 
-  // Keep denormalized titles in tasks & decisions in sync
-  if (title_ar !== undefined || title_en !== undefined) {
-    db.prepare('UPDATE tasks SET source_meeting_title_ar=?, source_meeting_title_en=? WHERE source_meeting_id=?')
-      .run(newTitleAr, newTitleEn, req.params.id);
-    db.prepare('UPDATE decisions SET meeting_title_ar=?, meeting_title_en=? WHERE meeting_id=?')
-      .run(newTitleAr, newTitleEn, req.params.id);
-  }
+    // Keep denormalized titles in tasks & decisions in sync
+    if (title_ar !== undefined || title_en !== undefined) {
+      db.prepare('UPDATE tasks SET source_meeting_title_ar=?, source_meeting_title_en=? WHERE source_meeting_id=?')
+        .run(newTitleAr, newTitleEn, req.params.id);
+      db.prepare('UPDATE decisions SET meeting_title_ar=?, meeting_title_en=? WHERE meeting_id=?')
+        .run(newTitleAr, newTitleEn, req.params.id);
+    }
+  })();
 
   res.json({ success: true, title_ar: newTitleAr, title_en: newTitleEn });
 });
@@ -897,13 +899,16 @@ router.post('/schedule', auth, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const dur = duration_mins || 60;
-  const row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
-  if (rec !== 'none') {
-    for (let i = 1; i <= 3; i++) {
-      const nextDate = addNPeriods(meeting_date, rec, i);
-      insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+  let row;
+  db.transaction(() => {
+    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+    if (rec !== 'none') {
+      for (let i = 1; i <= 3; i++) {
+        const nextDate = addNPeriods(meeting_date, rec, i);
+        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+      }
     }
-  }
+  })();
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -1075,13 +1080,16 @@ router.post('/schedule/from-template/:id', auth, (req, res) => {
     INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const row = insertSched.run(title_ar, title_en, meeting_date, meeting_time, dur, provPlatform, attendees, agenda_ar, agenda_en, chan, req.user.id, meeting_type, b.board_id || null, b.committee_id || null, b.prev_meeting_id || null, rec, groupId, prov, b.meeting_join_url || '', b.meeting_id_external || '');
-  if (rec !== 'none') {
-    for (let i = 1; i <= 3; i++) {
-      const nextDate = addNPeriods(meeting_date, rec, i);
-      insertSched.run(title_ar, title_en, nextDate, meeting_time, dur, provPlatform, attendees, agenda_ar, agenda_en, chan, req.user.id, meeting_type, b.board_id || null, b.committee_id || null, null, rec, groupId, prov, b.meeting_join_url || '', b.meeting_id_external || '');
+  let row;
+  db.transaction(() => {
+    row = insertSched.run(title_ar, title_en, meeting_date, meeting_time, dur, provPlatform, attendees, agenda_ar, agenda_en, chan, req.user.id, meeting_type, b.board_id || null, b.committee_id || null, b.prev_meeting_id || null, rec, groupId, prov, b.meeting_join_url || '', b.meeting_id_external || '');
+    if (rec !== 'none') {
+      for (let i = 1; i <= 3; i++) {
+        const nextDate = addNPeriods(meeting_date, rec, i);
+        insertSched.run(title_ar, title_en, nextDate, meeting_time, dur, provPlatform, attendees, agenda_ar, agenda_en, chan, req.user.id, meeting_type, b.board_id || null, b.committee_id || null, null, rec, groupId, prov, b.meeting_join_url || '', b.meeting_id_external || '');
+      }
     }
-  }
+  })();
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 

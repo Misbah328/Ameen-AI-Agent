@@ -168,8 +168,10 @@ router.patch('/resolutions/:id', auth, (req, res) => {
 });
 
 router.delete('/resolutions/:id', auth, (req, res) => {
-  db.prepare('DELETE FROM resolution_followups WHERE resolution_id=?').run(req.params.id);
-  db.prepare('DELETE FROM resolutions WHERE id=?').run(req.params.id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM resolution_followups WHERE resolution_id=?').run(req.params.id);
+    db.prepare('DELETE FROM resolutions WHERE id=?').run(req.params.id);
+  })();
   res.json({ success: true });
 });
 
@@ -184,25 +186,27 @@ router.post('/resolutions/:id/vote', auth, (req, res) => {
   const userRow = db.prepare('SELECT name_ar, name_en, system_role FROM users WHERE id=?').get(req.user.id);
   const voterName = (userRow?.name_en || userRow?.name_ar || req.user.email || '').trim();
   const voterRole = req.user.system_role || userRow?.system_role || '';
-  const existing = db.prepare('SELECT id FROM votes WHERE resolution_id=? AND voter_id=?').get(req.params.id, req.user.id);
-  if (existing) {
-    db.prepare('UPDATE votes SET vote=?, comments=?, voter_name=?, voter_role=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(vote, comments||'', voterName, voterRole, existing.id);
-  } else {
-    db.prepare('INSERT INTO votes (resolution_id, voter_id, voter_name, voter_role, vote, comments) VALUES (?,?,?,?,?,?)')
-      .run(req.params.id, req.user.id, voterName, voterRole, vote, comments||'');
-  }
-  const agg = db.prepare('SELECT vote, COUNT(*) as c FROM votes WHERE resolution_id=? GROUP BY vote').all(req.params.id);
-  const counts = { approve:0, reject:0, abstain:0 };
-  agg.forEach(a => { if (a.vote in counts) counts[a.vote] = a.c; });
-  const totalV = counts.approve + counts.reject + counts.abstain;
-  let status = 'pending';
-  if (totalV > 0) {
-    if (counts.approve > counts.reject) status = 'approved';
-    else if (counts.reject > counts.approve) status = 'rejected';
-  }
-  db.prepare('UPDATE resolutions SET votes_approve=?, votes_reject=?, votes_abstain=?, status=? WHERE id=?')
-    .run(counts.approve, counts.reject, counts.abstain, status, req.params.id);
+  db.transaction(() => {
+    const existing = db.prepare('SELECT id FROM votes WHERE resolution_id=? AND voter_id=?').get(req.params.id, req.user.id);
+    if (existing) {
+      db.prepare('UPDATE votes SET vote=?, comments=?, voter_name=?, voter_role=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+        .run(vote, comments||'', voterName, voterRole, existing.id);
+    } else {
+      db.prepare('INSERT INTO votes (resolution_id, voter_id, voter_name, voter_role, vote, comments) VALUES (?,?,?,?,?,?)')
+        .run(req.params.id, req.user.id, voterName, voterRole, vote, comments||'');
+    }
+    const agg = db.prepare('SELECT vote, COUNT(*) as c FROM votes WHERE resolution_id=? GROUP BY vote').all(req.params.id);
+    const counts = { approve:0, reject:0, abstain:0 };
+    agg.forEach(a => { if (a.vote in counts) counts[a.vote] = a.c; });
+    const totalV = counts.approve + counts.reject + counts.abstain;
+    let status = 'pending';
+    if (totalV > 0) {
+      if (counts.approve > counts.reject) status = 'approved';
+      else if (counts.reject > counts.approve) status = 'rejected';
+    }
+    db.prepare('UPDATE resolutions SET votes_approve=?, votes_reject=?, votes_abstain=?, status=? WHERE id=?')
+      .run(counts.approve, counts.reject, counts.abstain, status, req.params.id);
+  })();
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));
 });
 

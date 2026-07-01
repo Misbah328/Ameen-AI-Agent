@@ -146,7 +146,6 @@ ensureColumn('tasks', 'task_reminder_sent', 'INTEGER DEFAULT 0');
 ensureColumn('tasks', 'assignee_email', 'TEXT');
 ensureColumn('tasks', 'confirmed', 'INTEGER DEFAULT 0');
 ensureColumn('tasks', 'confirmed_at', 'DATETIME');
-ensureColumn('tasks', 'assignee_email', 'TEXT');
 ensureColumn('tasks', 'assignee_phone', 'TEXT');
 // Pending-Review flag for AI-extracted tasks the model was unsure about.
 ensureColumn('tasks', 'needs_review', 'INTEGER DEFAULT 0');
