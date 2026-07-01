@@ -527,16 +527,20 @@ const Gov = {
   async addBoard() {
     if (!this._guardEls('b-name-ar','b-name-en','b-desc','b-chair','b-total','b-quorum')) return;
     const ar = (($('b-name-ar') || {}).value || '').trim();
-    if (!ar) { showToast(this.lbl('يرجى إدخال اسم المجلس','Please enter a board name'), 'error'); return; }
+    if (!ar) { showToast(this.lbl('يرجى إدخال اسم المجلس (عربي)','Please enter the board name (Arabic)'), 'error'); return; }
+    const total = parseInt(($('b-total') || {}).value) || 0;
+    if (total < 1) { showToast(this.lbl('يرجى إدخال عدد أعضاء المجلس (1 على الأقل)','Please enter the number of board members (at least 1)'), 'error'); return; }
+    const quorum = parseInt(($('b-quorum') || {}).value) || 0;
+    if (quorum < 1) { showToast(this.lbl('يرجى إدخال نصاب المجلس (1 على الأقل)','Please enter the board quorum (at least 1)'), 'error'); return; }
+    if (quorum > total) { showToast(this.lbl('النصاب لا يمكن أن يتجاوز عدد الأعضاء الكلي','Quorum cannot exceed total members'), 'error'); return; }
     try {
       await api('/api/gov/boards', { method:'POST', body: JSON.stringify({
         name_ar: ar, name_en: (($('b-name-en') || {}).value || '').trim() || ar,
         description: (($('b-desc') || {}).value || '').trim() || '',
         chairperson: (($('b-chair') || {}).value || '').trim() || '',
-        total_members: parseInt(($('b-total') || {}).value) || 0,
-        default_quorum: parseInt(($('b-quorum') || {}).value) || 0,
+        total_members: total,
+        default_quorum: quorum,
       })});
-      // Reload boards + refresh App cache
       await this._reloadBoards();
       showToast(this.lbl('تم إضافة المجلس','Board added'), 'success');
     } catch (e) { showToast(e.message, 'error'); }
@@ -551,14 +555,16 @@ const Gov = {
   async addCommittee(boardId) {
     if (!this._guardEls('c-name-ar-'+boardId,'c-name-en-'+boardId,'c-desc-'+boardId,'c-chair-'+boardId,'c-total-'+boardId)) return;
     const ar = (($('c-name-ar-' + boardId) || {}).value || '').trim();
-    if (!ar) { showToast(this.lbl('يرجى إدخال اسم اللجنة','Please enter a committee name'), 'error'); return; }
+    if (!ar) { showToast(this.lbl('يرجى إدخال اسم اللجنة (عربي)','Please enter the committee name (Arabic)'), 'error'); return; }
+    const total = parseInt(($('c-total-' + boardId) || {}).value) || 0;
+    if (total < 1) { showToast(this.lbl('يرجى إدخال عدد أعضاء اللجنة (1 على الأقل)','Please enter the number of committee members (at least 1)'), 'error'); return; }
     try {
       await api('/api/gov/committees', { method:'POST', body: JSON.stringify({
         board_id: boardId,
         name_ar: ar, name_en: (($('c-name-en-' + boardId) || {}).value || '').trim() || ar,
         description: (($('c-desc-' + boardId) || {}).value || '').trim() || '',
         chairperson: (($('c-chair-' + boardId) || {}).value || '').trim() || '',
-        total_members: parseInt(($('c-total-' + boardId) || {}).value) || 0,
+        total_members: total,
       })});
       await this._reloadBoards();
       showToast(this.lbl('تم إضافة اللجنة','Committee added'), 'success');
@@ -796,14 +802,20 @@ const Gov = {
   },
 
   async addAttendee() {
+    if (!this.meetingId) { showToast(this.lbl('يرجى تحديد اجتماع أولاً لتسجيل الحضور','Please select a meeting first to record attendance'), 'error'); return; }
     if (!this._guardEls('att-name','att-email','att-role','att-status')) return;
     const name = (($('att-name') || {}).value || '').trim();
-    if (!name) { showToast(this.lbl('يرجى إدخال الاسم','Please enter a name'), 'error'); return; }
+    if (!name) { showToast(this.lbl('يرجى إدخال اسم الحاضر','Please enter the attendee name'), 'error'); return; }
+    const email = (($('att-email') || {}).value || '').trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showToast(this.lbl('صيغة البريد الإلكتروني غير صحيحة','Invalid email address format'), 'error'); return;
+    }
+    const role = ($('att-role') || {}).value || '';
+    if (!role) { showToast(this.lbl('يرجى تحديد دور الحاضر','Please select the attendee role'), 'error'); return; }
     try {
       await api('/api/gov/attendance', { method:'POST', body: JSON.stringify({
-        meeting_id: this.meetingId, name,
-        email: (($('att-email') || {}).value || '').trim() || '',
-        role: ($('att-role') || {}).value || 'Member',
+        meeting_id: this.meetingId, name, email,
+        role,
         attendance_status: ($('att-status') || {}).value || 'pending',
       })});
       await this._loadSections();
@@ -850,14 +862,19 @@ const Gov = {
   _autoSaveQuorum() { clearTimeout(this._qTimer); this._qTimer = setTimeout(() => this.saveQuorum(), 900); },
 
   async saveQuorum() {
-    const body = { required_members: parseInt(($('q-req') || {}).value) || 0, present_members: parseInt(($('q-pres') || {}).value) || 0, notes: (($('q-notes') || {}).value || '').trim() || '' };
+    if (!this._guardEls('q-req','q-pres','q-notes')) return;
+    const required = parseInt(($('q-req') || {}).value) || 0;
+    const present  = parseInt(($('q-pres') || {}).value) || 0;
+    if (required < 0) { showToast(this.lbl('عدد الأعضاء المطلوبين لا يمكن أن يكون سالباً','Required members cannot be negative'), 'error'); return; }
+    if (present < 0)  { showToast(this.lbl('عدد الحاضرين لا يمكن أن يكون سالباً','Present members cannot be negative'), 'error'); return; }
+    const body = { required_members: required, present_members: present, notes: (($('q-notes') || {}).value || '').trim() || '' };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
     try {
       await api('/api/gov/quorum', { method:'PUT', body: JSON.stringify(body) });
-      const fresh = await api(`/api/gov/quorum?${this._qParam()}`).catch(() => null);
+      const fresh = await api('/api/gov/quorum?' + this._qParam()).catch(() => null);
       const el = $('sec-quorum');
       if (el) el.outerHTML = this._sQuorum(fresh);
-    } catch (e) { /* silent auto-save */ }
+    } catch (e) { showToast(e.message, 'error'); }
   },
 
   // ── Resolutions & Voting section ──────────────────────────────────────────
@@ -1265,8 +1282,13 @@ const Gov = {
   },
 
   async addFollowup(resId) {
-    const body = { owner: (($('fu-owner-' + resId) || {}).value || '').trim() || '', due_date: ($('fu-due-' + resId) || {}).value || '', notes: (($('fu-notes-' + resId) || {}).value || '').trim() || '', status:'pending' };
-    try { await api(`/api/gov/resolutions/${resId}/followups`, { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
+    if (!this._guardEls('fu-owner-' + resId, 'fu-due-' + resId, 'fu-notes-' + resId)) return;
+    const owner = (($('fu-owner-' + resId) || {}).value || '').trim();
+    if (!owner) { showToast(this.lbl('يرجى إدخال المسؤول عن متابعة القرار','Please enter the follow-up owner'), 'error'); return; }
+    const due_date = ($('fu-due-' + resId) || {}).value || '';
+    if (!due_date) { showToast(this.lbl('يرجى تحديد تاريخ الاستحقاق','Please select a due date'), 'error'); return; }
+    const body = { owner, due_date, notes: (($('fu-notes-' + resId) || {}).value || '').trim() || '', status: 'pending' };
+    try { await api('/api/gov/resolutions/' + resId + '/followups', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
   },
 
@@ -1915,13 +1937,16 @@ const Gov = {
   async saveShareholder(gaId) {
     if (!this._guardEls('sh-en-'+gaId,'sh-ar-'+gaId,'sh-shares-'+gaId,'sh-pct-'+gaId,'sh-att-'+gaId,'sh-proxy-'+gaId)) return;
     const name_en = (($('sh-en-' + gaId) || {}).value || '').trim();
-    if (!name_en) return showToast(this.lbl('الاسم مطلوب','Name is required'), 'error');
+    if (!name_en) { showToast(this.lbl('يرجى إدخال اسم المساهم (إنجليزي)','Please enter the shareholder name (English)'), 'error'); return; }
+    const shares = parseInt(($('sh-shares-' + gaId) || {}).value || '0');
+    if (shares < 1) { showToast(this.lbl('يرجى إدخال عدد الأسهم (1 على الأقل)','Please enter number of shares (at least 1)'), 'error'); return; }
+    const pct = parseFloat(($('sh-pct-' + gaId) || {}).value || '0');
+    if (pct <= 0 || pct > 100) { showToast(this.lbl('يرجى إدخال نسبة ملكية صحيحة (0.01 – 100%)','Please enter a valid ownership percentage (0.01–100%)'), 'error'); return; }
     const body = {
-      name_en, name_ar: ($('sh-ar-' + gaId)||{}).value || name_en,
-      shares: parseInt(($('sh-shares-' + gaId)||{}).value || '0'),
-      share_pct: parseFloat(($('sh-pct-' + gaId)||{}).value || '0'),
-      attendance_status: ($('sh-att-' + gaId)||{}).value || 'pending',
-      proxy_name: ($('sh-proxy-' + gaId)||{}).value || null,
+      name_en, name_ar: (($('sh-ar-' + gaId) || {}).value || '').trim() || name_en,
+      shares, share_pct: pct,
+      attendance_status: ($('sh-att-' + gaId) || {}).value || 'pending',
+      proxy_name: ($('sh-proxy-' + gaId) || {}).value || null,
     };
     try {
       await api('/api/gov/general-assemblies/' + gaId + '/shareholders', { method:'POST', body:JSON.stringify(body) });
