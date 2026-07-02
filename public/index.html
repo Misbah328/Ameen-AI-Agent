@@ -94,6 +94,10 @@
     <span class="nb-icon">⭐</span>
     <span class="nb-label" data-ar="آخر اجتماع" data-en="Last Meeting">آخر اجتماع</span>
   </button>
+  <button class="nb" data-p="history">
+    <span class="nb-icon">🕘</span>
+    <span class="nb-label" data-ar="سجل الاجتماعات" data-en="Meeting History">سجل الاجتماعات</span>
+  </button>
   <div class="nsec" data-ar="المتابعة التنفيذية" data-en="Executive Follow-up">المتابعة التنفيذية</div>
   <button class="nb" data-p="tasks">
     <span class="nb-icon">📋</span>
@@ -209,6 +213,41 @@
       </div>
     </div>
 
+    <!-- Upload Meeting Text / Minutes — alternative to audio/video recording -->
+    <div class="card" id="text-minutes-card">
+      <div class="ch" style="margin-bottom:12px">
+        <div>
+          <div class="ct" data-ar="📝 رفع محضر نصي" data-en="📝 Upload Meeting Text / Minutes">📝 رفع محضر نصي</div>
+          <div class="ctsub" data-ar="الصق نص الاجتماع أو ارفع ملف نصي بدلاً من التسجيل الصوتي" data-en="Paste meeting text or upload a .txt file instead of recording audio">الصق نص الاجتماع أو ارفع ملف نصي بدلاً من التسجيل الصوتي</div>
+        </div>
+      </div>
+      <div class="fs">
+        <div class="frow">
+          <div class="fl" data-ar="الاجتماع" data-en="Meeting">الاجتماع</div>
+          <select class="fi" id="tm-meeting-sel" onchange="TextMinutes.onMeetingChange()">
+            <option value="" data-ar="— إنشاء اجتماع جديد —" data-en="— Create New Meeting —">— إنشاء اجتماع جديد —</option>
+          </select>
+        </div>
+        <div class="frow" id="tm-new-title-row">
+          <div class="fl" data-ar="عنوان الاجتماع الجديد" data-en="New Meeting Title">عنوان الاجتماع الجديد</div>
+          <input class="fi" id="tm-new-title" data-ph-ar="عنوان الاجتماع..." data-ph-en="Meeting title..." placeholder="عنوان الاجتماع..."/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="النص / المحضر" data-en="Text / Minutes">النص / المحضر</div>
+          <textarea class="fi" id="tm-text" rows="7" style="resize:vertical" data-ph-ar="الصق نص الاجتماع أو محضره هنا..." data-ph-en="Paste the meeting text or minutes here..." placeholder="الصق نص الاجتماع أو محضره هنا..."></textarea>
+        </div>
+        <div class="frow" style="flex-direction:row;align-items:center;gap:10px">
+          <input type="file" id="tm-file" accept=".txt,text/plain" onchange="TextMinutes.onFile(event)" style="display:none"/>
+          <button class="btn-ghost btn-sm" onclick="document.getElementById('tm-file').click()">📎 <span data-ar="رفع ملف نصي (.txt)" data-en="Upload .txt file">رفع ملف نصي (.txt)</span></button>
+          <span id="tm-file-name" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+        <div class="fa">
+          <button class="btn-gold" id="tm-process-btn" onclick="TextMinutes.process()">✦ <span data-ar="معالجة النص" data-en="Process Text Minutes">معالجة النص</span></button>
+        </div>
+      </div>
+      <div id="tm-result"></div>
+    </div>
+
     <!-- Speaker identification bar — visible only while recording -->
     <div id="speaker-bar" style="display:none">
       <div class="spk-label" id="spk-label" data-ar="👆 اضغط لتحديد المتحدث الحالي" data-en="👆 Tap to set the active speaker">👆 اضغط لتحديد المتحدث الحالي</div>
@@ -306,6 +345,54 @@
   </div>
   <div class="pbody" id="lastmeeting-body">
     <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
+<!-- ══ MEETING HISTORY ═════════════════════════════════════════ -->
+<section class="panel" id="panel-history">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="سجل الاجتماعات" data-en="Meeting History">سجل الاجتماعات</div>
+        <div class="ptitle-sub" data-ar="تتبّع كل اجتماع سابق وتفاصيله الكاملة" data-en="Trace every past meeting and its full detail">تتبّع كل اجتماع سابق وتفاصيله الكاملة</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="MeetingHistory.load()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" style="display:grid;grid-template-columns:320px 1fr;gap:16px;overflow:hidden">
+    <div class="card" style="display:flex;flex-direction:column;gap:9px;overflow:hidden;padding:14px">
+      <input type="search" id="mh-search" class="fi" data-ph-ar="بحث بعنوان الاجتماع..." data-ph-en="Search by meeting title..." placeholder="بحث..." oninput="MeetingHistory.applyFilters()" style="font-size:12px"/>
+      <select class="fi" id="mh-filter-type" onchange="MeetingHistory.applyFilters()" style="font-size:12px">
+        <option value="" data-ar="كل الأنواع" data-en="All Types">كل الأنواع</option>
+        <option value="Board Meeting" data-ar="اجتماع مجلس الإدارة" data-en="Board Meeting">اجتماع مجلس الإدارة</option>
+        <option value="Committee Meeting" data-ar="اجتماع اللجنة" data-en="Committee Meeting">اجتماع اللجنة</option>
+        <option value="General Assembly" data-ar="الجمعية العمومية" data-en="General Assembly">الجمعية العمومية</option>
+      </select>
+      <select class="fi" id="mh-filter-provider" onchange="MeetingHistory.applyFilters()" style="font-size:12px">
+        <option value="" data-ar="كل المنصات" data-en="All Platforms">كل المنصات</option>
+        <option value="physical" data-ar="حضوري" data-en="Physical">حضوري</option>
+        <option value="zoom" data-ar="Zoom" data-en="Zoom">Zoom</option>
+        <option value="teams" data-ar="Microsoft Teams" data-en="Microsoft Teams">Microsoft Teams</option>
+        <option value="google_meet" data-ar="Google Meet" data-en="Google Meet">Google Meet</option>
+      </select>
+      <select class="fi" id="mh-filter-status" onchange="MeetingHistory.applyFilters()" style="font-size:12px">
+        <option value="" data-ar="كل الحالات" data-en="All Statuses">كل الحالات</option>
+        <option value="processed" data-ar="مُعالَج" data-en="Processed">مُعالَج</option>
+        <option value="pending" data-ar="قيد الانتظار" data-en="Pending">قيد الانتظار</option>
+        <option value="approved" data-ar="معتمد" data-en="Approved">معتمد</option>
+        <option value="archived" data-ar="مؤرشف" data-en="Archived">مؤرشف</option>
+      </select>
+      <div id="mh-count" style="font-size:11px;color:var(--text3)"></div>
+      <div id="mh-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+        <div class="es"><div class="loading"></div></div>
+      </div>
+    </div>
+    <div class="card" id="mh-detail" style="overflow-y:auto">
+      <div class="es">
+        <div style="font-size:40px">🕘</div>
+        <div data-ar="اختر اجتماعاً من القائمة لعرض تفاصيله" data-en="Select a meeting from the list to view its details">اختر اجتماعاً من القائمة لعرض تفاصيله</div>
+      </div>
+    </div>
   </div>
 </section>
 

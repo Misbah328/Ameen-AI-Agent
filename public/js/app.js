@@ -21,11 +21,94 @@ const fmtDate = (d) =>
       })
     : "—";
 
+// Text is mostly-Arabic (RTL) if it has more Arabic letters than Latin ones.
+const detectTextDir = (text) => {
+  const ar = (String(text || "").match(/[؀-ۿ]/g) || []).length;
+  const en = (String(text || "").match(/[A-Za-z]/g) || []).length;
+  return ar > en ? "rtl" : "ltr";
+};
+
+// Inline markdown (bold/italic/code) on an ALREADY-ESCAPED line — safe since
+// esc() has already neutered any real HTML in the source text.
+const mdInline = (escapedLine) =>
+  escapedLine
+    .replace(/\*\*\*([^*]+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+?)\*([^*]|$)/g, "$1<em>$2</em>$3")
+    .replace(/`([^`]+?)`/g, "<code>$1</code>");
+
+// Renders an AI reply's light markdown (headings, bold/italic, bullet/numbered
+// lists) into clean HTML instead of showing raw "###"/"**"/"***" to the user.
+// Escapes every line's text content first, so this can never introduce
+// unescaped HTML even though the source is model-generated.
+function formatAiReply(rawText) {
+  const lines = String(rawText || "").split(/\r?\n/);
+  let html = "";
+  let listBuf = [];
+  let listTag = null;
+
+  function flushList() {
+    if (!listBuf.length) return;
+    const tag = listTag === "ol" ? "ol" : "ul";
+    html += `<${tag} class="chat-list">${listBuf.map((li) => `<li>${li}</li>`).join("")}</${tag}>`;
+    listBuf = [];
+    listTag = null;
+  }
+
+  for (const raw of lines) {
+    const line = raw.trim();
+
+    // Decorative-only separators like "***", "###", "---" carry no content.
+    if (/^[*#=_-]{3,}$/.test(line)) {
+      flushList();
+      continue;
+    }
+    if (!line) {
+      flushList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s*(.+?)\s*#*$/);
+    if (heading) {
+      flushList();
+      const cls = heading[1].length <= 2 ? "chat-h1" : "chat-h2";
+      html += `<div class="${cls}">${mdInline(esc(heading[2]))}</div>`;
+      continue;
+    }
+
+    const bullet = line.match(/^[-*•]\s+(.+)$/);
+    if (bullet) {
+      if (listTag !== "ul") {
+        flushList();
+        listTag = "ul";
+      }
+      listBuf.push(mdInline(esc(bullet[1])));
+      continue;
+    }
+
+    const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (numbered) {
+      if (listTag !== "ol") {
+        flushList();
+        listTag = "ol";
+      }
+      listBuf.push(mdInline(esc(numbered[1])));
+      continue;
+    }
+
+    flushList();
+    html += `<div class="chat-p">${mdInline(esc(line))}</div>`;
+  }
+  flushList();
+  return html;
+}
+
 // ══ RBAC ═══════════════════════════════════════════════════════════════════════
 const ROLE_ACCESS = {
   Admin: new Set([
     "record",
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -40,6 +123,7 @@ const ROLE_ACCESS = {
   CEO: new Set([
     "record",
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -52,6 +136,7 @@ const ROLE_ACCESS = {
   ]),
   "Board Member": new Set([
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -63,6 +148,7 @@ const ROLE_ACCESS = {
   ]),
   "Committee Member": new Set([
     "transcripts",
+    "history",
     "tasks",
     "ask",
     "schedule",
@@ -72,6 +158,7 @@ const ROLE_ACCESS = {
   Executive: new Set([
     "record",
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -83,6 +170,7 @@ const ROLE_ACCESS = {
   Manager: new Set([
     "record",
     "transcripts",
+    "history",
     "tasks",
     "ask",
     "documents",
@@ -91,8 +179,10 @@ const ROLE_ACCESS = {
     "overview",
     "analytics",
   ]),
-  Employee: new Set(["record", "transcripts", "tasks", "ask"]),
-  Observer: new Set(["transcripts", "lastmeeting", "overview"]),
+  Employee: new Set(["record", "transcripts",
+    "history", "tasks", "ask"]),
+  Observer: new Set(["transcripts",
+    "history", "lastmeeting", "overview"]),
 };
 
 const ROLE_COLORS = {
@@ -575,6 +665,9 @@ const Panels = {
       case "lastmeeting":
         await renderLastMeeting();
         break;
+      case "history":
+        await MeetingHistory.load();
+        break;
       case "governance":
         await Gov.init();
         break;
@@ -583,6 +676,7 @@ const Panels = {
         break;
       case "record":
         _injectRecordHelper(App.lang);
+        TextMinutes.loadMeetings();
         break;
       case "integrations":
         renderIntegrations();
@@ -1902,6 +1996,436 @@ const Rec = {
       fuHtml +
       actions
     );
+  },
+};
+
+// ══ Text Minutes Upload ═══════════════════════════════════════════════════════
+// Alternative to audio/video recording: paste or upload written meeting notes,
+// attach them to a new or existing meeting, then run them through the exact
+// same AI extraction pipeline (/api/meetings/:id/process) as a live recording.
+const TextMinutes = {
+  async loadMeetings() {
+    const sel = $("tm-meeting-sel");
+    if (!sel) return;
+    const l = App.lang;
+    const keepValue = sel.value;
+    try {
+      const mtgs = await api("/api/meetings");
+      sel.innerHTML =
+        `<option value="">${l === "ar" ? "— إنشاء اجتماع جديد —" : "— Create New Meeting —"}</option>` +
+        mtgs
+          .map(
+            (m) =>
+              `<option value="${m.id}">${esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar)} (${(m.meeting_date && m.meeting_date.substring(0, 10)) || ""})</option>`,
+          )
+          .join("");
+      sel.value = keepValue;
+    } catch (e) {}
+    this.onMeetingChange();
+  },
+  onMeetingChange() {
+    const sel = $("tm-meeting-sel");
+    const row = $("tm-new-title-row");
+    if (!sel || !row) return;
+    row.style.display = sel.value ? "none" : "";
+  },
+  onFile(e) {
+    const l = App.lang;
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (!/\.txt$/i.test(f.name)) {
+      alert(
+        l === "ar"
+          ? "يُدعم ملف .txt فقط"
+          : "Only .txt files are supported",
+      );
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      $("tm-text").value = String(reader.result || "");
+      $("tm-file-name").textContent = f.name;
+    };
+    reader.onerror = () => {
+      showToast(
+        l === "ar" ? "تعذّرت قراءة الملف" : "Could not read the file",
+        "error",
+      );
+    };
+    reader.readAsText(f);
+  },
+  async process() {
+    const l = App.lang;
+    const text = $("tm-text").value.trim();
+    if (!text) {
+      alert(
+        l === "ar"
+          ? "يرجى لصق النص أو رفع ملف أولاً"
+          : "Please paste text or upload a file first",
+      );
+      return;
+    }
+    const btn = $("tm-process-btn");
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading"></span> ${l === "ar" ? "جارٍ المعالجة..." : "Processing..."}`;
+    $("tm-result").innerHTML = "";
+    try {
+      let meetingId = $("tm-meeting-sel").value;
+      if (!meetingId) {
+        const title =
+          $("tm-new-title").value.trim() ||
+          (l === "ar" ? "محضر نصي بدون عنوان" : "Untitled Text Minutes");
+        const row = await api("/api/meetings", {
+          method: "POST",
+          body: JSON.stringify({
+            title_ar: title,
+            title_en: title,
+            transcript: "",
+            meeting_type: "",
+          }),
+        });
+        meetingId = row.id;
+      }
+      await api(`/api/meetings/${meetingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ transcript: text }),
+      });
+      const r = await api(`/api/meetings/${meetingId}/process`, {
+        method: "POST",
+      });
+      $("tm-result").innerHTML = Rec.renderResult(r.result);
+      showToast(
+        l === "ar"
+          ? "✓ تمت معالجة المحضر النصي بنجاح"
+          : "✓ Text minutes processed successfully",
+      );
+      $("tm-text").value = "";
+      $("tm-file-name").textContent = "";
+      const fileInp = $("tm-file");
+      if (fileInp) fileInp.value = "";
+      await this.loadMeetings();
+      await loadBadges();
+    } catch (e) {
+      $("tm-result").innerHTML = `<span style="color:var(--danger,#e05a5a)">⚠ ${esc(e.message)}</span>`;
+      showToast(
+        l === "ar"
+          ? "⚠ فشلت المعالجة بالذكاء الاصطناعي — تم حفظ النص. يمكنك إعادة المحاولة من قسم المحاضر."
+          : "⚠ AI processing failed — the text is saved. Retry from the Transcripts view.",
+        "warning",
+      );
+    }
+    btn.disabled = false;
+    btn.innerHTML = `✦ <span>${l === "ar" ? "معالجة النص" : "Process Text Minutes"}</span>`;
+  },
+};
+
+// ══ Meeting History ═══════════════════════════════════════════════════════════
+// A Claude/ChatGPT-style trace view: search + filter every past meeting, then
+// drill into full detail (overview, attendees, agenda, transcript, AI minutes,
+// decisions, tasks, resolutions, recording archive, lifecycle timeline,
+// downloads). Built entirely from existing meeting/task/decision/governance
+// endpoints — no new backend data model.
+const MeetingHistory = {
+  _all: [],
+  _selectedId: null,
+
+  async load() {
+    const list = $("mh-list");
+    if (list) list.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      this._all = await api("/api/meetings");
+    } catch (e) {
+      this._all = [];
+      if (list)
+        list.innerHTML = `<div class="es" style="color:var(--danger,#e05a5a);padding:16px">${esc(e.message)}</div>`;
+      return;
+    }
+    this.applyFilters();
+  },
+
+  // recording_capture_type is the only field that actually records how a
+  // meeting was captured today — reused here rather than inventing a new
+  // "provider" column, per the "use existing data, no fake history" brief.
+  _deriveProvider(m) {
+    const ct = m.recording_capture_type || "";
+    if (ct === "zoom_cloud") return "zoom";
+    if (ct === "teams_cloud") return "teams";
+    if (ct === "google_meet_cloud") return "google_meet";
+    return "physical";
+  },
+
+  _deriveStatus(m) {
+    if (m.lifecycle_stage === "archived") return "archived";
+    if (["approved", "final_approved"].includes(m.minutes_status))
+      return "approved";
+    if (m.status === "processed") return "processed";
+    return "pending";
+  },
+
+  _statusMeta(status, l) {
+    return (
+      {
+        processed: { lbl: l === "ar" ? "مُعالَج" : "Processed", cls: "tg" },
+        pending: { lbl: l === "ar" ? "قيد الانتظار" : "Pending", cls: "ta" },
+        approved: { lbl: l === "ar" ? "معتمد" : "Approved", cls: "tgold" },
+        archived: {
+          lbl: l === "ar" ? "مؤرشف" : "Archived",
+          cls: "",
+          style: "background:var(--navy4);color:var(--text3)",
+        },
+      }[status] || { lbl: status, cls: "" }
+    );
+  },
+
+  applyFilters() {
+    const l = App.lang;
+    const q = (($("mh-search") && $("mh-search").value) || "")
+      .trim()
+      .toLowerCase();
+    const typeF = $("mh-filter-type") ? $("mh-filter-type").value : "";
+    const provF = $("mh-filter-provider") ? $("mh-filter-provider").value : "";
+    const statusF = $("mh-filter-status") ? $("mh-filter-status").value : "";
+
+    const filtered = this._all.filter((m) => {
+      if (q) {
+        const hay = `${m.title_ar || ""} ${m.title_en || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (typeF && m.meeting_type !== typeF) return false;
+      if (provF && this._deriveProvider(m) !== provF) return false;
+      if (statusF && this._deriveStatus(m) !== statusF) return false;
+      return true;
+    });
+    filtered.sort((a, b) => (b.meeting_date || "").localeCompare(a.meeting_date || ""));
+
+    const countEl = $("mh-count");
+    if (countEl)
+      countEl.textContent =
+        l === "ar" ? `${filtered.length} اجتماع` : `${filtered.length} meeting(s)`;
+
+    const list = $("mh-list");
+    if (!list) return;
+    if (!this._all.length) {
+      list.innerHTML = `<div class="es" style="padding:30px 10px">
+        <div style="font-size:34px">📭</div>
+        <div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد اجتماعات مسجّلة بعد" : "No meetings recorded yet"}</div>
+      </div>`;
+      return;
+    }
+    if (!filtered.length) {
+      list.innerHTML = `<div class="es" style="padding:30px 10px">
+        <div style="font-size:34px">🔍</div>
+        <div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد نتائج مطابقة للبحث/الفلاتر" : "No meetings match your search/filters"}</div>
+      </div>`;
+      return;
+    }
+    list.innerHTML = filtered.map((m) => this._renderListItem(m, l)).join("");
+  },
+
+  _renderListItem(m, l) {
+    const title = esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar);
+    const date = (m.meeting_date || "").substring(0, 10) || "—";
+    const status = this._deriveStatus(m);
+    const sm = this._statusMeta(status, l);
+    const typeLbl = m.meeting_type ? mtLabel(m.meeting_type, l) : "";
+    const selected = m.id === this._selectedId;
+    return `<div onclick="MeetingHistory.openDetail(${m.id})"
+        style="cursor:pointer;padding:10px 12px;border-radius:10px;border:1px solid ${selected ? "var(--gold)" : "var(--border2)"};background:${selected ? "var(--gold-dim)" : "var(--navy3)"};transition:var(--t)">
+      <div style="font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:10.5px">
+        <span style="color:var(--text3)">📅 ${esc(date)}</span>
+        ${typeLbl ? `<span class="tag tgold" style="font-size:10px;padding:1px 6px">${esc(typeLbl)}</span>` : ""}
+        <span class="tag ${sm.cls}" style="font-size:10px;padding:1px 6px${sm.style ? ";" + sm.style : ""}">${sm.lbl}</span>
+      </div>
+    </div>`;
+  },
+
+  async openDetail(id) {
+    this._selectedId = id;
+    this.applyFilters();
+    const detail = $("mh-detail");
+    if (!detail) return;
+    detail.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const [m, attendees, agenda, docs, resolutions, lifecycle, approvalLogRes] =
+        await Promise.all([
+          api(`/api/meetings/${id}`),
+          api(`/api/meetings/${id}/attendees`).catch(() => []),
+          api(`/api/gov/agenda?meetingId=${id}`).catch(() => []),
+          api(`/api/gov/documents?meetingId=${id}`).catch(() => []),
+          api(`/api/gov/resolutions?meetingId=${id}`).catch(() => []),
+          api(`/api/meetings/${id}/lifecycle`).catch(() => null),
+          api(`/api/meetings/${id}/approval-log`).catch(() => ({ log: [] })),
+        ]);
+      detail.innerHTML = this._renderDetail(m, {
+        attendees,
+        agenda,
+        docs,
+        resolutions,
+        lifecycle,
+        approvalLog: approvalLogRes.log || [],
+      });
+    } catch (e) {
+      detail.innerHTML = `<div class="es" style="color:var(--danger,#e05a5a)">${esc(e.message)}</div>`;
+    }
+  },
+
+  _section(icon, titleAr, titleEn, bodyHtml) {
+    const l = App.lang;
+    return `<div style="margin-bottom:18px">
+      <div style="font-size:12.5px;font-weight:700;color:var(--gold);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <span>${icon}</span><span>${l === "ar" ? titleAr : titleEn}</span>
+      </div>
+      ${bodyHtml}
+    </div>`;
+  },
+
+  _renderDetail(m, extra) {
+    const l = App.lang;
+    const lbl = (ar, en) => (l === "ar" ? ar : en);
+    const title = esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar);
+    const date = (m.meeting_date || "").substring(0, 10) || "—";
+    const status = this._deriveStatus(m);
+    const sm = this._statusMeta(status, l);
+    const typeLbl = m.meeting_type ? mtLabel(m.meeting_type, l) : lbl("غير محدد", "Unspecified");
+    const summary = (l === "ar" ? m.ai_summary_ar : m.ai_summary_en || m.ai_summary_ar) || "";
+    const minutes = (l === "ar" ? m.ai_minutes_ar : m.ai_minutes_en || m.ai_minutes_ar) || "";
+    let tasks = [], decisions = [], risks = [];
+    try { tasks = JSON.parse(m.ai_tasks || "[]"); } catch {}
+    try { decisions = JSON.parse(m.ai_decisions || "[]"); } catch {}
+    try { risks = JSON.parse(m.ai_risks || "[]"); } catch {}
+
+    // ── Overview ──
+    const overview = `<div class="card" style="background:var(--navy3);padding:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${summary ? "10px" : "0"}">
+        <span class="tag tgold" style="font-size:11px">${esc(typeLbl)}</span>
+        <span class="tag ${sm.cls}" style="font-size:11px${sm.style ? ";" + sm.style : ""}">${sm.lbl}</span>
+        ${m.minutes_status ? `<span class="tag" style="background:var(--navy4);font-size:11px">${lbl("الاعتماد", "Approval")}: ${esc(m.minutes_status)}</span>` : ""}
+        ${m.recording_status ? `<span class="tag" style="background:var(--navy4);font-size:11px">${lbl("التسجيل", "Recording")}: ${esc(m.recording_status)}</span>` : ""}
+        <span style="font-size:11px;color:var(--text3)">📅 ${esc(date)}</span>
+        ${m.duration ? `<span style="font-size:11px;color:var(--text3)">⏱ ${Math.floor(m.duration / 60)}:${String(m.duration % 60).padStart(2, "0")}</span>` : ""}
+      </div>
+      ${summary ? `<div style="font-size:12.5px;color:var(--text2);line-height:1.7">${esc(summary)}</div>` : `<div style="font-size:12px;color:var(--text3);font-style:italic">${lbl("لا يوجد ملخص بعد", "No summary yet")}</div>`}
+    </div>`;
+
+    // ── Attendees ──
+    const attendeesHtml = extra.attendees.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${extra.attendees
+          .map(
+            (a) =>
+              `<span class="tag" style="background:var(--navy3);font-size:11px">${a.confirmed ? "✓ " : ""}${esc(a.name)}</span>`,
+          )
+          .join("")}</div>`
+      : `<div style="font-size:12px;color:var(--text3)">${lbl("لا يوجد حضور مسجّل", "No attendees recorded")}</div>`;
+
+    // ── Agenda ──
+    const agendaHtml = extra.agenda.length
+      ? extra.agenda
+          .map(
+            (ag, i) =>
+              `<div style="padding:8px 0;border-bottom:.5px solid var(--border2);font-size:12px">
+            <b>${i + 1}.</b> ${esc(ag.title)}${ag.presenter ? ` <span style="color:var(--text3)">— ${esc(ag.presenter)}</span>` : ""}
+          </div>`,
+          )
+          .join("")
+      : `<div style="font-size:12px;color:var(--text3)">${lbl("لا يوجد جدول أعمال مسجّل لهذا الاجتماع", "No agenda recorded for this meeting")}</div>`;
+
+    // ── Transcript ──
+    const transcriptHtml = m.transcript
+      ? `<div class="tr-box" style="max-height:220px;overflow-y:auto;white-space:pre-wrap;font-size:12px">${esc(m.transcript)}</div>`
+      : `<div style="font-size:12px;color:var(--text3)">${lbl("لا يوجد نص مسجّل", "No transcript recorded")}</div>`;
+
+    // ── AI Minutes ──
+    const minutesHtml = minutes
+      ? `<div style="white-space:pre-wrap;font-size:12.5px;color:var(--text2);line-height:1.75;background:var(--navy3);border-radius:10px;padding:12px">${esc(minutes)}</div>`
+      : `<div style="font-size:12px;color:var(--text3)">${lbl("لم تُستخرج محاضر بعد — استخدم زر المعالجة", "AI minutes not extracted yet — use the process button")}</div>`;
+
+    // ── Decisions ──
+    const decisionsHtml = decisions.length
+      ? decisions
+          .map(
+            (d) =>
+              `<div style="font-size:12px;color:var(--text);padding:6px 0;border-bottom:.5px solid var(--border2)">✓ ${esc(l === "ar" ? d.text_ar || d : d.text_en || d.text_ar || d)}</div>`,
+          )
+          .join("")
+      : `<div style="font-size:12px;color:var(--text3)">${lbl("لا توجد قرارات", "No decisions")}</div>`;
+
+    // ── Tasks ──
+    const tasksHtml = tasks.length
+      ? tasks
+          .map(
+            (t) => `<div style="background:var(--navy3);border-radius:8px;padding:9px 11px;margin-bottom:6px;font-size:12px">
+          <div style="color:var(--text)">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+            ${t.owner_ar ? `<span class="tag tgold" style="font-size:10.5px">${esc(l === "ar" ? t.owner_ar : t.owner_en || t.owner_ar)}</span>` : ""}
+            ${t.due ? `<span class="tag" style="background:var(--navy4);font-size:10.5px">${esc(t.due)}</span>` : ""}
+          </div>
+        </div>`,
+          )
+          .join("")
+      : `<div style="font-size:12px;color:var(--text3)">${lbl("لا توجد مهام", "No tasks")}</div>`;
+
+    // ── Risks (extra, shown only if present) ──
+    const risksHtml = risks.length
+      ? risks
+          .map(
+            (r) =>
+              `<div style="font-size:12px;color:var(--text);padding:6px 0;border-bottom:.5px solid var(--border2)">⚠️ ${esc(l === "ar" ? r.text_ar : r.text_en || r.text_ar)}</div>`,
+          )
+          .join("")
+      : "";
+
+    // ── Resolutions / Voting ──
+    const resolutionsHtml = extra.resolutions.length
+      ? extra.resolutions
+          .map(
+            (r) => `<div style="background:var(--navy3);border-radius:8px;padding:9px 11px;margin-bottom:6px;font-size:12px">
+          <div style="color:var(--text);font-weight:600">${esc(r.title)}</div>
+          <div style="display:flex;gap:6px;margin-top:4px;font-size:10.5px">
+            <span class="tag tg">${lbl("موافق", "Approve")}: ${r.votes_approve || 0}</span>
+            <span class="tag tr">${lbl("رفض", "Reject")}: ${r.votes_reject || 0}</span>
+            <span class="tag" style="background:var(--navy4)">${lbl("امتناع", "Abstain")}: ${r.votes_abstain || 0}</span>
+          </div>
+        </div>`,
+          )
+          .join("")
+      : "";
+
+    // ── Recording archive ──
+    const hasRecording = m.audio_recording_url || m.video_recording_url;
+    const recordingHtml = hasRecording
+      ? `<div style="display:flex;flex-direction:column;gap:8px">
+          ${m.audio_recording_url ? `<audio controls src="${esc(m.audio_recording_url)}" style="width:100%"></audio>` : ""}
+          ${m.video_recording_url ? `<video controls src="${esc(m.video_recording_url)}" style="width:100%;border-radius:8px"></video>` : ""}
+          <div style="font-size:11px;color:var(--text3)">${lbl("حالة اعتماد التسجيل", "Recording approval status")}: ${esc(m.recording_approval_status || "—")}</div>
+        </div>`
+      : "";
+
+    // ── Downloads / report actions ──
+    const downloadsHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-gold btn-sm" id="bp-btn-${m.id}" onclick="BoardPack.download(${m.id})">📄 ${lbl("تحميل حزمة المجلس PDF", "Download Board Pack PDF")}</button>
+      <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')">✅ ${lbl("فتح متابعة المهام", "Open Task Tracker")}</button>
+      <button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})">📋 ${lbl("سجل الاعتماد", "Approval Log")}</button>
+    </div>`;
+
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="font-size:17px;font-weight:800;color:var(--text)">${title}</div>
+      </div>
+      ${this._section("📋", "نظرة عامة", "Overview", overview)}
+      ${this._section("👥", "الحضور", "Attendees", attendeesHtml)}
+      ${this._section("🗂️", "جدول الأعمال", "Agenda", agendaHtml)}
+      ${this._section("⏱️", "مسار الاجتماع", "Lifecycle Timeline", _meetingLifecycle(m, l))}
+      ${this._section("📝", "النص الكامل", "Transcript", transcriptHtml)}
+      ${this._section("🤖", "محضر أمين AI", "AI Minutes", minutesHtml)}
+      ${this._section("⚖️", "القرارات", "Decisions", decisionsHtml)}
+      ${this._section("✅", "المهام", "Tasks", tasksHtml)}
+      ${risksHtml ? this._section("⚠️", "المخاطر", "Risks", risksHtml) : ""}
+      ${extra.resolutions.length ? this._section("🗳️", "التصويت والقرارات", "Voting / Resolutions", resolutionsHtml) : ""}
+      ${hasRecording ? this._section("🎙️", "أرشيف التسجيل", "Recording Archive", recordingHtml) : ""}
+      ${this._section("⬇️", "التنزيلات والتقارير", "Downloads & Reports", downloadsHtml)}
+    `;
   },
 };
 
@@ -3523,7 +4047,14 @@ const Chat = {
     const av = isUser
       ? `<div class="mav">${esc(initials)}</div>`
       : `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>`;
-    d.innerHTML = `${av}<div><div class="mb">${esc(text)}</div><div class="mts">${now()}</div></div>`;
+    // AI replies get their raw markdown rendered as clean HTML and their own
+    // RTL/LTR direction based on their actual content, independent of the
+    // current UI language — Ask Ameen can be asked to answer in either language.
+    const bodyHtml = isUser ? esc(text) : formatAiReply(text);
+    const bodyDirAttr = isUser
+      ? ""
+      : ` dir="${detectTextDir(text)}" style="text-align:${detectTextDir(text) === "rtl" ? "right" : "left"}"`;
+    d.innerHTML = `${av}<div><div class="mb"${bodyDirAttr}>${bodyHtml}</div><div class="mts">${now()}</div></div>`;
     if (chips && msgs.contains(chips)) {
       msgs.insertBefore(d, chips);
     } else {
