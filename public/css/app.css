@@ -201,8 +201,21 @@ select.fi option{background:var(--navy3)}
 .mav{width:28px;height:28px;border-radius:50%;background:var(--gold-dim);border:1.5px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--gold);font-weight:700;flex-shrink:0;overflow:hidden}
 .mav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .msg.user .mav{background:var(--navy4);color:var(--text2);border-color:var(--border2)}
-.mb{max-width:78%;padding:11px 14px;border-radius:14px;font-size:13px;line-height:1.78;white-space:pre-wrap;background:var(--navy3);border:1px solid var(--border2);color:var(--text)}
+.mb{max-width:78%;padding:11px 14px;border-radius:14px;font-size:13px;line-height:1.78;background:var(--navy3);border:1px solid var(--border2);color:var(--text);text-align:start}
 .msg.user .mb{background:var(--gold);color:var(--navy);border-color:transparent;font-weight:500;box-shadow:0 2px 10px rgba(201,168,76,.22)}
+.mb p{margin:0 0 8px}
+.mb p:last-child{margin-bottom:0}
+.mb h3,.mb h4,.mb h5,.mb h6{margin:10px 0 6px;line-height:1.4;font-weight:700}
+.mb h3:first-child,.mb h4:first-child,.mb h5:first-child,.mb h6:first-child{margin-top:0}
+.mb h3{font-size:1.15em}.mb h4{font-size:1.08em}.mb h5,.mb h6{font-size:1em}
+.mb strong{font-weight:700}
+.mb em{font-style:italic}
+.mb code{background:rgba(127,127,127,.18);border-radius:4px;padding:1px 5px;font-size:.92em;font-family:ui-monospace,Menlo,Consolas,monospace}
+.mb ul,.mb ol{margin:4px 0 8px;padding-inline-start:22px;display:flex;flex-direction:column;gap:3px}
+.mb li{margin:0}
+.mb hr{border:none;border-top:1px solid var(--border2);margin:10px 0;opacity:.6}
+.msg.user .mb code{background:rgba(0,0,0,.12)}
+.msg.user .mb hr{border-top-color:rgba(0,0,0,.2)}
 .mts{font-size:10px;color:var(--text3);margin-top:3px;padding:0 3px}
 .tyd{display:flex;gap:4px;padding:8px 12px}
 .tyd span{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink .9s infinite}
@@ -241,6 +254,25 @@ select.fi option{background:var(--navy3)}
 .stat-sub{font-size:10px;color:var(--text3);margin-top:5px}
 .pbar-bg{height:4px;background:var(--navy4);border-radius:3px;overflow:hidden}
 .pbar{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .6s ease}
+
+/* ── Meeting History ──────────────────────────────────────────── */
+.hist-wrap{display:flex;height:100%;overflow:hidden}
+.hist-list-pane{width:320px;flex-shrink:0;display:flex;flex-direction:column;border-inline-end:1px solid var(--border2);background:var(--navy2)}
+.hist-search-bar{padding:14px 14px 8px}
+.hist-search-bar .fi{font-size:12.5px;padding:8px 12px}
+.hist-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 14px 12px}
+.hist-filters .fi{font-size:11px;padding:6px 8px}
+.hist-list{flex:1;overflow-y:auto;padding:0 8px 12px}
+.hist-item{padding:10px 10px;border-radius:10px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;transition:var(--t)}
+.hist-item:hover{background:var(--navy3)}
+.hist-item.active{background:var(--navy3);border-color:var(--gold-border)}
+.hist-item-title{font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-item-meta{font-size:10.5px;color:var(--text3);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.hist-detail-pane{flex:1;overflow-y:auto;padding:20px 24px}
+.hist-sec{margin-bottom:18px}
+.hist-sec-h{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.hist-sec-body{font-size:12.5px;color:var(--text2);line-height:1.8}
+.hist-empty-row{font-size:11.5px;color:var(--text3);font-style:italic}
 
 /* ── Document output ───────────────────────────────────────────── */
 .doc-out{flex:1;font-size:12.5px;line-height:1.9;color:var(--text2);background:var(--navy3);border-radius:var(--rm);padding:15px;white-space:pre-wrap;overflow-y:auto;min-height:200px;direction:rtl;text-align:right;border:1px solid var(--border2)}
@@ -573,6 +605,9 @@ select.fi,textarea.fi{transition:border-color var(--t),background var(--t),box-s
   .card{padding:18px 20px}
   .eg,.fr2{grid-template-columns:1fr}
   .mb{max-width:88%}
+  .hist-wrap{flex-direction:column}
+  .hist-list-pane{width:100%;max-height:280px;border-inline-end:none;border-bottom:1px solid var(--border2)}
+  .hist-filters{grid-template-columns:1fr 1fr}
 }
 @media (max-width:600px){
   .shell{grid-template-columns:60px 1fr}

@@ -7,6 +7,81 @@ const esc = (t) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+
+// ── Chat message formatting: lightweight, sanitized markdown → HTML ─────────
+// Text is HTML-escaped first, so only tags this function inserts can ever
+// reach innerHTML — safe against AI-generated content containing raw markup.
+const detectTextDir = (t) => {
+  const s = String(t || "");
+  const ar = (s.match(/[؀-ۿ]/g) || []).length;
+  const en = (s.match(/[A-Za-z]/g) || []).length;
+  return ar >= en ? "rtl" : "ltr";
+};
+const mdInline = (s) =>
+  s
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<strong>$1</strong>")
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>")
+    .replace(/(?<!_)_([^_\n]+)_(?!_)/g, "<em>$1</em>")
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+const mdToHtml = (raw) => {
+  const lines = esc(raw).replace(/\r\n/g, "\n").split("\n");
+  let html = "",
+    listType = null,
+    para = [];
+  const flushPara = () => {
+    if (para.length) {
+      html += `<p>${para.join("<br>")}</p>`;
+      para = [];
+    }
+  };
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    let m;
+    if (!line) {
+      flushPara();
+      closeList();
+    } else if ((m = line.match(/^(#{1,6})\s+(.+)$/))) {
+      flushPara();
+      closeList();
+      const level = Math.min(m[1].length + 2, 6);
+      html += `<h${level}>${mdInline(m[2])}</h${level}>`;
+    } else if (/^(\*{3,}|-{3,}|_{3,})$/.test(line)) {
+      flushPara();
+      closeList();
+      html += "<hr>";
+    } else if ((m = line.match(/^[-*•]\s+(.+)$/))) {
+      flushPara();
+      if (listType && listType !== "ul") closeList();
+      if (!listType) {
+        html += "<ul>";
+        listType = "ul";
+      }
+      html += `<li>${mdInline(m[1])}</li>`;
+    } else if ((m = line.match(/^(\d+)[.)]\s+(.+)$/))) {
+      flushPara();
+      if (listType && listType !== "ol") closeList();
+      if (!listType) {
+        html += "<ol>";
+        listType = "ol";
+      }
+      html += `<li>${mdInline(m[2])}</li>`;
+    } else {
+      closeList();
+      para.push(mdInline(line));
+    }
+  }
+  flushPara();
+  closeList();
+  return html;
+};
 const now = () =>
   new Date().toLocaleTimeString(App.lang === "ar" ? "ar-SA" : "en-GB", {
     hour: "2-digit",
@@ -545,6 +620,9 @@ const Panels = {
     switch (name) {
       case "transcripts":
         await renderTranscripts();
+        break;
+      case "history":
+        await MeetingHistory.refresh();
         break;
       case "tasks":
         await renderTasks();
@@ -2186,8 +2264,41 @@ function _injectRecordHelper(l) {
           📤 ${l==='ar'?'رفع التسجيل الرسمي':'Upload Official Recording'}
         </button>
       </div>
+    </div>
+    <div style="margin-top:14px;margin-bottom:4px;padding:14px 15px;background:var(--navy3);border:2px solid rgba(46,204,138,.35);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:20px">📝</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#2ecc8a">${l==='ar'?'محضر الاجتماع / نص':'Meeting Minutes / Text'}</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:1px">${l==='ar'?'الصق ملاحظات الاجتماع أو ارفع ملفاً نصياً':'Paste meeting notes or upload a text file'}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.65;margin-bottom:10px">${l==='ar'
+        ? 'استخدم هذا الخيار عند توفر محضر أو ملاحظات مكتوبة بدلاً من تسجيل صوتي أو مرئي. يقوم أمين بمعالجة النص عبر نفس محرك الذكاء الاصطناعي لاستخراج الملخص ونقاط النقاش والقرارات والمهام والمتابعات.'
+        : 'Use this when you already have written minutes or notes instead of an audio/video recording. Ameen processes the text through the same AI engine to extract the summary, discussion points, decisions, tasks, and follow-ups.'}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">📋 ${l==='ar'?'اختر الاجتماع:':'Select Meeting:'}</label>
+          <select id="text-minutes-meeting-sel" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11.5px">
+            <option value="">${l==='ar'?'— جارٍ التحميل —':'— Loading —'}</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">✏️ ${l==='ar'?'الصق نص المحضر هنا:':'Paste minutes text here:'}</label>
+          <textarea id="text-minutes-content" rows="6" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box" placeholder="${l==='ar'?'الصق نص محضر الاجتماع أو الملاحظات هنا...':'Paste the meeting minutes or notes here...'}"></textarea>
+        </div>
+        <div>
+          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">📄 ${l==='ar'?'أو ارفع ملف نصي (.txt):':'Or upload a text file (.txt):'}</label>
+          <input type="file" id="text-minutes-file" accept=".txt,text/plain" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11px;box-sizing:border-box">
+        </div>
+        <button id="text-minutes-btn" onclick="RecStore.processTextMinutes()"
+          style="align-self:flex-start;padding:8px 20px;border-radius:8px;background:rgba(46,204,138,.15);color:#2ecc8a;border:1px solid rgba(46,204,138,.4);font-size:12px;font-weight:700;cursor:pointer">
+          ✦ ${l==='ar'?'معالجة نص المحضر':'Process Text Minutes'}
+        </button>
+      </div>
     </div>`;
-  RecStore.populateMeetingsSel();
+  RecStore.populateMeetingsSel('official-rec-meeting-sel');
+  RecStore.populateMeetingsSel('text-minutes-meeting-sel');
 }
 
 // ══ Recording Storage ══════════════════════════════════════════════════════════
@@ -2241,8 +2352,55 @@ const RecStore = {
       if (btn) { btn.disabled = false; btn.textContent = l==='ar'?'📤 رفع التسجيل الرسمي':'📤 Upload Official Recording'; }
     }
   },
-  async populateMeetingsSel() {
-    const sel = document.getElementById('official-rec-meeting-sel');
+  async processTextMinutes() {
+    const l   = App.lang;
+    const sel = document.getElementById('text-minutes-meeting-sel');
+    const ta  = document.getElementById('text-minutes-content');
+    const fi  = document.getElementById('text-minutes-file');
+    const btn = document.getElementById('text-minutes-btn');
+    const meetingId = sel && sel.value;
+    if (!meetingId) { showToast(l==='ar'?'الرجاء اختيار اجتماع أولاً':'Please select a meeting first', 'error'); return; }
+
+    let text = ((ta && ta.value) || '').trim();
+    if (fi && fi.files && fi.files[0]) {
+      try {
+        text = (await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(new Error(l==='ar'?'تعذّرت قراءة الملف':'Could not read file'));
+          reader.readAsText(fi.files[0]);
+        })).trim();
+      } catch (e) { showToast(e.message, 'error'); return; }
+    }
+    if (!text) { showToast(l==='ar'?'الرجاء لصق نص المحضر أو رفع ملف نصي':'Please paste minutes text or upload a text file', 'error'); return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = l==='ar'?'جارٍ المعالجة…':'Processing…'; }
+    try {
+      const patchRes = await fetch(`/api/meetings/${meetingId}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: text, source_type: 'text_minutes' })
+      });
+      if (!patchRes.ok) throw new Error((await patchRes.json()).error || (l==='ar'?'تعذّر حفظ النص':'Failed to save text'));
+
+      const procRes = await fetch(`/api/meetings/${meetingId}/process`, { method: 'POST', credentials: 'include' });
+      const procData = await procRes.json().catch(() => ({}));
+      if (!procRes.ok) throw new Error(procData.error || (l==='ar'?'تعذّرت معالجة النص':'Failed to process the text'));
+
+      showToast(l==='ar'?'✓ تمت معالجة محضر الاجتماع بنجاح':'✓ Meeting minutes processed successfully', 'success');
+      if (btn) btn.textContent = l==='ar'?'✓ تمت المعالجة':'✓ Processed';
+      if (ta) ta.value = '';
+      if (fi) fi.value = '';
+      if (sel) sel.value = '';
+      const panels = document.getElementById('panel-transcripts');
+      if (panels && panels.classList.contains('active')) await renderTranscripts();
+    } catch (e) {
+      showToast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = l==='ar'?'✦ معالجة نص المحضر':'✦ Process Text Minutes'; }
+    }
+  },
+  async populateMeetingsSel(selId = 'official-rec-meeting-sel') {
+    const sel = document.getElementById(selId);
     if (!sel) return;
     const l = App.lang;
     sel.innerHTML = `<option value="">${l==='ar'?'جارٍ تحميل الاجتماعات…':'Loading meetings…'}</option>`;
@@ -2418,6 +2576,7 @@ async function renderTranscripts() {
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               ${isProcessed ? `<span class="tag tg">✓ ${l === "ar" ? "مُعالج" : "Processed"}</span>` : `<span class="tag ta">${l === "ar" ? "جديد" : "New"}</span>`}
+              ${m.source_type === "text_minutes" ? `<span class="tag" style="background:rgba(46,204,138,.12);color:#2ecc8a">📝 ${l === "ar" ? "محضر نصي" : "Text Minutes"}</span>` : ""}
               ${tasks.length ? `<span class="tag tgold">${tasks.length} ${l === "ar" ? "مهمة" : "tasks"}</span>` : ""}
               ${decisions.length ? `<span class="tag" style="background:var(--navy4)">${decisions.length} ${l === "ar" ? "قرار" : "decisions"}</span>` : ""}
               ${risks.length ? `<span class="tag" style="background:rgba(220,50,50,.15);color:#e05252">${risks.length} ${l === "ar" ? "مخاطر" : "risks"}</span>` : ""}
@@ -2571,6 +2730,326 @@ function tryParse(s, def) {
     return def;
   }
 }
+
+// ══ Meeting History ═══════════════════════════════════════════════════════════
+// Searchable, click-to-view archive. Reads from the same /api/meetings list and
+// the /api/meetings/:id/full aggregate — no separate storage of its own.
+const MeetingHistory = {
+  _all: [],
+  _filtered: [],
+  _selectedId: null,
+  _searchTimer: null,
+  _q: "",
+
+  async refresh() {
+    const list = $("hist-list");
+    if (list) list.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      this._all = await api("/api/meetings");
+      this.applyFilters();
+    } catch (e) {
+      if (list) list.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+  onSearch(q) {
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => {
+      this._q = (q || "").trim().toLowerCase();
+      this.applyFilters();
+    }, 300);
+  },
+  _provider(m) {
+    return m.source_type === "text_minutes" ? "text_minutes" : (m.recording_capture_type || "browser_microphone");
+  },
+  applyFilters() {
+    const type = ($("hist-filter-type") || {}).value || "";
+    const provider = ($("hist-filter-provider") || {}).value || "";
+    const status = ($("hist-filter-status") || {}).value || "";
+    const approval = ($("hist-filter-approval") || {}).value || "";
+    const q = this._q;
+    this._filtered = this._all.filter((m) => {
+      if (type && m.meeting_type !== type) return false;
+      if (provider && this._provider(m) !== provider) return false;
+      if (status && (m.status || "draft") !== status) return false;
+      if (approval && (m.minutes_status || "draft") !== approval) return false;
+      if (q) {
+        const hay = [m.title_ar, m.title_en, m.ai_summary_ar, m.ai_summary_en].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    this.renderList();
+  },
+  renderList() {
+    const list = $("hist-list");
+    if (!list) return;
+    const l = App.lang;
+    if (!this._all.length) {
+      list.innerHTML = `<div class="es" style="padding:30px 14px">
+        <div style="font-size:34px;margin-bottom:10px">🗂</div>
+        <div style="font-size:12.5px;color:var(--text3);line-height:1.7">${l === "ar" ? 'لا توجد اجتماعات مسجلة بعد. سجّل اجتماعك الأول من صفحة "تسجيل اجتماع".' : 'No meetings recorded yet. Record your first meeting from "Record Meeting".'}</div>
+      </div>`;
+      this.renderEmptyDetail();
+      return;
+    }
+    if (!this._filtered.length) {
+      list.innerHTML = `<div class="es" style="padding:30px 14px">
+        <div style="font-size:30px;margin-bottom:8px">🔍</div>
+        <div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد نتائج مطابقة" : "No matching meetings"}</div>
+      </div>`;
+      return;
+    }
+    if (this._selectedId && !this._filtered.some((m) => m.id === this._selectedId)) {
+      this._selectedId = null;
+      this.renderEmptyDetail();
+    }
+    list.innerHTML = this._filtered
+      .map((m) => {
+        const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
+        const date = (m.meeting_date || "").substring(0, 10);
+        const isProcessed = m.status === "processed";
+        return `<div class="hist-item${this._selectedId === m.id ? " active" : ""}" onclick="MeetingHistory.select(${m.id})">
+          <div class="hist-item-title">${esc(title)}</div>
+          <div class="hist-item-meta">
+            <span>📅 ${date}</span>
+            <span>${isProcessed ? "✓" : "○"} ${isProcessed ? (l === "ar" ? "مُعالج" : "Processed") : l === "ar" ? "جديد" : "New"}</span>
+            ${m.source_type === "text_minutes" ? `<span>📝 ${l === "ar" ? "نصي" : "Text"}</span>` : ""}
+          </div>
+        </div>`;
+      })
+      .join("");
+  },
+  renderEmptyDetail() {
+    const detail = $("hist-detail");
+    if (!detail) return;
+    const l = App.lang;
+    detail.innerHTML = `<div class="es" style="height:100%;justify-content:center">
+      <div style="font-size:40px;margin-bottom:12px">🗂</div>
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${l === "ar" ? "اختر اجتماعاً لعرض التفاصيل" : "Select a meeting to view details"}</div>
+      <div style="font-size:11.5px;color:var(--text3);max-width:320px">${l === "ar" ? "ستظهر هنا نظرة عامة كاملة، جدول الأعمال، الحضور، النص، الملخص، القرارات، المهام، والمرفقات." : "A full overview, agenda, attendees, transcript, summary, decisions, tasks, and attachments will appear here."}</div>
+    </div>`;
+  },
+  async select(id) {
+    this._selectedId = id;
+    this.renderList();
+    const detail = $("hist-detail");
+    const l = App.lang;
+    if (detail) detail.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const full = await api(`/api/meetings/${id}/full`);
+      this.renderDetail(full);
+    } catch (e) {
+      if (detail) detail.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+  renderDetail(full) {
+    const detail = $("hist-detail");
+    if (!detail) return;
+    const l = App.lang;
+    const m = full.meeting;
+    const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
+    const tasks = full.tasks && full.tasks.length ? full.tasks : tryParse(m.ai_tasks, []);
+    const decisions = full.decisions && full.decisions.length ? full.decisions : tryParse(m.ai_decisions, []);
+    const speakerTr = tryParse(m.speaker_transcript, []);
+    const summary = l === "ar" ? m.ai_summary_ar || "" : m.ai_summary_en || m.ai_summary_ar || "";
+    const minutes = l === "ar" ? m.ai_minutes_ar || "" : m.ai_minutes_en || m.ai_minutes_ar || "";
+    const isProcessed = m.status === "processed";
+    const providerLabels = {
+      browser_microphone: l === "ar" ? "🖥 ميكروفون المتصفح" : "🖥 Browser Microphone",
+      uploaded_recording: l === "ar" ? "📤 ملف مرفوع" : "📤 Uploaded File",
+      zoom_cloud: "☁ Zoom Cloud",
+      teams_cloud: "☁ Teams Cloud",
+      google_meet_cloud: "☁ Google Meet Cloud",
+      text_minutes: l === "ar" ? "📝 محضر نصي" : "📝 Text Minutes",
+    };
+    const provider = m.source_type === "text_minutes" ? "text_minutes" : m.recording_capture_type || "browser_microphone";
+
+    const sec = (icon, labelAr, labelEn, bodyHtml) => `<div class="hist-sec">
+      <div class="hist-sec-h">${icon} ${l === "ar" ? labelAr : labelEn}</div>
+      <div class="hist-sec-body">${bodyHtml}</div>
+    </div>`;
+    const emptyRow = (ar, en) => `<div class="hist-empty-row">${l === "ar" ? ar : en}</div>`;
+
+    const reportsHtml = isProcessed
+      ? `<button class="btn-gold btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l === "ar" ? "تنزيل حزمة المجلس (PDF)" : "Download Board Pack (PDF)"}</button>`
+      : emptyRow("يجب معالجة الاجتماع أولاً لتوليد التقارير", "The meeting must be AI-processed before reports can be generated");
+
+    detail.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--text)">${esc(title)}</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:3px">${(m.meeting_date || "").substring(0, 10)} ${m.duration ? `· ${Math.floor(m.duration / 60)}:${String(m.duration % 60).padStart(2, "0")} ${l === "ar" ? "دقيقة" : "min"}` : ""}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${isProcessed ? `<span class="tag tg">✓ ${l === "ar" ? "مُعالج" : "Processed"}</span>` : `<span class="tag ta">${l === "ar" ? "جديد" : "New"}</span>`}
+          <span class="tag" style="background:var(--navy4)">${providerLabels[provider] || provider}</span>
+        </div>
+      </div>
+
+      ${sec(
+        "📋",
+        "نظرة عامة",
+        "Overview",
+        `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+          <div>${l === "ar" ? "نوع الاجتماع" : "Meeting Type"}: <strong>${esc(m.meeting_type || (l === "ar" ? "غير محدد" : "Not set"))}</strong></div>
+          <div>${l === "ar" ? "المسجّل" : "Recorded By"}: <strong>${esc((l === "ar" ? m.recorder_ar : m.recorder_en) || "—")}</strong></div>
+          ${m.board_name_ar ? `<div>${l === "ar" ? "المجلس" : "Board"}: <strong>${esc(l === "ar" ? m.board_name_ar : m.board_name_en)}</strong></div>` : ""}
+          ${m.committee_name_ar ? `<div>${l === "ar" ? "اللجنة" : "Committee"}: <strong>${esc(l === "ar" ? m.committee_name_ar : m.committee_name_en)}</strong></div>` : ""}
+          <div>${l === "ar" ? "الحالة العاطفية" : "Sentiment"}: <strong>${esc(m.ai_sentiment || "—")}</strong></div>
+        </div>`,
+      )}
+
+      ${sec(
+        "👥",
+        "الحضور",
+        "Attendees",
+        full.attendees.length
+          ? `<div style="display:flex;flex-direction:column;gap:6px">
+          ${full.attendees
+            .map(
+              (a) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:.5px solid var(--border2)">
+            <span>${esc(a.name)}</span>
+            <span style="color:var(--text3);font-size:11px">${esc(a.email || "")} ${a.confirmed ? `· ✓ ${l === "ar" ? "مؤكد" : "Confirmed"}` : ""}</span>
+          </div>`,
+            )
+            .join("")}
+        </div>`
+          : emptyRow("لا يوجد حضور مسجّل لهذا الاجتماع", "No attendees recorded for this meeting"),
+      )}
+
+      ${sec(
+        "🗒️",
+        "جدول الأعمال",
+        "Agenda",
+        full.agenda.length
+          ? `<ol style="margin:0;padding-inline-start:18px;display:flex;flex-direction:column;gap:6px">
+          ${full.agenda
+            .map(
+              (a) => `<li>${esc(a.title)}${a.presenter ? ` — <span style="color:var(--text3)">${esc(a.presenter)}</span>` : ""}${a.description ? `<div style="font-size:11.5px;color:var(--text3);margin-top:2px">${esc(a.description)}</div>` : ""}</li>`,
+            )
+            .join("")}
+        </ol>`
+          : emptyRow("لا يوجد جدول أعمال مسجّل لهذا الاجتماع", "No agenda recorded for this meeting"),
+      )}
+
+      ${sec(
+        "🗣️",
+        "النص الكامل",
+        "Transcript",
+        speakerTr.length
+          ? `<div class="tr-box" style="max-height:260px;overflow-y:auto">
+          ${speakerTr
+            .map(
+              (s) => `<div style="padding:5px 0;border-bottom:.5px solid var(--border2)">
+            <div style="font-size:11px;font-weight:700;color:var(--gold)">${esc(s.speaker || (l === "ar" ? "متحدث" : "Speaker"))}</div>
+            <div>${esc(l === "ar" ? s.text_ar || s.text_en || "" : s.text_en || s.text_ar || "")}</div>
+          </div>`,
+            )
+            .join("")}
+        </div>`
+          : m.transcript
+            ? `<div class="tr-box" style="max-height:260px;overflow-y:auto;white-space:pre-wrap">${esc(m.transcript)}</div>`
+            : emptyRow("لا يوجد نص مسجّل لهذا الاجتماع", "No transcript recorded for this meeting"),
+      )}
+
+      ${sec(
+        "✦",
+        "الملخص والمحضر",
+        "AI Summary / Minutes",
+        summary || minutes
+          ? `${summary ? `<div style="margin-bottom:8px">${esc(summary)}</div>` : ""}
+        ${minutes ? `<details><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "عرض المحضر الكامل" : "Show full minutes"}</summary><div style="margin-top:8px;white-space:pre-wrap">${esc(minutes)}</div></details>` : ""}`
+          : emptyRow("لم تتم معالجة هذا الاجتماع بعد بواسطة الذكاء الاصطناعي", "This meeting has not been AI-processed yet"),
+      )}
+
+      ${sec(
+        "⚖️",
+        "القرارات",
+        "Decisions",
+        decisions.length
+          ? `<div style="display:flex;flex-direction:column;gap:6px">
+          ${decisions
+            .map(
+              (d) => `<div style="padding:5px 0;border-bottom:.5px solid var(--border2)">${esc(l === "ar" ? d.text_ar || d.text_en : d.text_en || d.text_ar)} ${d.status ? `<span class="tag" style="background:var(--navy4);margin-inline-start:5px">${esc(d.status)}</span>` : ""}</div>`,
+            )
+            .join("")}
+        </div>`
+          : emptyRow("لا توجد قرارات مسجّلة لهذا الاجتماع", "No decisions recorded for this meeting"),
+      )}
+
+      ${sec(
+        "✅",
+        "المهام",
+        "Tasks",
+        tasks.length
+          ? `<div style="display:flex;flex-direction:column;gap:6px">
+          ${tasks
+            .map(
+              (t) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border2)">
+            <span>${esc(l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar)}</span>
+            <span style="color:var(--text3);font-size:11px">${esc((l === "ar" ? t.owner_name_ar || t.owner_ar : t.owner_name_en || t.owner_en) || "")} ${t.due_date || t.due ? `· ${t.due_date || t.due}` : ""}</span>
+          </div>`,
+            )
+            .join("")}
+        </div>`
+          : emptyRow("لا توجد مهام مسجّلة لهذا الاجتماع", "No tasks recorded for this meeting"),
+      )}
+
+      ${sec(
+        "📎",
+        "المستندات والمرفقات",
+        "Documents / Attachments",
+        full.documents.length
+          ? `<div style="display:flex;flex-direction:column;gap:6px">
+          ${full.documents
+            .map(
+              (d) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border2)">
+            <span>${DocLib.icon(d.doc_type)} ${esc(d.title)}</span>
+            <a href="/uploads/${esc(d.file_path)}" download="${esc(d.title)}" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${l === "ar" ? "تنزيل" : "Download"}</a>
+          </div>`,
+            )
+            .join("")}
+        </div>`
+          : emptyRow("لا توجد مرفقات لهذا الاجتماع", "No attachments for this meeting"),
+      )}
+
+      ${sec(
+        "📼",
+        "أرشيف التسجيل",
+        "Recording Archive",
+        m.audio_recording_url
+          ? `<div>
+          <div style="margin-bottom:6px">${providerLabels[provider] || provider} ${m.recording_approval_status ? `· <span class="tag" style="background:var(--navy4)">${esc(m.recording_approval_status)}</span>` : ""}</div>
+          <div style="display:flex;gap:6px">
+            <a href="${esc(m.audio_recording_url)}" target="_blank" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">▶ ${l === "ar" ? "تشغيل" : "Play"}</a>
+            <a href="${esc(m.audio_recording_url)}" download class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none">⬇ ${l === "ar" ? "تنزيل" : "Download"}</a>
+          </div>
+        </div>`
+          : emptyRow("لا يوجد تسجيل مؤرشف لهذا الاجتماع", "No recording archived for this meeting"),
+      )}
+
+      ${sec(
+        "🕐",
+        "الجدول الزمني",
+        "Lifecycle Timeline",
+        full.lifecycle.length
+          ? `<div style="display:flex;flex-direction:column;gap:6px">
+          ${full.lifecycle
+            .map(
+              (ev) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border2);font-size:11.5px">
+            <span>${esc(ev.to_stage)}${ev.note ? ` — ${esc(ev.note)}` : ""}</span>
+            <span style="color:var(--text3)">${esc(ev.actor_name || "")} · ${(ev.created_at || "").substring(0, 16)}</span>
+          </div>`,
+            )
+            .join("")}
+        </div>`
+          : emptyRow("لا يوجد سجل زمني لهذا الاجتماع", "No lifecycle history for this meeting"),
+      )}
+
+      ${sec("📦", "التقارير", "Reports", reportsHtml)}
+    `;
+  },
+};
 
 // ── Minutes Approval Workflow helpers ──────────────────────────────────────
 async function minutesApprovalAction(meetingId, action) {
@@ -3523,7 +4002,8 @@ const Chat = {
     const av = isUser
       ? `<div class="mav">${esc(initials)}</div>`
       : `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>`;
-    d.innerHTML = `${av}<div><div class="mb">${esc(text)}</div><div class="mts">${now()}</div></div>`;
+    const dir = detectTextDir(text);
+    d.innerHTML = `${av}<div><div class="mb" dir="${dir}">${mdToHtml(text)}</div><div class="mts">${now()}</div></div>`;
     if (chips && msgs.contains(chips)) {
       msgs.insertBefore(d, chips);
     } else {

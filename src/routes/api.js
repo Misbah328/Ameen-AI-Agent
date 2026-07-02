@@ -472,6 +472,36 @@ router.get('/meetings/:id', auth, (req, res) => {
   res.json(m);
 });
 
+// GET /api/meetings/:id/full — aggregated Meeting History detail view.
+// Reads exclusively from tables already populated by the recording/processing
+// pipeline (no new capture points, no duplicated storage) so the frontend can
+// render overview/attendees/agenda/decisions/tasks/documents/timeline in one call.
+router.get('/meetings/:id/full', auth, (req, res) => {
+  const id = req.params.id;
+  const meeting = db.prepare(`
+    SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
+      b.name_ar as board_name_ar, b.name_en as board_name_en,
+      c.name_ar as committee_name_ar, c.name_en as committee_name_en,
+      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en
+    FROM meetings m
+    LEFT JOIN users u  ON m.recorded_by          = u.id
+    LEFT JOIN users rv ON m.recording_verified_by = rv.id
+    LEFT JOIN boards b ON m.board_id = b.id
+    LEFT JOIN committees c ON m.committee_id = c.id
+    WHERE m.id=?
+  `).get(id);
+  if (!meeting) return res.status(404).json({ error: 'Not found' });
+
+  const attendees = db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(id);
+  const agenda = db.prepare('SELECT * FROM agenda_items WHERE meeting_id=? ORDER BY sort_order ASC, id ASC').all(id);
+  const tasks = db.prepare('SELECT * FROM tasks WHERE source_meeting_id=? ORDER BY id ASC').all(id);
+  const decisions = db.prepare('SELECT * FROM decisions WHERE meeting_id=? ORDER BY id ASC').all(id);
+  const documents = db.prepare("SELECT * FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!='' ORDER BY id DESC").all(id);
+  const lifecycle = db.prepare('SELECT * FROM meeting_lifecycle_log WHERE meeting_id=? ORDER BY created_at ASC').all(id);
+
+  res.json({ meeting, attendees, agenda, tasks, decisions, documents, lifecycle });
+});
+
 router.post('/meetings', auth, (req, res) => {
   const { title_ar, title_en, transcript, duration, meeting_type } = req.body;
   const row = db.prepare(`
@@ -487,7 +517,7 @@ router.post('/meetings', auth, (req, res) => {
 });
 
 router.patch('/meetings/:id', auth, (req, res) => {
-  const { transcript, duration, title_ar, title_en, meeting_type } = req.body;
+  const { transcript, duration, title_ar, title_en, meeting_type, source_type } = req.body;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
 
@@ -496,10 +526,11 @@ router.patch('/meetings/:id', auth, (req, res) => {
   const newTranscript = transcript !== undefined ? transcript : meeting.transcript;
   const newDuration = duration !== undefined ? duration : meeting.duration;
   const newMeetingType = meeting_type !== undefined ? meeting_type : meeting.meeting_type;
+  const newSourceType = source_type !== undefined ? source_type : meeting.source_type;
 
   db.transaction(() => {
-    db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=? WHERE id=?')
-      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, req.params.id);
+    db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=?, source_type=? WHERE id=?')
+      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, newSourceType, req.params.id);
 
     // Keep denormalized titles in tasks & decisions in sync
     if (title_ar !== undefined || title_en !== undefined) {

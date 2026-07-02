@@ -90,6 +90,10 @@
     <span class="nb-label" data-ar="المحاضر والنصوص" data-en="Transcripts & Minutes">المحاضر والنصوص</span>
     <span class="nbg nbg-gold" id="b-tr">—</span>
   </button>
+  <button class="nb" data-p="history">
+    <span class="nb-icon">🗂</span>
+    <span class="nb-label" data-ar="سجل الاجتماعات" data-en="Meeting History">سجل الاجتماعات</span>
+  </button>
   <button class="nb" data-p="lastmeeting">
     <span class="nb-icon">⭐</span>
     <span class="nb-label" data-ar="آخر اجتماع" data-en="Last Meeting">آخر اجتماع</span>
@@ -290,6 +294,65 @@
   </div>
   <div class="pbody" id="transcripts-body">
     <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
+<!-- ══ MEETING HISTORY ═════════════════════════════════════════ -->
+<section class="panel" id="panel-history">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="سجل الاجتماعات" data-en="Meeting History">سجل الاجتماعات</div>
+        <div class="ptitle-sub" data-ar="أرشيف قابل للبحث لجميع الاجتماعات مع كامل التفاصيل" data-en="Searchable archive of every meeting with full detail">أرشيف قابل للبحث لجميع الاجتماعات</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="MeetingHistory.refresh()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" style="padding:0;overflow:hidden">
+    <div class="hist-wrap">
+      <div class="hist-list-pane">
+        <div class="hist-search-bar">
+          <input type="search" id="hist-search" class="fi"
+            data-ph-ar="ابحث بعنوان الاجتماع أو الملخص..." data-ph-en="Search by title or summary..."
+            placeholder="بحث..." oninput="MeetingHistory.onSearch(this.value)"/>
+        </div>
+        <div class="hist-filters">
+          <select id="hist-filter-type" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل الأنواع" data-en="All Types">كل الأنواع</option>
+            <option value="Board Meeting" data-ar="اجتماع مجلس الإدارة" data-en="Board Meeting">اجتماع مجلس الإدارة</option>
+            <option value="Committee Meeting" data-ar="اجتماع اللجنة" data-en="Committee Meeting">اجتماع اللجنة</option>
+            <option value="Executive Meeting" data-ar="الاجتماع التنفيذي" data-en="Executive Meeting">الاجتماع التنفيذي</option>
+            <option value="General Meeting" data-ar="الاجتماع العام" data-en="General Meeting">الاجتماع العام</option>
+            <option value="Strategy Meeting" data-ar="اجتماع الاستراتيجية" data-en="Strategy Meeting">اجتماع الاستراتيجية</option>
+            <option value="Follow-up Meeting" data-ar="اجتماع المتابعة" data-en="Follow-up Meeting">اجتماع المتابعة</option>
+          </select>
+          <select id="hist-filter-provider" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل المصادر" data-en="All Providers">كل المصادر</option>
+            <option value="browser_microphone" data-ar="ميكروفون المتصفح" data-en="Browser Microphone">ميكروفون المتصفح</option>
+            <option value="uploaded_recording" data-ar="ملف مرفوع" data-en="Uploaded File">ملف مرفوع</option>
+            <option value="zoom_cloud" data-ar="Zoom سحابي" data-en="Zoom Cloud">Zoom سحابي</option>
+            <option value="teams_cloud" data-ar="Teams سحابي" data-en="Teams Cloud">Teams سحابي</option>
+            <option value="google_meet_cloud" data-ar="Google Meet سحابي" data-en="Google Meet Cloud">Google Meet سحابي</option>
+            <option value="text_minutes" data-ar="محضر نصي" data-en="Text Minutes">محضر نصي</option>
+          </select>
+          <select id="hist-filter-status" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل الحالات" data-en="All Statuses">كل الحالات</option>
+            <option value="processed" data-ar="مُعالج" data-en="Processed">مُعالج</option>
+            <option value="draft" data-ar="جديد" data-en="New">جديد</option>
+          </select>
+          <select id="hist-filter-approval" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل حالات الاعتماد" data-en="All Approval States">كل حالات الاعتماد</option>
+            <option value="draft" data-ar="مسودة" data-en="Draft">مسودة</option>
+            <option value="circulated" data-ar="قيد الاعتماد" data-en="Circulated">قيد الاعتماد</option>
+            <option value="approved" data-ar="معتمد" data-en="Approved">معتمد</option>
+            <option value="revision_requested" data-ar="يحتاج مراجعة" data-en="Revision Needed">يحتاج مراجعة</option>
+            <option value="final_approved" data-ar="معتمد نهائياً" data-en="Final Approved">معتمد نهائياً</option>
+          </select>
+        </div>
+        <div class="hist-list" id="hist-list"><div class="es"><div class="loading"></div></div></div>
+      </div>
+      <div class="hist-detail-pane" id="hist-detail"></div>
+    </div>
   </div>
 </section>
 
