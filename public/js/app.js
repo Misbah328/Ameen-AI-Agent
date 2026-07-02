@@ -666,7 +666,7 @@ const Panels = {
         await renderAdminPanel();
         break;
       case "record":
-        _injectRecordHelper(App.lang);
+        ImportFlow.init();
         break;
       case "integrations":
         renderIntegrations();
@@ -2176,136 +2176,302 @@ function _meetingLifecycleHeuristic(m, l) {
   </div>`;
 }
 
-// ── Record Meeting helper card (injected into static panel on every visit) ────
-function _injectRecordHelper(l) {
-  const pbody = document.querySelector('#panel-record .pbody');
-  if (!pbody) return;
-  let h = document.getElementById('rec-arch-hint');
-  if (!h) {
-    h = document.createElement('div');
-    h.id = 'rec-arch-hint';
-    pbody.insertBefore(h, pbody.firstChild);
-  }
-  h.innerHTML = `
-    <div style="margin-bottom:12px;padding:11px 13px;background:rgba(255,160,0,.07);border:1px solid rgba(255,160,0,.30);border-radius:10px">
-      <div style="display:flex;align-items:flex-start;gap:9px">
-        <span style="font-size:18px;flex-shrink:0">⚠️</span>
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">${l==='ar'?'تنبيه: التسجيل عبر المتصفح يلتقط الميكروفون المحلي فقط':'Browser Recording — Local Microphone Only'}</div>
-          <div style="font-size:11px;color:var(--text3);line-height:1.65">${l==='ar'
-            ? 'التسجيل عبر المتصفح يلتقط <strong style="color:var(--amber)">ميكروفون جهازك المحلي فقط</strong>، ولا يشمل أصوات المشاركين الآخرين عبر Zoom أو Teams أو Google Meet. للحصول على تسجيل كامل للاجتماع، ارفع الملف الرسمي من المنصة أو قم بربط التكامل المباشر.'
-            : 'Browser recording captures <strong style="color:var(--amber)">your local microphone only</strong> — it does not include other participants over Zoom, Teams, or Google Meet. For a full meeting recording, upload the official file from your meeting platform or connect a direct integration.'}</div>
-        </div>
-      </div>
-    </div>
-    <div style="margin-bottom:12px;padding:11px 13px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px">
-      <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">🎙 ${l==='ar'?'نوع الالتقاط — اختر المصدر المناسب':'Capture Type — Choose Your Source'}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
-        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:1px solid rgba(212,160,23,.25)">
-          <div style="font-size:11.5px;font-weight:700;color:var(--gold)">🖥 ${l==='ar'?'ميكروفون المتصفح':'Browser Microphone'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'النطاق: ميكروفون محلي فقط':'Scope: local mic only'}</div>
-          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⚠ ${l==='ar'?'محلي فقط':'Local only'}</div>
-        </div>
-        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
-          <div style="font-size:11.5px;font-weight:700;color:#5B9BD6">📤 ${l==='ar'?'رفع تسجيل رسمي':'Upload Official Recording'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'ملف من Zoom / Teams / Meet':'File from Zoom/Teams/Meet'}</div>
-          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(46,204,138,.10);color:#2ecc8a;border-radius:4px">✓ ${l==='ar'?'تسجيل كامل ممكن':'Full recording possible'}</div>
-        </div>
-        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
-          <div style="font-size:11.5px;font-weight:700;color:#2D8CFF">☁ Zoom Cloud</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
-          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
-        </div>
-        <div style="padding:8px 10px;background:var(--navy2);border-radius:8px;border:.5px solid var(--border2)">
-          <div style="font-size:11.5px;font-weight:700;color:#6264A7">💼 Teams / Meet</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${l==='ar'?'تسجيل سحابي مباشر':'Direct cloud recording'}</div>
-          <div style="font-size:10.5px;margin-top:3px;padding:2px 6px;display:inline-block;background:rgba(255,160,0,.12);color:#f0a000;border-radius:4px">⏳ ${l==='ar'?'التكامل جاهز — تتطلب بيانات اعتماد API':'Integration Ready - API credentials required'}</div>
-        </div>
-      </div>
-    </div>
-    <div style="margin-bottom:14px;padding:11px 13px;background:linear-gradient(135deg,rgba(212,160,23,.09),rgba(45,140,255,.06));border:1px solid rgba(212,160,23,.28);border-radius:10px">
-      <div style="display:flex;align-items:flex-start;gap:9px">
-        <span style="font-size:20px;flex-shrink:0">📼</span>
-        <div style="flex:1">
-          <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:4px">${l==='ar'?'أرشيف التسجيل — اعتماد رسمي':'Recording Archive — Official Approval Workflow'}</div>
-          <div style="font-size:11px;color:var(--text3);line-height:1.65">${l==='ar'
-            ? 'بعد التسجيل، انقر <strong style="color:var(--gold)">☁ حفظ في المنصة</strong> ← إرساله للاعتماد الرسمي من رئيس مجلس الإدارة ← أرشفة موثقة.'
-            : 'After recording, click <strong style="color:var(--gold)">☁ Save to Platform</strong> → submit for Chairman approval → officially archive.'}</div>
-          <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
-            <span style="font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'أرشيف جاهز':'Archive ready'}</span>
-            <span style="font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.28)">✓ ${l==='ar'?'الرفع اليدوي فعّال':'Manual upload active'}</span>
-            <span style="font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(255,160,0,.10);color:#f0a000;border:.5px solid rgba(255,160,0,.22)">⏳ ${l==='ar'?'Zoom/Teams/Meet: التكامل جاهز — تتطلب بيانات اعتماد API':'Zoom/Teams/Meet: Integration Ready - API credentials required'}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div style="margin-bottom:4px;padding:14px 15px;background:var(--navy3);border:2px solid rgba(45,140,255,.35);border-radius:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-size:20px">📤</span>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#5B9BD6">${l==='ar'?'رفع تسجيل رسمي للاجتماع':'Upload Official Meeting Recording'}</div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:1px">${l==='ar'?'Zoom · Microsoft Teams · Google Meet · قاعة اجتماعات':'Zoom · Microsoft Teams · Google Meet · Boardroom'}</div>
-        </div>
-        <span style="margin-inline-start:auto;font-size:10.5px;padding:2px 8px;border-radius:5px;background:rgba(46,204,138,.12);color:#2ecc8a;border:.5px solid rgba(46,204,138,.3)">✓ ${l==='ar'?'تسجيل كامل للاجتماع':'Full meeting capture'}</span>
-      </div>
-      <div style="font-size:11px;color:var(--text3);line-height:1.65;margin-bottom:10px">${l==='ar'
-        ? 'استخدم هذا الخيار لرفع التسجيل الرسمي من <strong style="color:#5B9BD6">Zoom أو Microsoft Teams أو Google Meet</strong> أو تسجيل قاعة الاجتماعات. يتيح التقاط أصوات جميع المشاركين وتصنيفه كـ <strong style="color:#2ecc8a">تسجيل كامل للاجتماع</strong>.'
-        : 'Use this to upload the official recording from <strong style="color:#5B9BD6">Zoom, Microsoft Teams, Google Meet</strong>, or a boardroom system. This captures all participants and is classified as a <strong style="color:#2ecc8a">full meeting recording</strong>.'}</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <div>
-          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">📋 ${l==='ar'?'اختر الاجتماع:':'Select Meeting:'}</label>
-          <select id="official-rec-meeting-sel" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11.5px">
-            <option value="">${l==='ar'?'— جارٍ التحميل —':'— Loading —'}</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">🎞 ${l==='ar'?'ملف التسجيل (صوت أو فيديو):':'Recording File (audio or video):'}</label>
-          <input type="file" id="official-rec-file"
-            accept=".mp4,.mov,.webm,.mp3,.wav,.m4a,.aac,.ogg,.wma"
-            style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11px;box-sizing:border-box">
-          <div style="font-size:10.5px;color:var(--text3);margin-top:3px">${l==='ar'?'الصيغ المدعومة: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — حتى 500 MB':'Supported: MP4, MOV, WebM, MP3, WAV, M4A, AAC, OGG — up to 500 MB'}</div>
-        </div>
-        <button id="official-rec-btn" onclick="RecStore.uploadOfficial()"
-          style="align-self:flex-start;padding:8px 20px;border-radius:8px;background:rgba(45,140,255,.15);color:#5B9BD6;border:1px solid rgba(45,140,255,.4);font-size:12px;font-weight:700;cursor:pointer">
-          📤 ${l==='ar'?'رفع التسجيل الرسمي':'Upload Official Recording'}
-        </button>
-      </div>
-    </div>
-    <div style="margin-top:14px;margin-bottom:4px;padding:14px 15px;background:var(--navy3);border:2px solid rgba(46,204,138,.35);border-radius:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-size:20px">📝</span>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#2ecc8a">${l==='ar'?'محضر الاجتماع / نص':'Meeting Minutes / Text'}</div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:1px">${l==='ar'?'الصق ملاحظات الاجتماع أو ارفع ملفاً نصياً':'Paste meeting notes or upload a text file'}</div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:var(--text3);line-height:1.65;margin-bottom:10px">${l==='ar'
-        ? 'استخدم هذا الخيار عند توفر محضر أو ملاحظات مكتوبة بدلاً من تسجيل صوتي أو مرئي. يقوم أمين بمعالجة النص عبر نفس محرك الذكاء الاصطناعي لاستخراج الملخص ونقاط النقاش والقرارات والمهام والمتابعات.'
-        : 'Use this when you already have written minutes or notes instead of an audio/video recording. Ameen processes the text through the same AI engine to extract the summary, discussion points, decisions, tasks, and follow-ups.'}</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <div>
-          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">📋 ${l==='ar'?'اختر الاجتماع:':'Select Meeting:'}</label>
-          <select id="text-minutes-meeting-sel" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11.5px">
-            <option value="">${l==='ar'?'— جارٍ التحميل —':'— Loading —'}</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">✏️ ${l==='ar'?'الصق نص المحضر هنا:':'Paste minutes text here:'}</label>
-          <textarea id="text-minutes-content" rows="6" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box" placeholder="${l==='ar'?'الصق نص محضر الاجتماع أو الملاحظات هنا...':'Paste the meeting minutes or notes here...'}"></textarea>
-        </div>
-        <div>
-          <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:4px">📄 ${l==='ar'?'أو ارفع ملف نصي (.txt):':'Or upload a text file (.txt):'}</label>
-          <input type="file" id="text-minutes-file" accept=".txt,text/plain" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy2);color:var(--text);font-size:11px;box-sizing:border-box">
-        </div>
-        <button id="text-minutes-btn" onclick="RecStore.processTextMinutes()"
-          style="align-self:flex-start;padding:8px 20px;border-radius:8px;background:rgba(46,204,138,.15);color:#2ecc8a;border:1px solid rgba(46,204,138,.4);font-size:12px;font-weight:700;cursor:pointer">
-          ✦ ${l==='ar'?'معالجة نص المحضر':'Process Text Minutes'}
-        </button>
-      </div>
-    </div>`;
-  RecStore.populateMeetingsSel('official-rec-meeting-sel');
-  RecStore.populateMeetingsSel('text-minutes-meeting-sel');
-}
+// ══ Import Meeting Content — unified Meeting Target + Content Type flow ════════
+// Drives the "Import Meeting Content" card in the Record panel: lets the user
+// attach imported content (audio/video archive, pasted text, or a text file) to
+// either an existing meeting or a brand-new one, then shows results inline.
+const ImportFlow = {
+  target: 'existing',
+  contentType: 'live',
+
+  init() {
+    this.setTarget(this.target, true);
+    this.setContentType(this.contentType, true);
+    this.populateMeetingsSel();
+  },
+
+  setTarget(val) {
+    this.target = val;
+    document.querySelectorAll('#imp-target-seg .imp-seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.val === val));
+    const existingEl = $('imp-target-existing');
+    const newEl = $('imp-target-new');
+    if (existingEl) existingEl.style.display = val === 'existing' ? '' : 'none';
+    if (newEl) newEl.style.display = val === 'new' ? '' : 'none';
+  },
+
+  setContentType(val) {
+    this.contentType = val;
+    document.querySelectorAll('#imp-content-seg .imp-seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.val === val));
+    ['live', 'av', 'text', 'file'].forEach((k) => {
+      const el = $(`imp-content-${k}`);
+      if (el) el.style.display = k === val ? '' : 'none';
+    });
+    // Live recording always creates its own meeting from the title/type fields
+    // in that block (unchanged existing behaviour) — Meeting Target only
+    // applies to the other three content types.
+    const targetSection = $('imp-target-section');
+    if (targetSection) targetSection.style.display = val === 'live' ? 'none' : '';
+    const resultCard = $('import-result-card');
+    if (resultCard) resultCard.style.display = 'none';
+  },
+
+  async populateMeetingsSel() {
+    const sel = $('imp-meeting-sel');
+    if (!sel) return;
+    const l = App.lang;
+    sel.innerHTML = `<option value="">${l === 'ar' ? 'جارٍ تحميل الاجتماعات…' : 'Loading meetings…'}</option>`;
+    try {
+      const meetings = await api('/api/meetings');
+      if (!meetings.length) {
+        sel.innerHTML = `<option value="">${l === 'ar' ? 'لا توجد اجتماعات مسجلة بعد' : 'No meetings recorded yet'}</option>`;
+        return;
+      }
+      sel.innerHTML = `<option value="">${l === 'ar' ? '— اختر الاجتماع —' : '— Select Meeting —'}</option>` +
+        meetings.map((m) => {
+          const title = l === 'ar' ? m.title_ar : m.title_en || m.title_ar;
+          const date = (m.meeting_date || '').substring(0, 10);
+          return `<option value="${m.id}">${esc(title)}${date ? ' · ' + date : ''}</option>`;
+        }).join('');
+    } catch (_) {
+      sel.innerHTML = `<option value="">${l === 'ar' ? 'تعذّر تحميل الاجتماعات' : 'Could not load meetings'}</option>`;
+    }
+  },
+
+  // Reads the Meeting Target block and returns the fields needed by the
+  // backend, or null (after showing a toast) if the form isn't ready yet.
+  _resolveTarget() {
+    const l = App.lang;
+    if (this.target === 'existing') {
+      const sel = $('imp-meeting-sel');
+      const meetingId = sel && sel.value;
+      if (!meetingId) {
+        showToast(l === 'ar' ? 'الرجاء اختيار اجتماع أولاً' : 'Please select a meeting first', 'error');
+        return null;
+      }
+      return { meeting_target: 'existing', meeting_id: meetingId };
+    }
+    const titleEl = $('imp-new-title');
+    const title = ((titleEl && titleEl.value) || '').trim();
+    if (!title) {
+      showToast(l === 'ar' ? 'الرجاء إدخال عنوان الاجتماع' : 'Please enter a meeting title', 'error');
+      return null;
+    }
+    return {
+      meeting_target: 'new',
+      title,
+      type: (($('imp-new-type') || {}).value) || '',
+      meeting_date: (($('imp-new-date') || {}).value) || '',
+      meeting_provider: (($('imp-new-provider') || {}).value) || '',
+    };
+  },
+
+  async submitText() {
+    const l = App.lang;
+    const target = this._resolveTarget();
+    if (!target) return;
+    const ta = $('imp-text-content');
+    const text = ((ta && ta.value) || '').trim();
+    if (!text) {
+      showToast(l === 'ar' ? 'الرجاء لصق نص المحضر' : 'Please paste the meeting text', 'error');
+      return;
+    }
+    await this._runTextImport(Object.assign({}, target, { content_type: 'paste_text', text }), $('imp-text-btn'), () => { if (ta) ta.value = ''; });
+  },
+
+  async submitFile() {
+    const l = App.lang;
+    const target = this._resolveTarget();
+    if (!target) return;
+    const fi = $('imp-file-input');
+    if (!(fi && fi.files && fi.files[0])) {
+      showToast(l === 'ar' ? 'الرجاء اختيار ملف نصي' : 'Please choose a text file', 'error');
+      return;
+    }
+    let text;
+    try {
+      text = (await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error(l === 'ar' ? 'تعذّرت قراءة الملف' : 'Could not read file'));
+        reader.readAsText(fi.files[0]);
+      })).trim();
+    } catch (e) {
+      showToast(e.message, 'error');
+      return;
+    }
+    if (!text) {
+      showToast(l === 'ar' ? 'الملف فارغ' : 'The file is empty', 'error');
+      return;
+    }
+    await this._runTextImport(Object.assign({}, target, { content_type: 'text_file', text }), $('imp-file-btn'), () => { if (fi) fi.value = ''; });
+  },
+
+  async _runTextImport(payload, btn, onSuccess) {
+    const l = App.lang;
+    const originalText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = l === 'ar' ? 'جارٍ المعالجة…' : 'Processing…'; }
+    this._showLoading();
+    try {
+      const res = await fetch('/api/meetings/import-content', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || (l === 'ar' ? 'فشل الاستيراد' : 'Import failed'));
+      this._renderResult(data);
+      if (onSuccess) onSuccess();
+      await this.populateMeetingsSel();
+      const panels = document.getElementById('panel-transcripts');
+      if (panels && panels.classList.contains('active')) await renderTranscripts();
+    } catch (e) {
+      this._renderError(e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = originalText; }
+    }
+  },
+
+  async submitAudioVideo() {
+    const l = App.lang;
+    const target = this._resolveTarget();
+    if (!target) return;
+    const fi = $('imp-av-file');
+    if (!(fi && fi.files && fi.files[0])) {
+      showToast(l === 'ar' ? 'الرجاء اختيار ملف تسجيل' : 'Please choose a recording file', 'error');
+      return;
+    }
+    const btn = $('imp-av-btn');
+    const originalText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = l === 'ar' ? 'جارٍ الحفظ…' : 'Saving…'; }
+    this._showLoading();
+    try {
+      let meetingId = target.meeting_id;
+      let created = false;
+      if (target.meeting_target === 'new') {
+        const cRes = await fetch('/api/meetings/import-content', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({}, target, { content_type: 'audio_video' })),
+        });
+        const cData = await cRes.json().catch(() => ({}));
+        if (!cRes.ok) throw new Error(cData.error || (l === 'ar' ? 'تعذّر إنشاء الاجتماع' : 'Could not create meeting'));
+        meetingId = cData.meeting.id;
+        created = cData.created;
+      }
+      const fd = new FormData();
+      fd.append('recording', fi.files[0], fi.files[0].name);
+      fd.append('capture_type', target.meeting_provider || 'uploaded_recording');
+      const res = await fetch(`/api/meetings/${meetingId}/recording`, { method: 'POST', credentials: 'include', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || (l === 'ar' ? 'فشل رفع الملف' : 'Upload failed'));
+      this._renderArchivedResult(meetingId, created);
+      fi.value = '';
+      await this.populateMeetingsSel();
+      const panels = document.getElementById('panel-transcripts');
+      if (panels && panels.classList.contains('active')) await renderTranscripts();
+    } catch (e) {
+      this._renderError(e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = originalText; }
+    }
+  },
+
+  async openInHistory(meetingId) {
+    await Panels.load('history');
+    await MeetingHistory.select(meetingId);
+  },
+
+  _showLoading() {
+    const card = $('import-result-card');
+    const body = $('import-result-body');
+    const sub = $('import-result-sub');
+    const links = $('import-result-links');
+    if (!card || !body) return;
+    const l = App.lang;
+    card.style.display = '';
+    if (sub) sub.textContent = '';
+    if (links) links.innerHTML = '';
+    body.innerHTML = `<div class="es" style="padding:30px 0"><div class="loading"></div><div style="margin-top:10px;font-size:12.5px;color:var(--text3)">${l === 'ar' ? 'جارٍ معالجة محتوى الاجتماع...' : 'Processing meeting content...'}</div></div>`;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
+  _linksHtml(meetingId) {
+    const l = App.lang;
+    return `<button class="btn-ghost btn-sm" onclick="Panels.load('transcripts')">📝 ${l === 'ar' ? 'فتح في المحاضر والنصوص' : 'Open in Transcripts / Minutes'}</button>
+      <button class="btn-ghost btn-sm" onclick="ImportFlow.openInHistory(${meetingId})">🗂 ${l === 'ar' ? 'فتح في سجل الاجتماعات' : 'Open in Meeting History'}</button>`;
+  },
+
+  _renderResult(data) {
+    const l = App.lang;
+    const card = $('import-result-card');
+    const body = $('import-result-body');
+    const sub = $('import-result-sub');
+    const links = $('import-result-links');
+    if (!card || !body) return;
+    card.style.display = '';
+    const m = data.meeting || {};
+    const title = l === 'ar' ? m.title_ar : m.title_en || m.title_ar;
+    if (sub) sub.textContent = `${data.created ? (l === 'ar' ? 'تم إنشاء اجتماع جديد' : 'New meeting created') : (l === 'ar' ? 'تم تحديث الاجتماع' : 'Meeting updated')} — ${title || ''}`;
+    if (links) links.innerHTML = this._linksHtml(m.id);
+
+    if (data.ai_status === 'unavailable') {
+      body.innerHTML = `<div class="imp-note" style="border-inline-start-color:#f0a000;margin-bottom:0">⚠️ ${l === 'ar' ? 'المعالجة بالذكاء الاصطناعي غير متاحة حالياً. يرجى إعداد مفتاح API للذكاء الاصطناعي.' : 'AI processing is not available. Please configure the AI API key.'}<br><span style="opacity:.8">${l === 'ar' ? 'تم حفظ النص المُدخل في الاجتماع.' : 'The submitted text has been saved to the meeting.'}</span></div>`;
+      return;
+    }
+    if (data.ai_status === 'error') {
+      body.innerHTML = `<div class="imp-note" style="border-inline-start-color:#e05252;margin-bottom:0">⚠️ ${l === 'ar' ? 'تعذّرت المعالجة الذكية لهذا المحتوى. تم حفظ النص، ويمكن إعادة المحاولة لاحقاً.' : 'AI processing could not complete for this content. The text has been saved — you can retry later.'}</div>`;
+      return;
+    }
+
+    const sec = (icon, ar, en, html) => `<div class="hist-sec"><div class="hist-sec-h">${icon} ${l === 'ar' ? ar : en}</div><div class="hist-sec-body">${html}</div></div>`;
+    const emptyRow = (ar, en) => `<div class="hist-empty-row">${l === 'ar' ? ar : en}</div>`;
+    const list = (arr, mapFn) => (arr && arr.length ? `<div style="display:flex;flex-direction:column;gap:6px">${arr.map(mapFn).join('')}</div>` : null);
+
+    const topics = l === 'ar' ? data.key_topics_ar || [] : data.key_topics_en || data.key_topics_ar || [];
+    const summary = l === 'ar' ? data.summary_ar || '' : data.summary_en || data.summary_ar || '';
+
+    const sections = [
+      sec('✦', 'الملخص', 'Summary', summary ? esc(summary) : emptyRow('لا يوجد ملخص', 'No summary')),
+      sec('🗣️', 'أبرز نقاط النقاش', 'Key Discussion Points', list(topics, (t) => `<div>• ${esc(t)}</div>`) || emptyRow('لا توجد نقاط مسجّلة', 'No discussion points recorded')),
+      sec('⚖️', 'القرارات', 'Decisions', list(data.decisions, (d) => `<div>${esc(l === 'ar' ? d.text_ar || d.text_en : d.text_en || d.text_ar)}</div>`) || emptyRow('لا توجد قرارات', 'No decisions')),
+      sec('✅', 'المهام / الإجراءات', 'Tasks / Action Items', list(data.tasks, (t) => `<div>${esc(l === 'ar' ? t.text_ar || t.text_en : t.text_en || t.text_ar)} ${t.owner_ar || t.owner_en ? `<span class="tag tgold" style="font-size:11px">${esc(l === 'ar' ? t.owner_ar || t.owner_en : t.owner_en || t.owner_ar)}</span>` : ''}</div>`) || emptyRow('لا توجد مهام', 'No tasks')),
+      sec('📌', 'متابعات', 'Follow-ups', list(data.followups, (f) => `<div>${esc(l === 'ar' ? f.text_ar || f.text_en : f.text_en || f.text_ar)}</div>`) || emptyRow('لا توجد متابعات', 'No follow-ups')),
+    ];
+    if (data.risks && data.risks.length) {
+      sections.push(sec('⚠️', 'المخاطر', 'Risks', list(data.risks, (r) => `<div>${r.severity === 'high' ? '🔴' : r.severity === 'medium' ? '🟡' : '🟢'} ${esc(l === 'ar' ? r.text_ar || r.text_en : r.text_en || r.text_ar)}</div>`)));
+    }
+    body.innerHTML = sections.join('');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
+  _renderArchivedResult(meetingId, created) {
+    const l = App.lang;
+    const card = $('import-result-card');
+    const body = $('import-result-body');
+    const sub = $('import-result-sub');
+    const links = $('import-result-links');
+    if (!card || !body) return;
+    card.style.display = '';
+    if (sub) sub.textContent = created ? (l === 'ar' ? 'تم إنشاء اجتماع جديد وأرشفة التسجيل' : 'New meeting created and recording archived') : (l === 'ar' ? 'تم أرشفة التسجيل للاجتماع' : 'Recording archived to the meeting');
+    if (links) links.innerHTML = this._linksHtml(meetingId);
+    body.innerHTML = `<div class="imp-note" style="margin-bottom:0">🎞 ${l === 'ar'
+      ? 'تم حفظ التسجيل في أرشيف التسجيلات. استخراج الذكاء الاصطناعي يتطلب نصاً مكتوباً (محضراً) أو تكامل تفريغ صوتي مدعوماً.'
+      : 'The recording has been saved to the Recording Archive. AI extraction requires a transcript or a supported transcription integration.'}</div>`;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
+  _renderError(msg) {
+    const card = $('import-result-card');
+    const body = $('import-result-body');
+    const sub = $('import-result-sub');
+    const links = $('import-result-links');
+    if (!card || !body) return;
+    card.style.display = '';
+    if (sub) sub.textContent = '';
+    if (links) links.innerHTML = '';
+    body.innerHTML = `<div class="imp-note" style="border-inline-start-color:#e05252;margin-bottom:0;color:#e05252">⚠️ ${esc(msg)}</div>`;
+  },
+};
 
 // ══ Recording Storage ══════════════════════════════════════════════════════════
 const RecStore = {
@@ -2327,103 +2493,6 @@ const RecStore = {
     } catch (e) {
       showToast(e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = l === 'ar' ? '☁ حفظ في المنصة' : '☁ Save to Platform'; }
-    }
-  },
-  async uploadOfficial() {
-    const l   = App.lang;
-    const sel = document.getElementById('official-rec-meeting-sel');
-    const fi  = document.getElementById('official-rec-file');
-    const btn = document.getElementById('official-rec-btn');
-    const meetingId = sel && sel.value;
-    if (!meetingId) { showToast(l==='ar'?'الرجاء اختيار اجتماع أولاً':'Please select a meeting first', 'error'); return; }
-    if (!(fi && fi.files && fi.files[0])) { showToast(l==='ar'?'الرجاء اختيار ملف تسجيل':'Please select a recording file', 'error'); return; }
-    const f = fi.files[0];
-    if (btn) { btn.disabled = true; btn.textContent = l==='ar'?'جارٍ الرفع…':'Uploading…'; }
-    try {
-      const fd = new FormData();
-      fd.append('recording', f, f.name);
-      fd.append('capture_type', 'uploaded_recording');
-      const res = await fetch(`/api/meetings/${meetingId}/recording`, {
-        method: 'POST', credentials: 'include', body: fd
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
-      showToast(l==='ar'?'✓ تم رفع التسجيل الرسمي — تسجيل كامل للاجتماع':'✓ Official recording uploaded — full meeting capture', 'success');
-      if (btn) { btn.textContent = l==='ar'?'✓ تم الرفع':'✓ Uploaded'; }
-      fi.value = '';
-      sel.value = '';
-      const panels = document.getElementById('panel-transcripts');
-      if (panels && panels.classList.contains('active')) await renderTranscripts();
-    } catch (e) {
-      showToast(e.message, 'error');
-      if (btn) { btn.disabled = false; btn.textContent = l==='ar'?'📤 رفع التسجيل الرسمي':'📤 Upload Official Recording'; }
-    }
-  },
-  async processTextMinutes() {
-    const l   = App.lang;
-    const sel = document.getElementById('text-minutes-meeting-sel');
-    const ta  = document.getElementById('text-minutes-content');
-    const fi  = document.getElementById('text-minutes-file');
-    const btn = document.getElementById('text-minutes-btn');
-    const meetingId = sel && sel.value;
-    if (!meetingId) { showToast(l==='ar'?'الرجاء اختيار اجتماع أولاً':'Please select a meeting first', 'error'); return; }
-
-    let text = ((ta && ta.value) || '').trim();
-    if (fi && fi.files && fi.files[0]) {
-      try {
-        text = (await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || ''));
-          reader.onerror = () => reject(new Error(l==='ar'?'تعذّرت قراءة الملف':'Could not read file'));
-          reader.readAsText(fi.files[0]);
-        })).trim();
-      } catch (e) { showToast(e.message, 'error'); return; }
-    }
-    if (!text) { showToast(l==='ar'?'الرجاء لصق نص المحضر أو رفع ملف نصي':'Please paste minutes text or upload a text file', 'error'); return; }
-
-    if (btn) { btn.disabled = true; btn.textContent = l==='ar'?'جارٍ المعالجة…':'Processing…'; }
-    try {
-      const patchRes = await fetch(`/api/meetings/${meetingId}`, {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: text, source_type: 'text_minutes' })
-      });
-      if (!patchRes.ok) throw new Error((await patchRes.json()).error || (l==='ar'?'تعذّر حفظ النص':'Failed to save text'));
-
-      const procRes = await fetch(`/api/meetings/${meetingId}/process`, { method: 'POST', credentials: 'include' });
-      const procData = await procRes.json().catch(() => ({}));
-      if (!procRes.ok) throw new Error(procData.error || (l==='ar'?'تعذّرت معالجة النص':'Failed to process the text'));
-
-      showToast(l==='ar'?'✓ تمت معالجة محضر الاجتماع بنجاح':'✓ Meeting minutes processed successfully', 'success');
-      if (btn) btn.textContent = l==='ar'?'✓ تمت المعالجة':'✓ Processed';
-      if (ta) ta.value = '';
-      if (fi) fi.value = '';
-      if (sel) sel.value = '';
-      const panels = document.getElementById('panel-transcripts');
-      if (panels && panels.classList.contains('active')) await renderTranscripts();
-    } catch (e) {
-      showToast(e.message, 'error');
-      if (btn) { btn.disabled = false; btn.textContent = l==='ar'?'✦ معالجة نص المحضر':'✦ Process Text Minutes'; }
-    }
-  },
-  async populateMeetingsSel(selId = 'official-rec-meeting-sel') {
-    const sel = document.getElementById(selId);
-    if (!sel) return;
-    const l = App.lang;
-    sel.innerHTML = `<option value="">${l==='ar'?'جارٍ تحميل الاجتماعات…':'Loading meetings…'}</option>`;
-    try {
-      const meetings = await api('/api/meetings');
-      if (!meetings.length) {
-        sel.innerHTML = `<option value="">${l==='ar'?'لا توجد اجتماعات مسجلة بعد':'No meetings recorded yet'}</option>`;
-        return;
-      }
-      sel.innerHTML = `<option value="">${l==='ar'?'— اختر الاجتماع —':'— Select Meeting —'}</option>` +
-        meetings.map(m => {
-          const title = l==='ar' ? m.title_ar : (m.title_en||m.title_ar);
-          const date  = (m.meeting_date||'').substring(0,10);
-          return `<option value="${m.id}">${esc(title)}${date?' · '+date:''}</option>`;
-        }).join('');
-    } catch (_) {
-      sel.innerHTML = `<option value="">${l==='ar'?'تعذّر تحميل الاجتماعات':'Could not load meetings'}</option>`;
     }
   },
   async approve(meetingId, action) {

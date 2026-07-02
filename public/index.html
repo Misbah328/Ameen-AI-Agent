@@ -175,42 +175,136 @@
     </div>
   </div>
   <div class="pbody">
-    <div class="card card-gold">
-      <div class="rec-center">
-        <div class="wf" id="wf" style="direction:ltr">
-          <div class="wb" id="w0"></div><div class="wb" id="w1"></div><div class="wb" id="w2"></div><div class="wb" id="w3"></div>
-          <div class="wb" id="w4"></div><div class="wb" id="w5"></div><div class="wb" id="w6"></div><div class="wb" id="w7"></div>
-          <div class="wb" id="w8"></div><div class="wb" id="w9"></div><div class="wb" id="w10"></div><div class="wb" id="w11"></div>
-          <div class="wb" id="w12"></div><div class="wb" id="w13"></div><div class="wb" id="w14"></div><div class="wb" id="w15"></div>
-        </div>
-        <div class="rec-ring" id="rec-ring" onclick="Rec.toggle()">
-          <div class="rec-ic" id="rec-ic">🎙</div>
-        </div>
-        <div class="rec-status">
-          <input class="rec-title-inp" id="mtg-title"
-            data-ph-ar="عنوان الاجتماع — مجلس الإدارة، الاجتماع التشغيلي..."
-            data-ph-en="Meeting title — Board Meeting, Operational Review..."
-            placeholder="عنوان الاجتماع..."/>
-          <select id="mtg-type" style="margin-top:8px;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2);width:100%;max-width:340px">
-            <option value="">— نوع الاجتماع / Meeting Type —</option>
-            <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
-            <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
-            <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
-            <option value="General Meeting">الاجتماع العام / General Meeting</option>
-            <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
-            <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
-          </select>
-          <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start">اضغط للبدء</div>
-          <div class="rec-tm" id="rec-tm">00:00</div>
-          <div class="rec-ht" id="rec-ht" data-ar="سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً" data-en="Ameen will transcribe and extract tasks per team member in real time">سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً</div>
-        </div>
-        <div class="feat-pills">
-          <div class="fp" data-ar="👥 تحديد المتحدثين" data-en="👥 Speaker Detection">👥 تحديد المتحدثين</div>
-          <div class="fp" data-ar="✅ مهام لكل عضو" data-en="✅ Tasks per Member">✅ مهام لكل عضو</div>
-          <div class="fp" data-ar="⚖️ تتبع القرارات" data-en="⚖️ Decision Tracking">⚖️ تتبع القرارات</div>
-          <div class="fp" data-ar="📝 محضر كامل" data-en="📝 Full Minutes">📝 محضر كامل</div>
+    <!-- ══ Import Meeting Content — unified section ══════════════════════ -->
+    <div class="card card-gold" id="import-card">
+      <div class="ch">
+        <div>
+          <div class="ct" data-ar="استيراد محتوى الاجتماع" data-en="Import Meeting Content">استيراد محتوى الاجتماع</div>
+          <div class="ctsub" data-ar="سجّل مباشرة، ارفع تسجيلاً، أو الصق محضراً — أمين يتولى الباقي" data-en="Record live, upload a recording, or paste minutes — Ameen handles the rest">سجّل مباشرة، ارفع تسجيلاً، أو الصق محضراً</div>
         </div>
       </div>
+
+      <!-- Meeting Target: existing vs new (hidden for Live Recording, which always creates its own meeting below) -->
+      <div class="imp-section" id="imp-target-section">
+        <div class="imp-label" data-ar="الاجتماع المستهدف" data-en="Meeting Target">الاجتماع المستهدف</div>
+        <div class="imp-seg" id="imp-target-seg">
+          <button type="button" class="imp-seg-btn active" data-val="existing" onclick="ImportFlow.setTarget('existing')">
+            <span data-ar="اختيار اجتماع موجود" data-en="Select Existing Meeting">اختيار اجتماع موجود</span>
+          </button>
+          <button type="button" class="imp-seg-btn" data-val="new" onclick="ImportFlow.setTarget('new')">
+            <span data-ar="إنشاء اجتماع جديد" data-en="Create New Meeting">إنشاء اجتماع جديد</span>
+          </button>
+        </div>
+        <div id="imp-target-existing">
+          <select id="imp-meeting-sel" class="fi">
+            <option value="">— جارٍ التحميل —</option>
+          </select>
+        </div>
+        <div id="imp-target-new" style="display:none">
+          <div class="imp-grid">
+            <input class="fi" id="imp-new-title" data-ph-ar="عنوان الاجتماع" data-ph-en="Meeting title" placeholder="عنوان الاجتماع"/>
+            <select id="imp-new-type" class="fi">
+              <option value="">— نوع الاجتماع / Meeting Type —</option>
+              <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
+              <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
+              <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+              <option value="General Meeting">الاجتماع العام / General Meeting</option>
+              <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+              <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+            </select>
+            <input type="date" id="imp-new-date" class="fi"/>
+            <select id="imp-new-provider" class="fi">
+              <option value="">— مزوّد الاجتماع / Meeting Provider —</option>
+              <option value="zoom_cloud">Zoom</option>
+              <option value="teams_cloud">Microsoft Teams</option>
+              <option value="google_meet_cloud">Google Meet</option>
+              <option value="browser_microphone">قاعة اجتماعات / In-Person</option>
+              <option value="uploaded_recording">أخرى / Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Type -->
+      <div class="imp-section">
+        <div class="imp-label" data-ar="نوع المحتوى" data-en="Content Type">نوع المحتوى</div>
+        <div class="imp-seg" id="imp-content-seg">
+          <button type="button" class="imp-seg-btn active" data-val="live" onclick="ImportFlow.setContentType('live')">🎙 <span data-ar="تسجيل مباشر" data-en="Live Recording">تسجيل مباشر</span></button>
+          <button type="button" class="imp-seg-btn" data-val="av" onclick="ImportFlow.setContentType('av')">📤 <span data-ar="رفع تسجيل صوتي / مرئي" data-en="Upload Audio/Video">رفع تسجيل صوتي / مرئي</span></button>
+          <button type="button" class="imp-seg-btn" data-val="text" onclick="ImportFlow.setContentType('text')">✏️ <span data-ar="لصق نص المحضر" data-en="Paste Meeting Text">لصق نص المحضر</span></button>
+          <button type="button" class="imp-seg-btn" data-val="file" onclick="ImportFlow.setContentType('file')">📄 <span data-ar="رفع ملف نصي" data-en="Upload Text File">رفع ملف نصي</span></button>
+        </div>
+      </div>
+
+      <!-- Content: Live Recording (existing flow, unchanged) -->
+      <div id="imp-content-live">
+        <div class="rec-center">
+          <div class="wf" id="wf" style="direction:ltr">
+            <div class="wb" id="w0"></div><div class="wb" id="w1"></div><div class="wb" id="w2"></div><div class="wb" id="w3"></div>
+            <div class="wb" id="w4"></div><div class="wb" id="w5"></div><div class="wb" id="w6"></div><div class="wb" id="w7"></div>
+            <div class="wb" id="w8"></div><div class="wb" id="w9"></div><div class="wb" id="w10"></div><div class="wb" id="w11"></div>
+            <div class="wb" id="w12"></div><div class="wb" id="w13"></div><div class="wb" id="w14"></div><div class="wb" id="w15"></div>
+          </div>
+          <div class="rec-ring" id="rec-ring" onclick="Rec.toggle()">
+            <div class="rec-ic" id="rec-ic">🎙</div>
+          </div>
+          <div class="rec-status">
+            <input class="rec-title-inp" id="mtg-title"
+              data-ph-ar="عنوان الاجتماع — مجلس الإدارة، الاجتماع التشغيلي..."
+              data-ph-en="Meeting title — Board Meeting, Operational Review..."
+              placeholder="عنوان الاجتماع..."/>
+            <select id="mtg-type" style="margin-top:8px;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--navy3);color:var(--text2);width:100%;max-width:340px">
+              <option value="">— نوع الاجتماع / Meeting Type —</option>
+              <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
+              <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
+              <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+              <option value="General Meeting">الاجتماع العام / General Meeting</option>
+              <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+              <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+            </select>
+            <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start">اضغط للبدء</div>
+            <div class="rec-tm" id="rec-tm">00:00</div>
+            <div class="rec-ht" id="rec-ht" data-ar="سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً" data-en="Ameen will transcribe and extract tasks per team member in real time">سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً</div>
+          </div>
+          <div class="feat-pills">
+            <div class="fp" data-ar="👥 تحديد المتحدثين" data-en="👥 Speaker Detection">👥 تحديد المتحدثين</div>
+            <div class="fp" data-ar="✅ مهام لكل عضو" data-en="✅ Tasks per Member">✅ مهام لكل عضو</div>
+            <div class="fp" data-ar="⚖️ تتبع القرارات" data-en="⚖️ Decision Tracking">⚖️ تتبع القرارات</div>
+            <div class="fp" data-ar="📝 محضر كامل" data-en="📝 Full Minutes">📝 محضر كامل</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content: Upload Audio/Video -->
+      <div id="imp-content-av" style="display:none">
+        <div class="imp-note">🎞 <span data-ar="رفع تسجيل صوتي/مرئي يقوم بأرشفة التسجيل الرسمي. استخراج الذكاء الاصطناعي يتطلب نصاً مكتوباً (محضراً) أو تكامل تفريغ صوتي مدعوماً." data-en="Audio/video upload archives the official recording. AI extraction requires a transcript or a supported transcription integration.">رفع تسجيل صوتي/مرئي يقوم بأرشفة التسجيل الرسمي. استخراج الذكاء الاصطناعي يتطلب نصاً مكتوباً (محضراً) أو تكامل تفريغ صوتي مدعوماً.</span></div>
+        <input type="file" id="imp-av-file" class="fi" accept=".mp4,.mov,.webm,.mp3,.wav,.m4a,.aac,.ogg,.wma"/>
+        <button class="btn-gold" id="imp-av-btn" onclick="ImportFlow.submitAudioVideo()" style="margin-top:10px">📤 <span data-ar="حفظ التسجيل" data-en="Save Recording">حفظ التسجيل</span></button>
+      </div>
+
+      <!-- Content: Paste Meeting Text / Minutes -->
+      <div id="imp-content-text" style="display:none">
+        <textarea class="fi" id="imp-text-content" rows="7" data-ph-ar="الصق نص محضر الاجتماع أو الملاحظات هنا..." data-ph-en="Paste the meeting minutes or notes here..." placeholder="الصق نص محضر الاجتماع أو الملاحظات هنا..."></textarea>
+        <button class="btn-gold" id="imp-text-btn" onclick="ImportFlow.submitText()" style="margin-top:10px">✦ <span data-ar="معالجة محتوى الاجتماع" data-en="Process Meeting Content">معالجة محتوى الاجتماع</span></button>
+      </div>
+
+      <!-- Content: Upload Text File -->
+      <div id="imp-content-file" style="display:none">
+        <input type="file" id="imp-file-input" class="fi" accept=".txt,text/plain"/>
+        <button class="btn-gold" id="imp-file-btn" onclick="ImportFlow.submitFile()" style="margin-top:10px">✦ <span data-ar="معالجة محتوى الاجتماع" data-en="Process Meeting Content">معالجة محتوى الاجتماع</span></button>
+      </div>
+    </div>
+
+    <!-- ══ Import Results — shown after Process Meeting Content / Save Recording ══ -->
+    <div class="card card-gold" id="import-result-card" style="display:none">
+      <div class="ch">
+        <div>
+          <div class="ct" data-ar="نتائج الاستيراد" data-en="Import Results">نتائج الاستيراد</div>
+          <div class="ctsub" id="import-result-sub"></div>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap" id="import-result-links"></div>
+      </div>
+      <div id="import-result-body"></div>
     </div>
 
     <!-- Speaker identification bar — visible only while recording -->

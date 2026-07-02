@@ -548,6 +548,86 @@ router.patch('/meetings/:id', auth, (req, res) => {
   res.json({ success: true, title_ar: newTitleAr, title_en: newTitleEn });
 });
 
+// ── Unified import for the Record panel's "Import Meeting Content" section ────
+// Resolves or creates the target meeting, saves text-based content (paste or an
+// already-extracted .txt file) as the transcript, and — for text content only —
+// runs the existing AI pipeline. Audio/video content just resolves/creates the
+// meeting here; the actual file bytes go through the existing, already-tested
+// POST /meetings/:id/recording endpoint from the frontend.
+router.post('/meetings/import-content', auth, async (req, res) => {
+  const { meeting_target, meeting_id, title, type, meeting_date, meeting_provider, content_type, text } = req.body;
+  const isTextContent = content_type === 'paste_text' || content_type === 'text_file';
+
+  let targetId;
+  let created = false;
+
+  if (meeting_target === 'new') {
+    const titleAr = (title || '').trim();
+    if (!titleAr) return res.status(400).json({ error: 'title is required to create a new meeting' });
+    const row = db.prepare(`
+      INSERT INTO meetings (title_ar, title_en, meeting_type, recorded_by, source_type)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(titleAr, titleAr, type || '', req.user.id, isTextContent ? 'text_minutes' : '');
+    targetId = row.lastInsertRowid;
+    created = true;
+    const actor = resolveActor(req.user.id);
+    db.prepare(
+      `INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+       VALUES (?, NULL, 'created', ?, ?, 'Meeting created via content import')`
+    ).run(targetId, req.user.id, actor.name);
+    if (meeting_date) db.prepare('UPDATE meetings SET meeting_date=? WHERE id=?').run(meeting_date, targetId);
+    if (meeting_provider) db.prepare('UPDATE meetings SET recording_capture_type=? WHERE id=?').run(meeting_provider, targetId);
+  } else {
+    if (!meeting_id) return res.status(400).json({ error: 'meeting_id is required when meeting_target is existing' });
+    const exists = db.prepare('SELECT id FROM meetings WHERE id=?').get(meeting_id);
+    if (!exists) return res.status(404).json({ error: 'Meeting not found' });
+    targetId = meeting_id;
+  }
+
+  let aiStatus = 'skipped';
+  let keyTopicsAr = [], keyTopicsEn = [];
+
+  if (isTextContent) {
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'text is required for this content type' });
+    }
+    db.prepare("UPDATE meetings SET transcript=?, source_type='text_minutes' WHERE id=?").run(text, targetId);
+    transitionMeeting(targetId, 'transcript_generated', req.user.id, 'Transcript imported');
+
+    try {
+      const out = await processMeeting({ meetingId: targetId, userId: req.user.id });
+      transitionMeeting(targetId, 'ai_minutes_generated', req.user.id, 'AI minutes generated');
+      aiStatus = 'ok';
+      keyTopicsAr = out.result.key_topics_ar || [];
+      keyTopicsEn = out.result.key_topics_en || [];
+    } catch (e) {
+      aiStatus = /NO_API_KEY/i.test(e.message) ? 'unavailable' : 'error';
+    }
+  }
+
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(targetId);
+  let tasks = [], decisions = [], followups = [], risks = [];
+  try { tasks = JSON.parse(meeting.ai_tasks || '[]'); } catch {}
+  try { decisions = JSON.parse(meeting.ai_decisions || '[]'); } catch {}
+  try { followups = JSON.parse(meeting.ai_followups || '[]'); } catch {}
+  try { risks = JSON.parse(meeting.ai_risks || '[]'); } catch {}
+
+  res.json({
+    success: true,
+    created,
+    ai_status: aiStatus,
+    meeting: {
+      id: meeting.id, title_ar: meeting.title_ar, title_en: meeting.title_en,
+      status: meeting.status, meeting_date: meeting.meeting_date,
+    },
+    summary_ar: meeting.ai_summary_ar || '',
+    summary_en: meeting.ai_summary_en || '',
+    key_topics_ar: keyTopicsAr,
+    key_topics_en: keyTopicsEn,
+    decisions, tasks, followups, risks,
+  });
+});
+
 // ── Hard-delete a meeting and all its dependents ───────────────────────────────
 router.delete('/meetings/:id', auth, (req, res) => {
   const id = req.params.id;
