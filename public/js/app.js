@@ -101,6 +101,7 @@ const ROLE_ACCESS = {
   Admin: new Set([
     "record",
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -115,6 +116,7 @@ const ROLE_ACCESS = {
   CEO: new Set([
     "record",
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -127,6 +129,7 @@ const ROLE_ACCESS = {
   ]),
   "Board Member": new Set([
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -138,6 +141,7 @@ const ROLE_ACCESS = {
   ]),
   "Committee Member": new Set([
     "transcripts",
+    "history",
     "tasks",
     "ask",
     "schedule",
@@ -147,6 +151,7 @@ const ROLE_ACCESS = {
   Executive: new Set([
     "record",
     "transcripts",
+    "history",
     "lastmeeting",
     "tasks",
     "ask",
@@ -158,6 +163,7 @@ const ROLE_ACCESS = {
   Manager: new Set([
     "record",
     "transcripts",
+    "history",
     "tasks",
     "ask",
     "documents",
@@ -166,8 +172,8 @@ const ROLE_ACCESS = {
     "overview",
     "analytics",
   ]),
-  Employee: new Set(["record", "transcripts", "tasks", "ask"]),
-  Observer: new Set(["transcripts", "lastmeeting", "overview"]),
+  Employee: new Set(["record", "transcripts", "history", "tasks", "ask"]),
+  Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
 };
 
 const ROLE_COLORS = {

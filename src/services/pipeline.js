@@ -10,6 +10,72 @@ const { correctNames } = require('../utils/nameCorrect');
 
 const UNTITLED = ['اجتماع بدون عنوان', 'Untitled Meeting', 'اجتماع جديد', 'New Meeting', ''];
 
+// ── Robust JSON extraction from Claude's response ───────────────────────────
+// The model is asked for JSON-only output, but in practice it can still wrap
+// the object in markdown code fences, add stray prose around it, or (for long
+// transcripts, e.g. pasted meeting minutes) get cut off mid-string when the
+// response hits the token limit. This extracts the JSON object defensively and
+// repairs simple truncation before giving up, so one malformed response can't
+// crash meeting processing.
+function extractJsonObject(raw) {
+  let text = String(raw || '').trim();
+  text = text.replace(/```json/gi, '```').replace(/```/g, '').trim();
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    text = text.slice(start, end + 1);
+  }
+  return text;
+}
+
+// Walks the text tracking string/bracket state, remembers the last position
+// where a value cleanly ended (after a comma or closing bracket, outside any
+// string), then truncates there and closes whatever brackets were still open.
+// Returns null if no safe cut point was found (nothing usable to repair).
+function repairTruncatedJson(text) {
+  let inString = false, escape = false;
+  const stack = [];
+  let lastSafeIndex = -1, lastSafeStack = null;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escape) escape = false;
+      else if (ch === '\\') escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') { stack.push(ch); continue; }
+    if (ch === '}' || ch === ']') stack.pop();
+    if (ch === ',' || ch === '}' || ch === ']') { lastSafeIndex = i; lastSafeStack = stack.slice(); }
+  }
+  if (lastSafeIndex === -1 || !lastSafeStack || !lastSafeStack.length) return null;
+  const truncated = text.slice(0, lastSafeIndex + 1).replace(/,\s*$/, '');
+  const closers = { '{': '}', '[': ']' };
+  let suffix = '';
+  for (let i = lastSafeStack.length - 1; i >= 0; i--) suffix += closers[lastSafeStack[i]];
+  return truncated + suffix;
+}
+
+function parseAiJson(raw) {
+  const text = extractJsonObject(raw);
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const repaired = repairTruncatedJson(text);
+    if (repaired) {
+      try {
+        return JSON.parse(repaired);
+      } catch (_) {
+        // fall through to the friendly error below
+      }
+    }
+    throw new Error(
+      'The AI response could not be parsed as valid JSON — it may have been cut off for a very long transcript. Please try again, or shorten the pasted text and retry.',
+    );
+  }
+}
+
 // Parse explicit [Speaker Name]: text tags that the coordinator placed during
 // recording. Returns an array of {speaker,text_ar,text_en} segments, or [] if
 // the transcript has no such tags (AI-generated speaker_transcript is used instead).
@@ -146,9 +212,9 @@ async function processMeeting({ meetingId, userId = null }) {
     const raw = await callClaude([{
       role: 'user',
       content: `عنوان الاجتماع: ${needsTitle ? '(بدون عنوان — يرجى توليد عنوان مناسب)' : meeting.title_ar}\nالتاريخ: ${meeting.meeting_date}\nالنص الكامل:\n${correctedTranscript}`
-    }], system, 4000, userId);
+    }], system, 8000, userId);
     aiLog('ai:raw', { meetingId, chars: raw.length, preview: raw.slice(0, 400) });
-    result = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    result = parseAiJson(raw);
     aiLog('ai:parsed', {
       meetingId,
       tasks: (result.tasks || []).length,
