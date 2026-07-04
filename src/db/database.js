@@ -522,6 +522,8 @@ ensureColumn('resolutions', 'description_ar', 'TEXT');
 ensureColumn('resolutions', 'description_en', 'TEXT');
 ensureColumn('ga_officers', 'role_en', 'TEXT');
 ensureColumn('meetings', 'source_type', "TEXT DEFAULT ''");
+ensureColumn('users', 'department', "TEXT DEFAULT ''");
+ensureColumn('users', 'phone', "TEXT DEFAULT ''");
 
 db.exec(`
   UPDATE meeting_documents SET title_ar = COALESCE(title_ar, title), title_en = COALESCE(title_en, title) WHERE title_ar IS NULL OR title_en IS NULL;

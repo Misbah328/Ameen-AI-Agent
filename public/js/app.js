@@ -176,6 +176,45 @@ const ROLE_ACCESS = {
   Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
 };
 
+// ══ Executive Action taxonomy ══════════════════════════════════════════════
+// Single source of truth for task status/priority labels + badge colors,
+// shared by the Task & Decision Tracker, the Executive Action Assignment
+// table, and the Executive Actions summaries in Transcripts/Meeting History.
+// Legacy DB values ('new', 'normal', 'urgent') are aliased rather than
+// migrated, so existing rows keep working with zero data changes.
+const TASK_STATUS_META = {
+  open: { ar: "مفتوحة", en: "Open", tagClass: "tb" },
+  inprogress: { ar: "قيد التنفيذ", en: "In Progress", tagClass: "ta" },
+  waiting: { ar: "بانتظار", en: "Waiting", tagClass: "tgr" },
+  blocked: { ar: "معلّقة", en: "Blocked", tagClass: "tr" },
+  done: { ar: "مكتملة", en: "Completed", tagClass: "tg" },
+  cancelled: { ar: "ملغاة", en: "Cancelled", tagClass: "tgr" },
+  overdue: { ar: "متأخرة", en: "Overdue", tagClass: "tr" },
+};
+const TASK_STATUS_ALIAS = { new: "open" };
+const TASK_ASSIGNABLE_STATUSES = ["open", "inprogress", "waiting", "blocked", "done", "cancelled"];
+function taskStatusKey(status) {
+  return TASK_STATUS_ALIAS[status] || status;
+}
+function taskStatusMeta(status) {
+  return TASK_STATUS_META[taskStatusKey(status)] || { ar: status, en: status, tagClass: "tgr" };
+}
+
+const TASK_PRIORITY_META = {
+  low: { ar: "منخفض", en: "Low", c: "var(--text3)", bg: "var(--navy4)", bd: "var(--border2)" },
+  medium: { ar: "متوسط", en: "Medium", c: "var(--blue)", bg: "rgba(91,150,212,.12)", bd: "rgba(91,150,212,.3)" },
+  high: { ar: "عالٍ", en: "High", c: "var(--amber)", bg: "rgba(212,160,23,.12)", bd: "rgba(212,160,23,.3)" },
+  critical: { ar: "حرج", en: "Critical", c: "var(--red)", bg: "rgba(220,60,60,.12)", bd: "rgba(220,60,60,.3)" },
+};
+const TASK_PRIORITY_ALIAS = { normal: "medium", urgent: "critical" };
+const TASK_ASSIGNABLE_PRIORITIES = ["low", "medium", "high", "critical"];
+function taskPriorityKey(priority) {
+  return TASK_PRIORITY_ALIAS[priority] || priority;
+}
+function taskPriorityMeta(priority) {
+  return TASK_PRIORITY_META[taskPriorityKey(priority)] || TASK_PRIORITY_META.medium;
+}
+
 const ROLE_COLORS = {
   Admin: "#e05a5a",
   CEO: "#C9A84C",
@@ -1741,6 +1780,8 @@ const Rec = {
       }
       $("ai-res-card").style.display = "";
       $("ai-res-body").innerHTML = this.renderResult(r.result);
+      const execContainer = $(`exec-actions-${this.currentMeetingId}`);
+      if (execContainer) ExecutiveActions.renderAssignmentSection(execContainer, this.currentMeetingId);
       await loadBadges();
     } catch (e) {
       $("ai-res-card").style.display = "";
@@ -1853,6 +1894,20 @@ const Rec = {
           </div>`,
           )
           .join("")}
+      </div>`
+      : "";
+
+    // Executive Action Assignment — editable table populated separately (needs
+    // a live API call for the real persisted task rows + team member list;
+    // renderResult() itself stays synchronous). See processAI() below, which
+    // calls ExecutiveActions.renderAssignmentSection() right after this HTML
+    // is inserted into the DOM.
+    const execActionsHtml = tasks.length && Rec.currentMeetingId
+      ? `
+      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--gold-border)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:2px">🎯 ${lbl("تعيين إجراءات التنفيذ", "Executive Action Assignment")}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${lbl("عيّن المسؤول، تاريخ الاستحقاق، الأولوية والحالة لكل مهمة", "Assign the owner, due date, priority, and status for each task")}</div>
+        <div id="exec-actions-${Rec.currentMeetingId}"><div class="es" style="padding:16px 0"><div class="loading"></div></div></div>
       </div>`
       : "";
 
@@ -1981,11 +2036,115 @@ const Rec = {
       speakersHtml +
       minutesHtml +
       tasksHtml +
+      execActionsHtml +
       decsHtml +
       risksHtml +
       fuHtml +
       actions
     );
+  },
+};
+
+// ══ Executive Action Assignment ═══════════════════════════════════════════════
+// Inline editable table shown right after AI processing (live recording and
+// Import Meeting Content both call this same renderer — no duplicated table
+// markup). Operates on the real persisted `tasks` rows (via ?meeting_id=),
+// not the transient AI JSON, so edits PATCH real task IDs through the
+// existing /api/tasks/:id endpoint — no new backend surface for assignment.
+const ExecutiveActions = {
+  async renderAssignmentSection(containerEl, meetingId) {
+    if (!containerEl) return;
+    const l = App.lang;
+    try {
+      const [tasks, members] = await Promise.all([
+        api(`/api/tasks?meeting_id=${meetingId}`),
+        api("/api/members"),
+      ]);
+      App._members = members;
+      if (!tasks.length) {
+        containerEl.innerHTML = `<div class="hist-empty-row">${l === "ar" ? "لم يتم استخراج أي مهام من هذا الاجتماع" : "No tasks were extracted from this meeting"}</div>`;
+        return;
+      }
+      containerEl.innerHTML = this._tableHtml(tasks, members, l);
+    } catch (e) {
+      containerEl.innerHTML = `<div class="hist-empty-row" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+
+  _tableHtml(tasks, members, l) {
+    const ownerOptions = (selectedId) =>
+      `<option value="">${l === "ar" ? "-- غير مسند --" : "-- Unassigned --"}</option>` +
+      members.map((m) => `<option value="${m.id}" ${String(selectedId) === String(m.id) ? "selected" : ""}>${esc(l === "ar" ? m.name_ar : m.name_en || m.name_ar)}</option>`).join("");
+    const statusOptions = (current) =>
+      TASK_ASSIGNABLE_STATUSES.concat(current === "overdue" ? ["overdue"] : [])
+        .map((k) => `<option value="${k}" ${taskStatusKey(current) === k ? "selected" : ""}>${l === "ar" ? TASK_STATUS_META[k].ar : TASK_STATUS_META[k].en}</option>`)
+        .join("");
+    const priorityOptions = (current) =>
+      TASK_ASSIGNABLE_PRIORITIES.map((k) => `<option value="${k}" ${taskPriorityKey(current) === k ? "selected" : ""}>${l === "ar" ? TASK_PRIORITY_META[k].ar : TASK_PRIORITY_META[k].en}</option>`).join("");
+
+    return `<div class="exec-actions-table-wrap">
+      <table class="exec-actions-table">
+        <thead><tr>
+          <th>${l === "ar" ? "المهمة" : "Task"}</th>
+          <th>${l === "ar" ? "المسؤول" : "Responsible Person"}</th>
+          <th>${l === "ar" ? "تاريخ الاستحقاق" : "Due Date"}</th>
+          <th>${l === "ar" ? "الأولوية" : "Priority"}</th>
+          <th>${l === "ar" ? "الحالة" : "Status"}</th>
+          <th>${l === "ar" ? "ملاحظات" : "Notes"}</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${tasks
+            .map(
+              (t) => `<tr id="exec-act-row-${t.id}">
+            <td>${esc(l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar)}</td>
+            <td><select class="fi exec-act-owner">${ownerOptions(t.owner_id)}</select></td>
+            <td><input type="date" class="fi exec-act-due" value="${esc(t.due_date || "")}"/></td>
+            <td><select class="fi exec-act-priority">${priorityOptions(t.priority)}</select></td>
+            <td><select class="fi exec-act-status">${statusOptions(t.status)}</select></td>
+            <td><input type="text" class="fi exec-act-notes" value="${esc(t.notes || "")}" placeholder="${l === "ar" ? "ملاحظات..." : "Notes..."}"/></td>
+            <td><button class="btn-gold btn-sm" onclick="ExecutiveActions.saveRow(${t.id})">${l === "ar" ? "حفظ" : "Save"}</button></td>
+          </tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>`;
+  },
+
+  async saveRow(taskId) {
+    const l = App.lang;
+    const row = document.getElementById(`exec-act-row-${taskId}`);
+    if (!row) return;
+    const ownerSel = row.querySelector(".exec-act-owner");
+    const dueEl = row.querySelector(".exec-act-due");
+    const prioritySel = row.querySelector(".exec-act-priority");
+    const statusSel = row.querySelector(".exec-act-status");
+    const notesEl = row.querySelector(".exec-act-notes");
+    const btn = row.querySelector("button");
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "...";
+    try {
+      await api(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          owner_id: ownerSel.value || null,
+          due_date: dueEl.value || "",
+          priority: prioritySel.value,
+          status: statusSel.value,
+          notes: notesEl.value,
+        }),
+      });
+      showToast(l === "ar" ? "✓ تم حفظ التعيين" : "✓ Assignment saved", "success");
+      btn.textContent = l === "ar" ? "✓ محفوظ" : "✓ Saved";
+      await loadBadges();
+    } catch (e) {
+      showToast(e.message, "error");
+      btn.textContent = originalText;
+    } finally {
+      btn.disabled = false;
+    }
   },
 };
 
@@ -2435,6 +2594,7 @@ const ImportFlow = {
       sec('🗣️', 'أبرز نقاط النقاش', 'Key Discussion Points', list(topics, (t) => `<div>• ${esc(t)}</div>`) || emptyRow('لا توجد نقاط مسجّلة', 'No discussion points recorded')),
       sec('⚖️', 'القرارات', 'Decisions', list(data.decisions, (d) => `<div>${esc(l === 'ar' ? d.text_ar || d.text_en : d.text_en || d.text_ar)}</div>`) || emptyRow('لا توجد قرارات', 'No decisions')),
       sec('✅', 'المهام / الإجراءات', 'Tasks / Action Items', list(data.tasks, (t) => `<div>${esc(l === 'ar' ? t.text_ar || t.text_en : t.text_en || t.text_ar)} ${t.owner_ar || t.owner_en ? `<span class="tag tgold" style="font-size:11px">${esc(l === 'ar' ? t.owner_ar || t.owner_en : t.owner_en || t.owner_ar)}</span>` : ''}</div>`) || emptyRow('لا توجد مهام', 'No tasks')),
+      sec('🎯', 'تعيين إجراءات التنفيذ', 'Executive Action Assignment', `<div id="exec-actions-import-${m.id}"><div class="es" style="padding:16px 0"><div class="loading"></div></div></div>`),
       sec('📌', 'متابعات', 'Follow-ups', list(data.followups, (f) => `<div>${esc(l === 'ar' ? f.text_ar || f.text_en : f.text_en || f.text_ar)}</div>`) || emptyRow('لا توجد متابعات', 'No follow-ups')),
     ];
     if (data.risks && data.risks.length) {
@@ -2442,6 +2602,8 @@ const ImportFlow = {
     }
     body.innerHTML = sections.join('');
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const execContainer = $(`exec-actions-import-${m.id}`);
+    if (execContainer) ExecutiveActions.renderAssignmentSection(execContainer, m.id);
   },
 
   _renderArchivedResult(meetingId, created) {
@@ -2523,12 +2685,44 @@ const RecStore = {
 };
 
 // ══ Transcripts ═══════════════════════════════════════════════════════════════
+// Read-only "Completed / Pending / Overdue / Blocked" chip summary for a
+// meeting's real, relational tasks — shared by Transcripts & Minutes and
+// Meeting History so status counts are computed the same way in both places.
+function execActionsSummaryChips(meetingTasks, l) {
+  if (!meetingTasks || !meetingTasks.length) {
+    return `<div class="hist-empty-row">${l === "ar" ? "لا توجد إجراءات تنفيذية مرتبطة بهذا الاجتماع بعد" : "No executive actions linked to this meeting yet"}</div>`;
+  }
+  const counts = { completed: 0, pending: 0, overdue: 0, blocked: 0 };
+  meetingTasks.forEach((t) => {
+    const key = taskStatusKey(t.status);
+    if (t.status === "overdue") counts.overdue++;
+    else if (key === "done" || key === "cancelled") counts.completed += key === "done" ? 1 : 0;
+    else if (key === "blocked") counts.blocked++;
+    else counts.pending++;
+  });
+  const chip = (icon, val, ar, en, color) => `<div class="exec-summary-chip" style="color:${color}">${icon} ${val} ${l === "ar" ? ar : en}</div>`;
+  return `<div class="exec-summary-row">
+    ${chip("✅", counts.completed, "مكتملة", "Completed", "var(--green)")}
+    ${chip("🔵", counts.pending, "قيد التنفيذ", "Pending", "var(--blue)")}
+    ${counts.overdue ? chip("⚠️", counts.overdue, "متأخرة", "Overdue", "var(--red)") : ""}
+    ${counts.blocked ? chip("⛔", counts.blocked, "معلّقة", "Blocked", "var(--red)") : ""}
+  </div>`;
+}
+
 async function renderTranscripts() {
   const body = $("transcripts-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const meetings = await api("/api/meetings");
+    const [meetings, allTasks] = await Promise.all([
+      api("/api/meetings"),
+      api("/api/tasks"),
+    ]);
     App.meetingsCache = meetings;
+    const tasksByMeeting = {};
+    allTasks.forEach((t) => {
+      if (!t.source_meeting_id) return;
+      (tasksByMeeting[t.source_meeting_id] = tasksByMeeting[t.source_meeting_id] || []).push(t);
+    });
     const l = App.lang;
     if (!meetings.length) {
       body.innerHTML = `<div style="text-align:center;padding:40px 24px">
@@ -2660,6 +2854,10 @@ async function renderTranscripts() {
             </div>
           </div>
           ${_meetingLifecycle(m, l)}
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">🎯 ${l === "ar" ? "الإجراءات التنفيذية" : "Executive Actions"}</div>
+            ${execActionsSummaryChips(tasksByMeeting[m.id], l)}
+          </div>
           ${summary ? `<div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:10px;padding:0 2px">${esc(summary)}</div>` : ""}
           ${transcriptHtml}
           ${
@@ -3025,6 +3223,13 @@ const MeetingHistory = {
           : m.transcript
             ? `<div class="tr-box" style="max-height:260px;overflow-y:auto;white-space:pre-wrap">${esc(m.transcript)}</div>`
             : emptyRow("لا يوجد نص مسجّل لهذا الاجتماع", "No transcript recorded for this meeting"),
+      )}
+
+      ${sec(
+        "🎯",
+        "الإجراءات التنفيذية",
+        "Executive Actions",
+        execActionsSummaryChips(full.tasks, l),
       )}
 
       ${sec(
@@ -3523,20 +3728,83 @@ async function pushLastMeetingWhatsApp(id) {
 }
 
 // ══ Tasks ═════════════════════════════════════════════════════════════════════
+// ── Task & Decision Tracker filters ─────────────────────────────────────────
+// Search + owner/status/priority/meeting/department + "My Tasks" — pure
+// client-side filtering over the already-fetched task list (same lightweight
+// pattern as DocLib.search / MeetingHistory), so it stays in sync automatically
+// on every renderTasks() re-render without a new backend query.
+const TaskFilters = {
+  q: "", owner: "", status: "", priority: "", meeting: "", department: "", mine: false,
+  _searchTimer: null,
+  onSearch(q) {
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => {
+      this.q = (q || "").trim().toLowerCase();
+      renderTasks();
+    }, 300);
+  },
+  apply() {
+    this.owner = (($("tf-owner") || {}).value) || "";
+    this.status = (($("tf-status") || {}).value) || "";
+    this.priority = (($("tf-priority") || {}).value) || "";
+    this.meeting = (($("tf-meeting") || {}).value) || "";
+    this.department = (($("tf-department") || {}).value) || "";
+    renderTasks();
+  },
+  toggleMine() {
+    this.mine = !this.mine;
+    renderTasks();
+  },
+  reset() {
+    this.q = ""; this.owner = ""; this.status = ""; this.priority = ""; this.meeting = ""; this.department = ""; this.mine = false;
+    renderTasks();
+  },
+  isActive() {
+    return !!(this.q || this.owner || this.status || this.priority || this.meeting || this.department || this.mine);
+  },
+};
+
 async function renderTasks() {
   const body = $("tasks-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const [tasks, decisions] = await Promise.all([
+    const [tasks, decisions, members] = await Promise.all([
       api("/api/tasks"),
       api("/api/decisions"),
+      api("/api/members"),
     ]);
     App.tasksCache = tasks;
+    App._members = members;
     const l = App.lang;
+    const f = TaskFilters;
+
+    const ownerDept = {};
+    members.forEach((m) => { ownerDept[m.id] = m.department || ""; });
+    const meetingTitles = [...new Set(tasks.map((t) => (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)).filter(Boolean))];
+    const departments = [...new Set(members.map((m) => m.department).filter(Boolean))];
+
+    const matchesFilters = (t) => {
+      if (f.mine && App.user && t.owner_id !== App.user.id) return false;
+      if (f.owner && String(t.owner_id) !== f.owner) return false;
+      if (f.status && taskStatusKey(t.status) !== f.status) return false;
+      if (f.priority && taskPriorityKey(t.priority) !== f.priority) return false;
+      if (f.meeting) {
+        const mtg = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
+        if (mtg !== f.meeting) return false;
+      }
+      if (f.department && ownerDept[t.owner_id] !== f.department) return false;
+      if (f.q) {
+        const hay = [t.text_ar, t.text_en, t.owner_name_ar, t.owner_name_en].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(f.q)) return false;
+      }
+      return true;
+    };
+    const filtered = tasks.filter(matchesFilters);
+    const filtersActive = f.isActive();
 
     const today = new Date().toISOString().substring(0, 10);
     const overdue    = tasks.filter(t => t.status === "overdue");
-    const inprog     = tasks.filter(t => t.status === "inprogress" || t.status === "new");
+    const inprog     = tasks.filter(t => ["inprogress", "new", "open", "waiting", "blocked"].includes(t.status));
     const done       = tasks.filter(t => t.status === "done");
     const escalated  = tasks.filter(t => t.escalated_at);
     const decPending = decisions.filter(d => d.status !== "implemented");
@@ -3566,8 +3834,9 @@ async function renderTasks() {
       const mtg   = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
       const isOverdue = t.status === "overdue";
       const isDone    = t.status === "done";
-      const isUrgent  = t.priority === "urgent";
-      const isHigh    = t.priority === "high";
+      const priKey    = taskPriorityKey(t.priority);
+      const isCritical = priKey === "critical";
+      const isHigh    = priKey === "high";
 
       const daysLeft = t.due_date ? Math.round((new Date(t.due_date) - new Date(today)) / 86400000) : null;
       const daysTag  = daysLeft !== null && !isDone ? (() => {
@@ -3577,33 +3846,24 @@ async function renderTasks() {
         return `<span class="days-badge days-ok">📅 ${daysLeft}${l==="ar"?"ي":"d"}</span>`;
       })() : "";
 
-      const statusMap = {
-        overdue:    ["tr",  "⚠ "+(l==="ar"?"متأخرة":"Overdue")],
-        inprogress: ["ta",  "▶ "+(l==="ar"?"جارية":"In Progress")],
-        new:        ["tb",  "◎ "+(l==="ar"?"جديدة":"New")],
-        done:       ["tg",  "✓ "+(l==="ar"?"مكتملة":"Done")],
-        cancelled:  ["tgr", "✕ "+(l==="ar"?"ملغاة":"Cancelled")],
-      };
-      const [stClass, stLabel] = statusMap[t.status] || ["tgr", t.status];
+      const stMeta = taskStatusMeta(t.status);
+      const statusSelect = `<select class="st-select" onchange="Tasks.updateStatus(${t.id}, this.value)" title="${l==="ar"?"تحديث الحالة":"Update status"}">
+        ${TASK_ASSIGNABLE_STATUSES.map(k => `<option value="${k}" ${taskStatusKey(t.status)===k?"selected":""}>${l==="ar"?TASK_STATUS_META[k].ar:TASK_STATUS_META[k].en}</option>`).join("")}
+        ${t.status === "overdue" ? `<option value="overdue" selected>${l==="ar"?TASK_STATUS_META.overdue.ar:TASK_STATUS_META.overdue.en}</option>` : ""}
+      </select>`;
 
-      const priStyles = {
-        urgent: {c:"var(--red)",   bg:"rgba(220,60,60,.12)",  bd:"rgba(220,60,60,.3)",  lbl:l==="ar"?"🔥 عاجل":"🔥 Urgent"},
-        high:   {c:"var(--amber)", bg:"rgba(212,160,23,.12)", bd:"rgba(212,160,23,.3)", lbl:l==="ar"?"⚡ عالٍ":"⚡ High"},
-        low:    {c:"var(--text3)", bg:"var(--navy4)",         bd:"var(--border2)",      lbl:l==="ar"?"↓ منخفض":"↓ Low"},
-      };
-      const pri = priStyles[t.priority];
+      const pri = taskPriorityMeta(t.priority);
 
-      const accentColor = isOverdue ? "var(--red)" : isUrgent ? "var(--red)" : isHigh ? "var(--amber)" : "var(--border2)";
+      const accentColor = isOverdue ? "var(--red)" : isCritical ? "var(--red)" : isHigh ? "var(--amber)" : "var(--border2)";
 
       return `<div class="trow" id="tr-${t.id}" style="border-inline-start:3px solid ${accentColor};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0;${isOverdue?"background:rgba(220,60,60,.04)":""}">
         <div style="display:flex;gap:11px;align-items:flex-start">
-          <input type="checkbox" class="tck" ${isDone?"checked":""} onchange="Tasks.updateStatus(${t.id}, this.checked?'done':'inprogress')" title="${l==="ar"?"تحديث الحالة":"Toggle status"}" style="margin-top:5px;flex-shrink:0"/>
+          <div style="margin-top:2px;flex-shrink:0">${statusSelect}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
             <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
               ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
-              <span class="tag ${stClass}" style="font-size:11px">${stLabel}</span>
-              ${pri ? `<span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${pri.lbl}</span>` : ""}
+              <span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l==="ar"?pri.ar:pri.en}</span>
               ${daysTag}
               ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
               ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:11.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
@@ -3674,10 +3934,66 @@ async function renderTasks() {
       <button class="btn-gold btn-sm" onclick="Modals.addTask()" style="white-space:nowrap;font-size:12px">+ ${l==="ar"?"مهمة يدوية":"Add Task"}</button>
     </div>`;
 
+    // ── Filter bar: owner / status / priority / meeting / department / My Tasks ──
+    const _opt = (val, label, selected) => `<option value="${esc(val)}" ${selected ? "selected" : ""}>${esc(label)}</option>`;
+    const _filterBar = `<div class="tf-bar">
+      <input type="search" class="fi" id="tf-search" value="${esc(f.q)}" oninput="TaskFilters.onSearch(this.value)"
+        data-ph-ar="ابحث في المهام أو المسؤول..." data-ph-en="Search tasks or owner..." placeholder="${l==="ar"?"ابحث في المهام أو المسؤول...":"Search tasks or owner..."}"/>
+      <select class="fi" id="tf-owner" onchange="TaskFilters.apply()">
+        ${_opt("", l==="ar"?"كل المسؤولين":"All Owners", !f.owner)}
+        ${members.map(m => _opt(m.id, l==="ar"?m.name_ar:(m.name_en||m.name_ar), String(f.owner)===String(m.id))).join("")}
+      </select>
+      <select class="fi" id="tf-status" onchange="TaskFilters.apply()">
+        ${_opt("", l==="ar"?"كل الحالات":"All Statuses", !f.status)}
+        ${TASK_ASSIGNABLE_STATUSES.concat(["overdue"]).map(k => _opt(k, l==="ar"?TASK_STATUS_META[k].ar:TASK_STATUS_META[k].en, f.status===k)).join("")}
+      </select>
+      <select class="fi" id="tf-priority" onchange="TaskFilters.apply()">
+        ${_opt("", l==="ar"?"كل الأولويات":"All Priorities", !f.priority)}
+        ${TASK_ASSIGNABLE_PRIORITIES.map(k => _opt(k, l==="ar"?TASK_PRIORITY_META[k].ar:TASK_PRIORITY_META[k].en, f.priority===k)).join("")}
+      </select>
+      <select class="fi" id="tf-meeting" onchange="TaskFilters.apply()">
+        ${_opt("", l==="ar"?"كل الاجتماعات":"All Meetings", !f.meeting)}
+        ${meetingTitles.map(mt => _opt(mt, mt.length>30?mt.substring(0,30)+"…":mt, f.meeting===mt)).join("")}
+      </select>
+      ${departments.length ? `<select class="fi" id="tf-department" onchange="TaskFilters.apply()">
+        ${_opt("", l==="ar"?"كل الأقسام":"All Departments", !f.department)}
+        ${departments.map(d => _opt(d, d, f.department===d)).join("")}
+      </select>` : ""}
+      <label class="tf-mine${f.mine?" active":""}" onclick="TaskFilters.toggleMine()">
+        <input type="checkbox" ${f.mine?"checked":""} onclick="event.stopPropagation();TaskFilters.toggleMine()"/> ${l==="ar"?"مهامي فقط":"My Tasks"}
+      </label>
+      ${filtersActive ? `<button class="btn-ghost btn-sm" onclick="TaskFilters.reset()">✕ ${l==="ar"?"إعادة تعيين":"Reset"}</button>` : ""}
+    </div>`;
+
+    const filteredOpen = filtered.filter(t => t.status !== "done" && t.status !== "cancelled");
+    const filteredDone = filtered.filter(t => t.status === "done" || t.status === "cancelled");
+
     body.innerHTML = _tasksBanner +
+      _filterBar +
       kpiHtml +
       _secHdrT("⚡", "الجدول الزمني لحوكمة الإجراءات", "Action Governance Timeline") +
-      `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
+      (filtersActive
+        ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+        <div class="card">
+          <div class="ch" style="margin-bottom:6px">
+            <div><div class="ct">${l==="ar"?"نتائج البحث — مفتوحة":"Filtered — Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?`${filtered.length} نتيجة مطابقة`:`${filtered.length} matching result(s)`}</div></div>
+            <span class="tag tr">${filteredOpen.length}</span>
+          </div>
+          ${filteredOpen.length === 0
+            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">🔍</div><div style="font-size:12.5px;color:var(--text3)">${l==="ar"?"لا نتائج مطابقة":"No matching results"}</div></div>`
+            : filteredOpen.map(renderTask).join("")}
+        </div>
+        <div class="card">
+          <div class="ch" style="margin-bottom:6px">
+            <div><div class="ct">✓ ${l==="ar"?"نتائج البحث — مكتملة":"Filtered — Completed"}</div></div>
+            <span class="tag tg">${filteredDone.length}</span>
+          </div>
+          ${filteredDone.length === 0
+            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">📋</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا نتائج مطابقة":"No matching results"}</div></div>`
+            : filteredDone.map(renderTask).join("")}
+        </div>
+      </div>`
+        : `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
         <div class="card">
           <div class="ch" style="margin-bottom:6px">
             <div><div class="ct">${l==="ar"?"⚠ متأخرة / مفتوحة":"⚠ Overdue / Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"تحتاج انتباهاً فورياً":"Require immediate attention"}</div></div>
@@ -3705,7 +4021,7 @@ async function renderTasks() {
             ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">⚖️</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا قرارات مسجلة بعد":"No decisions recorded yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"القرارات تُستخرج تلقائياً عند تسجيل الاجتماعات":"Decisions auto-appear after meetings are recorded"}</div></div>`
             : decisions.map(renderDecision).join("")}
         </div>
-      </div>`;
+      </div>`);
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
@@ -3737,9 +4053,18 @@ const Tasks = {
     $("nt-ar").value = t.text_ar || "";
     $("nt-en").value = t.text_en || t.text_ar || "";
     $("nt-due").value = t.due_date || "";
-    $("nt-priority").value = t.priority || "normal";
+    $("nt-priority").value = taskPriorityKey(t.priority);
     const ownerSel = $("nt-owner");
     if (ownerSel && t.owner_id) ownerSel.value = String(t.owner_id);
+    const statusRow = $("nt-status-row");
+    const statusSel = $("nt-status");
+    if (statusRow && statusSel) {
+      statusRow.style.display = "";
+      const opts = TASK_ASSIGNABLE_STATUSES.slice();
+      if (t.status === "overdue") opts.push("overdue");
+      statusSel.innerHTML = opts.map((k) => `<option value="${k}">${l === "ar" ? TASK_STATUS_META[k].ar : TASK_STATUS_META[k].en}</option>`).join("");
+      statusSel.value = taskStatusKey(t.status);
+    }
     $("modal-task").classList.add("open");
     TaskTimeline.load(id, t);
   },
@@ -3803,9 +4128,11 @@ const Modals = {
       if (el) el.value = "";
     });
     const p = $("nt-priority");
-    if (p) p.value = "normal";
+    if (p) p.value = "medium";
     const o = $("nt-owner");
     if (o) o.value = "";
+    const statusRow = $("nt-status-row");
+    if (statusRow) statusRow.style.display = "none";
     $("modal-task").classList.add("open");
   },
   close() {
@@ -3817,6 +4144,7 @@ const Modals = {
   },
   async saveTask() {
     const l = App.lang;
+    const statusSel = $("nt-status");
     const data = {
       text_ar: $("nt-ar").value.trim(),
       text_en: $("nt-en").value.trim() || $("nt-ar").value.trim(),
@@ -3824,6 +4152,7 @@ const Modals = {
       due_date: $("nt-due").value,
       priority: $("nt-priority").value,
     };
+    if (this._editingId && statusSel && statusSel.value) data.status = statusSel.value;
     if (!data.text_ar) {
       alert(l === "ar" ? "أدخل نص المهمة" : "Enter task text");
       return;
@@ -5496,7 +5825,7 @@ const Team = {
     this.editingId = null;
     const title = $("member-modal-title");
     title.textContent = App.lang === "ar" ? "إضافة عضو جديد" : "Add New Member";
-    ["m-name-ar", "m-name-en", "m-email", "m-role-ar", "m-role-en"].forEach(
+    ["m-name-ar", "m-name-en", "m-email", "m-role-ar", "m-role-en", "m-department", "m-phone"].forEach(
       (id) => ($(id).value = ""),
     );
     $("modal-member").classList.add("open");
@@ -5515,6 +5844,8 @@ const Team = {
       $("m-email").value = m.email || "";
       $("m-role-ar").value = m.role_ar || "";
       $("m-role-en").value = m.role_en || "";
+      $("m-department").value = m.department || "";
+      $("m-phone").value = m.phone || "";
       $("modal-member").classList.add("open");
     } catch (e) {
       alert(e.message);
@@ -5532,6 +5863,8 @@ const Team = {
       email: $("m-email").value.trim(),
       role_ar: $("m-role-ar").value.trim(),
       role_en: $("m-role-en").value.trim(),
+      department: $("m-department").value.trim(),
+      phone: $("m-phone").value.trim(),
     };
     if (!data.name_ar || !data.email) {
       alert(

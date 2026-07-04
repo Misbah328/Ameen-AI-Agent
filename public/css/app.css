@@ -205,6 +205,15 @@ select.fi option{background:var(--navy3)}
 .st-select{background:var(--navy3);border:.5px solid var(--border2);border-radius:var(--rs);font-family:inherit;font-size:11px;color:var(--text2);padding:4px 8px;cursor:pointer;outline:none;transition:var(--t)}
 .st-select:focus{border-color:var(--gold)}
 
+/* ── Task filter bar (Task & Decision Tracker) ───────────────────── */
+.tf-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
+.tf-bar #tf-search{flex:1;min-width:180px}
+.tf-bar select.fi{width:auto;min-width:120px;flex:0 0 auto;padding:8px 10px;font-size:12px}
+.tf-mine{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);padding:8px 12px;border-radius:var(--rm);border:1px solid var(--border2);background:var(--navy3);cursor:pointer;transition:var(--t);white-space:nowrap}
+.tf-mine:hover{border-color:var(--gold-border)}
+.tf-mine.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+.tf-mine input{cursor:pointer}
+
 /* ── Chat ──────────────────────────────────────────────────────── */
 .chat-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
 .msg{display:flex;gap:9px;align-items:flex-start;animation:fi .2s ease}
@@ -284,6 +293,20 @@ select.fi option{background:var(--navy3)}
 .hist-sec-h{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .hist-sec-body{font-size:12.5px;color:var(--text2);line-height:1.8}
 .hist-empty-row{font-size:11.5px;color:var(--text3);font-style:italic}
+
+/* ── Executive Action Assignment table ───────────────────────────── */
+.exec-actions-table-wrap{overflow-x:auto;border-radius:var(--rm);border:1px solid var(--border2)}
+.exec-actions-table{width:100%;border-collapse:collapse;font-size:12px;min-width:720px}
+.exec-actions-table th{text-align:start;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:9px 10px;background:var(--navy2);border-bottom:1px solid var(--border2);white-space:nowrap}
+.exec-actions-table td{padding:7px 8px;border-bottom:1px solid var(--border2);vertical-align:middle}
+.exec-actions-table tr:last-child td{border-bottom:none}
+.exec-actions-table td:first-child{color:var(--text);min-width:180px;max-width:260px}
+.exec-actions-table .fi{padding:6px 8px;font-size:11.5px;min-width:110px}
+.exec-actions-table input.fi{min-width:120px}
+
+/* ── Executive Actions summary (Transcripts / Meeting History) ──── */
+.exec-summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.exec-summary-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--navy4);color:var(--text2);border:.5px solid var(--border2)}
 
 /* ── Document output ───────────────────────────────────────────── */
 .doc-out{flex:1;font-size:12.5px;line-height:1.9;color:var(--text2);background:var(--navy3);border-radius:var(--rm);padding:15px;white-space:pre-wrap;overflow-y:auto;min-height:200px;direction:rtl;text-align:right;border:1px solid var(--border2)}

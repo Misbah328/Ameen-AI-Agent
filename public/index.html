@@ -900,12 +900,20 @@
           <input class="fi" type="date" id="nt-due"/>
         </div>
       </div>
-      <div class="frow">
-        <div class="fl" data-ar="الأولوية" data-en="Priority">الأولوية</div>
-        <select class="fi" id="nt-priority">
-          <option value="normal" data-ar="عادي" data-en="Normal">عادي / Normal</option>
-          <option value="urgent" data-ar="عاجل" data-en="Urgent">عاجل / Urgent</option>
-        </select>
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="الأولوية" data-en="Priority">الأولوية</div>
+          <select class="fi" id="nt-priority">
+            <option value="low">Low / منخفض</option>
+            <option value="medium">Medium / متوسط</option>
+            <option value="high">High / عالٍ</option>
+            <option value="critical">Critical / حرج</option>
+          </select>
+        </div>
+        <div class="frow" id="nt-status-row" style="display:none">
+          <div class="fl" data-ar="الحالة" data-en="Status">الحالة</div>
+          <select class="fi" id="nt-status"></select>
+        </div>
       </div>
       <div class="fa">
         <button class="btn-gold" onclick="Modals.saveTask()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
@@ -942,6 +950,16 @@
         <div class="frow">
           <div class="fl">Designation (English)</div>
           <input class="fi" id="m-role-en" placeholder="Project Manager" dir="ltr" style="text-align:left"/>
+        </div>
+      </div>
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="القسم" data-en="Department">القسم</div>
+          <input class="fi" id="m-department" data-ph-ar="مثال: المالية" data-ph-en="e.g. Finance" placeholder="مثال: المالية"/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="رقم الهاتف (لواتساب)" data-en="Phone (for WhatsApp)">رقم الهاتف (لواتساب)</div>
+          <input class="fi" id="m-phone" placeholder="+9665xxxxxxxx" dir="ltr" style="text-align:left"/>
         </div>
       </div>
       <div style="background:var(--navy3);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--text3);line-height:1.6">

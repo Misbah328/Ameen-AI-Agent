@@ -364,24 +364,24 @@ router.get('/users', auth, (req, res) => {
 
 // ── Team Members (CRUD) ───────────────────────────────────────────────────────
 router.get('/members', auth, (req, res) => {
-  const members = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users ORDER BY name_ar').all();
+  const members = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, department, phone, created_at FROM users ORDER BY name_ar').all();
   res.json(members);
 });
 
 const VALID_SYSTEM_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
 
 router.post('/members', auth, requireRole('Admin'), (req, res) => {
-  const { name_ar, name_en, email, role_ar, role_en, system_role } = req.body;
+  const { name_ar, name_en, email, role_ar, role_en, system_role, department, phone } = req.body;
   if (!name_ar || !email) return res.status(400).json({ error: 'name_ar and email are required' });
   if (system_role && !VALID_SYSTEM_ROLES.includes(system_role)) return res.status(400).json({ error: 'Invalid system_role' });
   const bcrypt = require('bcryptjs');
   const hash = bcrypt.hashSync('ameen2026', 10);
   try {
     const row = db.prepare(`
-      INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, system_role)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(name_ar, name_en || name_ar, email, hash, role_ar || 'عضو', role_en || 'Member', system_role || 'Employee');
-    const member = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users WHERE id=?').get(row.lastInsertRowid);
+      INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, system_role, department, phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(name_ar, name_en || name_ar, email, hash, role_ar || 'عضو', role_en || 'Member', system_role || 'Employee', department || '', phone || '');
+    const member = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, department, phone, created_at FROM users WHERE id=?').get(row.lastInsertRowid);
     res.json(member);
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
@@ -390,7 +390,7 @@ router.post('/members', auth, requireRole('Admin'), (req, res) => {
 });
 
 router.patch('/members/:id', auth, requireRole('Admin'), (req, res) => {
-  const { name_ar, name_en, email, role_ar, role_en } = req.body;
+  const { name_ar, name_en, email, role_ar, role_en, department, phone } = req.body;
   const member = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
   try {
@@ -400,10 +400,12 @@ router.patch('/members/:id', auth, requireRole('Admin'), (req, res) => {
         name_en=COALESCE(?,name_en),
         email=COALESCE(?,email),
         role_ar=COALESCE(?,role_ar),
-        role_en=COALESCE(?,role_en)
+        role_en=COALESCE(?,role_en),
+        department=COALESCE(?,department),
+        phone=COALESCE(?,phone)
       WHERE id=?
-    `).run(name_ar, name_en, email, role_ar, role_en, req.params.id);
-    res.json(db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, created_at FROM users WHERE id=?').get(req.params.id));
+    `).run(name_ar, name_en, email, role_ar, role_en, department, phone, req.params.id);
+    res.json(db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, department, phone, created_at FROM users WHERE id=?').get(req.params.id));
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already in use' });
     res.status(500).json({ error: e.message });
@@ -910,29 +912,62 @@ router.get('/ai/debug-log', auth, (req, res) => {
 });
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
+// Best-effort "you've been assigned an executive task" notification. Reuses
+// the same notify.notify() helper as escalation/reminders/minutes-sharing —
+// no new send logic — and never throws, so a notification failure can never
+// block a task create/update response.
+async function notifyTaskAssigned(task, actorUserId) {
+  if (!task.owner_id) return;
+  try {
+    const owner = db.prepare('SELECT email, phone FROM users WHERE id=?').get(task.owner_id);
+    if (!owner || !owner.email) return;
+    const actor = resolveActor(actorUserId);
+    const actorName = actor.name || 'Ameen';
+    const taskTitleAr = task.text_ar || `مهمة #${task.id}`;
+    const taskTitleEn = task.text_en || task.text_ar || `Task #${task.id}`;
+    const subject = `تم تعيين مهمة تنفيذية لك: ${taskTitleAr} / Executive Task Assigned to You: ${taskTitleEn}`;
+    const body =
+      `${actorName} قام بتعيين المهمة التالية لك:\n\n"${taskTitleAr}"\n\n${task.due_date ? `تاريخ الاستحقاق: ${task.due_date}\n\n` : ''}يرجى المراجعة ضمن "مهامي التنفيذية".\n\n———\n\n` +
+      `${actorName} has assigned the following task to you:\n\n"${taskTitleEn}"\n\n${task.due_date ? `Due date: ${task.due_date}\n\n` : ''}Please review it under "My Executive Tasks".`;
+    await notify.notify({
+      channel: owner.phone ? 'both' : 'email',
+      email: owner.email,
+      phone: owner.phone || undefined,
+      subject, text: body,
+    });
+  } catch (_) {
+    // best-effort only — never block the task write
+  }
+}
+
 router.get('/tasks', auth, (req, res) => {
-  // Auto-mark overdue: any task with a past due_date that isn't done/cancelled
+  // Auto-mark overdue: any task with a past due_date that isn't in a
+  // terminal/held state. Waiting and Blocked are deliberately excluded —
+  // like Done/Cancelled, they're states a human set on purpose and the
+  // automatic sweep must not silently overwrite them.
   const today = new Date().toISOString().substring(0, 10);
   db.prepare(`
     UPDATE tasks SET status='overdue', updated_at=CURRENT_TIMESTAMP
     WHERE due_date != '' AND due_date IS NOT NULL AND due_date < ?
-      AND status NOT IN ('done', 'cancelled', 'overdue')
+      AND status NOT IN ('done', 'cancelled', 'overdue', 'waiting', 'blocked')
   `).run(today);
 
   const user = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
   const role = (user && user.system_role) || 'Admin';
-  const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'inprogress' THEN 2 WHEN 'new' THEN 3 ELSE 4 END, due_date ASC";
+  const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'blocked' THEN 2 WHEN 'inprogress' THEN 3 WHEN 'waiting' THEN 4 WHEN 'new' THEN 5 WHEN 'open' THEN 5 ELSE 6 END, due_date ASC";
   const UPDATE_COLS = `,
       (SELECT COUNT(*) FROM task_updates WHERE task_id=t.id) AS update_count,
       (SELECT update_text FROM task_updates WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1) AS latest_update_text,
       (SELECT author_name FROM task_updates WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1) AS latest_update_author`;
-  const tasks = (role === 'Employee')
-    ? db.prepare(`SELECT t.* ${UPDATE_COLS} FROM tasks t WHERE owner_id=? ${ORDER}`).all(req.user.id)
-    : db.prepare(`SELECT t.* ${UPDATE_COLS} FROM tasks t ${ORDER}`).all();
+  const params = [];
+  let where = '';
+  if (role === 'Employee') { where = 'WHERE owner_id=?'; params.push(req.user.id); }
+  if (req.query.meeting_id) { where += (where ? ' AND ' : 'WHERE ') + 'source_meeting_id=?'; params.push(req.query.meeting_id); }
+  const tasks = db.prepare(`SELECT t.* ${UPDATE_COLS} FROM tasks t ${where} ${ORDER}`).all(...params);
   res.json(tasks);
 });
 
-router.post('/tasks', auth, (req, res) => {
+router.post('/tasks', auth, async (req, res) => {
   const { text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en } = req.body;
   if (!text_ar) return res.status(400).json({ error: 'text_ar required' });
   let oNameAr = owner_name_ar || '';
@@ -945,10 +980,12 @@ router.post('/tasks', auth, (req, res) => {
     INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(text_ar, text_en || text_ar, owner_id || null, oNameAr, oNameEn, due_date || '', priority || 'normal', source_meeting_id || null, source_meeting_title_ar || '', source_meeting_title_en || '', req.user.id);
-  res.json(db.prepare('SELECT * FROM tasks WHERE id=?').get(row.lastInsertRowid));
+  const created = db.prepare('SELECT * FROM tasks WHERE id=?').get(row.lastInsertRowid);
+  await notifyTaskAssigned(created, req.user.id);
+  res.json(created);
 });
 
-router.patch('/tasks/:id', auth, (req, res) => {
+router.patch('/tasks/:id', auth, async (req, res) => {
   const { status, notes, due_date, priority, text_ar, text_en, owner_id, owner_name_ar, owner_name_en } = req.body;
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Not found' });
@@ -967,7 +1004,13 @@ router.patch('/tasks/:id', auth, (req, res) => {
       owner_id=COALESCE(?,owner_id), owner_name_ar=COALESCE(?,owner_name_ar), owner_name_en=COALESCE(?,owner_name_en),
       updated_at=CURRENT_TIMESTAMP WHERE id=?`)
     .run(status, notes, due_date, priority, text_ar, text_en, oId, oNameAr, oNameEn, req.params.id);
-  res.json(db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id));
+  const updated = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
+  // Only notify when the owner actually changed to a new, real assignee —
+  // not on every unrelated field edit (status/notes/etc. don't re-notify).
+  if (oId !== undefined && oId !== null && oId !== task.owner_id) {
+    await notifyTaskAssigned(updated, req.user.id);
+  }
+  res.json(updated);
 });
 
 router.delete('/tasks/:id', auth, (req, res) => {
