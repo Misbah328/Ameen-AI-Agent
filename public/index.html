@@ -79,8 +79,13 @@
 
 <!-- SIDEBAR -->
 <nav class="sidebar" id="sidebar">
+  <button class="nb active" data-p="overview">
+    <span class="nb-icon">🏠</span>
+    <span class="nb-label" data-ar="الرئيسية" data-en="Home">الرئيسية</span>
+  </button>
+
   <div class="nsec" data-ar="الاجتماعات" data-en="Meetings">الاجتماعات</div>
-  <button class="nb active" data-p="record">
+  <button class="nb" data-p="record">
     <span class="nb-icon">🎙</span>
     <span class="nb-label" data-ar="تسجيل اجتماع" data-en="Record Meeting">تسجيل اجتماع</span>
     <span class="nbg" id="b-rec" style="display:none">●</span>
@@ -94,53 +99,56 @@
     <span class="nb-icon">🗂</span>
     <span class="nb-label" data-ar="سجل الاجتماعات" data-en="Meeting History">سجل الاجتماعات</span>
   </button>
+  <button class="nb" data-p="series">
+    <span class="nb-icon">🧭</span>
+    <span class="nb-label" data-ar="سلاسل الاجتماعات" data-en="Meeting Series">سلاسل الاجتماعات</span>
+  </button>
   <button class="nb" data-p="lastmeeting">
     <span class="nb-icon">⭐</span>
     <span class="nb-label" data-ar="آخر اجتماع" data-en="Last Meeting">آخر اجتماع</span>
   </button>
-  <div class="nsec" data-ar="المتابعة التنفيذية" data-en="Executive Follow-up">المتابعة التنفيذية</div>
+
+  <div class="nsec" data-ar="الإجراءات التنفيذية" data-en="Executive Actions">الإجراءات التنفيذية</div>
   <button class="nb" data-p="tasks">
     <span class="nb-icon">📋</span>
     <span class="nb-label" data-ar="متابعة المهام والقرارات" data-en="Task & Decision Tracker">متابعة المهام والقرارات</span>
     <span class="nbg" id="b-tk">—</span>
   </button>
-  <div class="nsec" data-ar="المساعد الذكي" data-en="AI Assistant">المساعد الذكي</div>
-  <button class="nb" data-p="ask">
-    <span class="nb-icon">🤖</span>
-    <span class="nb-label" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</span>
-  </button>
-  <button class="nb" data-p="documents">
-    <span class="nb-icon">📄</span>
-    <span class="nb-label" data-ar="الوثائق والتقارير" data-en="Documents & Reports">الوثائق والتقارير</span>
-  </button>
-  <div class="nsec" data-ar="الإدارة" data-en="Management">الإدارة</div>
+
+  <div class="nsec" data-ar="التقويم" data-en="Calendar">التقويم</div>
   <button class="nb" data-p="schedule">
     <span class="nb-icon">📅</span>
-    <span class="nb-label" data-ar="جدول الاجتماعات" data-en="Meeting Schedule">جدول الاجتماعات</span>
+    <span class="nb-label" data-ar="جدول الاجتماعات" data-en="Meeting Calendar">جدول الاجتماعات</span>
     <span class="nbg nbg-gold" id="b-sc">—</span>
   </button>
-  <button class="nb" data-p="series">
-    <span class="nb-icon">🧭</span>
-    <span class="nb-label" data-ar="سلاسل الاجتماعات" data-en="Meeting Series">سلاسل الاجتماعات</span>
-  </button>
-  <button class="nb" data-p="team">
-    <span class="nb-icon">👥</span>
-    <span class="nb-label" data-ar="أعضاء الفريق" data-en="Team Members">أعضاء الفريق</span>
-  </button>
-  <button class="nb" data-p="overview">
-    <span class="nb-icon">📈</span>
-    <span class="nb-label" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</span>
-  </button>
-  <button class="nb" data-p="analytics">
-    <span class="nb-icon">📊</span>
-    <span class="nb-label" data-ar="التحليلات" data-en="Analytics">التحليلات</span>
-  </button>
+
   <div class="nsec" data-ar="الحوكمة" data-en="Governance">الحوكمة</div>
   <button class="nb" data-p="governance">
     <span class="nb-icon">⚖️</span>
     <span class="nb-label" data-ar="حوكمة الاجتماعات" data-en="Meeting Governance">حوكمة الاجتماعات</span>
   </button>
-  <div class="nsec" data-ar="التكاملات" data-en="Integrations">التكاملات</div>
+
+  <div class="nsec" data-ar="المساعد الذكي" data-en="AI Assistant">المساعد الذكي</div>
+  <button class="nb" data-p="ask">
+    <span class="nb-icon">🤖</span>
+    <span class="nb-label" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</span>
+  </button>
+
+  <div class="nsec" data-ar="الوثائق والتقارير" data-en="Documents & Reports">الوثائق والتقارير</div>
+  <button class="nb" data-p="documents">
+    <span class="nb-icon">📄</span>
+    <span class="nb-label" data-ar="الوثائق والتقارير" data-en="Documents & Reports">الوثائق والتقارير</span>
+  </button>
+
+  <div class="nsec" data-ar="الإدارة" data-en="Administration">الإدارة</div>
+  <button class="nb" data-p="team">
+    <span class="nb-icon">👥</span>
+    <span class="nb-label" data-ar="أعضاء الفريق" data-en="Team Members">أعضاء الفريق</span>
+  </button>
+  <button class="nb" data-p="analytics">
+    <span class="nb-icon">📊</span>
+    <span class="nb-label" data-ar="التحليلات" data-en="Analytics">التحليلات</span>
+  </button>
   <button class="nb" data-p="integrations">
     <span class="nb-icon">🔗</span>
     <span class="nb-label" data-ar="مركز التكاملات" data-en="Integration Center">مركز التكاملات</span>
@@ -536,6 +544,8 @@
       </div>
       <div style="display:flex;gap:7px;align-items:center">
         <div class="ai-pill">✦ Claude · Anthropic</div>
+        <button class="btn-ghost btn-sm" onclick="Chat.copyConversation()"><span data-ar="📋 نسخ" data-en="📋 Copy">📋 نسخ</span></button>
+        <button class="btn-ghost btn-sm" onclick="Chat.exportConversation()"><span data-ar="⬇ تصدير" data-en="⬇ Export">⬇ تصدير</span></button>
         <button class="btn-ghost btn-sm" onclick="Chat.clear()"><span data-ar="مسح" data-en="Clear">مسح</span></button>
       </div>
     </div>
@@ -549,10 +559,14 @@
       </div>
     </div>
     <div class="qchips" id="chat-chips">
-      <button class="qc" data-q-ar="ما هي المهام المتأخرة؟" data-q-en="What are the overdue tasks?" onclick="Chat.quick(this)" data-ar="المهام المتأخرة" data-en="Overdue tasks">المهام المتأخرة</button>
-      <button class="qc" data-q-ar="لخّص آخر اجتماع للمجلس" data-q-en="Summarise the last board meeting" onclick="Chat.quick(this)" data-ar="ملخص آخر اجتماع" data-en="Last meeting summary">ملخص آخر اجتماع</button>
-      <button class="qc" data-q-ar="ما القرارات المعلقة؟" data-q-en="What are the pending decisions?" onclick="Chat.quick(this)" data-ar="القرارات المعلقة" data-en="Pending decisions">القرارات المعلقة</button>
-      <button class="qc" data-q-ar="كيف أداء الفريق؟" data-q-en="How is the team performing?" onclick="Chat.quick(this)" data-ar="أداء الفريق" data-en="Team performance">أداء الفريق</button>
+      <button class="qc" data-kind="search_meetings" data-q-ar="ابحث في الاجتماعات — أرني آخر الاجتماعات المسجلة" data-q-en="Search meetings — show me the most recent recorded meetings" onclick="Chat.quick(this)" data-ar="🔍 بحث في الاجتماعات" data-en="🔍 Search Meetings">🔍 بحث في الاجتماعات</button>
+      <button class="qc" data-kind="find_decisions" data-q-ar="ابحث عن القرارات — أرني القرارات المعلقة" data-q-en="Find decisions — show me the pending decisions" onclick="Chat.quick(this)" data-ar="⚖️ إيجاد القرارات" data-en="⚖️ Find Decisions">⚖️ إيجاد القرارات</button>
+      <button class="qc" data-kind="compare_meetings" data-q-ar="قارن بين آخر اجتماعين من حيث القرارات والمهام" data-q-en="Compare the last two meetings in terms of decisions and tasks" onclick="Chat.quick(this)" data-ar="📊 مقارنة اجتماعات" data-en="📊 Compare Meetings">📊 مقارنة اجتماعات</button>
+      <button class="qc" data-kind="draft_agenda" data-q-ar="ساعدني في صياغة جدول أعمال للاجتماع القادم" data-q-en="Help me draft an agenda for the upcoming meeting" onclick="Chat.quick(this)" data-ar="🗒️ صياغة جدول أعمال" data-en="🗒️ Draft Agenda">🗒️ صياغة جدول أعمال</button>
+      <button class="qc" data-kind="draft_resolution" data-q-ar="ساعدني في صياغة نص قرار مجلس إدارة" data-q-en="Help me draft a board resolution" onclick="Chat.quick(this)" data-ar="📜 صياغة قرار" data-en="📜 Draft Resolution">📜 صياغة قرار</button>
+      <button class="qc" data-kind="generate_report" data-q-ar="ما التقارير التي يمكنك مساعدتي في توليدها؟" data-q-en="What reports can you help me generate?" onclick="Chat.quick(this)" data-ar="📈 توليد تقرير" data-en="📈 Generate Report">📈 توليد تقرير</button>
+      <button class="qc" data-kind="create_action" data-q-ar="أريد إنشاء إجراء تنفيذي جديد" data-q-en="I want to create a new executive action" onclick="Chat.quick(this)" data-ar="🎯 إنشاء إجراء تنفيذي" data-en="🎯 Create Executive Action">🎯 إنشاء إجراء تنفيذي</button>
+      <button class="qc" data-kind="search_governance" data-q-ar="ابحث في الحوكمة — أرني آخر مستجدات الحوكمة" data-q-en="Search governance — show me the latest governance updates" onclick="Chat.quick(this)" data-ar="🏛️ بحث في الحوكمة" data-en="🏛️ Search Governance">🏛️ بحث في الحوكمة</button>
     </div>
   </div>
   <div class="chat-ft">

@@ -169,6 +169,25 @@ select.fi option{background:var(--navy3)}
 .imp-note{font-size:11.5px;color:var(--text3);line-height:1.65;padding:10px 12px;background:var(--navy3);border-radius:var(--rm);margin-bottom:12px;border-inline-start:3px solid var(--gold-border)}
 #imp-content-av,#imp-content-text,#imp-content-file{padding-top:2px}
 
+/* ── Executive Actions — Calendar view ────────────────────────────── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-grid-head{margin-bottom:6px}
+.cal-headcell{text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:4px 0}
+.cal-cell{position:relative;min-height:62px;background:var(--navy3);border:1px solid var(--border2);border-radius:8px;padding:6px;cursor:pointer;transition:var(--t)}
+.cal-cell:hover{border-color:var(--gold-border)}
+.cal-cell.cal-empty{background:transparent;border-color:transparent;cursor:default}
+.cal-cell.cal-today{border-color:var(--gold);background:var(--gold-dim)}
+.cal-cell.cal-selected{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue) inset}
+.cal-daynum{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.cal-dots{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.cal-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cal-more{font-size:9.5px;color:var(--text3);font-weight:600}
+@media (max-width:640px){
+  .cal-cell{min-height:40px;padding:4px}
+  .cal-daynum{font-size:10.5px;margin-bottom:2px}
+  .cal-headcell{font-size:9.5px}
+}
+
 /* ── Transcript ────────────────────────────────────────────────── */
 .tr-box{background:var(--navy3);border-radius:var(--rm);padding:14px;font-size:12px;line-height:1.9;border:1px solid var(--border2);overflow-y:auto}
 .sl{display:flex;gap:7px;margin-bottom:4px;animation:fi .18s ease}

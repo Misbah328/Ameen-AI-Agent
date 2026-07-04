@@ -125,24 +125,39 @@ const Gov = {
             resDeferred=0, quorumAchieved=0, quorumTotal=0, recentRes=[], upcoming=[],
             generalAssemblies=0, openActions=0, pendingMinutes=0 } = s || {};
 
-    const kpis = [
-      { icon:'🏛', val:boards,            label:lbl('مجالس الإدارة النشطة','Active Boards'),          color:'var(--gold)',  sub:lbl('الهيئات الحاكمة','Governing bodies') },
-      { icon:'⚙️', val:committees,        label:lbl('اللجان المتخصصة','Committees'),                  color:'#5B9BD6',      sub:lbl('لجان تنفيذية','Specialized bodies') },
-      { icon:'🏢', val:generalAssemblies, label:lbl('الجمعيات العمومية','General Assemblies'),        color:'#8B5CF6',      sub:lbl('عادية وغير عادية','Ordinary & Extraordinary') },
+    // Executive hierarchy — same hero/secondary pattern as the main
+    // dashboard: what needs a decision today reads as a large KPI, what's
+    // merely informational (board/committee counts) collapses into compact
+    // pills below, rather than eight identically-weighted boxes.
+    const heroKpis = [
       { icon:'⏳', val:resPending,        label:lbl('قرارات معلقة','Pending Resolutions'),           color:'var(--amber)', sub:lbl('تحتاج تصويتاً','Awaiting vote') },
-      { icon:'✅', val:resApproved,       label:lbl('قرارات مُعتمدة','Approved Resolutions'),         color:'var(--green)', sub:lbl('قرارات مُجازة','Passed') },
       { icon:'📋', val:pendingMinutes,    label:lbl('محاضر معلقة','Pending Minutes Approval'),       color:'var(--amber)', sub:lbl('تنتظر الاعتماد','Awaiting approval') },
-      { icon:'⚖️', val:quorumAchieved,   label:lbl('نصاب محقق','Quorum Completed'),                 color:'var(--green)', sub:lbl('اجتماعات مكتملة','Meetings achieved') },
       { icon:'📌', val:openActions,       label:lbl('إجراءات حوكمة مفتوحة','Open Governance Actions'), color:'var(--red)', sub:lbl('متابعات نشطة','Active follow-ups') },
+      { icon:'✅', val:resApproved,       label:lbl('قرارات مُعتمدة','Approved Resolutions'),         color:'var(--green)', sub:lbl('قرارات مُجازة','Passed') },
+    ];
+    const secondaryKpis = [
+      { icon:'🏛', val:boards,            label:lbl('مجالس الإدارة النشطة','Active Boards'),          color:'var(--gold)' },
+      { icon:'⚙️', val:committees,        label:lbl('اللجان المتخصصة','Committees'),                  color:'#5B9BD6' },
+      { icon:'🏢', val:generalAssemblies, label:lbl('الجمعيات العمومية','General Assemblies'),        color:'#8B5CF6' },
+      { icon:'⚖️', val:quorumAchieved,   label:lbl('نصاب محقق','Quorum Completed') + (quorumTotal ? ` (${quorumAchieved}/${quorumTotal})` : ''), color:'var(--green)' },
     ];
 
-    const kpiHtml = `<div class="stat-grid">
-      ${kpis.map(k => `<div class="card stat-clickable" style="padding:20px 16px 16px;text-align:center;position:relative;overflow:hidden;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center">
-        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${k.color};border-radius:14px 14px 0 0"></div>
-        <div style="font-size:28px;margin-bottom:8px;line-height:1">${k.icon}</div>
-        <div style="font-size:32px;font-weight:800;color:${k.color};letter-spacing:-.04em;line-height:1">${k.val}</div>
+    const kpiHtml = `<div class="stat-hero-grid" style="margin-bottom:12px">
+      ${heroKpis.map(k => `<div class="card" style="text-align:center;padding:24px 16px 20px;position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${k.color};opacity:.9;border-radius:14px 14px 0 0"></div>
+        <div style="font-size:32px;margin-bottom:10px;line-height:1">${k.icon}</div>
+        <div class="stat-hero-val" style="font-weight:800;color:${k.color};letter-spacing:-.04em;line-height:1">${k.val}</div>
         <div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.3">${k.label}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:3px">${k.sub}</div>
+        <div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.4">${k.sub}</div>
+      </div>`).join('')}
+    </div>
+    <div class="stat-mini-row" style="margin-bottom:16px">
+      ${secondaryKpis.map(k => `<div class="stat-mini">
+        <span class="stat-mini-icon">${k.icon}</span>
+        <div>
+          <div class="stat-mini-val" style="color:${k.color}">${k.val}</div>
+          <div class="stat-mini-lbl">${k.label}</div>
+        </div>
       </div>`).join('')}
     </div>`;
 
@@ -183,7 +198,7 @@ const Gov = {
                 <div style="font-size:14.5px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:6px">${esc(r.title)}</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                   <span class="tag" style="font-size:11.5px;background:transparent;border:1px solid ${sc};color:${sc}">${sl}</span>
-                  ${mtgTitle ? `<span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3)">📋 ${esc(mtgTitle.substring(0,32))}${mtgTitle.length>32?'…':''}</span>` : ''}
+                  ${mtgTitle ? `<span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3);${r.meeting_id?'cursor:pointer':''}" ${r.meeting_id?`onclick="Panels.load('history').then(()=>MeetingHistory.select(${r.meeting_id}))" title="${lbl('فتح في مساحة عمل الاجتماع','Open in Meeting Workspace')}"`:''}>📋 ${esc(mtgTitle.substring(0,32))}${mtgTitle.length>32?'…':''}${r.meeting_id?' →':''}</span>` : ''}
                   ${total>0 ? `<span class="tag" style="font-size:11px;background:var(--navy4);color:var(--text3)">🗳 ${r.votes_approve}✓ ${r.votes_reject}✕ ${r.votes_abstain}◎</span>` : ''}
                   ${total>0&&r.status==='approved' ? `<span class="tag tg" style="font-size:11px">${pct}% ${lbl('موافقة','approval')}</span>` : ''}
                   ${(r.followup_count||0)>0 ? `<span class="tag" style="font-size:11px;background:var(--gold-dim);color:var(--gold)">📌 ${r.followup_count} ${lbl('متابعة','follow-up(s)')}</span>` : ''}
