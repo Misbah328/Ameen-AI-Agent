@@ -321,6 +321,109 @@ router.get('/boards-and-committees', auth, (req, res) => {
   res.json({ boards, committees });
 });
 
+// ── Meeting Series (Phase 2) ───────────────────────────────────────────────────
+// A series groups planned meetings (schedule rows) and held meetings (meetings
+// rows) that share the same series_id — mirrors how board_id/committee_id
+// already link both tables to a shared parent entity above.
+function computeSeriesStats(seriesId) {
+  const held = db.prepare('SELECT id, meeting_date, status FROM meetings WHERE series_id=?').all(seriesId);
+  const planned = db.prepare("SELECT id, meeting_date, status FROM schedule WHERE series_id=? AND status != 'cancelled'").all(seriesId);
+  const heldIds = held.map(m => m.id);
+  let openActions = 0, completedActions = 0, pendingDecisions = 0, closedDecisions = 0;
+  if (heldIds.length) {
+    const ph = heldIds.map(() => '?').join(',');
+    openActions = db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE source_meeting_id IN (${ph}) AND status NOT IN ('done','cancelled')`).get(...heldIds).c;
+    completedActions = db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE source_meeting_id IN (${ph}) AND status='done'`).get(...heldIds).c;
+    pendingDecisions = db.prepare(`SELECT COUNT(*) as c FROM decisions WHERE meeting_id IN (${ph}) AND status != 'implemented'`).get(...heldIds).c;
+    closedDecisions = db.prepare(`SELECT COUNT(*) as c FROM decisions WHERE meeting_id IN (${ph}) AND status='implemented'`).get(...heldIds).c;
+  }
+  const lastHeld = held.slice().sort((a, b) => (b.meeting_date || '').localeCompare(a.meeting_date || ''))[0];
+  const today = new Date().toISOString().substring(0, 10);
+  const nextPlanned = planned.filter(m => (m.meeting_date || '') >= today).sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''))[0];
+  const totalMeetings = held.length + planned.length;
+  return {
+    total_meetings: totalMeetings,
+    completed_meetings: held.length,
+    pending_meetings: planned.length,
+    open_actions: openActions,
+    completed_actions: completedActions,
+    pending_decisions: pendingDecisions,
+    closed_decisions: closedDecisions,
+    completion_pct: totalMeetings ? Math.round((held.length / totalMeetings) * 100) : 0,
+    last_meeting_date: lastHeld ? lastHeld.meeting_date : null,
+    next_meeting_date: nextPlanned ? nextPlanned.meeting_date : null,
+  };
+}
+
+router.get('/meeting-series', auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT s.*, u.name_ar as owner_name_ar, u.name_en as owner_name_en
+    FROM meeting_series s
+    LEFT JOIN users u ON s.owner_id = u.id
+    ORDER BY s.created_at DESC
+  `).all();
+  res.json(rows.map(s => ({ ...s, stats: computeSeriesStats(s.id) })));
+});
+
+// Lightweight feed for populating "Continue Existing Meeting Series" dropdowns
+router.get('/meeting-series-lookup', auth, (req, res) => {
+  res.json(db.prepare('SELECT id, name_ar, name_en, category, owner_id FROM meeting_series ORDER BY name_ar').all());
+});
+
+router.get('/meeting-series/:id', auth, (req, res) => {
+  const s = db.prepare(`
+    SELECT s.*, u.name_ar as owner_name_ar, u.name_en as owner_name_en
+    FROM meeting_series s
+    LEFT JOIN users u ON s.owner_id = u.id
+    WHERE s.id=?
+  `).get(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  res.json({ ...s, stats: computeSeriesStats(s.id) });
+});
+
+router.post('/meeting-series', auth, (req, res) => {
+  const { name_ar, name_en, description_ar, description_en, category, owner_id } = req.body;
+  if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
+  const row = db.prepare(`
+    INSERT INTO meeting_series (name_ar, name_en, description_ar, description_en, category, owner_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(name_ar, name_en || name_ar, description_ar || '', description_en || '', category || '', owner_id || null, req.user.id);
+  res.json(db.prepare('SELECT * FROM meeting_series WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.patch('/meeting-series/:id', auth, (req, res) => {
+  if (!db.prepare('SELECT id FROM meeting_series WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const { name_ar, name_en, description_ar, description_en, category, owner_id, status } = req.body;
+  db.prepare(`UPDATE meeting_series SET
+    name_ar=COALESCE(?,name_ar), name_en=COALESCE(?,name_en),
+    description_ar=COALESCE(?,description_ar), description_en=COALESCE(?,description_en),
+    category=COALESCE(?,category), owner_id=COALESCE(?,owner_id), status=COALESCE(?,status)
+    WHERE id=?`)
+    .run(name_ar, name_en, description_ar, description_en, category, owner_id, status, req.params.id);
+  res.json(db.prepare('SELECT * FROM meeting_series WHERE id=?').get(req.params.id));
+});
+
+router.delete('/meeting-series/:id', auth, (req, res) => {
+  db.prepare('UPDATE meetings SET series_id=NULL WHERE series_id=?').run(req.params.id);
+  db.prepare('UPDATE schedule SET series_id=NULL WHERE series_id=?').run(req.params.id);
+  db.prepare('DELETE FROM meeting_series WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Merged, date-sorted timeline of every planned + held meeting in a series
+router.get('/meeting-series/:id/timeline', auth, (req, res) => {
+  const series = db.prepare('SELECT id FROM meeting_series WHERE id=?').get(req.params.id);
+  if (!series) return res.status(404).json({ error: 'Not found' });
+  const held = db.prepare(`
+    SELECT id, title_ar, title_en, meeting_date, status, lifecycle_stage FROM meetings WHERE series_id=?
+  `).all(req.params.id).map(m => ({ ...m, kind: 'held' }));
+  const planned = db.prepare(`
+    SELECT id, title_ar, title_en, meeting_date, status FROM schedule WHERE series_id=? AND status != 'cancelled'
+  `).all(req.params.id).map(m => ({ ...m, kind: 'planned' }));
+  const timeline = [...held, ...planned].sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''));
+  res.json(timeline);
+});
+
 // ── Governance dashboard summary ──────────────────────────────────────────────
 router.get('/summary', auth, (req, res) => {
   try {

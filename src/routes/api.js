@@ -195,6 +195,51 @@ function transitionMeeting(meetingId, toStage, userId, note) {
   return toStage;
 }
 
+// ── Meeting Series (Phase 2) helpers ──────────────────────────────────────────
+// Accepts either an existing series_id ("Continue Existing Meeting Series") or
+// an inline new_series payload ("Create New Meeting Series") from a meeting/
+// schedule create form and returns the series id to link, or null for a
+// standalone meeting. Mirrors the create-or-link pattern already used for
+// board_id/committee_id, just with an added inline-create path.
+function resolveOrCreateSeriesId(body, userId) {
+  if (body.new_series && body.new_series.name_ar) {
+    const ns = body.new_series;
+    const row = db.prepare(`
+      INSERT INTO meeting_series (name_ar, name_en, description_ar, description_en, category, owner_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(ns.name_ar, ns.name_en || ns.name_ar, ns.description_ar || '', ns.description_en || '', ns.category || '', ns.owner_id || null, userId);
+    return row.lastInsertRowid;
+  }
+  if (body.series_id) return body.series_id;
+  return null;
+}
+
+// Denormalizes effective_prev_meeting_id/next_meeting_id onto a list of already-
+// fetched meeting rows by grouping same-series rows and walking them in date
+// order — the automatic "Meeting Timeline" continuity. Meetings outside any
+// series fall back to their manual prev_meeting_id link (Phase 1 behavior).
+function attachSeriesContinuity(meetings) {
+  const bySeries = {};
+  for (const m of meetings) {
+    if (!m.series_id) continue;
+    (bySeries[m.series_id] = bySeries[m.series_id] || []).push(m);
+  }
+  for (const list of Object.values(bySeries)) {
+    list.sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''));
+  }
+  return meetings.map(m => {
+    let effectivePrevId = m.prev_meeting_id || null;
+    let nextId = null;
+    const list = m.series_id && bySeries[m.series_id];
+    if (list) {
+      const idx = list.findIndex(x => x.id === m.id);
+      if (idx > 0) effectivePrevId = list[idx - 1].id;
+      if (idx >= 0 && idx < list.length - 1) nextId = list[idx + 1].id;
+    }
+    return { ...m, effective_prev_meeting_id: effectivePrevId, next_meeting_id: nextId };
+  });
+}
+
 // ── File upload setup (multer + extractors) ──────────────────────────────────
 const multer = require('multer');
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
@@ -446,15 +491,17 @@ router.get('/meetings', auth, (req, res) => {
     SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
       c.name_ar as committee_name_ar, c.name_en as committee_name_en,
-      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en
+      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en,
+      ms.name_ar as series_name_ar, ms.name_en as series_name_en, ms.category as series_category
     FROM meetings m
     LEFT JOIN users u  ON m.recorded_by         = u.id
     LEFT JOIN users rv ON m.recording_verified_by = rv.id
     LEFT JOIN boards b ON m.board_id = b.id
     LEFT JOIN committees c ON m.committee_id = c.id
+    LEFT JOIN meeting_series ms ON m.series_id = ms.id
     ORDER BY m.meeting_date DESC
   `).all();
-  res.json(meetings);
+  res.json(attachSeriesContinuity(meetings));
 });
 
 router.get('/meetings/:id', auth, (req, res) => {
@@ -462,12 +509,14 @@ router.get('/meetings/:id', auth, (req, res) => {
     SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
       c.name_ar as committee_name_ar, c.name_en as committee_name_en,
-      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en
+      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en,
+      ms.name_ar as series_name_ar, ms.name_en as series_name_en, ms.category as series_category
     FROM meetings m
     LEFT JOIN users u  ON m.recorded_by          = u.id
     LEFT JOIN users rv ON m.recording_verified_by = rv.id
     LEFT JOIN boards b ON m.board_id = b.id
     LEFT JOIN committees c ON m.committee_id = c.id
+    LEFT JOIN meeting_series ms ON m.series_id = ms.id
     WHERE m.id=?
   `).get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Not found' });
@@ -484,12 +533,14 @@ router.get('/meetings/:id/full', auth, (req, res) => {
     SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
       c.name_ar as committee_name_ar, c.name_en as committee_name_en,
-      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en
+      rv.name_ar as rec_verifier_ar, rv.name_en as rec_verifier_en,
+      ms.name_ar as series_name_ar, ms.name_en as series_name_en, ms.category as series_category, ms.description_ar as series_description_ar, ms.description_en as series_description_en
     FROM meetings m
     LEFT JOIN users u  ON m.recorded_by          = u.id
     LEFT JOIN users rv ON m.recording_verified_by = rv.id
     LEFT JOIN boards b ON m.board_id = b.id
     LEFT JOIN committees c ON m.committee_id = c.id
+    LEFT JOIN meeting_series ms ON m.series_id = ms.id
     WHERE m.id=?
   `).get(id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
@@ -501,7 +552,48 @@ router.get('/meetings/:id/full', auth, (req, res) => {
   const documents = db.prepare("SELECT * FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!='' ORDER BY id DESC").all(id);
   const lifecycle = db.prepare('SELECT * FROM meeting_lifecycle_log WHERE meeting_id=? ORDER BY created_at ASC').all(id);
 
-  res.json({ meeting, attendees, agenda, tasks, decisions, documents, lifecycle });
+  // ── Series continuity: previous/next held meeting in the same series
+  // (falls back to the manual prev_meeting_id link for standalone meetings) ──
+  let effectivePrevId = meeting.prev_meeting_id || null;
+  let nextMeetingId = null;
+  let seriesTimeline = [];
+  let seriesStats = null;
+  if (meeting.series_id) {
+    const prevInSeries = db.prepare('SELECT id FROM meetings WHERE series_id=? AND id!=? AND meeting_date < ? ORDER BY meeting_date DESC LIMIT 1').get(meeting.series_id, id, meeting.meeting_date);
+    if (prevInSeries) effectivePrevId = prevInSeries.id;
+    const nextInSeries = db.prepare('SELECT id FROM meetings WHERE series_id=? AND id!=? AND meeting_date > ? ORDER BY meeting_date ASC LIMIT 1').get(meeting.series_id, id, meeting.meeting_date);
+    if (nextInSeries) nextMeetingId = nextInSeries.id;
+    const held = db.prepare('SELECT id, title_ar, title_en, meeting_date, status FROM meetings WHERE series_id=?').all(meeting.series_id).map(x => ({ ...x, kind: 'held' }));
+    const planned = db.prepare("SELECT id, title_ar, title_en, meeting_date, status FROM schedule WHERE series_id=? AND status != 'cancelled'").all(meeting.series_id).map(x => ({ ...x, kind: 'planned' }));
+    seriesTimeline = [...held, ...planned].sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''));
+    const totalMeetings = held.length + planned.length;
+    seriesStats = { total_meetings: totalMeetings, completed_meetings: held.length, pending_meetings: planned.length, completion_pct: totalMeetings ? Math.round((held.length / totalMeetings) * 100) : 0 };
+  }
+
+  // ── Previous Meeting Review: assembled once, server-side, from the same
+  // tables the current meeting's own sections already read — no new storage.
+  let previous_review = null;
+  if (effectivePrevId) {
+    const prevMeeting = db.prepare('SELECT id, title_ar, title_en, ai_summary_ar, ai_summary_en, ai_minutes_ar, ai_minutes_en, ai_risks, meeting_date FROM meetings WHERE id=?').get(effectivePrevId);
+    if (prevMeeting) {
+      const prevTasks = db.prepare('SELECT * FROM tasks WHERE source_meeting_id=?').all(effectivePrevId);
+      const prevDecisions = db.prepare('SELECT * FROM decisions WHERE meeting_id=?').all(effectivePrevId);
+      const prevDocuments = db.prepare("SELECT * FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!=''").all(effectivePrevId);
+      const today = new Date().toISOString().substring(0, 10);
+      previous_review = {
+        meeting: prevMeeting,
+        outstanding_decisions: prevDecisions.filter(d => d.status !== 'implemented'),
+        completed_decisions: prevDecisions.filter(d => d.status === 'implemented'),
+        pending_actions: prevTasks.filter(t => !['done', 'cancelled'].includes(t.status)),
+        blocked_actions: prevTasks.filter(t => t.status === 'blocked'),
+        overdue_actions: prevTasks.filter(t => t.due_date && t.due_date < today && !['done', 'cancelled'].includes(t.status)),
+        open_risks: (() => { try { return JSON.parse(prevMeeting.ai_risks || '[]'); } catch { return []; } })(),
+        attachments: prevDocuments,
+      };
+    }
+  }
+
+  res.json({ meeting, attendees, agenda, tasks, decisions, documents, lifecycle, effective_prev_meeting_id: effectivePrevId, next_meeting_id: nextMeetingId, series_timeline: seriesTimeline, series_stats: seriesStats, previous_review });
 });
 
 router.post('/meetings', auth, (req, res) => {
@@ -519,7 +611,7 @@ router.post('/meetings', auth, (req, res) => {
 });
 
 router.patch('/meetings/:id', auth, (req, res) => {
-  const { transcript, duration, title_ar, title_en, meeting_type, source_type } = req.body;
+  const { transcript, duration, title_ar, title_en, meeting_type, source_type, series_id, new_series } = req.body;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
 
@@ -529,10 +621,13 @@ router.patch('/meetings/:id', auth, (req, res) => {
   const newDuration = duration !== undefined ? duration : meeting.duration;
   const newMeetingType = meeting_type !== undefined ? meeting_type : meeting.meeting_type;
   const newSourceType = source_type !== undefined ? source_type : meeting.source_type;
+  const newSeriesId = (series_id !== undefined || new_series)
+    ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id)
+    : meeting.series_id;
 
   db.transaction(() => {
-    db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=?, source_type=? WHERE id=?')
-      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, newSourceType, req.params.id);
+    db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=?, source_type=?, series_id=? WHERE id=?')
+      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, newSourceType, newSeriesId, req.params.id);
 
     // Keep denormalized titles in tasks & decisions in sync
     if (title_ar !== undefined || title_en !== undefined) {
@@ -557,7 +652,7 @@ router.patch('/meetings/:id', auth, (req, res) => {
 // meeting here; the actual file bytes go through the existing, already-tested
 // POST /meetings/:id/recording endpoint from the frontend.
 router.post('/meetings/import-content', auth, async (req, res) => {
-  const { meeting_target, meeting_id, title, type, meeting_date, meeting_provider, prev_meeting_id, content_type, text } = req.body;
+  const { meeting_target, meeting_id, title, type, meeting_date, meeting_provider, prev_meeting_id, series_id, new_series, content_type, text } = req.body;
   const isTextContent = content_type === 'paste_text' || content_type === 'text_file';
 
   let targetId;
@@ -580,6 +675,8 @@ router.post('/meetings/import-content', auth, async (req, res) => {
     if (meeting_date) db.prepare('UPDATE meetings SET meeting_date=? WHERE id=?').run(meeting_date, targetId);
     if (meeting_provider) db.prepare('UPDATE meetings SET recording_capture_type=? WHERE id=?').run(meeting_provider, targetId);
     if (prev_meeting_id) db.prepare('UPDATE meetings SET prev_meeting_id=? WHERE id=?').run(prev_meeting_id, targetId);
+    const resolvedSeriesId = resolveOrCreateSeriesId({ series_id, new_series }, req.user.id);
+    if (resolvedSeriesId) db.prepare('UPDATE meetings SET series_id=? WHERE id=?').run(resolvedSeriesId, targetId);
   } else {
     if (!meeting_id) return res.status(400).json({ error: 'meeting_id is required when meeting_target is existing' });
     const exists = db.prepare('SELECT id FROM meetings WHERE id=?').get(meeting_id);
@@ -1167,11 +1264,13 @@ router.get('/schedule', auth, (req, res) => {
     SELECT s.*, u.name_ar as creator_ar, u.name_en as creator_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
       c.name_ar as committee_name_ar, c.name_en as committee_name_en,
+      ms.name_ar as series_name_ar, ms.name_en as series_name_en,
       (SELECT COUNT(*) FROM meeting_documents WHERE schedule_id=s.id) as doc_count
     FROM schedule s
     LEFT JOIN users u ON s.created_by=u.id
     LEFT JOIN boards b ON s.board_id=b.id
     LEFT JOIN committees c ON s.committee_id=c.id
+    LEFT JOIN meeting_series ms ON s.series_id=ms.id
     ORDER BY meeting_date ASC, meeting_time ASC
   `).all());
 });
@@ -1209,7 +1308,7 @@ function addNPeriods(originDateStr, recurrence, n) {
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
 
 router.post('/schedule', auth, (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
     return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
@@ -1224,18 +1323,19 @@ router.post('/schedule', auth, (req, res) => {
   const groupId = rec !== 'none' ? crypto.randomUUID() : null;
   const prov = ['zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : 'physical';
   const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[prov] || (platform || 'قاعة الاجتماعات');
+  const resolvedSeriesId = resolveOrCreateSeriesId({ series_id, new_series }, req.user.id);
   const insertSched = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const dur = duration_mins || 60;
   let row;
   db.transaction(() => {
-    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
     if (rec !== 'none') {
       for (let i = 1; i <= 3; i++) {
         const nextDate = addNPeriods(meeting_date, rec, i);
-        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
       }
     }
   })();
@@ -1292,7 +1392,7 @@ router.post('/schedule/:id/remind', auth, async (req, res) => {
 router.patch('/schedule/:id', auth, (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, series_id, new_series, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
   if (meeting_date !== undefined && (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime()))) {
     return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
   }
@@ -1304,13 +1404,14 @@ router.patch('/schedule/:id', auth, (req, res) => {
     : row.reminder_channel;
   const updProv = meeting_provider !== undefined && ['physical','zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : null;
   const updPlatform = updProv ? ({ zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[updProv] || 'قاعة الاجتماعات') : platform;
+  const newSeriesId = (series_id !== undefined || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
   db.prepare(`UPDATE schedule SET
       title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
       meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
       duration_mins=COALESCE(?,duration_mins), platform=COALESCE(?,platform),
       attendees=COALESCE(?,attendees), agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
       reminder_channel=?, meeting_type=COALESCE(?,meeting_type),
-      board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id),
+      board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id), series_id=COALESCE(?,series_id),
       meeting_provider=COALESCE(?,meeting_provider), meeting_join_url=COALESCE(?,meeting_join_url),
       meeting_id_external=COALESCE(?,meeting_id_external), recording_status=COALESCE(?,recording_status),
       recording_provider=COALESCE(?,recording_provider), recording_url=COALESCE(?,recording_url),
@@ -1323,6 +1424,7 @@ router.patch('/schedule/:id', auth, (req, res) => {
       meeting_type !== undefined ? (meeting_type || null) : null,
       board_id !== undefined ? (board_id || null) : null,
       committee_id !== undefined ? (committee_id || null) : null,
+      newSeriesId,
       updProv,
       meeting_join_url !== undefined ? (meeting_join_url || '') : null,
       meeting_id_external !== undefined ? (meeting_id_external || '') : null,
@@ -2119,6 +2221,99 @@ router.post('/meetings/:id/board-pack', auth, async (req, res) => {
   } catch (e) {
     console.error('Board pack PDF error:', e.message);
     res.status(500).json({ error: 'Board pack PDF generation failed', detail: e.message });
+  }
+});
+
+// ── Series Report — timeline + aggregated decisions/actions/attachments for a
+// whole Meeting Series, reusing the same buildPdf() the board pack uses ─────
+router.post('/meeting-series/:id/report', auth, async (req, res) => {
+  const series = db.prepare(`
+    SELECT s.*, u.name_ar as owner_name_ar, u.name_en as owner_name_en
+    FROM meeting_series s LEFT JOIN users u ON s.owner_id = u.id
+    WHERE s.id=?
+  `).get(req.params.id);
+  if (!series) return res.status(404).json({ error: 'Not found' });
+  const lang = req.body.lang === 'en' ? 'en' : 'ar';
+  const isAr = lang === 'ar';
+  const title = isAr ? series.name_ar : (series.name_en || series.name_ar);
+
+  const held = db.prepare('SELECT * FROM meetings WHERE series_id=? ORDER BY meeting_date ASC').all(series.id);
+  const planned = db.prepare("SELECT * FROM schedule WHERE series_id=? AND status != 'cancelled' ORDER BY meeting_date ASC").all(series.id);
+  const heldIds = held.map(m => m.id);
+  const tasks = heldIds.length ? db.prepare(`SELECT * FROM tasks WHERE source_meeting_id IN (${heldIds.map(() => '?').join(',')})`).all(...heldIds) : [];
+  const decisions = heldIds.length ? db.prepare(`SELECT * FROM decisions WHERE meeting_id IN (${heldIds.map(() => '?').join(',')})`).all(...heldIds) : [];
+  const documents = heldIds.length ? db.prepare(`SELECT * FROM meeting_documents WHERE meeting_id IN (${heldIds.map(() => '?').join(',')}) AND file_path IS NOT NULL AND file_path!=''`).all(...heldIds) : [];
+
+  const sections = [];
+
+  const ownerName = isAr ? (series.owner_name_ar || '') : (series.owner_name_en || series.owner_name_ar || '');
+  sections.push({
+    title: isAr ? 'ملخص تنفيذي' : 'Executive Summary',
+    text: [
+      isAr ? (series.description_ar || '') : (series.description_en || series.description_ar || ''),
+      `${isAr ? 'الفئة' : 'Category'}: ${series.category || (isAr ? 'غير محدد' : 'Unspecified')}`,
+      ownerName ? `${isAr ? 'المالك' : 'Owner'}: ${ownerName}` : '',
+      `${isAr ? 'إجمالي الاجتماعات' : 'Total meetings'}: ${held.length + planned.length} (${isAr ? 'مكتملة' : 'completed'}: ${held.length}, ${isAr ? 'قادمة' : 'upcoming'}: ${planned.length})`,
+    ].filter(Boolean).join('\n')
+  });
+
+  const timeline = [...held.map(m => ({ ...m, kind: 'held' })), ...planned.map(m => ({ ...m, kind: 'planned' }))]
+    .sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''));
+  if (timeline.length) {
+    sections.push({
+      title: isAr ? 'الجدول الزمني للاجتماعات' : 'Meeting Timeline',
+      items: timeline.map(m => {
+        const t = isAr ? m.title_ar : (m.title_en || m.title_ar);
+        const status = m.kind === 'held' ? (isAr ? 'مكتمل' : 'Completed') : (isAr ? 'قادم' : 'Upcoming');
+        return `${(m.meeting_date || '').substring(0, 10)} — ${t} [${status}]`;
+      })
+    });
+  }
+
+  const summaries = held.filter(m => m.ai_summary_ar || m.ai_summary_en);
+  if (summaries.length) {
+    sections.push({
+      title: isAr ? 'ملخصات الاجتماعات' : 'Meeting Summaries',
+      items: summaries.map(m => `${isAr ? m.title_ar : (m.title_en || m.title_ar)}: ${(isAr ? m.ai_summary_ar : (m.ai_summary_en || m.ai_summary_ar)) || ''}`)
+    });
+  }
+
+  if (decisions.length) {
+    sections.push({
+      title: isAr ? 'جميع القرارات' : 'All Decisions',
+      items: decisions.map(d => `${(isAr ? d.text_ar : (d.text_en || d.text_ar)) || ''} [${d.status}]`)
+    });
+  }
+
+  if (tasks.length) {
+    sections.push({
+      title: isAr ? 'جميع إجراءات التنفيذ' : 'All Executive Actions',
+      items: tasks.map(t => {
+        const txt = (isAr ? t.text_ar : (t.text_en || t.text_ar)) || '';
+        const owner = (isAr ? t.owner_name_ar : (t.owner_name_en || t.owner_name_ar)) || '';
+        return `${txt}${owner ? ' — ' + owner : ''} [${t.status}, ${t.progress || 0}%]`;
+      })
+    });
+  }
+
+  if (documents.length) {
+    sections.push({
+      title: isAr ? 'المرفقات' : 'Attachments',
+      items: documents.map(d => d.title_ar || d.title_en || d.title || '').filter(Boolean)
+    });
+  }
+
+  try {
+    const reportTitle = `${isAr ? 'تقرير سلسلة الاجتماعات' : 'Series Report'} — ${title}`;
+    const pdfBuf = await buildPdf({ title: reportTitle, lang, sections });
+    const ascii = (title || 'series-report').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-') || 'series-report';
+    const encoded = encodeURIComponent(reportTitle.trim());
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="series-report-${ascii}.pdf"; filename*=UTF-8''${encoded}.pdf`);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('Series report PDF error:', e.message);
+    res.status(500).json({ error: 'Series report PDF generation failed', detail: e.message });
   }
 });
 

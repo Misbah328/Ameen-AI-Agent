@@ -119,6 +119,10 @@
     <span class="nb-label" data-ar="جدول الاجتماعات" data-en="Meeting Schedule">جدول الاجتماعات</span>
     <span class="nbg nbg-gold" id="b-sc">—</span>
   </button>
+  <button class="nb" data-p="series">
+    <span class="nb-icon">🧭</span>
+    <span class="nb-label" data-ar="سلاسل الاجتماعات" data-en="Meeting Series">سلاسل الاجتماعات</span>
+  </button>
   <button class="nb" data-p="team">
     <span class="nb-icon">👥</span>
     <span class="nb-label" data-ar="أعضاء الفريق" data-en="Team Members">أعضاء الفريق</span>
@@ -224,6 +228,28 @@
             <select id="imp-new-prev-meeting" class="fi">
               <option value="">— اجتماع سابق مرتبط (اختياري) / Linked Previous Meeting (optional) —</option>
             </select>
+          </div>
+
+          <div style="margin-top:14px">
+            <div class="imp-label" data-ar="علاقة الاجتماع" data-en="Meeting Relationship">علاقة الاجتماع</div>
+            <div class="imp-seg" id="imp-series-seg">
+              <button type="button" class="imp-seg-btn active" data-val="standalone" onclick="SeriesUI.setMode('imp','standalone')"><span data-ar="اجتماع مستقل" data-en="Standalone Meeting">اجتماع مستقل</span></button>
+              <button type="button" class="imp-seg-btn" data-val="new" onclick="SeriesUI.setMode('imp','new')"><span data-ar="إنشاء سلسلة اجتماعات جديدة" data-en="Create New Meeting Series">إنشاء سلسلة اجتماعات جديدة</span></button>
+              <button type="button" class="imp-seg-btn" data-val="continue" onclick="SeriesUI.setMode('imp','continue')"><span data-ar="متابعة سلسلة قائمة" data-en="Continue Existing Meeting Series">متابعة سلسلة قائمة</span></button>
+            </div>
+            <div id="imp-series-new" style="display:none;margin-bottom:10px">
+              <div class="imp-grid">
+                <input class="fi" id="imp-series-name-ar" data-ph-ar="اسم السلسلة (عربي)" data-ph-en="Series Name (Arabic)" placeholder="اسم السلسلة (عربي)"/>
+                <input class="fi" id="imp-series-name-en" dir="ltr" style="text-align:left" placeholder="Series Name (English)"/>
+                <input class="fi" id="imp-series-category" data-ph-ar="الفئة (مشروع، ميزانية، لجنة...)" data-ph-en="Category (Project, Budget, Committee...)" placeholder="الفئة"/>
+                <select class="fi" id="imp-series-owner"><option value="">— مالك السلسلة (اختياري) / Series Owner (optional) —</option></select>
+                <textarea class="fi" id="imp-series-desc-ar" rows="2" data-ph-ar="وصف السلسلة (عربي)" data-ph-en="Series Description (Arabic)" placeholder="وصف السلسلة" style="grid-column:1/-1"></textarea>
+                <textarea class="fi" id="imp-series-desc-en" rows="2" dir="ltr" style="text-align:left;grid-column:1/-1" placeholder="Series Description (English)"></textarea>
+              </div>
+            </div>
+            <div id="imp-series-continue" style="display:none;margin-bottom:10px">
+              <select class="fi" id="imp-series-existing"><option value="">— جارٍ التحميل / Loading —</option></select>
+            </div>
           </div>
         </div>
       </div>
@@ -445,6 +471,16 @@
             <option value="revision_requested" data-ar="يحتاج مراجعة" data-en="Revision Needed">يحتاج مراجعة</option>
             <option value="final_approved" data-ar="معتمد نهائياً" data-en="Final Approved">معتمد نهائياً</option>
           </select>
+          <select id="hist-filter-board" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل المجالس" data-en="All Boards">كل المجالس</option>
+          </select>
+          <select id="hist-filter-committee" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل اللجان" data-en="All Committees">كل اللجان</option>
+          </select>
+          <select id="hist-filter-series" class="fi" onchange="MeetingHistory.applyFilters()">
+            <option value="" data-ar="كل السلاسل" data-en="All Series">كل السلاسل</option>
+          </select>
+          <button class="btn-ghost btn-sm" id="hist-group-toggle" onclick="MeetingHistory.toggleGroupBySeries()" data-ar="📚 تجميع حسب السلسلة" data-en="📚 Group by Series">📚 Group by Series</button>
         </div>
         <div class="hist-list" id="hist-list"><div class="es"><div class="loading"></div></div></div>
       </div>
@@ -753,6 +789,25 @@
             </select>
           </div>
           <div class="frow">
+            <div class="fl" data-ar="علاقة الاجتماع" data-en="Meeting Relationship">علاقة الاجتماع</div>
+            <div>
+              <div class="imp-seg" id="nm-series-seg" style="margin-bottom:8px">
+                <button type="button" class="imp-seg-btn active" data-val="standalone" onclick="SeriesUI.setMode('nm','standalone')"><span data-ar="اجتماع مستقل" data-en="Standalone">اجتماع مستقل</span></button>
+                <button type="button" class="imp-seg-btn" data-val="new" onclick="SeriesUI.setMode('nm','new')"><span data-ar="سلسلة جديدة" data-en="New Series">سلسلة جديدة</span></button>
+                <button type="button" class="imp-seg-btn" data-val="continue" onclick="SeriesUI.setMode('nm','continue')"><span data-ar="متابعة سلسلة" data-en="Continue Series">متابعة سلسلة</span></button>
+              </div>
+              <div id="nm-series-new" style="display:none">
+                <input class="fi" id="nm-series-name-ar" style="margin-bottom:8px" data-ph-ar="اسم السلسلة (عربي)" data-ph-en="Series Name (Arabic)" placeholder="اسم السلسلة (عربي)"/>
+                <input class="fi" id="nm-series-name-en" style="margin-bottom:8px" dir="ltr" placeholder="Series Name (English)"/>
+                <input class="fi" id="nm-series-category" style="margin-bottom:8px" data-ph-ar="الفئة" data-ph-en="Category" placeholder="الفئة / Category"/>
+                <select class="fi" id="nm-series-owner"><option value="">— مالك السلسلة (اختياري) / Series Owner (optional) —</option></select>
+              </div>
+              <div id="nm-series-continue" style="display:none">
+                <select class="fi" id="nm-series-existing"><option value="">— جارٍ التحميل / Loading —</option></select>
+              </div>
+            </div>
+          </div>
+          <div class="frow">
             <div class="fl" data-ar="جدول الأعمال (عربي)" data-en="Agenda (Arabic)">جدول الأعمال (عربي)</div>
             <textarea class="fi" id="nm-agenda-ar" rows="2" placeholder="بنود الاجتماع..."></textarea>
           </div>
@@ -780,6 +835,71 @@
     </div>
   </div>
 </section>
+
+<!-- ══ MEETING SERIES ══════════════════════════════════════════ -->
+<section class="panel" id="panel-series">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="سلاسل الاجتماعات" data-en="Meeting Series">سلاسل الاجتماعات</div>
+        <div class="ptitle-sub" data-ar="تتبّع التسلسل الكامل لمشاريع ومبادرات الاجتماعات المترابطة" data-en="Track the full continuity of related meetings across a project or initiative">تتبّع التسلسل الكامل للاجتماعات المترابطة</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost btn-sm" onclick="SeriesPanel.refresh()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+        <button class="btn-gold btn-sm" onclick="SeriesPanel.openCreate()">+ <span data-ar="سلسلة جديدة" data-en="New Series">سلسلة جديدة</span></button>
+      </div>
+    </div>
+  </div>
+  <div class="pbody">
+    <div class="hist-search-bar" style="padding:0 0 14px">
+      <input type="search" id="series-search" class="fi"
+        data-ph-ar="ابحث باسم السلسلة أو الفئة..." data-ph-en="Search by series name or category..."
+        placeholder="بحث..." oninput="SeriesPanel.onSearch(this.value)"/>
+    </div>
+    <div id="series-grid"><div class="es"><div class="loading"></div></div></div>
+  </div>
+</section>
+
+<!-- Meeting Series create/edit modal -->
+<div class="modal-overlay" id="modal-series">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title" id="series-modal-title" data-ar="سلسلة اجتماعات جديدة" data-en="New Meeting Series">سلسلة اجتماعات جديدة</div>
+    <div class="fs">
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="اسم السلسلة (عربي)" data-en="Series Name (Arabic)">اسم السلسلة (عربي)</div>
+          <input class="fi" id="series-name-ar"/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="اسم السلسلة (إنجليزي)" data-en="Series Name (English)">اسم السلسلة (إنجليزي)</div>
+          <input class="fi" id="series-name-en" dir="ltr" style="text-align:left"/>
+        </div>
+      </div>
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="الفئة" data-en="Category">الفئة</div>
+          <input class="fi" id="series-category" data-ph-ar="مشروع، ميزانية، لجنة..." data-ph-en="Project, Budget, Committee..." placeholder="الفئة"/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="مالك السلسلة" data-en="Series Owner">مالك السلسلة</div>
+          <select class="fi" id="series-owner"><option value="">— <span data-ar="بدون مالك" data-en="No owner">بدون مالك</span> —</option></select>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="وصف السلسلة (عربي)" data-en="Series Description (Arabic)">وصف السلسلة (عربي)</div>
+        <textarea class="fi" id="series-desc-ar" rows="2"></textarea>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="وصف السلسلة (إنجليزي)" data-en="Series Description (English)">وصف السلسلة (إنجليزي)</div>
+        <textarea class="fi" id="series-desc-en" rows="2" dir="ltr" style="text-align:left"></textarea>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" onclick="SeriesPanel.save()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
+        <button class="btn-ghost" onclick="SeriesPanel.closeModal()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ══ TEAM MEMBERS ════════════════════════════════════════════ -->
 <section class="panel" id="panel-team">

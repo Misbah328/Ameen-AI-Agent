@@ -548,6 +548,31 @@ db.exec(`
   UPDATE ga_officers SET role_en = COALESCE(role_en, role) WHERE role_en IS NULL;
 `);
 
+// ── Meeting Series (Phase 2) ──────────────────────────────────────────────────
+// A Meeting Series groups a continuous sequence of meetings (planned rows in
+// `schedule` and/or held rows in `meetings`) under one named initiative
+// (e.g. "Digital Transformation", "Annual Budget 2027"). Every meeting still
+// belongs to zero or one series via an additive, nullable `series_id` FK —
+// standalone meetings are completely unaffected.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meeting_series (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name_ar TEXT NOT NULL,
+    name_en TEXT,
+    description_ar TEXT DEFAULT '',
+    description_en TEXT DEFAULT '',
+    category TEXT DEFAULT '',
+    owner_id INTEGER,
+    status TEXT DEFAULT 'active',
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(owner_id) REFERENCES users(id),
+    FOREIGN KEY(created_by) REFERENCES users(id)
+  )
+`);
+ensureColumn('meetings', 'series_id', 'INTEGER');
+ensureColumn('schedule', 'series_id', 'INTEGER');
+
 // Default plan = free
 if (!db.prepare('SELECT value FROM settings WHERE key=?').get('plan')) {
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('plan', 'free');

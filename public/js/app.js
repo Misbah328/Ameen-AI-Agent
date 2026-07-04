@@ -107,6 +107,7 @@ const ROLE_ACCESS = {
     "ask",
     "documents",
     "schedule",
+    "series",
     "team",
     "overview",
     "analytics",
@@ -122,6 +123,7 @@ const ROLE_ACCESS = {
     "ask",
     "documents",
     "schedule",
+    "series",
     "team",
     "overview",
     "analytics",
@@ -135,6 +137,7 @@ const ROLE_ACCESS = {
     "ask",
     "documents",
     "schedule",
+    "series",
     "overview",
     "analytics",
     "governance",
@@ -145,6 +148,7 @@ const ROLE_ACCESS = {
     "tasks",
     "ask",
     "schedule",
+    "series",
     "overview",
     "governance",
   ]),
@@ -157,6 +161,7 @@ const ROLE_ACCESS = {
     "ask",
     "documents",
     "schedule",
+    "series",
     "overview",
     "analytics",
   ]),
@@ -168,6 +173,7 @@ const ROLE_ACCESS = {
     "ask",
     "documents",
     "schedule",
+    "series",
     "team",
     "overview",
     "analytics",
@@ -696,6 +702,9 @@ const Panels = {
             "error",
           ),
         );
+        break;
+      case "series":
+        await SeriesPanel.refresh();
         break;
       case "overview":
         await renderOverview();
@@ -2530,6 +2539,93 @@ function _meetingLifecycleHeuristic(m, l) {
   </div>`;
 }
 
+// ══ Meeting Series (Phase 2) — "Meeting Relationship" picker ═══════════════════
+// Shared by the ImportFlow "Create New Meeting" fields (prefix "imp") and the
+// Schedule panel's "Schedule New Meeting" form (prefix "nm") so the Standalone /
+// Create New Series / Continue Existing Series segmented control and its
+// conditional fields are wired up identically in both places, per element ids
+// `${prefix}-series-*` already present in index.html for both prefixes.
+const SeriesUI = {
+  _lookupCache: null,
+
+  async _lookup() {
+    if (this._lookupCache) return this._lookupCache;
+    try { this._lookupCache = await api('/api/gov/meeting-series-lookup'); } catch (_) { this._lookupCache = []; }
+    return this._lookupCache;
+  },
+
+  invalidate() { this._lookupCache = null; },
+
+  async init(prefix) {
+    this.setMode(prefix, 'standalone');
+    await Promise.all([this._populateOwnerSelect(prefix), this._populateSeriesSelect(prefix)]);
+  },
+
+  setMode(prefix, mode) {
+    const seg = $(`${prefix}-series-seg`);
+    if (seg) seg.querySelectorAll('.imp-seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.val === mode));
+    const newEl = $(`${prefix}-series-new`);
+    const contEl = $(`${prefix}-series-continue`);
+    if (newEl) newEl.style.display = mode === 'new' ? '' : 'none';
+    if (contEl) contEl.style.display = mode === 'continue' ? '' : 'none';
+  },
+
+  _mode(prefix) {
+    const seg = $(`${prefix}-series-seg`);
+    const active = seg && seg.querySelector('.imp-seg-btn.active');
+    return (active && active.dataset.val) || 'standalone';
+  },
+
+  async _populateOwnerSelect(prefix) {
+    const sel = $(`${prefix}-series-owner`);
+    if (!sel) return;
+    const l = App.lang;
+    try {
+      const members = await api('/api/members');
+      sel.innerHTML = `<option value="">${l === 'ar' ? '— مالك السلسلة (اختياري) —' : '— Series Owner (optional) —'}</option>` +
+        members.map((m) => `<option value="${m.id}">${esc(l === 'ar' ? m.name_ar : (m.name_en || m.name_ar))}</option>`).join('');
+    } catch (_) {}
+  },
+
+  async _populateSeriesSelect(prefix) {
+    const sel = $(`${prefix}-series-existing`);
+    if (!sel) return;
+    const l = App.lang;
+    const list = await this._lookup();
+    if (!list.length) {
+      sel.innerHTML = `<option value="">${l === 'ar' ? 'لا توجد سلاسل بعد' : 'No series yet'}</option>`;
+      return;
+    }
+    sel.innerHTML = `<option value="">${l === 'ar' ? '— اختر سلسلة —' : '— Select a series —'}</option>` +
+      list.map((s) => `<option value="${s.id}">${esc(l === 'ar' ? s.name_ar : (s.name_en || s.name_ar))}${s.category ? ' · ' + esc(s.category) : ''}</option>`).join('');
+  },
+
+  // Returns { series_id } / { new_series: {...} } / {} (standalone) to merge
+  // into a meeting or schedule create/update payload.
+  resolvePayload(prefix) {
+    const mode = this._mode(prefix);
+    if (mode === 'continue') {
+      const id = (($(`${prefix}-series-existing`) || {}).value) || '';
+      return id ? { series_id: Number(id) } : {};
+    }
+    if (mode === 'new') {
+      const nameAr = (($(`${prefix}-series-name-ar`) || {}).value || '').trim();
+      if (!nameAr) return {};
+      return {
+        new_series: {
+          name_ar: nameAr,
+          name_en: (($(`${prefix}-series-name-en`) || {}).value || '').trim(),
+          category: (($(`${prefix}-series-category`) || {}).value || '').trim(),
+          owner_id: (($(`${prefix}-series-owner`) || {}).value || '') || null,
+          description_ar: (($(`${prefix}-series-desc-ar`) || {}).value || '').trim(),
+          description_en: (($(`${prefix}-series-desc-en`) || {}).value || '').trim(),
+        },
+      };
+    }
+    return {};
+  },
+};
+
 // ══ Import Meeting Content — unified Meeting Target + Content Type flow ════════
 // Drives the "Import Meeting Content" card in the Record panel: lets the user
 // attach imported content (audio/video archive, pasted text, or a text file) to
@@ -2542,6 +2638,7 @@ const ImportFlow = {
     this.setTarget(this.target, true);
     this.setContentType(this.contentType, true);
     this.populateMeetingsSel();
+    SeriesUI.init('imp');
   },
 
   setTarget(val) {
@@ -2612,14 +2709,14 @@ const ImportFlow = {
       showToast(l === 'ar' ? 'الرجاء إدخال عنوان الاجتماع' : 'Please enter a meeting title', 'error');
       return null;
     }
-    return {
+    return Object.assign({
       meeting_target: 'new',
       title,
       type: (($('imp-new-type') || {}).value) || '',
       meeting_date: (($('imp-new-date') || {}).value) || '',
       meeting_provider: (($('imp-new-provider') || {}).value) || '',
       prev_meeting_id: (($('imp-new-prev-meeting') || {}).value) || '',
-    };
+    }, SeriesUI.resolvePayload('imp'));
   },
 
   async submitText() {
@@ -2679,6 +2776,8 @@ const ImportFlow = {
       this._renderResult(data);
       if (onSuccess) onSuccess();
       await this.populateMeetingsSel();
+      SeriesUI.invalidate();
+      await SeriesUI.init('imp');
       const panels = document.getElementById('panel-transcripts');
       if (panels && panels.classList.contains('active')) await renderTranscripts();
     } catch (e) {
@@ -2724,6 +2823,8 @@ const ImportFlow = {
       this._renderArchivedResult(meetingId, created);
       fi.value = '';
       await this.populateMeetingsSel();
+      SeriesUI.invalidate();
+      await SeriesUI.init('imp');
       const panels = document.getElementById('panel-transcripts');
       if (panels && panels.classList.contains('active')) await renderTranscripts();
     } catch (e) {
@@ -3044,6 +3145,7 @@ async function renderTranscripts() {
               <div class="ctsub">${(m.meeting_date && m.meeting_date.substring(0, 10)) || ""} ${m.duration ? `· ${Math.floor(m.duration / 60)}:${String(m.duration % 60).padStart(2, "0")} ${l === "ar" ? "دقيقة" : "min"}` : ""} · ${esc(m.recorder_ar || "")}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              ${m.series_id && m.series_name_ar ? `<span class="tag" style="background:var(--navy4)">🔗 ${esc(l === "ar" ? m.series_name_ar : (m.series_name_en || m.series_name_ar))}</span>` : ""}
               ${isProcessed ? `<span class="tag tg">✓ ${l === "ar" ? "مُعالج" : "Processed"}</span>` : `<span class="tag ta">${l === "ar" ? "جديد" : "New"}</span>`}
               ${m.source_type === "text_minutes" ? `<span class="tag" style="background:rgba(46,204,138,.12);color:#2ecc8a">📝 ${l === "ar" ? "محضر نصي" : "Text Minutes"}</span>` : ""}
               ${tasks.length ? `<span class="tag tgold">${tasks.length} ${l === "ar" ? "مهمة" : "tasks"}</span>` : ""}
@@ -3054,9 +3156,9 @@ async function renderTranscripts() {
             </div>
           </div>
           ${_meetingLifecycle(m, l)}
-          ${m.prev_meeting_id && meetingsById[m.prev_meeting_id] ? `<div style="margin-bottom:10px">
-            <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">🔁 ${l === "ar" ? "مراجعة إجراءات الاجتماع السابق" : "Previous Meeting Action Review"} — ${esc(l === "ar" ? meetingsById[m.prev_meeting_id].title_ar : (meetingsById[m.prev_meeting_id].title_en || meetingsById[m.prev_meeting_id].title_ar))}</div>
-            ${execActionsSummaryChips(tasksByMeeting[m.prev_meeting_id], l)}
+          ${m.effective_prev_meeting_id && meetingsById[m.effective_prev_meeting_id] ? `<div style="margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">🔁 ${l === "ar" ? "مراجعة إجراءات الاجتماع السابق" : "Previous Meeting Action Review"} — ${esc(l === "ar" ? meetingsById[m.effective_prev_meeting_id].title_ar : (meetingsById[m.effective_prev_meeting_id].title_en || meetingsById[m.effective_prev_meeting_id].title_ar))}</div>
+            ${execActionsSummaryChips(tasksByMeeting[m.effective_prev_meeting_id], l)}
           </div>` : ""}
           <div style="margin-bottom:10px">
             <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">🎯 ${l === "ar" ? "الإجراءات التنفيذية" : "Executive Actions"}</div>
@@ -3217,16 +3319,39 @@ const MeetingHistory = {
   _selectedId: null,
   _searchTimer: null,
   _q: "",
+  _groupBySeries: false,
+  _collapsed: {},
 
   async refresh() {
     const list = $("hist-list");
     if (list) list.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
       this._all = await api("/api/meetings");
+      this._populateGovFilters();
       this.applyFilters();
     } catch (e) {
       if (list) list.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
     }
+  },
+  // Populates the Board / Committee / Series filter dropdowns from whatever
+  // is actually referenced by the loaded meetings — no separate fetch needed.
+  _populateGovFilters() {
+    const l = App.lang;
+    const uniq = (arr) => { const seen = new Set(); return arr.filter((x) => { if (!x || seen.has(x.id)) return false; seen.add(x.id); return true; }); };
+    const boards = uniq(this._all.filter((m) => m.board_id).map((m) => ({ id: m.board_id, ar: m.board_name_ar, en: m.board_name_en })));
+    const committees = uniq(this._all.filter((m) => m.committee_id).map((m) => ({ id: m.committee_id, ar: m.committee_name_ar, en: m.committee_name_en })));
+    const series = uniq(this._all.filter((m) => m.series_id).map((m) => ({ id: m.series_id, ar: m.series_name_ar, en: m.series_name_en })));
+    const fill = (id, items, allAr, allEn) => {
+      const sel = $(id);
+      if (!sel) return;
+      const current = sel.value;
+      sel.innerHTML = `<option value="">${l === "ar" ? allAr : allEn}</option>` +
+        items.map((x) => `<option value="${x.id}">${esc(l === "ar" ? x.ar : (x.en || x.ar))}</option>`).join("");
+      sel.value = current;
+    };
+    fill("hist-filter-board", boards, "كل المجالس", "All Boards");
+    fill("hist-filter-committee", committees, "كل اللجان", "All Committees");
+    fill("hist-filter-series", series, "كل السلاسل", "All Series");
   },
   onSearch(q) {
     clearTimeout(this._searchTimer);
@@ -3238,24 +3363,53 @@ const MeetingHistory = {
   _provider(m) {
     return m.source_type === "text_minutes" ? "text_minutes" : (m.recording_capture_type || "browser_microphone");
   },
+  toggleGroupBySeries() {
+    this._groupBySeries = !this._groupBySeries;
+    const btn = $("hist-group-toggle");
+    if (btn) btn.classList.toggle("active", this._groupBySeries);
+    this.renderList();
+  },
+  toggleGroup(key) {
+    this._collapsed[key] = !this._collapsed[key];
+    this.renderList();
+  },
   applyFilters() {
     const type = ($("hist-filter-type") || {}).value || "";
     const provider = ($("hist-filter-provider") || {}).value || "";
     const status = ($("hist-filter-status") || {}).value || "";
     const approval = ($("hist-filter-approval") || {}).value || "";
+    const boardId = parseInt(($("hist-filter-board") || {}).value) || 0;
+    const committeeId = parseInt(($("hist-filter-committee") || {}).value) || 0;
+    const seriesId = parseInt(($("hist-filter-series") || {}).value) || 0;
     const q = this._q;
     this._filtered = this._all.filter((m) => {
       if (type && m.meeting_type !== type) return false;
       if (provider && this._provider(m) !== provider) return false;
       if (status && (m.status || "draft") !== status) return false;
       if (approval && (m.minutes_status || "draft") !== approval) return false;
+      if (boardId && m.board_id !== boardId) return false;
+      if (committeeId && m.committee_id !== committeeId) return false;
+      if (seriesId && m.series_id !== seriesId) return false;
       if (q) {
-        const hay = [m.title_ar, m.title_en, m.ai_summary_ar, m.ai_summary_en].filter(Boolean).join(" ").toLowerCase();
+        const hay = [m.title_ar, m.title_en, m.ai_summary_ar, m.ai_summary_en, m.series_name_ar, m.series_name_en, m.board_name_ar, m.board_name_en, m.committee_name_ar, m.committee_name_en].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
     this.renderList();
+  },
+  _itemHtml(m, l) {
+    const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
+    const date = (m.meeting_date || "").substring(0, 10);
+    const isProcessed = m.status === "processed";
+    return `<div class="hist-item${this._selectedId === m.id ? " active" : ""}" onclick="MeetingHistory.select(${m.id})">
+      <div class="hist-item-title">${esc(title)}</div>
+      <div class="hist-item-meta">
+        <span>📅 ${date}</span>
+        <span>${isProcessed ? "✓" : "○"} ${isProcessed ? (l === "ar" ? "مُعالج" : "Processed") : l === "ar" ? "جديد" : "New"}</span>
+        ${m.source_type === "text_minutes" ? `<span>📝 ${l === "ar" ? "نصي" : "Text"}</span>` : ""}
+      </div>
+    </div>`;
   },
   renderList() {
     const list = $("hist-list");
@@ -3280,21 +3434,31 @@ const MeetingHistory = {
       this._selectedId = null;
       this.renderEmptyDetail();
     }
-    list.innerHTML = this._filtered
-      .map((m) => {
-        const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
-        const date = (m.meeting_date || "").substring(0, 10);
-        const isProcessed = m.status === "processed";
-        return `<div class="hist-item${this._selectedId === m.id ? " active" : ""}" onclick="MeetingHistory.select(${m.id})">
-          <div class="hist-item-title">${esc(title)}</div>
-          <div class="hist-item-meta">
-            <span>📅 ${date}</span>
-            <span>${isProcessed ? "✓" : "○"} ${isProcessed ? (l === "ar" ? "مُعالج" : "Processed") : l === "ar" ? "جديد" : "New"}</span>
-            ${m.source_type === "text_minutes" ? `<span>📝 ${l === "ar" ? "نصي" : "Text"}</span>` : ""}
-          </div>
-        </div>`;
-      })
-      .join("");
+    if (!this._groupBySeries) {
+      list.innerHTML = this._filtered.map((m) => this._itemHtml(m, l)).join("");
+      return;
+    }
+    // Grouped view: one collapsible section per series (date-sorted), plus a
+    // trailing "Standalone" group for meetings with no series_id.
+    const groups = {};
+    const order = [];
+    this._filtered.forEach((m) => {
+      const key = m.series_id ? `s${m.series_id}` : "standalone";
+      if (!groups[key]) { groups[key] = { label: m.series_id ? (l === "ar" ? m.series_name_ar : (m.series_name_en || m.series_name_ar)) : (l === "ar" ? "مستقلة" : "Standalone"), items: [] }; order.push(key); }
+      groups[key].items.push(m);
+    });
+    list.innerHTML = order.map((key) => {
+      const g = groups[key];
+      g.items.sort((a, b) => (a.meeting_date || "").localeCompare(b.meeting_date || ""));
+      const collapsed = !!this._collapsed[key];
+      return `<div class="hist-group">
+        <div class="hist-group-h" onclick="MeetingHistory.toggleGroup('${key}')">
+          <span>${collapsed ? "▸" : "▾"} ${key === "standalone" ? "🗂" : "🔗"} ${esc(g.label)}</span>
+          <span class="hist-group-count">${g.items.length}</span>
+        </div>
+        ${collapsed ? "" : g.items.map((m) => this._itemHtml(m, l)).join("")}
+      </div>`;
+    }).join("");
   },
   renderEmptyDetail() {
     const detail = $("hist-detail");
@@ -3313,22 +3477,16 @@ const MeetingHistory = {
     const l = App.lang;
     if (detail) detail.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
+      // /full now assembles series continuity + the Previous Meeting Review
+      // server-side (effective_prev_meeting_id, series_timeline, series_stats,
+      // previous_review) — no extra round trips needed here.
       const full = await api(`/api/meetings/${id}/full`);
-      let prevMeetingTasks = null, prevMeeting = null;
-      if (full.meeting && full.meeting.prev_meeting_id) {
-        try {
-          [prevMeetingTasks, prevMeeting] = await Promise.all([
-            api(`/api/tasks?meeting_id=${full.meeting.prev_meeting_id}`),
-            api(`/api/meetings/${full.meeting.prev_meeting_id}`),
-          ]);
-        } catch (_) { /* previous meeting may have been deleted — skip silently */ }
-      }
-      this.renderDetail(full, prevMeetingTasks, prevMeeting);
+      this.renderDetail(full);
     } catch (e) {
       if (detail) detail.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
     }
   },
-  renderDetail(full, prevMeetingTasks, prevMeeting) {
+  renderDetail(full) {
     const detail = $("hist-detail");
     if (!detail) return;
     const l = App.lang;
@@ -3360,6 +3518,67 @@ const MeetingHistory = {
       ? `<button class="btn-gold btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l === "ar" ? "تنزيل حزمة المجلس (PDF)" : "Download Board Pack (PDF)"}</button>`
       : emptyRow("يجب معالجة الاجتماع أولاً لتوليد التقارير", "The meeting must be AI-processed before reports can be generated");
 
+    // ── Meeting Series (Phase 2): timeline, series info card, previous review ──
+    const seriesName = m.series_id ? (l === "ar" ? m.series_name_ar : (m.series_name_en || m.series_name_ar)) : "";
+    const prevNavHtml = (full.effective_prev_meeting_id || full.next_meeting_id) ? `
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        ${full.effective_prev_meeting_id ? `<button class="btn-ghost btn-sm" onclick="MeetingHistory.select(${full.effective_prev_meeting_id})">${l === "ar" ? "◀ الاجتماع السابق" : "◀ Previous Meeting"}</button>` : ""}
+        ${full.next_meeting_id ? `<button class="btn-ghost btn-sm" onclick="MeetingHistory.select(${full.next_meeting_id})">${l === "ar" ? "الاجتماع التالي ▶" : "Next Meeting ▶"}</button>` : ""}
+      </div>` : "";
+
+    const timelineHtml = (full.series_timeline && full.series_timeline.length) ? `
+      <div class="series-timeline">
+        ${full.series_timeline.map((t) => {
+          const isCurrent = t.id === m.id && t.kind === "held";
+          const tt = l === "ar" ? t.title_ar : (t.title_en || t.title_ar);
+          const date = (t.meeting_date || "").substring(0, 10);
+          return `<div class="series-tl-item ${isCurrent ? "current" : ""} series-tl-${t.kind}" ${t.kind === "held" ? `onclick="MeetingHistory.select(${t.id})"` : ""}>
+            <div class="series-tl-dot"></div>
+            <div class="series-tl-body">
+              <div class="series-tl-title">${esc(tt)}</div>
+              <div class="series-tl-meta">${date}${t.kind === "planned" ? " · " + (l === "ar" ? "قادم" : "Upcoming") : ""}</div>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>` : "";
+
+    const seriesInfoHtml = m.series_id ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:8px">
+        <div>${l === "ar" ? "السلسلة" : "Series"}: <strong>${esc(seriesName)}</strong></div>
+        ${m.series_category ? `<div>${l === "ar" ? "الفئة" : "Category"}: <strong>${esc(m.series_category)}</strong></div>` : ""}
+      </div>
+      ${(m.series_description_ar || m.series_description_en) ? `<div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">${esc(l === "ar" ? (m.series_description_ar || "") : (m.series_description_en || m.series_description_ar || ""))}</div>` : ""}
+      ${full.series_stats ? `
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:8px">
+        <div><div style="color:var(--text3);font-size:11px">${l === "ar" ? "إجمالي" : "Total"}</div><div style="font-weight:700">${full.series_stats.total_meetings}</div></div>
+        <div><div style="color:var(--text3);font-size:11px">${l === "ar" ? "مكتملة" : "Completed"}</div><div style="font-weight:700;color:var(--green)">${full.series_stats.completed_meetings}</div></div>
+        <div><div style="color:var(--text3);font-size:11px">${l === "ar" ? "قادمة" : "Upcoming"}</div><div style="font-weight:700;color:var(--blue)">${full.series_stats.pending_meetings}</div></div>
+      </div>
+      <div class="series-progress-bar"><div class="series-progress-fill" style="width:${full.series_stats.completion_pct}%"></div></div>
+      <div style="font-size:11px;color:var(--text3);margin:4px 0 10px">${l === "ar" ? "نسبة الإنجاز" : "Completion"}: ${full.series_stats.completion_pct}%</div>
+      ` : ""}
+      ${timelineHtml}
+    ` : emptyRow("هذا اجتماع مستقل وليس جزءاً من أي سلسلة اجتماعات", "This is a standalone meeting, not part of any meeting series");
+
+    const pr = full.previous_review;
+    const prevSummary = pr && (l === "ar" ? pr.meeting.ai_summary_ar : (pr.meeting.ai_summary_en || pr.meeting.ai_summary_ar));
+    const prevMinutes = pr && (l === "ar" ? pr.meeting.ai_minutes_ar : (pr.meeting.ai_minutes_en || pr.meeting.ai_minutes_ar));
+    const prevReviewHtml = pr ? `
+      <div style="margin-bottom:10px;font-size:11.5px;color:var(--text3)">${esc(l === "ar" ? pr.meeting.title_ar : (pr.meeting.title_en || pr.meeting.title_ar))} — ${(pr.meeting.meeting_date || "").substring(0, 10)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="prev-review-stat"><span>${l === "ar" ? "قرارات معلّقة" : "Outstanding Decisions"}</span><strong>${pr.outstanding_decisions.length}</strong></div>
+        <div class="prev-review-stat"><span>${l === "ar" ? "قرارات منجزة" : "Completed Decisions"}</span><strong style="color:var(--green)">${pr.completed_decisions.length}</strong></div>
+        <div class="prev-review-stat"><span>${l === "ar" ? "إجراءات معلّقة" : "Pending Actions"}</span><strong>${pr.pending_actions.length}</strong></div>
+        <div class="prev-review-stat"><span>${l === "ar" ? "إجراءات متأخرة" : "Overdue Actions"}</span><strong style="color:var(--red)">${pr.overdue_actions.length}</strong></div>
+        <div class="prev-review-stat"><span>${l === "ar" ? "إجراءات معطّلة" : "Blocked Actions"}</span><strong style="color:var(--amber)">${pr.blocked_actions.length}</strong></div>
+        <div class="prev-review-stat"><span>${l === "ar" ? "مخاطر مفتوحة" : "Open Risks"}</span><strong>${pr.open_risks.length}</strong></div>
+      </div>
+      ${prevSummary ? `<details style="margin-bottom:8px"><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "الملخص الذكي للاجتماع السابق" : "Previous AI Summary"}</summary><div style="margin-top:6px;white-space:pre-wrap">${esc(prevSummary)}</div></details>` : ""}
+      ${prevMinutes ? `<details style="margin-bottom:8px"><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "محضر الاجتماع السابق" : "Previous Minutes"}</summary><div style="margin-top:6px;white-space:pre-wrap">${esc(prevMinutes)}</div></details>` : ""}
+      ${pr.attachments.length ? `<div style="font-size:11.5px;color:var(--text3);margin-bottom:4px">${l === "ar" ? "مرفقات سابقة" : "Previous Attachments"}:</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">${pr.attachments.map((d) => `<a href="/uploads/${esc(d.file_path)}" download="${esc(d.title || "")}" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none;width:fit-content">📎 ${esc(d.title || d.title_ar || d.title_en || "")}</a>`).join("")}</div>` : ""}
+      <button class="btn-ghost btn-sm" onclick="MeetingHistory.select(${pr.meeting.id})">${l === "ar" ? "عرض الاجتماع السابق بالكامل" : "View full previous meeting"}</button>
+    ` : "";
+
     detail.innerHTML = `
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <div>
@@ -3367,10 +3586,12 @@ const MeetingHistory = {
           <div style="font-size:11.5px;color:var(--text3);margin-top:3px">${(m.meeting_date || "").substring(0, 10)} ${m.duration ? `· ${Math.floor(m.duration / 60)}:${String(m.duration % 60).padStart(2, "0")} ${l === "ar" ? "دقيقة" : "min"}` : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${seriesName ? `<span class="tag" style="background:var(--navy4)">🔗 ${esc(seriesName)}</span>` : ""}
           ${isProcessed ? `<span class="tag tg">✓ ${l === "ar" ? "مُعالج" : "Processed"}</span>` : `<span class="tag ta">${l === "ar" ? "جديد" : "New"}</span>`}
           <span class="tag" style="background:var(--navy4)">${providerLabels[provider] || provider}</span>
         </div>
       </div>
+      ${prevNavHtml}
 
       ${sec(
         "📋",
@@ -3384,6 +3605,10 @@ const MeetingHistory = {
           <div>${l === "ar" ? "الحالة العاطفية" : "Sentiment"}: <strong>${esc(m.ai_sentiment || "—")}</strong></div>
         </div>`,
       )}
+
+      ${sec("🧭", "الجدول الزمني ومعلومات السلسلة", "Meeting Timeline & Series Info", seriesInfoHtml)}
+
+      ${pr ? sec("🔁", "مراجعة إجراءات الاجتماع السابق", "Previous Meeting Review", prevReviewHtml) : ""}
 
       ${sec(
         "👥",
@@ -3437,15 +3662,6 @@ const MeetingHistory = {
             ? `<div class="tr-box" style="max-height:260px;overflow-y:auto;white-space:pre-wrap">${esc(m.transcript)}</div>`
             : emptyRow("لا يوجد نص مسجّل لهذا الاجتماع", "No transcript recorded for this meeting"),
       )}
-
-      ${prevMeetingTasks && prevMeeting
-        ? sec(
-            "🔁",
-            "مراجعة إجراءات الاجتماع السابق",
-            "Previous Meeting Action Review",
-            `<div style="margin-bottom:6px;font-size:11.5px;color:var(--text3)">${esc(l === "ar" ? prevMeeting.title_ar : prevMeeting.title_en || prevMeeting.title_ar)}</div>${execActionsSummaryChips(prevMeetingTasks, l)}`,
-          )
-        : ""}
 
       ${sec(
         "🎯",
@@ -3552,6 +3768,212 @@ const MeetingHistory = {
     `;
   },
 };
+
+// ══ Meeting Series (Phase 2) — Series Dashboard panel ══════════════════════════
+// Each series card shows the same total/completed/pending meetings + open/
+// completed actions + pending/closed decisions + completion % the backend's
+// computeSeriesStats() already computes — no client-side recomputation.
+const SeriesPanel = {
+  _all: [],
+  _q: "",
+  _editingId: null,
+  _searchTimer: null,
+
+  async refresh() {
+    const grid = $("series-grid");
+    if (grid) grid.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      this._all = await api("/api/gov/meeting-series");
+      this.render();
+    } catch (e) {
+      if (grid) grid.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+
+  onSearch(q) {
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => {
+      this._q = (q || "").trim().toLowerCase();
+      this.render();
+    }, 300);
+  },
+
+  render() {
+    const grid = $("series-grid");
+    if (!grid) return;
+    const l = App.lang;
+    if (!this._all.length) {
+      grid.innerHTML = `<div class="es" style="padding:40px 14px">
+        <div style="font-size:36px;margin-bottom:10px">🧭</div>
+        <div style="font-size:12.5px;color:var(--text3);line-height:1.7">${l === "ar" ? 'لا توجد سلاسل اجتماعات بعد. أنشئ سلسلة عند جدولة أو إنشاء اجتماع جديد، أو اضغط "سلسلة جديدة".' : 'No meeting series yet. Create one when scheduling/creating a meeting, or click "New Series".'}</div>
+      </div>`;
+      return;
+    }
+    const q = this._q;
+    const filtered = this._all.filter((s) => {
+      if (!q) return true;
+      const hay = [s.name_ar, s.name_en, s.category, s.description_ar, s.description_en].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+    if (!filtered.length) {
+      grid.innerHTML = `<div class="es" style="padding:30px 14px"><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد نتائج مطابقة" : "No matching series"}</div></div>`;
+      return;
+    }
+    grid.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+      ${filtered.map((s) => this._cardHtml(s, l)).join("")}
+    </div>`;
+  },
+
+  _cardHtml(s, l) {
+    const name = l === "ar" ? s.name_ar : (s.name_en || s.name_ar);
+    const owner = l === "ar" ? s.owner_name_ar : (s.owner_name_en || s.owner_name_ar);
+    const st = s.stats || {};
+    return `<div class="card series-card">
+      <div class="ch">
+        <div style="min-width:0">
+          <div class="ct" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</div>
+          <div class="ctsub">${s.category ? esc(s.category) : (l === "ar" ? "بدون فئة" : "No category")}${owner ? " · " + esc(owner) : ""}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+        <div><div style="font-size:10.5px;color:var(--text3)">${l === "ar" ? "الاجتماعات" : "Meetings"}</div><div style="font-weight:700">${st.total_meetings || 0}</div></div>
+        <div><div style="font-size:10.5px;color:var(--text3)">${l === "ar" ? "مكتملة" : "Completed"}</div><div style="font-weight:700;color:var(--green)">${st.completed_meetings || 0}</div></div>
+        <div><div style="font-size:10.5px;color:var(--text3)">${l === "ar" ? "قادمة" : "Pending"}</div><div style="font-weight:700;color:var(--blue)">${st.pending_meetings || 0}</div></div>
+        <div><div style="font-size:10.5px;color:var(--text3)">${l === "ar" ? "إجراءات مفتوحة" : "Open Actions"}</div><div style="font-weight:700;color:var(--amber)">${st.open_actions || 0}</div></div>
+        <div><div style="font-size:10.5px;color:var(--text3)">${l === "ar" ? "قرارات معلّقة" : "Pending Decisions"}</div><div style="font-weight:700">${st.pending_decisions || 0}</div></div>
+      </div>
+      <div class="series-progress-bar"><div class="series-progress-fill" style="width:${st.completion_pct || 0}%"></div></div>
+      <div style="font-size:11px;color:var(--text3);margin:4px 0 12px">${l === "ar" ? "نسبة الإنجاز" : "Completion"}: ${st.completion_pct || 0}% ${st.next_meeting_date ? `· ${l === "ar" ? "القادم" : "Next"}: ${st.next_meeting_date}` : ""}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-ghost btn-sm" onclick="SeriesPanel.viewTimeline(${s.id})">🗂 ${l === "ar" ? "عرض الاجتماعات" : "View Meetings"}</button>
+        <button class="btn-ghost btn-sm" id="series-report-btn-${s.id}" onclick="SeriesPanel.downloadReport(${s.id})">📄 ${l === "ar" ? "تقرير PDF" : "PDF Report"}</button>
+        <button class="btn-ghost btn-sm" onclick="SeriesPanel.openEdit(${s.id})">✏️ ${l === "ar" ? "تعديل" : "Edit"}</button>
+        <button class="btn-ghost btn-sm" style="color:var(--red)" onclick="SeriesPanel.delete(${s.id})">🗑</button>
+      </div>
+    </div>`;
+  },
+
+  viewTimeline(seriesId) {
+    Panels.load("history").then(() => {
+      const sel = $("hist-filter-series");
+      if (sel) { sel.value = String(seriesId); MeetingHistory.applyFilters(); }
+    });
+  },
+
+  async downloadReport(seriesId) {
+    const l = App.lang;
+    const btn = $(`series-report-btn-${seriesId}`);
+    if (btn) { btn.disabled = true; btn.textContent = l === "ar" ? "⏳ جارٍ التوليد..." : "⏳ Generating..."; }
+    try {
+      const resp = await fetch(`/api/meeting-series/${seriesId}/report`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: l }),
+      });
+      if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || `HTTP ${resp.status}`); }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `series-report-${seriesId}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast(l === "ar" ? "✓ تم توليد تقرير السلسلة" : "✓ Series report downloaded");
+    } catch (e) {
+      alert((l === "ar" ? "خطأ: " : "Error: ") + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = `📄 ${l === "ar" ? "تقرير PDF" : "PDF Report"}`; }
+    }
+  },
+
+  async _populateOwnerSelect() {
+    const sel = $("series-owner");
+    if (!sel) return;
+    const l = App.lang;
+    try {
+      const members = await api("/api/members");
+      const current = sel.value;
+      sel.innerHTML = `<option value="">— ${l === "ar" ? "بدون مالك" : "No owner"} —</option>` +
+        members.map((m) => `<option value="${m.id}">${esc(l === "ar" ? m.name_ar : (m.name_en || m.name_ar))}</option>`).join("");
+      sel.value = current;
+    } catch (_) {}
+  },
+
+  async openCreate() {
+    this._editingId = null;
+    const l = App.lang;
+    $("series-modal-title").textContent = l === "ar" ? "سلسلة اجتماعات جديدة" : "New Meeting Series";
+    ["series-name-ar", "series-name-en", "series-category", "series-desc-ar", "series-desc-en"].forEach((id) => { if ($(id)) $(id).value = ""; });
+    await this._populateOwnerSelect();
+    if ($("series-owner")) $("series-owner").value = "";
+    $("modal-series").classList.add("open");
+  },
+
+  async openEdit(id) {
+    const s = this._all.find((x) => x.id === id);
+    if (!s) return;
+    this._editingId = id;
+    const l = App.lang;
+    $("series-modal-title").textContent = l === "ar" ? "تعديل السلسلة" : "Edit Series";
+    $("series-name-ar").value = s.name_ar || "";
+    $("series-name-en").value = s.name_en || "";
+    $("series-category").value = s.category || "";
+    $("series-desc-ar").value = s.description_ar || "";
+    $("series-desc-en").value = s.description_en || "";
+    await this._populateOwnerSelect();
+    if ($("series-owner")) $("series-owner").value = s.owner_id || "";
+    $("modal-series").classList.add("open");
+  },
+
+  closeModal() {
+    $("modal-series").classList.remove("open");
+  },
+
+  async save() {
+    const l = App.lang;
+    const nameAr = $("series-name-ar").value.trim();
+    if (!nameAr) {
+      alert(l === "ar" ? "يرجى إدخال اسم السلسلة" : "Please enter a series name");
+      return;
+    }
+    const payload = {
+      name_ar: nameAr,
+      name_en: $("series-name-en").value.trim() || nameAr,
+      category: $("series-category").value.trim(),
+      owner_id: parseInt($("series-owner").value) || null,
+      description_ar: $("series-desc-ar").value.trim(),
+      description_en: $("series-desc-en").value.trim(),
+    };
+    try {
+      if (this._editingId) {
+        await api(`/api/gov/meeting-series/${this._editingId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      } else {
+        await api("/api/gov/meeting-series", { method: "POST", body: JSON.stringify(payload) });
+      }
+      SeriesUI.invalidate();
+      this.closeModal();
+      await this.refresh();
+      showToast(l === "ar" ? "✓ تم الحفظ" : "✓ Saved");
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+
+  async delete(id) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "هل تريد حذف هذه السلسلة؟ لن يتم حذف الاجتماعات المرتبطة بها، ولكن ستصبح مستقلة." : "Delete this series? Linked meetings will not be deleted, but will become standalone.")) return;
+    try {
+      await api(`/api/gov/meeting-series/${id}`, { method: "DELETE" });
+      SeriesUI.invalidate();
+      await this.refresh();
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+};
+if ($("modal-series")) {
+  $("modal-series").addEventListener("click", (e) => { if (e.target === $("modal-series")) SeriesPanel.closeModal(); });
+}
 
 // ── Minutes Approval Workflow helpers ──────────────────────────────────────
 async function minutesApprovalAction(meetingId, action) {
@@ -5118,6 +5540,7 @@ const Schedule = {
         .join("");
     this.onBoardChange();
     this._populatePrevMeetings();
+    SeriesUI.init('nm');
   },
   async _populatePrevMeetings() {
     const sel = $("nm-prev");
@@ -5185,6 +5608,7 @@ const Schedule = {
       committee_id: parseInt($("nm-committee") && $("nm-committee").value) || null,
       prev_meeting_id: parseInt($("nm-prev") && $("nm-prev").value) || null,
       recurrence: ($("nm-recurrence") && $("nm-recurrence").value) || "none",
+      ...SeriesUI.resolvePayload("nm"),
     };
     if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
       alert(
@@ -5215,6 +5639,9 @@ const Schedule = {
       if ($("nm-template")) $("nm-template").value = "";
       if ($("nm-join-url")) $("nm-join-url").value = "";
       if ($("nm-plat")) { $("nm-plat").value = "physical"; Schedule.onProviderChange(); }
+      SeriesUI.invalidate();
+      SeriesUI.setMode("nm", "standalone");
+      SeriesUI.init("nm");
       if (rec !== "none")
         showToast(
           App.lang === "ar"
