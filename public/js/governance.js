@@ -285,7 +285,10 @@ const Gov = {
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px">
-        ${gas.map((ga, idx) => {
+        ${!gas.length ? `<div class="es" style="padding:16px">
+          <div class="es-icon">🏢</div>
+          <div style="font-size:12px">${lbl('لا توجد جمعيات عمومية بعد — أنشئ واحدة للبدء','No general assemblies yet — create one to get started')}</div>
+        </div>` : gas.map((ga, idx) => {
           const title = l==='ar' ? ga.title_ar : (ga.title_en||ga.title_ar);
           const isUpcoming = ga.meeting_date >= today;
           const sc = stColor[ga.status] || 'var(--text3)';
@@ -1085,6 +1088,25 @@ const Gov = {
           </div>
         </div>
       </div>
+      ${resolutions.length > 1 ? (() => {
+        const sorted = [...resolutions].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+        return `<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border2)">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🕐 ${lbl('الجدول الزمني للقرارات','Resolution Timeline')}</div>
+          <div style="display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch">
+            ${sorted.map((r, i) => {
+              const vs = r.voting_status || 'draft';
+              const vsi = VS[vs] || VS.draft;
+              const date = (r.created_at || '').substring(0, 10);
+              return `${i > 0 ? `<div style="width:24px;height:1.5px;background:var(--border2);flex-shrink:0;margin-top:9px"></div>` : ''}
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;cursor:pointer;min-width:110px" onclick="Gov.scrollToResolution(${r.id})">
+                  <div style="width:18px;height:18px;border-radius:50%;background:${vsi.bg};border:2px solid ${vsi.c}"></div>
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);text-align:center;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</div>
+                  <div style="font-size:10px;color:var(--text3)">${date}</div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      })() : ''}
       ${resolutions.length
         ? resolutions.map(resCard).join('')
         : `<div class="es" style="padding:24px">
@@ -2207,4 +2229,8 @@ const Gov = {
   // ── Helpers ────────────────────────────────────────────────────────────────
   _showForm(id) { const el = $(id); if (el) el.style.display = ''; },
   _hideForm(id) { const el = $(id); if (el) el.style.display = 'none'; },
+  scrollToResolution(id) {
+    const el = $('res-card-' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
 };

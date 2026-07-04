@@ -542,7 +542,9 @@
         <div class="ptitle" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</div>
         <div class="ptitle-sub" data-ar="مساعدك الذكي التنفيذي · سياق كامل لجميع الاجتماعات والمهام والقرارات" data-en="Your executive AI · Full context of all meetings, tasks and decisions">مساعدك الذكي التنفيذي · سياق كامل</div>
       </div>
-      <div style="display:flex;gap:7px;align-items:center">
+      <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+        <input type="search" id="chat-search" class="fi" style="width:150px" oninput="Chat.searchConversation(this.value)"
+          data-ph-ar="🔍 بحث في المحادثة" data-ph-en="🔍 Search conversation" placeholder="🔍 Search conversation"/>
         <div class="ai-pill">✦ Claude · Anthropic</div>
         <button class="btn-ghost btn-sm" onclick="Chat.copyConversation()"><span data-ar="📋 نسخ" data-en="📋 Copy">📋 نسخ</span></button>
         <button class="btn-ghost btn-sm" onclick="Chat.exportConversation()"><span data-ar="⬇ تصدير" data-en="⬇ Export">⬇ تصدير</span></button>
@@ -558,6 +560,8 @@
         <div class="mts" id="welcome-ts"></div>
       </div>
     </div>
+    <div id="chat-favorite-prompts"></div>
+    <div id="chat-recent-searches"></div>
     <div class="qchips" id="chat-chips">
       <button class="qc" data-kind="search_meetings" data-q-ar="ابحث في الاجتماعات — أرني آخر الاجتماعات المسجلة" data-q-en="Search meetings — show me the most recent recorded meetings" onclick="Chat.quick(this)" data-ar="🔍 بحث في الاجتماعات" data-en="🔍 Search Meetings">🔍 بحث في الاجتماعات</button>
       <button class="qc" data-kind="find_decisions" data-q-ar="ابحث عن القرارات — أرني القرارات المعلقة" data-q-en="Find decisions — show me the pending decisions" onclick="Chat.quick(this)" data-ar="⚖️ إيجاد القرارات" data-en="⚖️ Find Decisions">⚖️ إيجاد القرارات</button>
@@ -567,6 +571,8 @@
       <button class="qc" data-kind="generate_report" data-q-ar="ما التقارير التي يمكنك مساعدتي في توليدها؟" data-q-en="What reports can you help me generate?" onclick="Chat.quick(this)" data-ar="📈 توليد تقرير" data-en="📈 Generate Report">📈 توليد تقرير</button>
       <button class="qc" data-kind="create_action" data-q-ar="أريد إنشاء إجراء تنفيذي جديد" data-q-en="I want to create a new executive action" onclick="Chat.quick(this)" data-ar="🎯 إنشاء إجراء تنفيذي" data-en="🎯 Create Executive Action">🎯 إنشاء إجراء تنفيذي</button>
       <button class="qc" data-kind="search_governance" data-q-ar="ابحث في الحوكمة — أرني آخر مستجدات الحوكمة" data-q-en="Search governance — show me the latest governance updates" onclick="Chat.quick(this)" data-ar="🏛️ بحث في الحوكمة" data-en="🏛️ Search Governance">🏛️ بحث في الحوكمة</button>
+      <button class="qc" data-kind="find_owner" data-q-ar="من هو المسؤول عن كل إجراء تنفيذي متأخر؟" data-q-en="Who owns each overdue executive action?" onclick="Chat.quick(this)" data-ar="👤 تحديد مسؤول الإجراء" data-en="👤 Find Action Owner">👤 تحديد مسؤول الإجراء</button>
+      <button class="qc" data-kind="exec_summary" data-q-ar="أنشئ لي ملخصاً تنفيذياً لهذا الأسبوع" data-q-en="Generate an executive summary for this week" onclick="Chat.quick(this)" data-ar="🧾 ملخص تنفيذي" data-en="🧾 Executive Summary">🧾 ملخص تنفيذي</button>
     </div>
   </div>
   <div class="chat-ft">
@@ -591,6 +597,7 @@
     </div>
   </div>
   <div class="pbody">
+    <div id="doc-quick-access"></div>
     <!-- File Library Section -->
     <div class="card" style="margin-bottom:16px">
       <div class="ch" style="margin-bottom:10px">
