@@ -93,8 +93,8 @@ body{font-family:'Inter','Segoe UI',Tahoma,Arial,sans-serif;font-size:14px;line-
 .panel.active{display:flex}
 .ph{padding:18px 24px 15px;border-bottom:1px solid var(--border2);flex-shrink:0;background:var(--navy2);box-shadow:0 1px 0 var(--border3)}
 .ph-row{display:flex;align-items:center;justify-content:space-between}
-.ptitle{font-size:18px;font-weight:700;color:var(--gold);letter-spacing:-.02em}
-.ptitle-sub{font-size:11.5px;color:var(--text3);margin-top:4px;font-weight:400}
+.ptitle{font-size:20px;font-weight:700;color:var(--gold);letter-spacing:-.02em}
+.ptitle-sub{font-size:12px;color:var(--text3);margin-top:4px;font-weight:400}
 .pbody{flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:16px}
 
 /* ── Cards ─────────────────────────────────────────────────────── */
@@ -261,7 +261,36 @@ select.fi option{background:var(--navy3)}
 .smeta{font-size:11px;color:var(--text3);display:flex;gap:9px;flex-wrap:wrap}
 
 /* ── Stats / Dashboard ─────────────────────────────────────────── */
-.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+/* auto-fit (not a fixed repeat(N)) so the SAME class adapts to any card
+   count and any viewport without a JS-computed column count or extra
+   breakpoints — a fixed inline column count used to bypass the 900px/600px
+   overrides below entirely and crush KPI cards into unreadable slivers on
+   phones. */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+/* Executive hero row: 1-3 primary metrics rendered larger than the rest, so
+   the dashboard reads as "a few things that matter most" rather than a wall
+   of equal-weight tiles. */
+.stat-hero-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.stat-hero-grid .stat-clickable{min-height:150px}
+.stat-hero-grid .stat-hero-val{font-size:40px}
+/* Secondary metrics: compact pill-style row, not full cards — keeps the
+   hero row visually dominant per "large KPIs, not dozens of equal boxes". */
+.stat-mini-row{display:flex;flex-wrap:wrap;gap:10px}
+.stat-mini{flex:1 1 150px;display:flex;align-items:center;gap:10px;background:var(--navy2);border:1px solid var(--border2);border-radius:var(--rm);padding:12px 14px;cursor:pointer;transition:var(--t)}
+.stat-mini:hover{border-color:var(--gold-border);background:var(--navy3)}
+.stat-mini-icon{font-size:18px;flex-shrink:0}
+.stat-mini-val{font-size:19px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.stat-mini-lbl{font-size:10.5px;color:var(--text3);margin-top:2px;font-weight:500}
+/* Reusable two-column responsive grid — replaces the many ad-hoc inline
+   `display:grid;grid-template-columns:1fr 1fr` styles that had no min-width
+   guard and no mobile collapse, which is what let long-content columns
+   (e.g. the Schedule form) overflow the viewport instead of shrinking. */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-2>*{min-width:0}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.grid-3>*{min-width:0}
+@media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.grid-3{grid-template-columns:1fr}}
 .stat-c{background:var(--navy2);border:1px solid var(--border2);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow-sm);transition:transform var(--t),box-shadow var(--t),border-color var(--t);position:relative;overflow:hidden}
 .stat-c::before{content:'';position:absolute;inset:0 auto 0 0;width:3px;border-radius:3px 0 0 3px;background:var(--gold);opacity:.6}
 .stat-c:nth-child(2)::before{background:var(--green);opacity:.7}
@@ -667,16 +696,19 @@ select.fi,textarea.fi{transition:border-color var(--t),background var(--t),box-s
 /* ── Mobile responsiveness (safe, additive) ────────────────────── */
 @media (max-width:900px){
   .shell{grid-template-columns:210px 1fr}
-  .stat-grid{grid-template-columns:repeat(2,1fr)}
   .topbar{padding:0 18px}
   .ph{padding:18px 20px 14px}
   .pbody{padding:18px 20px;gap:16px}
   .card{padding:18px 20px}
-  .eg,.fr2,.imp-grid{grid-template-columns:1fr}
+  .eg,.fr2,.imp-grid,.grid-2{grid-template-columns:1fr}
   .mb{max-width:88%}
   .hist-wrap{flex-direction:column}
   .hist-list-pane{width:100%;max-height:280px;border-inline-end:none;border-bottom:1px solid var(--border2)}
   .hist-filters{grid-template-columns:1fr 1fr}
+  /* Secondary topbar badges (AI key status, plan, "Ready" status) are
+     informational, not primary controls — drop them before the essential
+     language/theme toggles ever have to compete for space. */
+  #api-key-btn,#plan-btn,#status-pill{display:none}
 }
 @media (max-width:600px){
   .shell{grid-template-columns:60px 1fr}
@@ -686,8 +718,8 @@ select.fi,textarea.fi{transition:border-color var(--t),background var(--t),box-s
   .nb{position:relative}
   .nsec{justify-content:center;font-size:0;padding:14px 6px 4px}
   .nsec::after{display:none}
-  .stat-grid{grid-template-columns:1fr}
   .topbar-mid{display:none}
+  .brand-en{display:none}
   .ptitle{font-size:19px}
   .modal{padding:24px}
 }

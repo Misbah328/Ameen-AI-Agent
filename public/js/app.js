@@ -3358,6 +3358,7 @@ const MeetingHistory = {
   async refresh() {
     const list = $("hist-list");
     if (list) list.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    if (!this._selectedId) this.renderEmptyDetail();
     try {
       this._all = await api("/api/meetings");
       this._populateGovFilters();
@@ -4618,14 +4619,6 @@ async function renderTasks() {
       <div style="font-size:13px;font-weight:800;color:var(--text);letter-spacing:.02em">${l==="ar"?ar:en}</div>
     </div>`;
 
-    const _tasksBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:13px 16px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:14px">
-      <div>
-        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:3px">📋 ${l==="ar"?"حوكمة الإجراءات التنفيذية":"Executive Action Governance"}</div>
-        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${l==="ar"?"تتبع المهام، الملاك، المواعيد، التحديثات، التصعيدات، والقرارات من كل اجتماع — حتى الإنجاز الكامل.":"Track actions, owners, deadlines, progress updates, escalations, and decisions from every meeting — to full completion."}</div>
-      </div>
-      <button class="btn-gold btn-sm" onclick="Modals.addTask()" style="white-space:nowrap;font-size:12px">+ ${l==="ar"?"مهمة يدوية":"Add Task"}</button>
-    </div>`;
-
     // ── Filter bar: owner / status / priority / meeting / department / My Tasks ──
     const _opt = (val, label, selected) => `<option value="${esc(val)}" ${selected ? "selected" : ""}>${esc(label)}</option>`;
     const _filterBar = `<div class="tf-bar">
@@ -4661,12 +4654,12 @@ async function renderTasks() {
     const filteredOpen = filtered.filter(t => t.status !== "done" && t.status !== "cancelled");
     const filteredDone = filtered.filter(t => t.status === "done" || t.status === "cancelled");
 
-    body.innerHTML = _tasksBanner +
+    body.innerHTML =
       _filterBar +
       kpiHtml +
       _secHdrT("⚡", "الجدول الزمني لحوكمة الإجراءات", "Action Governance Timeline") +
       (filtersActive
-        ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+        ? `<div class="grid-2" style="align-items:start">
         <div class="card">
           <div class="ch" style="margin-bottom:6px">
             <div><div class="ct">${l==="ar"?"نتائج البحث — مفتوحة":"Filtered — Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?`${filtered.length} نتيجة مطابقة`:`${filtered.length} matching result(s)`}</div></div>
@@ -4686,7 +4679,7 @@ async function renderTasks() {
             : filteredDone.map(renderTask).join("")}
         </div>
       </div>`
-        : `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start">
+        : `<div class="grid-3" style="align-items:start">
         <div class="card">
           <div class="ch" style="margin-bottom:6px">
             <div><div class="ct">${l==="ar"?"⚠ متأخرة / مفتوحة":"⚠ Overdue / Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"تحتاج انتباهاً فورياً":"Require immediate attention"}</div></div>
@@ -6814,14 +6807,6 @@ async function renderOverview() {
       ROLE_STAT_KEYS[role] || ROLE_STAT_KEYS["Admin"],
     );
     const statCards = allStatCards.filter((c) => allowedKeys.has(c.key));
-    const gridCols =
-      statCards.length <= 3
-        ? statCards.length
-        : statCards.length <= 4
-          ? 4
-          : statCards.length <= 7
-            ? 4
-            : 4;
 
     const roleColor = ROLE_COLORS[role] || "var(--gold)";
     const roleHeader =
@@ -6836,42 +6821,55 @@ async function renderOverview() {
       </div>`
         : "";
 
-    const statsHtml = `<div style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:12px;margin-bottom:16px">
-        ${statCards
-          .map(
-            (
-              s,
-            ) => {
-          // Trend & sub-description per metric
-          const td = {
-            meetings:      { trend:'neu', tl: lbl('كل الاجتماعات','All sessions'), sub: lbl('انقر لعرض المحاضر','Click to view transcripts') },
-            tasks_open:    { trend: s.val > 0 ? 'warn' : 'neu', tl: s.val > 0 ? lbl(`${stats.tasks_overdue} متأخرة`,''+stats.tasks_overdue+' overdue') : lbl('لا مهام مفتوحة','No open tasks'), sub: lbl('المهام الجارية والجديدة','In-progress & new tasks') },
-            tasks_overdue: { trend: s.val > 0 ? 'down' : 'neu', tl: s.val > 0 ? lbl('تحتاج انتباهاً فورياً','Requires immediate action') : lbl('لا متأخرة ✓','None overdue ✓'), sub: lbl('المهام المتجاوزة للموعد','Past due date') },
-            tasks_done:    { trend:'up',  tl: stats.completion + '% ' + lbl('نسبة إنجاز','completion'), sub: lbl('مكتملة هذا الأسبوع','Completed tasks') },
-            decisions:     { trend:'neu', tl: lbl('قيد التنفيذ','Tracked decisions'), sub: lbl('من كل الاجتماعات','Across all meetings') },
-            schedule:      { trend:'neu', tl: lbl('الـ 30 يوم القادمة','Next 30 days'), sub: lbl('اجتماعات مجدولة','Scheduled meetings') },
-            users:         { trend:'neu', tl: lbl('أعضاء الفريق','Team members'), sub: lbl('لديهم صلاحية الوصول','With system access') },
-            completion:    { trend: s.val >= 70 ? 'up' : s.val >= 40 ? 'warn' : 'down', tl: s.val >= 70 ? lbl('أداء ممتاز','Excellent performance') : s.val >= 40 ? lbl('أداء متوسط','Moderate performance') : lbl('يحتاج متابعة','Needs attention'), sub: lbl('نسبة إنجاز المهام','Overall task completion') },
-          }[s.key] || { trend:'neu', tl: '', sub: '' };
+    // Trend & sub-description per metric
+    const statTrendData = (s) => ({
+      meetings:      { trend:'neu', tl: lbl('كل الاجتماعات','All sessions'), sub: lbl('انقر لعرض المحاضر','Click to view transcripts') },
+      tasks_open:    { trend: s.val > 0 ? 'warn' : 'neu', tl: s.val > 0 ? lbl(`${stats.tasks_overdue} متأخرة`,''+stats.tasks_overdue+' overdue') : lbl('لا مهام مفتوحة','No open tasks'), sub: lbl('المهام الجارية والجديدة','In-progress & new tasks') },
+      tasks_overdue: { trend: s.val > 0 ? 'down' : 'neu', tl: s.val > 0 ? lbl('تحتاج انتباهاً فورياً','Requires immediate action') : lbl('لا متأخرة ✓','None overdue ✓'), sub: lbl('المهام المتجاوزة للموعد','Past due date') },
+      tasks_done:    { trend:'up',  tl: stats.completion + '% ' + lbl('نسبة إنجاز','completion'), sub: lbl('مكتملة هذا الأسبوع','Completed tasks') },
+      decisions:     { trend:'neu', tl: lbl('قيد التنفيذ','Tracked decisions'), sub: lbl('من كل الاجتماعات','Across all meetings') },
+      schedule:      { trend:'neu', tl: lbl('الـ 30 يوم القادمة','Next 30 days'), sub: lbl('اجتماعات مجدولة','Scheduled meetings') },
+      users:         { trend:'neu', tl: lbl('أعضاء الفريق','Team members'), sub: lbl('لديهم صلاحية الوصول','With system access') },
+      completion:    { trend: s.val >= 70 ? 'up' : s.val >= 40 ? 'warn' : 'down', tl: s.val >= 70 ? lbl('أداء ممتاز','Excellent performance') : s.val >= 40 ? lbl('أداء متوسط','Moderate performance') : lbl('يحتاج متابعة','Needs attention'), sub: lbl('نسبة إنجاز المهام','Overall task completion') },
+    }[s.key] || { trend:'neu', tl: '', sub: '' });
+
+    // Executive hierarchy: the first few metrics (meetings + task pipeline)
+    // read as large "hero" KPIs; the rest are compact pills below them — per
+    // "large KPIs... not dozens of equal-sized boxes" rather than one flat
+    // grid of identical cards.
+    const heroCards = statCards.slice(0, 4);
+    const secondaryCards = statCards.slice(4);
+
+    const statsHtml = `<div class="stat-hero-grid" style="margin-bottom:${secondaryCards.length ? '12px' : '16px'}">
+        ${heroCards.map((s) => {
+          const td = statTrendData(s);
           const trendClass = { up:'trend-up', down:'trend-down', neu:'trend-neu', warn:'trend-warn' }[td.trend];
           const trendIcon  = { up:'↑', down:'↓', neu:'●', warn:'⚠' }[td.trend];
           return `<div class="card stat-clickable" style="text-align:center;padding:24px 16px 20px;cursor:pointer;position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
           <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${s.color};opacity:.9;border-radius:14px 14px 0 0"></div>
           <div style="font-size:32px;margin-bottom:10px;line-height:1">${s.icon}</div>
-          <div style="font-size:34px;font-weight:800;color:${s.color};letter-spacing:-.04em;line-height:1">${s.val}</div>
+          <div class="stat-hero-val" style="font-weight:800;color:${s.color};letter-spacing:-.04em;line-height:1">${s.val}</div>
           <div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.3">${s.label}</div>
           <div class="stat-trend ${trendClass}">${trendIcon} ${td.tl}</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.4">${td.sub}</div>
           <div class="stat-click-hint">${l === 'ar' ? '← اضغط للعرض' : 'click to view →'}</div>
-        </div>`;},
-          )
-          .join("")}
-      </div>`;
+        </div>`;
+        }).join("")}
+      </div>
+      ${secondaryCards.length ? `<div class="stat-mini-row" style="margin-bottom:16px">
+        ${secondaryCards.map((s) => `<div class="stat-mini" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
+          <span class="stat-mini-icon">${s.icon}</span>
+          <div>
+            <div class="stat-mini-val" style="color:${s.color}">${s.val}</div>
+            <div class="stat-mini-lbl">${s.label}</div>
+          </div>
+        </div>`).join("")}
+      </div>` : ""}`;
 
     const hasCharts = !!window.Chart;
     const chartsGridHtml = hasCharts
       ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="grid-2" style="margin-bottom:14px">
         <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">📊 ${lbl("مسار المهام — 8 أسابيع", "Task Trend — 8 Weeks")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-tasks"></canvas></div></div>
         <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">🎙 ${lbl("نشاط الاجتماعات — 6 أشهر", "Meeting Activity — 6 Months")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-meetings"></canvas></div></div>
         <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">👥 ${lbl("أداء الفريق", "Team Performance")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-team"></canvas></div></div>
@@ -7016,16 +7014,8 @@ async function renderOverview() {
     const dash = Dash.get();
     const sec = (k, html) => (dash[k] === false ? "" : html);
     const showCharts = hasCharts && ROLE_ACCESS[role] && ROLE_ACCESS[role].has("analytics");
-    const _ovBanner = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:15px 18px;background:linear-gradient(135deg,var(--navy3),var(--navy2));border:1px solid var(--border2);border-radius:12px;margin-bottom:18px">
-      <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">📊 ${lbl('نظرة تنفيذية سريعة','Executive Snapshot')}</div>
-        <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${lbl('جميع مقاييس المنظومة في مكان واحد — انقر على أي بطاقة للانتقال مباشرةً إلى الصفحة المعنية','All organisation metrics in one view — click any card to navigate directly to that section')}</div>
-      </div>
-      <button class="btn-gold btn-sm" onclick="Panels.load('record')" style="white-space:nowrap;font-size:12px">🎙 ${lbl('تسجيل اجتماع','Record Meeting')}</button>
-    </div>`;
     body.innerHTML = `
       ${roleHeader}
-      ${_ovBanner}
       ${Dash.bar(l)}
       ${sec("stats", `<div style="margin-bottom:4px"><div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
       ${showCharts ? sec("charts", `<div>${_secHdr('📈',lbl('الاتجاهات والرسوم البيانية','Trends & Charts'),'','',lbl('بيانات حية من الاجتماعات المسجلة','Live data from recorded sessions'))}${chartsGridHtml}</div>`) : ""}
@@ -7198,12 +7188,15 @@ const Dash = {
       en,
     ) => `<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer">
       <input type="checkbox" ${c[k] !== false ? "checked" : ""} onchange="Dash.set('${k}', this.checked)" style="width:15px;height:15px;accent-color:var(--gold)">${l === "ar" ? ar : en}</label>`;
-    return `<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:10px 14px">
-      <span style="font-size:11px;font-weight:700;color:var(--text)">⚙️ ${l === "ar" ? "تخصيص اللوحة" : "Customize Dashboard"}</span>
-      ${item("stats", "الإحصائيات", "Stats")}
-      ${item("team", "أداء الفريق", "Team Performance")}
-      ${item("upcoming", "الاجتماعات القادمة", "Upcoming")}
-      ${item("overdue", "المهام المتأخرة", "Overdue")}
+    return `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">⚙️ ${l === "ar" ? "تخصيص" : "Customize"}</span>
+        ${item("stats", "الإحصائيات", "Stats")}
+        ${item("team", "أداء الفريق", "Team")}
+        ${item("upcoming", "الاجتماعات القادمة", "Upcoming")}
+        ${item("overdue", "المهام المتأخرة", "Overdue")}
+      </div>
+      <button class="btn-gold btn-sm" onclick="Panels.load('record')" style="white-space:nowrap">🎙 ${l === "ar" ? "تسجيل اجتماع" : "Record Meeting"}</button>
     </div>`;
   },
 };

@@ -136,7 +136,7 @@ const Gov = {
       { icon:'📌', val:openActions,       label:lbl('إجراءات حوكمة مفتوحة','Open Governance Actions'), color:'var(--red)', sub:lbl('متابعات نشطة','Active follow-ups') },
     ];
 
-    const kpiHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px">
+    const kpiHtml = `<div class="stat-grid">
       ${kpis.map(k => `<div class="card stat-clickable" style="padding:20px 16px 16px;text-align:center;position:relative;overflow:hidden;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${k.color};border-radius:14px 14px 0 0"></div>
         <div style="font-size:28px;margin-bottom:8px;line-height:1">${k.icon}</div>
@@ -228,11 +228,6 @@ const Gov = {
       </div>` : '';
 
     return `<div style="display:flex;flex-direction:column;gap:16px">
-      <div class="hint-bar">
-        <span class="hint-icon">🏛</span>
-        <div><strong>${lbl('لوحة الحوكمة التنفيذية — مجموعة أمين هولدينج','Executive Governance Dashboard — Ameen Holdings Group')}</strong><br>
-        <span style="font-size:13px">${lbl('إدارة المجالس، اللجان، الجمعيات العمومية، النصاب، التصويت، القرارات، والاعتمادات في مكان واحد.','Manage boards, committees, general assemblies, quorum, voting, resolutions, and approvals in one place.')}</span></div>
-      </div>
       ${kpiHtml}
       ${resHtml}
       ${upcomingHtml}
