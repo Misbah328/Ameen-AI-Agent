@@ -22,6 +22,7 @@ app.use('/recordings', express.static(path.join(__dirname, 'data/recordings')));
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));
 app.use('/api/gov', require('./src/routes/governance'));
+app.use('/api/rbac', require('./src/routes/rbac'));
 
 // Public attendee confirmation page (token-gated, no login)
 app.get('/m/:token', (req, res) => {

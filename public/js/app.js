@@ -180,6 +180,27 @@ const ROLE_ACCESS = {
   ]),
   Employee: new Set(["record", "transcripts", "history", "tasks", "ask"]),
   Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
+  // ── Phase 4 enterprise RBAC roles ──────────────────────────────────────────
+  "Super Admin": new Set([
+    "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "documents", "schedule", "series", "team", "overview", "analytics",
+    "governance", "admin",
+  ]),
+  "Organization Admin": new Set([
+    "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "documents", "schedule", "series", "team", "overview", "analytics",
+    "governance", "admin",
+  ]),
+  "Board Secretary": new Set([
+    "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "documents", "schedule", "series", "overview", "analytics", "governance",
+  ]),
+  "Committee Chair": new Set([
+    "transcripts", "history", "tasks", "ask", "documents", "schedule",
+    "series", "overview", "governance",
+  ]),
+  Auditor: new Set(["transcripts", "history", "lastmeeting", "tasks", "overview", "analytics"]),
+  Guest: new Set(["transcripts", "history", "lastmeeting"]),
 };
 
 // ══ Executive Action taxonomy ══════════════════════════════════════════════
@@ -231,9 +252,6 @@ const AI_CONFIDENCE_META = {
   low: { ar: "ثقة منخفضة", en: "Low Confidence", c: "var(--red)", bg: "rgba(220,60,60,.12)" },
 };
 const PROGRESS_STEPS = [0, 25, 50, 75, 100];
-// Mirrors TASK_FULL_MANAGE_ROLES in src/routes/api.js — used only to decide
-// which controls to render; the API enforces the actual restriction.
-const TASK_FULL_MANAGE_ROLES = ["Admin", "CEO", "Manager", "Executive", "Board Member", "Committee Member"];
 
 const ROLE_COLORS = {
   Admin: "#e05a5a",
@@ -244,6 +262,12 @@ const ROLE_COLORS = {
   Manager: "#EFA827",
   Employee: "#888",
   Observer: "#888",
+  "Super Admin": "#e05a5a",
+  "Organization Admin": "#e08a4a",
+  "Board Secretary": "#5BC0D6",
+  "Committee Chair": "#2ECC8A",
+  Auditor: "#7a7a9a",
+  Guest: "#888",
 };
 
 // ══ Charts helper — wraps Chart.js; destroys stale instance before re-render ══
@@ -367,6 +391,13 @@ const App = {
   systemRole: "Admin",
   plan: "free",
   chatHistory: [],
+  // Populated from GET /api/rbac/my-permissions in loadSelectLists() — lets
+  // the UI hide actions the backend would 403 on anyway (defense in depth,
+  // the backend requirePermission() check is still the real gate).
+  permissions: new Set(),
+  can(permKey) {
+    return this.permissions.has(permKey);
+  },
 
   async init() {
     this.applyTheme(this.theme);
@@ -786,16 +817,18 @@ async function loadBadges() {
 // ══ Load select dropdowns ═════════════════════════════════════════════════════
 async function loadSelectLists() {
   try {
-    const [users, bc] = await Promise.all([
+    const [users, bc, myPerms] = await Promise.all([
       api("/api/members"),
       api("/api/gov/boards-and-committees").catch(() => ({
         boards: [],
         committees: [],
       })),
+      api("/api/rbac/my-permissions").catch(() => ({ permissions: [] })),
     ]);
     App._members = users;
     App._boards = bc.boards || [];
     App._committees = bc.committees || [];
+    App.permissions = new Set(myPerms.permissions || []);
     const l = App.lang;
     const opts = users
       .map(
@@ -3290,7 +3323,7 @@ async function renderTranscripts() {
             ${isProcessed ? `<button id="bp-btn-${m.id}" class="btn-ghost btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l === "ar" ? "حزمة المجلس" : "Board Pack"}</button>` : ""}
             ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l === "ar" ? "مشاركة النتائج" : "Share Outcomes"}${App.isPro() ? "" : " ⭐"}</button>` : ""}
             ${mApprovalBtns}
-            <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l === "ar" ? "حذف" : "Delete"}</button>
+            ${App.can("meetings.delete") ? `<button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l === "ar" ? "حذف" : "Delete"}</button>` : ""}
           </div>
         </div>`;
         })
@@ -4423,7 +4456,7 @@ async function renderTasks() {
     const l = App.lang;
     const f = TaskFilters;
 
-    const canFullyManage = TASK_FULL_MANAGE_ROLES.includes(App.systemRole);
+    const canFullyManage = App.can("actions.assign");
     const ownerDept = {};
     members.forEach((m) => { ownerDept[m.id] = m.department || ""; });
     const meetingTitles = [...new Set(tasks.map((t) => (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)).filter(Boolean))];
@@ -6764,6 +6797,18 @@ async function renderOverview() {
       ],
       Employee: ["tasks_open", "tasks_overdue", "tasks_done"],
       Observer: ["meetings", "decisions", "schedule"],
+      "Super Admin": [
+        "meetings", "tasks_open", "tasks_overdue", "tasks_done", "decisions",
+        "schedule", "users", "completion", "tasks_blocked", "tasks_high", "tasks_critical",
+      ],
+      "Organization Admin": [
+        "meetings", "tasks_open", "tasks_overdue", "tasks_done", "decisions",
+        "schedule", "users", "completion", "tasks_blocked", "tasks_high", "tasks_critical",
+      ],
+      "Board Secretary": ["meetings", "decisions", "schedule", "completion", "tasks_open", "tasks_overdue"],
+      "Committee Chair": ["tasks_open", "tasks_overdue", "tasks_done", "decisions"],
+      Auditor: ["meetings", "decisions", "schedule", "tasks_open", "tasks_overdue", "tasks_done", "completion"],
+      Guest: ["meetings", "schedule"],
     };
     const allowedKeys = new Set(
       ROLE_STAT_KEYS[role] || ROLE_STAT_KEYS["Admin"],
@@ -7164,24 +7209,52 @@ const Dash = {
 };
 
 // ══ Admin Panel (Role Management) ═════════════════════════════════════════════
-const SYSTEM_ROLES = [
-  "Admin",
-  "CEO",
-  "Board Member",
-  "Committee Member",
-  "Executive",
-  "Manager",
-  "Employee",
-  "Observer",
-];
-
 async function renderAdminPanel() {
-  const body = $("admin-body");
-  if (!body) return;
-  body.innerHTML = '<div class="es"><div class="loading"></div></div>';
-  try {
-    const members = await api("/api/members");
+  await AdminPanel.render();
+}
+
+// ══ Role Management (Phase 4 enterprise RBAC) ═══════════════════════════════
+const AdminPanel = {
+  _tab: "users",
+  _rolesCache: null,
+  _catalogCache: null,
+  _permQuery: "",
+  _roleQuery: "",
+  _cloneSourceId: null,
+
+  async render() {
+    const body = $("admin-body");
+    if (!body) return;
+    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      if (this._tab === "users") await this.renderUsersTab(body);
+      else if (this._tab === "matrix") await this.renderMatrixTab(body);
+      else if (this._tab === "audit") await this.renderAuditTab(body);
+    } catch (e) {
+      body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+
+  setTab(tab) {
+    this._tab = tab;
+    document.querySelectorAll("#admin-tabs .imp-seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+    this.render();
+  },
+
+  async _loadRoles(force) {
+    if (!this._rolesCache || force) this._rolesCache = await api("/api/rbac/roles");
+    return this._rolesCache;
+  },
+  async _loadCatalog() {
+    if (!this._catalogCache) this._catalogCache = await api("/api/rbac/permissions");
+    return this._catalogCache;
+  },
+
+  // ── Tab 1: User Role Assignments (existing capability, dynamic role list) ──
+  async renderUsersTab(body) {
     const l = App.lang;
+    const [members, roles] = await Promise.all([api("/api/members"), this._loadRoles()]);
+    const activeRoles = roles.filter((r) => r.is_active);
     body.innerHTML = `
       <div class="card">
         <div class="ct" style="margin-bottom:6px">👑 ${l === "ar" ? "إدارة صلاحيات المستخدمين" : "User Role Management"}</div>
@@ -7190,13 +7263,8 @@ async function renderAdminPanel() {
           ${members
             .map((m) => {
               const name = l === "ar" ? m.name_ar : m.name_en || m.name_ar;
-              const jobRole =
-                l === "ar" ? m.role_ar || "" : m.role_en || m.role_ar || "";
-              const initials = name
-                .split(" ")
-                .slice(0, 2)
-                .map((w) => w[0] || "")
-                .join("");
+              const jobRole = l === "ar" ? m.role_ar || "" : m.role_en || m.role_ar || "";
+              const initials = name.split(" ").slice(0, 2).map((w) => w[0] || "").join("");
               const sysRole = m.system_role || "Admin";
               const color = ROLE_COLORS[sysRole] || "var(--text3)";
               return `<div style="display:flex;align-items:center;gap:10px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;flex-wrap:wrap">
@@ -7205,11 +7273,11 @@ async function renderAdminPanel() {
                 <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(name)}</div>
                 <div style="font-size:11px;color:var(--text3)">${esc(jobRole)} · ${esc(m.email)}</div>
               </div>
-              <select class="fi" style="width:auto;min-width:155px;font-size:12px;padding:6px 10px"
+              <select class="fi" style="width:auto;min-width:170px;font-size:12px;padding:6px 10px"
                 onchange="AdminPanel.changeRole(${m.id}, this.value)">
-                ${SYSTEM_ROLES.map((r) => `<option value="${r}" ${sysRole === r ? "selected" : ""}>${r}</option>`).join("")}
+                ${activeRoles.map((r) => `<option value="${r.role_key}" ${sysRole === r.role_key ? "selected" : ""}>${esc(l === "ar" ? r.name_ar : r.name_en)}</option>`).join("")}
               </select>
-              <span id="role-badge-${m.id}" style="font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid ${color}44;color:${color};background:${color}14;white-space:nowrap">${sysRole}</span>
+              <span id="role-badge-${m.id}" style="font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid ${color}44;color:${color};background:${color}14;white-space:nowrap">${esc(sysRole)}</span>
             </div>`;
             })
             .join("")}
@@ -7219,76 +7287,20 @@ async function renderAdminPanel() {
       <div class="card" style="margin-top:14px">
         <div class="ct" style="margin-bottom:10px">ℹ️ ${l === "ar" ? "شرح الأدوار" : "Role Descriptions"}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;font-size:11px">
-          ${[
-            [
-              "Admin",
-              "#e05a5a",
-              l === "ar"
-                ? "مدير النظام — وصول كامل + لوحة الإدارة"
-                : "System Admin — full access + admin panel",
-            ],
-            [
-              "CEO",
-              "#C9A84C",
-              l === "ar" ? "الرئيس التنفيذي — وصول كامل" : "CEO — full access",
-            ],
-            [
-              "Board Member",
-              "#5B9BD6",
-              l === "ar"
-                ? "عضو مجلس — محاضر وقرارات وحوكمة"
-                : "Board Member — transcripts, decisions & governance",
-            ],
-            [
-              "Committee Member",
-              "#2ECC8A",
-              l === "ar"
-                ? "عضو لجنة — مهام وقرارات واجتماعات اللجنة"
-                : "Committee Member — tasks & committee meetings",
-            ],
-            [
-              "Executive",
-              "#9370DB",
-              l === "ar"
-                ? "تنفيذي — تسجيل ومتابعة وتقارير"
-                : "Executive — record, tracking & reports",
-            ],
-            [
-              "Manager",
-              "#EFA827",
-              l === "ar"
-                ? "مدير — تسجيل وإدارة الفريق"
-                : "Manager — record & team management",
-            ],
-            [
-              "Employee",
-              "#888",
-              l === "ar"
-                ? "موظف — تسجيل ومهامه الخاصة"
-                : "Employee — record & own tasks",
-            ],
-            [
-              "Observer",
-              "#888",
-              l === "ar" ? "مراقب — قراءة فقط" : "Observer — read-only",
-            ],
-          ]
-            .map(
-              ([r, c, d]) => `
-            <div style="background:var(--navy3);border-radius:8px;padding:9px 11px;border-inline-start:3px solid ${c}">
-              <div style="color:${c};font-weight:700;margin-bottom:3px">${r}</div>
-              <div style="color:var(--text3)">${d}</div>
-            </div>`,
-            )
+          ${roles
+            .map((r) => {
+              const c = ROLE_COLORS[r.role_key] || "#888";
+              const d = l === "ar" ? r.description_ar : (r.description_en || r.description_ar);
+              return `<div style="background:var(--navy3);border-radius:8px;padding:9px 11px;border-inline-start:3px solid ${c};opacity:${r.is_active ? 1 : 0.5}">
+                <div style="color:${c};font-weight:700;margin-bottom:3px">${esc(l === "ar" ? r.name_ar : r.name_en)}${!r.is_active ? ` (${l === "ar" ? "معطّل" : "disabled"})` : ""}</div>
+                <div style="color:var(--text3)">${esc(d || "")}</div>
+              </div>`;
+            })
             .join("")}
         </div>
       </div>`;
-  } catch (e) {
-    body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
-  }
-}
+  },
 
-const AdminPanel = {
   async changeRole(userId, role) {
     try {
       await api(`/api/members/${userId}/role`, {
@@ -7307,15 +7319,213 @@ const AdminPanel = {
         App.systemRole = role;
         applySidebarRoles();
         App.renderUser();
+        try { const mp = await api("/api/rbac/my-permissions"); App.permissions = new Set(mp.permissions || []); } catch (_) {}
       }
-      showToast(
-        App.lang === "ar"
-          ? `تم تحديث الدور إلى ${role}`
-          : `Role updated to ${role}`,
-      );
+      showToast(App.lang === "ar" ? `تم تحديث الدور إلى ${role}` : `Role updated to ${role}`);
     } catch (e) {
       showToast(e.message, "error");
     }
+  },
+
+  // ── Tab 2: Permission Matrix ────────────────────────────────────────────
+  async renderMatrixTab(body) {
+    const l = App.lang;
+    const [roles, { catalog, categories }] = await Promise.all([this._loadRoles(true), this._loadCatalog()]);
+    const q = this._permQuery.toLowerCase();
+    const rq = this._roleQuery.toLowerCase();
+    const visibleRoles = roles.filter((r) => {
+      if (!rq) return true;
+      return (r.name_ar || "").toLowerCase().includes(rq) || (r.name_en || "").toLowerCase().includes(rq) || r.role_key.toLowerCase().includes(rq);
+    });
+    const visiblePerms = catalog.filter((p) => {
+      if (!q) return true;
+      return p.label_ar.toLowerCase().includes(q) || p.label_en.toLowerCase().includes(q) || p.key.toLowerCase().includes(q) || p.category.includes(q);
+    });
+    const cats = [...new Set(visiblePerms.map((p) => p.category))];
+
+    const roleHeaderHtml = visibleRoles.map((r) => `
+      <th style="min-width:110px;text-align:center;position:relative">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <span style="color:${ROLE_COLORS[r.role_key] || 'var(--text2)'};opacity:${r.is_active ? 1 : 0.5}">${esc(l === "ar" ? r.name_ar : r.name_en)}</span>
+          <div style="display:flex;gap:3px">
+            <button class="btn-ghost btn-sm" style="padding:1px 5px;font-size:10px" title="${l === "ar" ? "استنساخ" : "Clone"}" onclick="AdminPanel.openCloneRole(${r.id})">📋</button>
+            ${!r.is_builtin ? `<button class="btn-ghost btn-sm" style="padding:1px 5px;font-size:10px;color:var(--red)" title="${l === "ar" ? "حذف" : "Delete"}" onclick="AdminPanel.deleteRole(${r.id})">🗑</button>` : ""}
+            <button class="btn-ghost btn-sm" style="padding:1px 5px;font-size:10px" title="${r.is_active ? (l === "ar" ? "تعطيل" : "Disable") : (l === "ar" ? "تفعيل" : "Enable")}" onclick="AdminPanel.toggleActive(${r.id}, ${r.is_active})">${r.is_active ? "🔓" : "🔒"}</button>
+          </div>
+          <button class="btn-gold btn-sm" id="save-role-${r.id}" style="display:none;padding:2px 8px;font-size:10px" onclick="AdminPanel.savePermissions(${r.id})">💾 ${l === "ar" ? "حفظ" : "Save"}</button>
+        </div>
+      </th>`).join("");
+
+    const rowsHtml = cats.map((cat) => {
+      const catMeta = categories[cat] || { ar: cat, en: cat };
+      const catRows = visiblePerms.filter((p) => p.category === cat).map((p) => `
+        <tr>
+          <td style="white-space:nowrap;color:var(--text2)">${esc(l === "ar" ? p.label_ar : p.label_en)}</td>
+          ${visibleRoles.map((r) => `
+            <td style="text-align:center">
+              <input type="checkbox" ${r.permissions.includes(p.key) ? "checked" : ""}
+                onchange="AdminPanel.togglePermCell(${r.id}, '${p.key}', this.checked)"/>
+            </td>`).join("")}
+        </tr>`).join("");
+      return `<tr><td colspan="${visibleRoles.length + 1}" style="background:var(--navy2);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--gold);padding:6px 8px">${esc(l === "ar" ? catMeta.ar : catMeta.en)}</td></tr>${catRows}`;
+    }).join("");
+
+    body.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div class="ct">🔐 ${l === "ar" ? "مصفوفة الصلاحيات" : "Permission Matrix"}</div>
+          <button class="btn-gold btn-sm" onclick="AdminPanel.openCreateRole()">+ ${l === "ar" ? "دور جديد" : "New Role"}</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input type="search" class="fi" style="max-width:260px" placeholder="${l === "ar" ? "بحث عن صلاحية..." : "Search permissions..."}" oninput="AdminPanel.onPermSearch(this.value)"/>
+          <input type="search" class="fi" style="max-width:220px" placeholder="${l === "ar" ? "تصفية الأدوار..." : "Filter roles..."}" oninput="AdminPanel.onRoleSearch(this.value)"/>
+        </div>
+        <div class="exec-actions-table-wrap" style="max-height:65vh;overflow:auto">
+          <table class="exec-actions-table" style="min-width:${300 + visibleRoles.length * 120}px">
+            <thead><tr><th style="position:sticky;inset-inline-start:0;background:var(--navy2);z-index:2"></th>${roleHeaderHtml}</tr></thead>
+            <tbody>${rowsHtml || `<tr><td colspan="${visibleRoles.length + 1}" style="text-align:center;color:var(--text3);padding:20px">${l === "ar" ? "لا توجد نتائج" : "No results"}</td></tr>`}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  onPermSearch(v) {
+    this._permQuery = v || "";
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => this.renderMatrixTab($("admin-body")), 250);
+  },
+  onRoleSearch(v) {
+    this._roleQuery = v || "";
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => this.renderMatrixTab($("admin-body")), 250);
+  },
+
+  togglePermCell(roleId, permKey, checked) {
+    const role = (this._rolesCache || []).find((r) => r.id === roleId);
+    if (!role) return;
+    if (checked && !role.permissions.includes(permKey)) role.permissions.push(permKey);
+    if (!checked) role.permissions = role.permissions.filter((p) => p !== permKey);
+    const btn = $(`save-role-${roleId}`);
+    if (btn) btn.style.display = "";
+  },
+
+  async savePermissions(roleId) {
+    const role = (this._rolesCache || []).find((r) => r.id === roleId);
+    if (!role) return;
+    const l = App.lang;
+    try {
+      await api(`/api/rbac/roles/${roleId}`, { method: "PATCH", body: JSON.stringify({ permissions: role.permissions }) });
+      const btn = $(`save-role-${roleId}`);
+      if (btn) btn.style.display = "none";
+      if (App.user && App.systemRole === role.role_key) {
+        try { const mp = await api("/api/rbac/my-permissions"); App.permissions = new Set(mp.permissions || []); } catch (_) {}
+      }
+      showToast(l === "ar" ? "✓ تم حفظ الصلاحيات" : "✓ Permissions saved");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async toggleActive(roleId, currentlyActive) {
+    try {
+      await api(`/api/rbac/roles/${roleId}`, { method: "PATCH", body: JSON.stringify({ is_active: currentlyActive ? 0 : 1 }) });
+      await this.renderMatrixTab($("admin-body"));
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async deleteRole(roleId) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "هل تريد حذف هذا الدور؟" : "Delete this role?")) return;
+    try {
+      await api(`/api/rbac/roles/${roleId}`, { method: "DELETE" });
+      await this.renderMatrixTab($("admin-body"));
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  openCreateRole() {
+    this._cloneSourceId = null;
+    const l = App.lang;
+    $("role-modal-title").textContent = l === "ar" ? "دور جديد" : "New Role";
+    ["role-key", "role-name-ar", "role-name-en", "role-desc-ar", "role-desc-en"].forEach((id) => { if ($(id)) $(id).value = ""; });
+    $("role-key").disabled = false;
+    $("modal-role").classList.add("open");
+  },
+
+  openCloneRole(roleId) {
+    const role = (this._rolesCache || []).find((r) => r.id === roleId);
+    if (!role) return;
+    this._cloneSourceId = roleId;
+    const l = App.lang;
+    $("role-modal-title").textContent = l === "ar" ? `استنساخ: ${role.name_ar}` : `Clone: ${role.name_en}`;
+    $("role-key").value = "";
+    $("role-key").disabled = false;
+    $("role-name-ar").value = `${role.name_ar} (${l === "ar" ? "نسخة" : "Copy"})`;
+    $("role-name-en").value = `${role.name_en} (Copy)`;
+    $("role-desc-ar").value = role.description_ar || "";
+    $("role-desc-en").value = role.description_en || "";
+    $("modal-role").classList.add("open");
+  },
+
+  closeRoleModal() {
+    $("modal-role").classList.remove("open");
+  },
+
+  async saveRoleModal() {
+    const l = App.lang;
+    const role_key = $("role-key").value.trim();
+    const name_ar = $("role-name-ar").value.trim();
+    const name_en = $("role-name-en").value.trim();
+    if (!role_key || !name_ar || !name_en) {
+      alert(l === "ar" ? "يرجى تعبئة المفتاح والاسم بكلا اللغتين" : "Please fill in the key and both name fields");
+      return;
+    }
+    const payload = {
+      role_key, name_ar, name_en,
+      description_ar: $("role-desc-ar").value.trim(),
+      description_en: $("role-desc-en").value.trim(),
+    };
+    try {
+      if (this._cloneSourceId) {
+        await api(`/api/rbac/roles/${this._cloneSourceId}/clone`, { method: "POST", body: JSON.stringify(payload) });
+      } else {
+        await api("/api/rbac/roles", { method: "POST", body: JSON.stringify(Object.assign({ permissions: [] }, payload)) });
+      }
+      this.closeRoleModal();
+      await this.renderMatrixTab($("admin-body"));
+      showToast(l === "ar" ? "✓ تم الحفظ" : "✓ Saved");
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+
+  // ── Tab 3: Audit Log ────────────────────────────────────────────────────
+  async renderAuditTab(body) {
+    const l = App.lang;
+    const log = await api("/api/rbac/audit-log?limit=200");
+    body.innerHTML = `
+      <div class="card">
+        <div class="ct" style="margin-bottom:10px">🕐 ${l === "ar" ? "سجل تدقيق الصلاحيات" : "Permission Audit Log"}</div>
+        ${log.length
+          ? `<div style="display:flex;flex-direction:column;gap:6px">
+            ${log.map((entry) => {
+              const added = entry.new_value.filter((p) => !entry.old_value.includes(p));
+              const removed = entry.old_value.filter((p) => !entry.new_value.includes(p));
+              return `<div style="padding:9px 12px;background:var(--navy3);border-radius:8px;font-size:11.5px">
+                <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                  <span><strong>${esc(entry.actor_name || "—")}</strong> ${l === "ar" ? "قام بـ" : "performed"} <span class="tag" style="background:var(--navy4)">${esc(entry.action)}</span> ${l === "ar" ? "على الدور" : "on role"} <strong>${esc(entry.role_key)}</strong></span>
+                  <span style="color:var(--text3)">${(entry.created_at || "").substring(0, 16)}</span>
+                </div>
+                ${added.length ? `<div style="color:var(--green);margin-top:4px">+ ${added.join(", ")}</div>` : ""}
+                ${removed.length ? `<div style="color:var(--red);margin-top:2px">- ${removed.join(", ")}</div>` : ""}
+              </div>`;
+            }).join("")}
+          </div>`
+          : `<div class="es"><div style="color:var(--text3);font-size:12px">${l === "ar" ? "لا يوجد سجل تدقيق بعد" : "No audit history yet"}</div></div>`}
+      </div>`;
   },
 };
 

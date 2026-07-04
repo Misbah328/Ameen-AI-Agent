@@ -42,6 +42,33 @@ function requireRole(...roles) {
   };
 }
 
+/**
+ * requirePermission(...permissionKeys) — must be used AFTER auth middleware.
+ * Looks up the caller's role's CURRENT granted permissions fresh from the DB
+ * on every request (not cached, not baked into the JWT) so edits made in the
+ * Role Management UI take effect immediately for all holders of that role.
+ * Passes if the caller's role has ANY of the listed permission keys.
+ * Usage: router.delete('/meetings/:id', auth, requirePermission('meetings.delete'), handler)
+ */
+function requirePermission(...permissionKeys) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    // Lazy require to avoid a require-cycle with src/db/database.js at module load time.
+    const db = require('../db/database');
+    const { hasPermission } = require('../services/rbac');
+    const granted = permissionKeys.some((key) => hasPermission(db, req.user.id, key));
+    if (!granted) {
+      return res.status(403).json({
+        error: 'FORBIDDEN_PERMISSION',
+        message: 'لا تملك الصلاحية اللازمة لهذا الإجراء / You do not have the required permission for this action',
+        required: permissionKeys,
+      });
+    }
+    next();
+  };
+}
+
 module.exports = auth;
 module.exports.requireRole = requireRole;
+module.exports.requirePermission = requirePermission;
 module.exports.JWT_SECRET = JWT_SECRET;

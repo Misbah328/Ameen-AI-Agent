@@ -573,6 +573,55 @@ db.exec(`
 ensureColumn('meetings', 'series_id', 'INTEGER');
 ensureColumn('schedule', 'series_id', 'INTEGER');
 
+// ── Enterprise RBAC (Phase 4) ─────────────────────────────────────────────────
+// `roles` is the admin-configurable catalog of assignable roles (built-in
+// roles are seeded once below; Admins can also create custom roles at
+// runtime). `role_permissions` is a simple grant table: a row's presence
+// means that role has that permission key — no separate boolean needed.
+// `permission_audit_log` records every create/update/clone/disable of a role
+// with the actor and the before/after permission sets, per the Phase 4
+// audit-log requirement — mirrors the shape of the existing
+// `meeting_lifecycle_log`/`minutes_approval_log` tables (actor_id, actor_name,
+// action, timestamp, plus JSON old/new snapshots here since the "value" being
+// audited is a permission set, not a single field).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_key TEXT UNIQUE NOT NULL,
+    name_ar TEXT NOT NULL,
+    name_en TEXT NOT NULL,
+    description_ar TEXT DEFAULT '',
+    description_en TEXT DEFAULT '',
+    is_builtin INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(created_by) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS role_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_id INTEGER NOT NULL,
+    permission_key TEXT NOT NULL,
+    FOREIGN KEY(role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    UNIQUE(role_id, permission_key)
+  );
+
+  CREATE TABLE IF NOT EXISTS permission_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_id INTEGER,
+    role_key TEXT NOT NULL,
+    action TEXT NOT NULL,
+    actor_id INTEGER,
+    actor_name TEXT,
+    old_value TEXT DEFAULT '[]',
+    new_value TEXT DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+require('../services/rbac').seedRbac(db);
+
 // Default plan = free
 if (!db.prepare('SELECT value FROM settings WHERE key=?').get('plan')) {
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('plan', 'free');

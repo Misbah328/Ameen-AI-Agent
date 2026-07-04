@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
+const { requirePermission } = auth;
 
 // ── Agenda Items ──────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ router.delete('/agenda/:id', auth, (req, res) => {
 
 // ── Meeting Documents ─────────────────────────────────────────────────────────
 
-router.get('/documents', auth, (req, res) => {
+router.get('/documents', auth, requirePermission('documents.download'), (req, res) => {
   const { meetingId, scheduleId, agendaItemId } = req.query;
   if (agendaItemId) return res.json(db.prepare('SELECT * FROM meeting_documents WHERE agenda_item_id=? ORDER BY id').all(agendaItemId));
   if (meetingId) return res.json(db.prepare('SELECT * FROM meeting_documents WHERE meeting_id=? ORDER BY id').all(meetingId));
@@ -49,7 +50,7 @@ router.get('/documents', auth, (req, res) => {
   res.status(400).json({ error: 'meetingId, scheduleId, or agendaItemId required' });
 });
 
-router.post('/documents', auth, (req, res) => {
+router.post('/documents', auth, requirePermission('documents.upload'), (req, res) => {
   const { meeting_id, schedule_id, agenda_item_id, title, doc_type, description, uploaded_by, upload_date, status } = req.body;
   if (!title) return res.status(400).json({ error: 'title required' });
   const row = db.prepare(`
@@ -59,7 +60,7 @@ router.post('/documents', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/documents/:id', auth, (req, res) => {
+router.patch('/documents/:id', auth, requirePermission('documents.upload'), (req, res) => {
   if (!db.prepare('SELECT id FROM meeting_documents WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { title, doc_type, description, uploaded_by, upload_date, status } = req.body;
   db.prepare(`UPDATE meeting_documents SET
@@ -71,7 +72,7 @@ router.patch('/documents/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(req.params.id));
 });
 
-router.delete('/documents/:id', auth, (req, res) => {
+router.delete('/documents/:id', auth, requirePermission('documents.delete'), (req, res) => {
   db.prepare('DELETE FROM meeting_documents WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -142,7 +143,7 @@ function withFollowups(r) {
   return { ...r, followups: db.prepare('SELECT * FROM resolution_followups WHERE resolution_id=? ORDER BY id').all(r.id) };
 }
 
-router.get('/resolutions', auth, (req, res) => {
+router.get('/resolutions', auth, requirePermission('governance.resolutions'), (req, res) => {
   const { meetingId, scheduleId } = req.query;
   let rows = [];
   if (meetingId) rows = db.prepare('SELECT * FROM resolutions WHERE meeting_id=? ORDER BY id').all(meetingId);
@@ -151,7 +152,7 @@ router.get('/resolutions', auth, (req, res) => {
   res.json(rows.map(withFollowups));
 });
 
-router.post('/resolutions', auth, (req, res) => {
+router.post('/resolutions', auth, requirePermission('governance.resolutions'), (req, res) => {
   const { meeting_id, schedule_id, title, description, status } = req.body;
   if (!title) return res.status(400).json({ error: 'title required' });
   const row = db.prepare('INSERT INTO resolutions (meeting_id,schedule_id,title,description,status) VALUES (?,?,?,?,?)')
@@ -159,7 +160,7 @@ router.post('/resolutions', auth, (req, res) => {
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(row.lastInsertRowid)));
 });
 
-router.patch('/resolutions/:id', auth, (req, res) => {
+router.patch('/resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
   if (!db.prepare('SELECT id FROM resolutions WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { title, description, status } = req.body;
   db.prepare('UPDATE resolutions SET title=COALESCE(?,title),description=COALESCE(?,description),status=COALESCE(?,status) WHERE id=?')
@@ -167,7 +168,7 @@ router.patch('/resolutions/:id', auth, (req, res) => {
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));
 });
 
-router.delete('/resolutions/:id', auth, (req, res) => {
+router.delete('/resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
   db.transaction(() => {
     db.prepare('DELETE FROM resolution_followups WHERE resolution_id=?').run(req.params.id);
     db.prepare('DELETE FROM resolutions WHERE id=?').run(req.params.id);
@@ -175,7 +176,7 @@ router.delete('/resolutions/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
-router.post('/resolutions/:id/vote', auth, (req, res) => {
+router.post('/resolutions/:id/vote', auth, requirePermission('governance.voting'), (req, res) => {
   const item = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Not found' });
   const vs = item.voting_status || 'draft';
@@ -212,7 +213,7 @@ router.post('/resolutions/:id/vote', auth, (req, res) => {
 
 // ── Resolution Follow-ups ─────────────────────────────────────────────────────
 
-router.post('/resolutions/:id/followups', auth, (req, res) => {
+router.post('/resolutions/:id/followups', auth, requirePermission('governance.resolutions'), (req, res) => {
   if (!db.prepare('SELECT id FROM resolutions WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { owner, due_date, status, notes } = req.body;
   const row = db.prepare('INSERT INTO resolution_followups (resolution_id,owner,due_date,status,notes) VALUES (?,?,?,?,?)')
@@ -220,7 +221,7 @@ router.post('/resolutions/:id/followups', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM resolution_followups WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/followups/:id', auth, (req, res) => {
+router.patch('/followups/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
   if (!db.prepare('SELECT id FROM resolution_followups WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { owner, due_date, status, notes } = req.body;
   db.prepare('UPDATE resolution_followups SET owner=COALESCE(?,owner),due_date=COALESCE(?,due_date),status=COALESCE(?,status),notes=COALESCE(?,notes) WHERE id=?')
@@ -228,14 +229,14 @@ router.patch('/followups/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM resolution_followups WHERE id=?').get(req.params.id));
 });
 
-router.delete('/followups/:id', auth, (req, res) => {
+router.delete('/followups/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
   db.prepare('DELETE FROM resolution_followups WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
 
 // ── Boards ────────────────────────────────────────────────────────────────────
 
-router.get('/boards', auth, (req, res) => {
+router.get('/boards', auth, requirePermission('governance.boards'), (req, res) => {
   const boards = db.prepare('SELECT * FROM boards ORDER BY id').all();
   const committees = db.prepare('SELECT * FROM committees ORDER BY board_id, id').all();
   res.json(boards.map(b => ({
@@ -248,7 +249,7 @@ router.get('/boards', auth, (req, res) => {
   })));
 });
 
-router.post('/boards', auth, (req, res) => {
+router.post('/boards', auth, requirePermission('governance.boards'), (req, res) => {
   const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
   const row = db.prepare(`INSERT INTO boards (name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?)`)
@@ -256,7 +257,7 @@ router.post('/boards', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/boards/:id', auth, (req, res) => {
+router.patch('/boards/:id', auth, requirePermission('governance.boards'), (req, res) => {
   const existing = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
@@ -271,7 +272,7 @@ router.patch('/boards/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id));
 });
 
-router.delete('/boards/:id', auth, (req, res) => {
+router.delete('/boards/:id', auth, requirePermission('governance.boards'), (req, res) => {
   db.prepare('UPDATE committees SET board_id=NULL WHERE board_id=?').run(req.params.id);
   db.prepare('DELETE FROM boards WHERE id=?').run(req.params.id);
   res.json({ success: true });
@@ -279,7 +280,7 @@ router.delete('/boards/:id', auth, (req, res) => {
 
 // ── Committees ────────────────────────────────────────────────────────────────
 
-router.get('/committees', auth, (req, res) => {
+router.get('/committees', auth, requirePermission('governance.committees'), (req, res) => {
   const { boardId } = req.query;
   const rows = boardId
     ? db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id WHERE c.board_id=? ORDER BY c.id').all(boardId)
@@ -287,7 +288,7 @@ router.get('/committees', auth, (req, res) => {
   res.json(rows.map(c => ({ ...c, members: (() => { try { return JSON.parse(c.members||'[]'); } catch { return []; } })() })));
 });
 
-router.post('/committees', auth, (req, res) => {
+router.post('/committees', auth, requirePermission('governance.committees'), (req, res) => {
   const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
   const row = db.prepare(`INSERT INTO committees (board_id,name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?,?)`)
@@ -295,7 +296,7 @@ router.post('/committees', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/committees/:id', auth, (req, res) => {
+router.patch('/committees/:id', auth, requirePermission('governance.committees'), (req, res) => {
   if (!db.prepare('SELECT id FROM committees WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   db.prepare(`UPDATE committees SET
@@ -309,7 +310,7 @@ router.patch('/committees/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(req.params.id));
 });
 
-router.delete('/committees/:id', auth, (req, res) => {
+router.delete('/committees/:id', auth, requirePermission('governance.committees'), (req, res) => {
   db.prepare('DELETE FROM committees WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -355,7 +356,7 @@ function computeSeriesStats(seriesId) {
   };
 }
 
-router.get('/meeting-series', auth, (req, res) => {
+router.get('/meeting-series', auth, requirePermission('series.view'), (req, res) => {
   const rows = db.prepare(`
     SELECT s.*, u.name_ar as owner_name_ar, u.name_en as owner_name_en
     FROM meeting_series s
@@ -370,7 +371,7 @@ router.get('/meeting-series-lookup', auth, (req, res) => {
   res.json(db.prepare('SELECT id, name_ar, name_en, category, owner_id FROM meeting_series ORDER BY name_ar').all());
 });
 
-router.get('/meeting-series/:id', auth, (req, res) => {
+router.get('/meeting-series/:id', auth, requirePermission('series.view'), (req, res) => {
   const s = db.prepare(`
     SELECT s.*, u.name_ar as owner_name_ar, u.name_en as owner_name_en
     FROM meeting_series s
@@ -381,7 +382,7 @@ router.get('/meeting-series/:id', auth, (req, res) => {
   res.json({ ...s, stats: computeSeriesStats(s.id) });
 });
 
-router.post('/meeting-series', auth, (req, res) => {
+router.post('/meeting-series', auth, requirePermission('series.manage'), (req, res) => {
   const { name_ar, name_en, description_ar, description_en, category, owner_id } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
   const row = db.prepare(`
@@ -391,7 +392,7 @@ router.post('/meeting-series', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_series WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/meeting-series/:id', auth, (req, res) => {
+router.patch('/meeting-series/:id', auth, requirePermission('series.manage'), (req, res) => {
   if (!db.prepare('SELECT id FROM meeting_series WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { name_ar, name_en, description_ar, description_en, category, owner_id, status } = req.body;
   db.prepare(`UPDATE meeting_series SET
@@ -403,7 +404,7 @@ router.patch('/meeting-series/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_series WHERE id=?').get(req.params.id));
 });
 
-router.delete('/meeting-series/:id', auth, (req, res) => {
+router.delete('/meeting-series/:id', auth, requirePermission('series.manage'), (req, res) => {
   db.prepare('UPDATE meetings SET series_id=NULL WHERE series_id=?').run(req.params.id);
   db.prepare('UPDATE schedule SET series_id=NULL WHERE series_id=?').run(req.params.id);
   db.prepare('DELETE FROM meeting_series WHERE id=?').run(req.params.id);
@@ -411,7 +412,7 @@ router.delete('/meeting-series/:id', auth, (req, res) => {
 });
 
 // Merged, date-sorted timeline of every planned + held meeting in a series
-router.get('/meeting-series/:id/timeline', auth, (req, res) => {
+router.get('/meeting-series/:id/timeline', auth, requirePermission('series.view'), (req, res) => {
   const series = db.prepare('SELECT id FROM meeting_series WHERE id=?').get(req.params.id);
   if (!series) return res.status(404).json({ error: 'Not found' });
   const held = db.prepare(`
@@ -460,7 +461,7 @@ router.get('/summary', auth, (req, res) => {
 });
 
 // ── General Assemblies ────────────────────────────────────────────────────────
-router.get('/general-assemblies', auth, (req, res) => {
+router.get('/general-assemblies', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const gas = db.prepare(`
       SELECT s.*,
@@ -486,7 +487,7 @@ router.get('/general-assemblies', auth, (req, res) => {
 });
 
 // GET /api/gov/resolutions/:id/votes — full voting history + quorum + CEO "who hasn't voted" view
-router.get('/resolutions/:id/votes', auth, (req, res) => {
+router.get('/resolutions/:id/votes', auth, requirePermission('governance.voting'), (req, res) => {
   try {
     const resolution = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
     if (!resolution) return res.status(404).json({ error: 'Not found' });
@@ -522,7 +523,7 @@ router.get('/resolutions/:id/votes', auth, (req, res) => {
 });
 
 // POST /api/gov/resolutions/:id/voting-status — open / close / archive voting
-router.post('/resolutions/:id/voting-status', auth, (req, res) => {
+router.post('/resolutions/:id/voting-status', auth, requirePermission('governance.voting'), (req, res) => {
   const { status } = req.body;
   if (!['draft','open','closed','archived'].includes(status))
     return res.status(400).json({ error: 'Invalid voting status' });
@@ -543,7 +544,7 @@ router.post('/resolutions/:id/voting-status', auth, (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /api/gov/general-assemblies/:id/detail — comprehensive GA report
-router.get('/general-assemblies/:id/detail', auth, (req, res) => {
+router.get('/general-assemblies/:id/detail', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const gaId = parseInt(req.params.id);
     const ga = db.prepare("SELECT * FROM schedule WHERE id=? AND meeting_type='general_assembly'").get(gaId);
@@ -670,7 +671,7 @@ router.get('/general-assemblies/:id/detail', auth, (req, res) => {
 });
 
 // POST /api/gov/general-assemblies — create new GA
-router.post('/general-assemblies', auth, (req, res) => {
+router.post('/general-assemblies', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const { title_ar, title_en, ga_type, meeting_date, meeting_time, duration_mins, platform, attendees } = req.body;
     if (!title_ar || !meeting_date) return res.status(400).json({ error: 'title_ar and meeting_date required' });
@@ -685,7 +686,7 @@ router.post('/general-assemblies', auth, (req, res) => {
 });
 
 // PATCH /api/gov/general-assemblies/:id — update GA header
-router.patch('/general-assemblies/:id', auth, (req, res) => {
+router.patch('/general-assemblies/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, status } = req.body;
     db.prepare(`UPDATE schedule SET title_ar=COALESCE(?,title_ar),title_en=COALESCE(?,title_en),
@@ -699,11 +700,11 @@ router.patch('/general-assemblies/:id', auth, (req, res) => {
 });
 
 // ── Shareholders CRUD ─────────────────────────────────────────────────────────
-router.get('/general-assemblies/:id/shareholders', auth, (req, res) => {
+router.get('/general-assemblies/:id/shareholders', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try { res.json(db.prepare('SELECT * FROM ga_shareholders WHERE ga_schedule_id=? ORDER BY shares DESC').all(req.params.id)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.post('/general-assemblies/:id/shareholders', auth, (req, res) => {
+router.post('/general-assemblies/:id/shareholders', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const { name_ar, name_en, shares, share_pct, vote_rights, attendance_status, proxy_name, notes } = req.body;
     if (!name_en) return res.status(400).json({ error: 'name_en required' });
@@ -717,7 +718,7 @@ router.post('/general-assemblies/:id/shareholders', auth, (req, res) => {
     res.json(db.prepare('SELECT * FROM ga_shareholders WHERE id=?').get(row.lastInsertRowid));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.patch('/ga-shareholders/:id', auth, (req, res) => {
+router.patch('/ga-shareholders/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const existing = db.prepare('SELECT id FROM ga_shareholders WHERE id=?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
@@ -739,17 +740,17 @@ router.patch('/ga-shareholders/:id', auth, (req, res) => {
     res.json(db.prepare('SELECT * FROM ga_shareholders WHERE id=?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.delete('/ga-shareholders/:id', auth, (req, res) => {
+router.delete('/ga-shareholders/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try { db.prepare('DELETE FROM ga_shareholders WHERE id=?').run(req.params.id); res.json({ ok:true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GA Votes CRUD ─────────────────────────────────────────────────────────────
-router.get('/general-assemblies/:id/ga-votes', auth, (req, res) => {
+router.get('/general-assemblies/:id/ga-votes', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try { res.json(db.prepare('SELECT * FROM ga_votes WHERE ga_schedule_id=? ORDER BY sort_order,id').all(req.params.id)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.post('/general-assemblies/:id/ga-votes', auth, (req, res) => {
+router.post('/general-assemblies/:id/ga-votes', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const { motion_ar, motion_en, votes_for=0, votes_against=0, votes_abstain=0, notes, sort_order } = req.body;
     if (!motion_en && !motion_ar) return res.status(400).json({ error: 'motion required' });
@@ -761,7 +762,7 @@ router.post('/general-assemblies/:id/ga-votes', auth, (req, res) => {
     res.json(db.prepare('SELECT * FROM ga_votes WHERE id=?').get(row.lastInsertRowid));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.patch('/ga-votes/:id', auth, (req, res) => {
+router.patch('/ga-votes/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM ga_votes WHERE id=?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
@@ -776,17 +777,17 @@ router.patch('/ga-votes/:id', auth, (req, res) => {
     res.json(db.prepare('SELECT * FROM ga_votes WHERE id=?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.delete('/ga-votes/:id', auth, (req, res) => {
+router.delete('/ga-votes/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try { db.prepare('DELETE FROM ga_votes WHERE id=?').run(req.params.id); res.json({ ok:true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Officers CRUD ─────────────────────────────────────────────────────────────
-router.get('/general-assemblies/:id/officers', auth, (req, res) => {
+router.get('/general-assemblies/:id/officers', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try { res.json(db.prepare('SELECT * FROM ga_officers WHERE ga_schedule_id=? ORDER BY id').all(req.params.id)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.post('/general-assemblies/:id/officers', auth, (req, res) => {
+router.post('/general-assemblies/:id/officers', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const { role, role_ar, name_en, name_ar } = req.body;
     if (!name_en || !role) return res.status(400).json({ error: 'name_en and role required' });
@@ -795,7 +796,7 @@ router.post('/general-assemblies/:id/officers', auth, (req, res) => {
     res.json(db.prepare('SELECT * FROM ga_officers WHERE id=?').get(row.lastInsertRowid));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.patch('/ga-officers/:id', auth, (req, res) => {
+router.patch('/ga-officers/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     if (!db.prepare('SELECT id FROM ga_officers WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
     const { role, role_ar, name_en, name_ar } = req.body;
@@ -804,13 +805,13 @@ router.patch('/ga-officers/:id', auth, (req, res) => {
     res.json(db.prepare('SELECT * FROM ga_officers WHERE id=?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.delete('/ga-officers/:id', auth, (req, res) => {
+router.delete('/ga-officers/:id', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try { db.prepare('DELETE FROM ga_officers WHERE id=?').run(req.params.id); res.json({ ok:true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Minutes workflow PATCH ────────────────────────────────────────────────────
-router.patch('/general-assemblies/:id/minutes', auth, (req, res) => {
+router.patch('/general-assemblies/:id/minutes', auth, requirePermission('governance.general_assembly'), (req, res) => {
   try {
     const { status, draft_date, circulated_date, approved_date, final_date, draft_by, notes } = req.body;
     const validStatuses = ['draft', 'circulated', 'approved', 'final'];

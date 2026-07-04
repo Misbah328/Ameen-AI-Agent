@@ -975,11 +975,51 @@
       </div>
       <button class="btn-ghost btn-sm" onclick="renderAdminPanel()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
     </div>
+    <div class="imp-seg" id="admin-tabs" style="margin-top:14px">
+      <button type="button" class="imp-seg-btn active" data-tab="users" onclick="AdminPanel.setTab('users')"><span data-ar="أدوار المستخدمين" data-en="User Roles">أدوار المستخدمين</span></button>
+      <button type="button" class="imp-seg-btn" data-tab="matrix" onclick="AdminPanel.setTab('matrix')"><span data-ar="مصفوفة الصلاحيات" data-en="Permission Matrix">مصفوفة الصلاحيات</span></button>
+      <button type="button" class="imp-seg-btn" data-tab="audit" onclick="AdminPanel.setTab('audit')"><span data-ar="سجل التدقيق" data-en="Audit Log">سجل التدقيق</span></button>
+    </div>
   </div>
   <div class="pbody" id="admin-body">
     <div class="es"><div class="loading"></div></div>
   </div>
 </section>
+
+<!-- Role create/clone modal -->
+<div class="modal-overlay" id="modal-role">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title" id="role-modal-title" data-ar="دور جديد" data-en="New Role">دور جديد</div>
+    <div class="fs">
+      <div class="frow">
+        <div class="fl" data-ar="المفتاح (فريد، بالإنجليزية)" data-en="Key (unique, English)">المفتاح</div>
+        <input class="fi" id="role-key" dir="ltr" style="text-align:left" placeholder="e.g. Regional Manager"/>
+      </div>
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="الاسم (عربي)" data-en="Name (Arabic)">الاسم (عربي)</div>
+          <input class="fi" id="role-name-ar"/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="الاسم (إنجليزي)" data-en="Name (English)">الاسم (إنجليزي)</div>
+          <input class="fi" id="role-name-en" dir="ltr" style="text-align:left"/>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="الوصف (عربي)" data-en="Description (Arabic)">الوصف (عربي)</div>
+        <textarea class="fi" id="role-desc-ar" rows="2"></textarea>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="الوصف (إنجليزي)" data-en="Description (English)">الوصف (إنجليزي)</div>
+        <textarea class="fi" id="role-desc-en" rows="2" dir="ltr" style="text-align:left"></textarea>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" onclick="AdminPanel.saveRoleModal()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
+        <button class="btn-ghost" onclick="AdminPanel.closeRoleModal()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ══ INTEGRATIONS ══════════════════════════════════════════════ -->
 <section class="panel" id="panel-integrations">

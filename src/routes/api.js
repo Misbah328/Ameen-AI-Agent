@@ -144,9 +144,10 @@ const auth = require('../middleware/auth');
 ].forEach(col => {
   try { db.exec(`ALTER TABLE tasks ADD COLUMN ${col}`); } catch (_) {}
 });
-const { requireRole } = require('../middleware/auth');
+const { requireRole, requirePermission } = require('../middleware/auth');
 const { sendEmail } = require('../utils/replitmail');
 const notify = require('../utils/notify');
+const rbacService = require('../services/rbac');
 const { callClaude, setSessionKey } = require('../utils/claude');
 const { processMeeting, findConflicts } = require('../services/pipeline');
 const { readRecent } = require('../utils/ailog');
@@ -413,12 +414,12 @@ router.get('/members', auth, (req, res) => {
   res.json(members);
 });
 
-const VALID_SYSTEM_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
-
-router.post('/members', auth, requireRole('Admin'), (req, res) => {
+router.post('/members', auth, requirePermission('admin.users'), (req, res) => {
   const { name_ar, name_en, email, role_ar, role_en, system_role, department, phone } = req.body;
   if (!name_ar || !email) return res.status(400).json({ error: 'name_ar and email are required' });
-  if (system_role && !VALID_SYSTEM_ROLES.includes(system_role)) return res.status(400).json({ error: 'Invalid system_role' });
+  if (system_role && !db.prepare('SELECT role_key FROM roles WHERE role_key=? AND is_active=1').get(system_role)) {
+    return res.status(400).json({ error: 'Invalid system_role' });
+  }
   const bcrypt = require('bcryptjs');
   const hash = bcrypt.hashSync('ameen2026', 10);
   try {
@@ -434,7 +435,7 @@ router.post('/members', auth, requireRole('Admin'), (req, res) => {
   }
 });
 
-router.patch('/members/:id', auth, requireRole('Admin'), (req, res) => {
+router.patch('/members/:id', auth, requirePermission('admin.users'), (req, res) => {
   const { name_ar, name_en, email, role_ar, role_en, department, phone } = req.body;
   const member = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
@@ -458,10 +459,13 @@ router.patch('/members/:id', auth, requireRole('Admin'), (req, res) => {
 });
 
 // ── System Role (RBAC) ────────────────────────────────────────────────────────
-router.patch('/members/:id/role', auth, requireRole('Admin'), (req, res) => {
-  const VALID_ROLES = ['Admin','CEO','Board Member','Committee Member','Executive','Manager','Employee','Observer'];
+// Validates against the live `roles` table (built-in + custom, active roles
+// only) rather than a hardcoded list, so newly created custom roles from the
+// Role Management page are immediately assignable here.
+router.patch('/members/:id/role', auth, requirePermission('admin.users'), (req, res) => {
   const { system_role } = req.body;
-  if (!VALID_ROLES.includes(system_role)) return res.status(400).json({ error: 'Invalid system_role' });
+  const validRole = db.prepare('SELECT role_key FROM roles WHERE role_key=? AND is_active=1').get(system_role);
+  if (!validRole) return res.status(400).json({ error: 'Invalid system_role' });
   const member = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
   db.prepare('UPDATE users SET system_role=? WHERE id=?').run(system_role, req.params.id);
@@ -469,7 +473,7 @@ router.patch('/members/:id/role', auth, requireRole('Admin'), (req, res) => {
 });
 
 // ── POST /api/members/:id/reset-password ─────────────────────────────────────
-router.post('/members/:id/reset-password', auth, requireRole('Admin'), (req, res) => {
+router.post('/members/:id/reset-password', auth, requirePermission('admin.users'), (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const member = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
@@ -478,7 +482,7 @@ router.post('/members/:id/reset-password', auth, requireRole('Admin'), (req, res
   res.json({ success: true });
 });
 
-router.delete('/members/:id', auth, requireRole('Admin'), (req, res) => {
+router.delete('/members/:id', auth, requirePermission('admin.users'), (req, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
   db.prepare('UPDATE tasks SET owner_id=NULL WHERE owner_id=?').run(req.params.id);
   db.prepare('DELETE FROM users WHERE id=?').run(req.params.id);
@@ -596,7 +600,7 @@ router.get('/meetings/:id/full', auth, (req, res) => {
   res.json({ meeting, attendees, agenda, tasks, decisions, documents, lifecycle, effective_prev_meeting_id: effectivePrevId, next_meeting_id: nextMeetingId, series_timeline: seriesTimeline, series_stats: seriesStats, previous_review });
 });
 
-router.post('/meetings', auth, (req, res) => {
+router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) => {
   const { title_ar, title_en, transcript, duration, meeting_type } = req.body;
   const row = db.prepare(`
     INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type)
@@ -610,7 +614,7 @@ router.post('/meetings', auth, (req, res) => {
   res.json({ id: row.lastInsertRowid });
 });
 
-router.patch('/meetings/:id', auth, (req, res) => {
+router.patch('/meetings/:id', auth, requirePermission('meetings.edit'), (req, res) => {
   const { transcript, duration, title_ar, title_en, meeting_type, source_type, series_id, new_series } = req.body;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
@@ -651,7 +655,7 @@ router.patch('/meetings/:id', auth, (req, res) => {
 // runs the existing AI pipeline. Audio/video content just resolves/creates the
 // meeting here; the actual file bytes go through the existing, already-tested
 // POST /meetings/:id/recording endpoint from the frontend.
-router.post('/meetings/import-content', auth, async (req, res) => {
+router.post('/meetings/import-content', auth, requirePermission('meetings.create'), async (req, res) => {
   const { meeting_target, meeting_id, title, type, meeting_date, meeting_provider, prev_meeting_id, series_id, new_series, content_type, text } = req.body;
   const isTextContent = content_type === 'paste_text' || content_type === 'text_file';
 
@@ -729,7 +733,7 @@ router.post('/meetings/import-content', auth, async (req, res) => {
 });
 
 // ── Hard-delete a meeting and all its dependents ───────────────────────────────
-router.delete('/meetings/:id', auth, (req, res) => {
+router.delete('/meetings/:id', auth, requirePermission('meetings.delete'), (req, res) => {
   const id = req.params.id;
   const m = db.prepare('SELECT id FROM meetings WHERE id=?').get(id);
   if (!m) return res.status(404).json({ error: 'Not found' });
@@ -895,7 +899,7 @@ router.post('/meetings/:id/recording/stop', auth, (req, res) => {
 });
 
 // ── File Upload ────────────────────────────────────────────────────────────────
-router.post('/meetings/:id/upload', auth, upload.single('file'), async (req, res) => {
+router.post('/meetings/:id/upload', auth, requirePermission('documents.upload'), upload.single('file'), async (req, res) => {
  try {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (PDF, DOCX, XLSX, PPTX, TXT only)' });
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
@@ -951,12 +955,12 @@ ${text.slice(0, 3500)}
 });
 
 // ── Documents for a specific meeting ──────────────────────────────────────────
-router.get('/meetings/:id/documents', auth, (req, res) => {
+router.get('/meetings/:id/documents', auth, requirePermission('documents.download'), (req, res) => {
   res.json(db.prepare("SELECT * FROM meeting_documents WHERE meeting_id=? AND file_path IS NOT NULL AND file_path!='' ORDER BY id DESC").all(req.params.id));
 });
 
 // ── Document summary by ID ─────────────────────────────────────────────────────
-router.get('/documents/:id/summary', auth, (req, res) => {
+router.get('/documents/:id/summary', auth, requirePermission('documents.download'), (req, res) => {
   const doc = db.prepare('SELECT id, title, doc_type, doc_classification, ai_summary, ai_key_points, upload_date, uploaded_by, file_path, file_size, meeting_id FROM meeting_documents WHERE id=?').get(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Document not found' });
   let key_points = [];
@@ -965,7 +969,7 @@ router.get('/documents/:id/summary', auth, (req, res) => {
 });
 
 // ── Document Library (all uploaded files) ─────────────────────────────────────
-router.get('/documents/library', auth, (req, res) => {
+router.get('/documents/library', auth, requirePermission('documents.download'), (req, res) => {
   const { q, type } = req.query;
   let sql = `SELECT md.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en, m.meeting_date
     FROM meeting_documents md LEFT JOIN meetings m ON md.meeting_id=m.id
@@ -978,7 +982,7 @@ router.get('/documents/library', auth, (req, res) => {
 });
 
 // ── Delete an uploaded document ────────────────────────────────────────────────
-router.delete('/meeting-documents/:id', auth, (req, res) => {
+router.delete('/meeting-documents/:id', auth, requirePermission('documents.delete'), (req, res) => {
   const doc = db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Not found' });
   if (doc.file_path) { try { fs.unlinkSync(path.join(UPLOADS_DIR, doc.file_path)); } catch {} }
@@ -987,7 +991,7 @@ router.delete('/meeting-documents/:id', auth, (req, res) => {
 });
 
 // ── AI: Process Meeting ───────────────────────────────────────────────────────
-router.post('/meetings/:id/process', auth, async (req, res) => {
+router.post('/meetings/:id/process', auth, requirePermission('ai.generate_minutes'), async (req, res) => {
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
   try {
@@ -1038,16 +1042,17 @@ async function notifyTaskAssigned(task, actorUserId) {
   }
 }
 
-// ── Executive Action permissions ────────────────────────────────────────────
-// Full management (reassign owner, change text/priority/due date, delete) is
-// limited to roles that already govern meetings/tasks platform-wide.
-// Employees may only update status/notes/progress, and only on their own
-// tasks. Observers get no write access at all (defense in depth — the UI
-// already hides these actions for that role, this is the API-side backstop).
-const TASK_FULL_MANAGE_ROLES = ['Admin', 'CEO', 'Manager', 'Executive', 'Board Member', 'Committee Member'];
-function getUserRole(userId) {
-  const u = db.prepare('SELECT system_role FROM users WHERE id=?').get(userId);
-  return (u && u.system_role) || 'Admin';
+// ── Executive Action permissions (RBAC, Phase 4) ────────────────────────────
+// Full management (reassign owner, change text/priority/due date, delete) now
+// requires the granular `actions.assign` permission instead of a hardcoded
+// role-name list — the default seed (src/services/rbac.js) grants it to the
+// exact same six roles the old TASK_FULL_MANAGE_ROLES list did, so this is a
+// drop-in enhancement, not a behavior change. `actions.view` (present without
+// actions.assign, e.g. Employee) scopes GET /tasks to the caller's own tasks;
+// having neither permission is a full 403 (was previously implicit/undefined
+// for any role outside the two hardcoded checks).
+function canFullyManageActions(userId) {
+  return rbacService.hasPermission(db, userId, 'actions.assign');
 }
 
 router.get('/tasks', auth, (req, res) => {
@@ -1062,7 +1067,10 @@ router.get('/tasks', auth, (req, res) => {
       AND status NOT IN ('done', 'cancelled', 'overdue', 'waiting', 'blocked')
   `).run(today);
 
-  const role = getUserRole(req.user.id);
+  const hasView = rbacService.hasPermission(db, req.user.id, 'actions.view');
+  const hasUpdate = rbacService.hasPermission(db, req.user.id, 'actions.update');
+  if (!hasView && !hasUpdate) return res.status(403).json({ error: 'Not permitted to view executive actions' });
+
   const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'blocked' THEN 2 WHEN 'inprogress' THEN 3 WHEN 'waiting' THEN 4 WHEN 'new' THEN 5 WHEN 'open' THEN 5 WHEN 'assigned' THEN 5 ELSE 6 END, due_date ASC";
   const UPDATE_COLS = `,
       (SELECT COUNT(*) FROM task_updates WHERE task_id=t.id) AS update_count,
@@ -1070,15 +1078,16 @@ router.get('/tasks', auth, (req, res) => {
       (SELECT author_name FROM task_updates WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1) AS latest_update_author`;
   const params = [];
   let where = '';
-  if (role === 'Employee') { where = 'WHERE owner_id=?'; params.push(req.user.id); }
+  if (!hasView) { where = 'WHERE owner_id=?'; params.push(req.user.id); }
   if (req.query.meeting_id) { where += (where ? ' AND ' : 'WHERE ') + 'source_meeting_id=?'; params.push(req.query.meeting_id); }
   const tasks = db.prepare(`SELECT t.* ${UPDATE_COLS} FROM tasks t ${where} ${ORDER}`).all(...params);
   res.json(tasks);
 });
 
 router.post('/tasks', auth, async (req, res) => {
-  const role = getUserRole(req.user.id);
-  if (role === 'Observer') return res.status(403).json({ error: 'Not permitted to create tasks' });
+  const canTouch = ['actions.view', 'actions.update', 'actions.assign', 'actions.close']
+    .some((k) => rbacService.hasPermission(db, req.user.id, k));
+  if (!canTouch) return res.status(403).json({ error: 'Not permitted to create tasks' });
   const { text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, review_status } = req.body;
   if (!text_ar) return res.status(400).json({ error: 'text_ar required' });
   let oNameAr = owner_name_ar || '';
@@ -1100,10 +1109,10 @@ router.patch('/tasks/:id', auth, async (req, res) => {
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Not found' });
 
-  const role = getUserRole(req.user.id);
-  const canFullyManage = TASK_FULL_MANAGE_ROLES.includes(role);
+  const canFullyManage = canFullyManageActions(req.user.id);
   if (!canFullyManage) {
-    if (role !== 'Employee' || task.owner_id !== req.user.id) {
+    const hasOwnUpdate = rbacService.hasPermission(db, req.user.id, 'actions.update');
+    if (!hasOwnUpdate || task.owner_id !== req.user.id) {
       return res.status(403).json({ error: 'Not permitted to manage this task' });
     }
   }
@@ -1147,8 +1156,7 @@ router.patch('/tasks/:id', auth, async (req, res) => {
 });
 
 router.delete('/tasks/:id', auth, (req, res) => {
-  const role = getUserRole(req.user.id);
-  if (!TASK_FULL_MANAGE_ROLES.includes(role)) return res.status(403).json({ error: 'Not permitted to delete tasks' });
+  if (!canFullyManageActions(req.user.id)) return res.status(403).json({ error: 'Not permitted to delete tasks' });
   db.prepare('DELETE FROM tasks WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -1580,7 +1588,7 @@ router.post('/email/send', auth, async (req, res) => {
 });
 
 // ── AI: Chat ─────────────────────────────────────────────────────────────────
-router.post('/ai/chat', auth, async (req, res) => {
+router.post('/ai/chat', auth, requirePermission('ai.ask'), async (req, res) => {
   const { messages, lang } = req.body;
   const tasks = db.prepare("SELECT * FROM tasks WHERE status != 'done' LIMIT 20").all();
   const decisions = db.prepare('SELECT * FROM decisions ORDER BY created_at DESC LIMIT 10').all();
@@ -1656,7 +1664,7 @@ function getDemoReply(q, lang) {
 }
 
 // ── AI: Document Generator (PRO — reports/documents) ───────────────────────
-router.post('/ai/document', auth, requirePro, async (req, res) => {
+router.post('/ai/document', auth, requirePermission('ai.generate_reports'), requirePro, async (req, res) => {
   const { doc_type, meeting_id, details, lang, detail_level } = req.body;
   let meetingContext = '';
   if (meeting_id === 'all') {
@@ -1817,7 +1825,7 @@ router.get('/stats', auth, (req, res) => {
 });
 
 // ── Document History ───────────────────────────────────────────────────────
-router.get('/documents', auth, (req, res) => {
+router.get('/documents', auth, requirePermission('documents.download'), (req, res) => {
   res.json(db.prepare('SELECT d.*, u.name_ar as author_ar, u.name_en as author_en FROM documents d LEFT JOIN users u ON d.created_by=u.id ORDER BY d.created_at DESC LIMIT 20').all());
 });
 
@@ -1825,7 +1833,7 @@ router.get('/documents', auth, (req, res) => {
 router.get('/plan', auth, (req, res) => {
   res.json({ plan: getPlan() });
 });
-router.patch('/plan', auth, requireRole('Admin','CEO'), (req, res) => {
+router.patch('/plan', auth, requirePermission('admin.settings'), (req, res) => {
   const plan = req.body.plan === 'pro' ? 'pro' : 'free';
   db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('plan', plan);
   res.json({ plan });
@@ -1834,7 +1842,7 @@ router.patch('/plan', auth, requireRole('Admin','CEO'), (req, res) => {
 // ── Live AI extraction during recording (free) ─────────────────────────────
 // Receives a transcript chunk + known member names; returns tasks (with owners)
 // and decisions detected so far. Lightweight + fast.
-router.post('/live-extract', auth, async (req, res) => {
+router.post('/live-extract', auth, requirePermission('ai.generate_minutes'), async (req, res) => {
   const { transcript, members } = req.body;
   if (!transcript || transcript.trim().length < 12) return res.json({ tasks: [], decisions: [] });
   const memberList = Array.isArray(members) && members.length
@@ -1894,7 +1902,7 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
 });
 
 // ── Share meeting outcomes to selected attendees (PRO) ─────────────────────
-router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
+router.post('/meetings/:id/share', auth, requirePermission('documents.share'), requirePro, async (req, res) => {
  try {
   const meetingId = req.params.id;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(meetingId);
@@ -1982,7 +1990,7 @@ router.post('/meetings/:id/share', auth, requirePro, async (req, res) => {
 });
 
 // ── Share a generated document with the whole team (email) ─────────────────
-router.post('/documents/share', auth, requirePro, async (req, res) => {
+router.post('/documents/share', auth, requirePermission('documents.share'), requirePro, async (req, res) => {
  try {
   const content = (req.body.content || '').toString().trim();
   const title = (req.body.title || 'تقرير / Report').toString().trim();
@@ -2019,7 +2027,7 @@ router.post('/documents/share', auth, requirePro, async (req, res) => {
 });
 
 // ── Executive Weekly Report ───────────────────────────────────────────────────
-router.get('/reports/executive-weekly', auth, (req, res) => {
+router.get('/reports/executive-weekly', auth, requirePermission('reports.view'), (req, res) => {
   const today = new Date().toISOString().substring(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
 
@@ -2124,7 +2132,7 @@ router.get('/reports/executive-weekly', auth, (req, res) => {
 });
 
 // ── Report PDF — server-side binary PDF via pdfkit ───────────────────────────
-router.post('/reports/pdf', auth, async (req, res) => {
+router.post('/reports/pdf', auth, requirePermission('reports.generate'), async (req, res) => {
   const { content, title, lang } = req.body;
   if (!content) return res.status(400).json({ error: 'content required' });
   try {
@@ -2141,7 +2149,7 @@ router.post('/reports/pdf', auth, async (req, res) => {
 });
 
 // ── Board Pack — merged PDF of minutes + action plan + decision log ───────────
-router.post('/meetings/:id/board-pack', auth, async (req, res) => {
+router.post('/meetings/:id/board-pack', auth, requirePermission('reports.generate'), async (req, res) => {
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
   if (meeting.status !== 'processed') {
@@ -2226,7 +2234,7 @@ router.post('/meetings/:id/board-pack', auth, async (req, res) => {
 
 // ── Series Report — timeline + aggregated decisions/actions/attachments for a
 // whole Meeting Series, reusing the same buildPdf() the board pack uses ─────
-router.post('/meeting-series/:id/report', auth, async (req, res) => {
+router.post('/meeting-series/:id/report', auth, requirePermission('reports.generate'), async (req, res) => {
   const series = db.prepare(`
     SELECT s.*, u.name_ar as owner_name_ar, u.name_en as owner_name_en
     FROM meeting_series s LEFT JOIN users u ON s.owner_id = u.id
@@ -2336,7 +2344,7 @@ function logApprovalAction(meeting_id, action, user, comments, version) {
 }
 
 // POST /api/meetings/:id/circulate
-router.post('/meetings/:id/circulate', (req, res) => {
+router.post('/meetings/:id/circulate', auth, requirePermission('minutes.publish'), (req, res) => {
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
@@ -2350,7 +2358,7 @@ router.post('/meetings/:id/circulate', (req, res) => {
 });
 
 // POST /api/meetings/:id/approve
-router.post('/meetings/:id/approve', (req, res) => {
+router.post('/meetings/:id/approve', auth, requirePermission('minutes.approve'), (req, res) => {
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
@@ -2364,7 +2372,7 @@ router.post('/meetings/:id/approve', (req, res) => {
 });
 
 // POST /api/meetings/:id/request-revision
-router.post('/meetings/:id/request-revision', (req, res) => {
+router.post('/meetings/:id/request-revision', auth, requirePermission('minutes.approve'), (req, res) => {
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
@@ -2378,7 +2386,7 @@ router.post('/meetings/:id/request-revision', (req, res) => {
 });
 
 // POST /api/meetings/:id/final-approve
-router.post('/meetings/:id/final-approve', (req, res) => {
+router.post('/meetings/:id/final-approve', auth, requirePermission('minutes.approve'), (req, res) => {
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
@@ -2393,7 +2401,7 @@ router.post('/meetings/:id/final-approve', (req, res) => {
 
 // POST /api/meetings/:id/archive — final step of the lifecycle, only reachable
 // once the board has given final approval.
-router.post('/meetings/:id/archive', (req, res) => {
+router.post('/meetings/:id/archive', auth, requirePermission('meetings.archive'), (req, res) => {
   const meeting = db.prepare('SELECT id, lifecycle_stage FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   if (meeting.lifecycle_stage === 'archived') return res.json({ success: true, lifecycle_stage: 'archived' });
@@ -2406,7 +2414,7 @@ router.post('/meetings/:id/archive', (req, res) => {
 });
 
 // GET /api/meetings/:id/approval-log
-router.get('/meetings/:id/approval-log', (req, res) => {
+router.get('/meetings/:id/approval-log', auth, requirePermission('minutes.view'), (req, res) => {
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   const log = db.prepare(
@@ -2416,7 +2424,7 @@ router.get('/meetings/:id/approval-log', (req, res) => {
 });
 
 // GET /api/meetings/:id/lifecycle — current stage + full transition history
-router.get('/meetings/:id/lifecycle', (req, res) => {
+router.get('/meetings/:id/lifecycle', auth, requirePermission('meetings.view'), (req, res) => {
   const meeting = db.prepare('SELECT id, lifecycle_stage, lifecycle_updated_at FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   const log = db.prepare(
