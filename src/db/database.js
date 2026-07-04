@@ -524,6 +524,18 @@ ensureColumn('ga_officers', 'role_en', 'TEXT');
 ensureColumn('meetings', 'source_type', "TEXT DEFAULT ''");
 ensureColumn('users', 'department', "TEXT DEFAULT ''");
 ensureColumn('users', 'phone', "TEXT DEFAULT ''");
+// Executive Action Management: AI Task Review gate + progress tracking.
+// review_status defaults to 'approved' so every existing row (and every
+// manually-created task, which skips the AI review step entirely) keeps
+// showing up everywhere it already does today — only freshly AI-extracted
+// tasks are inserted as 'pending' (see services/pipeline.js).
+ensureColumn('tasks', 'review_status', "TEXT DEFAULT 'approved'");
+ensureColumn('tasks', 'ai_confidence', "TEXT DEFAULT ''");
+ensureColumn('tasks', 'progress', 'INTEGER DEFAULT 0');
+// Optional manual link from a newly created meeting back to the meeting it
+// follows up on, so Transcripts/Meeting History can surface a "Previous
+// Meeting Action Review" — additive, nullable, no schema disruption.
+ensureColumn('meetings', 'prev_meeting_id', 'INTEGER');
 
 db.exec(`
   UPDATE meeting_documents SET title_ar = COALESCE(title_ar, title), title_en = COALESCE(title_en, title) WHERE title_ar IS NULL OR title_en IS NULL;

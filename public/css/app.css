@@ -294,15 +294,27 @@ select.fi option{background:var(--navy3)}
 .hist-sec-body{font-size:12.5px;color:var(--text2);line-height:1.8}
 .hist-empty-row{font-size:11.5px;color:var(--text3);font-style:italic}
 
-/* ── Executive Action Assignment table ───────────────────────────── */
+/* ── Executive Action Management: AI Task Review ─────────────────── */
+.exec-review-heading{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.exec-section-divider{height:1px;background:var(--border2);margin:14px 0}
+.exec-review-list{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+.exec-review-card{background:var(--navy3);border:1px solid var(--border2);border-radius:var(--rm);padding:11px 13px}
+.exec-review-text{font-size:13px;color:var(--text);line-height:1.55;margin-bottom:8px}
+.exec-review-edit-input{width:100%;resize:vertical}
+.exec-review-meta{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+.exec-review-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.exec-review-actions .fi{width:auto}
+
+/* ── Executive Action Management table ───────────────────────────── */
 .exec-actions-table-wrap{overflow-x:auto;border-radius:var(--rm);border:1px solid var(--border2)}
-.exec-actions-table{width:100%;border-collapse:collapse;font-size:12px;min-width:720px}
+.exec-actions-table{width:100%;border-collapse:collapse;font-size:12px;min-width:960px}
 .exec-actions-table th{text-align:start;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:9px 10px;background:var(--navy2);border-bottom:1px solid var(--border2);white-space:nowrap}
 .exec-actions-table td{padding:7px 8px;border-bottom:1px solid var(--border2);vertical-align:middle}
 .exec-actions-table tr:last-child td{border-bottom:none}
 .exec-actions-table td:first-child{color:var(--text);min-width:180px;max-width:260px}
-.exec-actions-table .fi{padding:6px 8px;font-size:11.5px;min-width:110px}
-.exec-actions-table input.fi{min-width:120px}
+.exec-actions-table .fi{padding:6px 8px;font-size:11.5px;min-width:100px}
+.exec-actions-table input.fi{min-width:110px}
+.exec-act-dept{font-size:11.5px;color:var(--text3)}
 
 /* ── Executive Actions summary (Transcripts / Meeting History) ──── */
 .exec-summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}

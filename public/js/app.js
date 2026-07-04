@@ -184,6 +184,7 @@ const ROLE_ACCESS = {
 // migrated, so existing rows keep working with zero data changes.
 const TASK_STATUS_META = {
   open: { ar: "مفتوحة", en: "Open", tagClass: "tb" },
+  assigned: { ar: "مُسندة", en: "Assigned", tagClass: "tgold" },
   inprogress: { ar: "قيد التنفيذ", en: "In Progress", tagClass: "ta" },
   waiting: { ar: "بانتظار", en: "Waiting", tagClass: "tgr" },
   blocked: { ar: "معلّقة", en: "Blocked", tagClass: "tr" },
@@ -192,7 +193,7 @@ const TASK_STATUS_META = {
   overdue: { ar: "متأخرة", en: "Overdue", tagClass: "tr" },
 };
 const TASK_STATUS_ALIAS = { new: "open" };
-const TASK_ASSIGNABLE_STATUSES = ["open", "inprogress", "waiting", "blocked", "done", "cancelled"];
+const TASK_ASSIGNABLE_STATUSES = ["open", "assigned", "inprogress", "waiting", "blocked", "done", "cancelled"];
 function taskStatusKey(status) {
   return TASK_STATUS_ALIAS[status] || status;
 }
@@ -214,6 +215,19 @@ function taskPriorityKey(priority) {
 function taskPriorityMeta(priority) {
   return TASK_PRIORITY_META[taskPriorityKey(priority)] || TASK_PRIORITY_META.medium;
 }
+
+// AI Task Review confidence badge (set once at extraction time in pipeline.js,
+// not recomputed later — it reflects how sure the model was, not the task's
+// current assignment state).
+const AI_CONFIDENCE_META = {
+  high: { ar: "ثقة عالية", en: "High Confidence", c: "var(--green)", bg: "rgba(46,204,138,.12)" },
+  medium: { ar: "ثقة متوسطة", en: "Medium Confidence", c: "var(--amber)", bg: "rgba(212,160,23,.12)" },
+  low: { ar: "ثقة منخفضة", en: "Low Confidence", c: "var(--red)", bg: "rgba(220,60,60,.12)" },
+};
+const PROGRESS_STEPS = [0, 25, 50, 75, 100];
+// Mirrors TASK_FULL_MANAGE_ROLES in src/routes/api.js — used only to decide
+// which controls to render; the API enforces the actual restriction.
+const TASK_FULL_MANAGE_ROLES = ["Admin", "CEO", "Manager", "Executive", "Board Member", "Committee Member"];
 
 const ROLE_COLORS = {
   Admin: "#e05a5a",
@@ -1905,8 +1919,8 @@ const Rec = {
     const execActionsHtml = tasks.length && Rec.currentMeetingId
       ? `
       <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--gold-border)">
-        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:2px">🎯 ${lbl("تعيين إجراءات التنفيذ", "Executive Action Assignment")}</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${lbl("عيّن المسؤول، تاريخ الاستحقاق، الأولوية والحالة لكل مهمة", "Assign the owner, due date, priority, and status for each task")}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:2px">🎯 ${lbl("إدارة إجراءات التنفيذ", "Executive Action Management")}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${lbl("راجع مهام الذكاء الاصطناعي ثم عيّن المسؤول، القسم، الأولوية، الحالة والتقدم لكل إجراء معتمد", "Review the AI's tasks, then assign owner, department, priority, status, and progress for each approved action")}</div>
         <div id="exec-actions-${Rec.currentMeetingId}"><div class="es" style="padding:16px 0"><div class="loading"></div></div></div>
       </div>`
       : "";
@@ -2045,12 +2059,17 @@ const Rec = {
   },
 };
 
-// ══ Executive Action Assignment ═══════════════════════════════════════════════
-// Inline editable table shown right after AI processing (live recording and
-// Import Meeting Content both call this same renderer — no duplicated table
-// markup). Operates on the real persisted `tasks` rows (via ?meeting_id=),
-// not the transient AI JSON, so edits PATCH real task IDs through the
-// existing /api/tasks/:id endpoint — no new backend surface for assignment.
+// ══ Executive Action Management ═══════════════════════════════════════════════
+// Shown right after AI processing (live recording and Import Meeting Content
+// both call this same renderer — no duplicated markup). Two stages:
+//   1. AI Task Review — every freshly-extracted task (review_status='pending')
+//      with a confidence badge; Edit/Delete/Merge/Split/Approve/Reject before
+//      it becomes an Executive Action. Builds trust in the AI output.
+//   2. Action Table — approved tasks, fully editable (owner/department/due
+//      date/priority/status/progress/notes), PATCHing the real persisted
+//      `tasks` rows via the existing /api/tasks/:id endpoint.
+// Manually-created tasks skip stage 1 entirely (review_status defaults to
+// 'approved' server-side), so this never gates the existing Task Tracker.
 const ExecutiveActions = {
   async renderAssignmentSection(containerEl, meetingId) {
     if (!containerEl) return;
@@ -2065,13 +2084,170 @@ const ExecutiveActions = {
         containerEl.innerHTML = `<div class="hist-empty-row">${l === "ar" ? "لم يتم استخراج أي مهام من هذا الاجتماع" : "No tasks were extracted from this meeting"}</div>`;
         return;
       }
-      containerEl.innerHTML = this._tableHtml(tasks, members, l);
+      this._meetingId = meetingId;
+      this._containerEl = containerEl;
+      this._members = members;
+      this._render(tasks, members, l);
     } catch (e) {
       containerEl.innerHTML = `<div class="hist-empty-row" style="color:var(--red)">${esc(e.message)}</div>`;
     }
   },
 
+  async _refresh() {
+    if (!this._containerEl || !this._meetingId) return;
+    try {
+      const tasks = await api(`/api/tasks?meeting_id=${this._meetingId}`);
+      this._render(tasks, this._members, App.lang);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  _render(tasks, members, l) {
+    const pending = tasks.filter((t) => t.review_status === "pending");
+    const approved = tasks.filter((t) => t.review_status !== "pending" && t.review_status !== "rejected");
+    const reviewHtml = pending.length ? this._reviewHtml(pending, l) : "";
+    const tableHtml = approved.length
+      ? this._tableHtml(approved, members, l)
+      : `<div class="hist-empty-row">${l === "ar" ? "لا توجد إجراءات معتمدة بعد — اعتمد المهام أعلاه أولاً" : "No approved actions yet — approve the tasks above first"}</div>`;
+    this._containerEl.innerHTML =
+      (pending.length
+        ? `<div class="exec-review-heading">🔍 ${l === "ar" ? "مراجعة مهام الذكاء الاصطناعي" : "AI Task Review"} <span class="tag" style="background:var(--navy4)">${pending.length}</span></div>${reviewHtml}<div class="exec-section-divider"></div>`
+        : "") +
+      `<div class="exec-review-heading">🎯 ${l === "ar" ? "جدول الإجراءات" : "Action Table"}</div>${tableHtml}`;
+  },
+
+  _confidenceBadge(confidence, l) {
+    if (!confidence || !AI_CONFIDENCE_META[confidence]) return "";
+    const c = AI_CONFIDENCE_META[confidence];
+    return `<span class="tag" style="background:${c.bg};color:${c.c};font-size:11px">${l === "ar" ? c.ar : c.en}</span>`;
+  },
+
+  _reviewHtml(pending, l) {
+    return `<div class="exec-review-list">
+      ${pending
+        .map(
+          (t) => `<div class="exec-review-card" id="exec-review-${t.id}">
+        <div class="exec-review-text" id="exec-review-text-${t.id}">${esc(l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar)}</div>
+        <div class="exec-review-meta">
+          ${this._confidenceBadge(t.ai_confidence, l)}
+          ${t.owner_ar || t.owner_name_ar ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(l === "ar" ? t.owner_name_ar || t.owner_ar : t.owner_name_en || t.owner_en)}</span>` : ""}
+          ${t.due_date ? `<span class="tag" style="background:var(--navy4);font-size:11px">📅 ${esc(t.due_date)}</span>` : ""}
+        </div>
+        <div class="exec-review-actions">
+          <button class="btn-ghost btn-sm" onclick="ExecutiveActions.editReview(${t.id})">✏️ ${l === "ar" ? "تعديل" : "Edit"}</button>
+          <button class="btn-ghost btn-sm" onclick="ExecutiveActions.split(${t.id})">✂ ${l === "ar" ? "تقسيم" : "Split"}</button>
+          ${pending.length > 1
+            ? `<select class="fi exec-merge-target" id="exec-merge-${t.id}" style="width:auto;min-width:110px">
+                <option value="">${l === "ar" ? "دمج مع..." : "Merge with..."}</option>
+                ${pending.filter((o) => o.id !== t.id).map((o) => `<option value="${o.id}">${esc((l === "ar" ? o.text_ar || o.text_en : o.text_en || o.text_ar).substring(0, 30))}</option>`).join("")}
+              </select>
+              <button class="btn-ghost btn-sm" onclick="ExecutiveActions.merge(${t.id})">🔀 ${l === "ar" ? "دمج" : "Merge"}</button>`
+            : ""}
+          <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ExecutiveActions.reject(${t.id})">✕ ${l === "ar" ? "رفض" : "Reject"}</button>
+          <button class="btn-gold btn-sm" onclick="ExecutiveActions.approve(${t.id})">✓ ${l === "ar" ? "اعتماد" : "Approve"}</button>
+        </div>
+      </div>`,
+        )
+        .join("")}
+    </div>`;
+  },
+
+  editReview(taskId) {
+    const l = App.lang;
+    const el = document.getElementById(`exec-review-text-${taskId}`);
+    if (!el || el.querySelector("textarea")) return;
+    const current = el.textContent;
+    el.innerHTML = `<textarea class="fi exec-review-edit-input" rows="2">${esc(current)}</textarea>
+      <button class="btn-gold btn-sm" style="margin-top:6px" onclick="ExecutiveActions.saveReviewEdit(${taskId})">${l === "ar" ? "حفظ" : "Save"}</button>`;
+  },
+
+  async saveReviewEdit(taskId) {
+    const el = document.getElementById(`exec-review-text-${taskId}`);
+    const ta = el && el.querySelector("textarea");
+    if (!ta) return;
+    const text = ta.value.trim();
+    if (!text) return;
+    try {
+      await api(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ text_ar: text, text_en: text }) });
+      await this._refresh();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async approve(taskId) {
+    try {
+      await api(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ review_status: "approved" }) });
+      await this._refresh();
+      await loadBadges();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async reject(taskId) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "رفض هذه المهمة المقترحة من الذكاء الاصطناعي؟" : "Reject this AI-suggested task?")) return;
+    try {
+      await api(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ review_status: "rejected", status: "cancelled" }) });
+      await this._refresh();
+      await loadBadges();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async merge(taskId) {
+    const l = App.lang;
+    const sel = document.getElementById(`exec-merge-${taskId}`);
+    const targetId = sel && sel.value;
+    if (!targetId) {
+      showToast(l === "ar" ? "اختر مهمة للدمج معها" : "Choose a task to merge with", "error");
+      return;
+    }
+    try {
+      const tasks = await api(`/api/tasks?meeting_id=${this._meetingId}`);
+      const a = tasks.find((t) => t.id === taskId);
+      const b = tasks.find((t) => String(t.id) === String(targetId));
+      if (!a || !b) return;
+      await api(`/api/tasks/${a.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text_ar: `${a.text_ar} — ${b.text_ar}`, text_en: `${a.text_en || a.text_ar} — ${b.text_en || b.text_ar}` }),
+      });
+      await api(`/api/tasks/${b.id}`, { method: "DELETE" });
+      showToast(l === "ar" ? "✓ تم دمج المهمتين" : "✓ Tasks merged", "success");
+      await this._refresh();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async split(taskId) {
+    const l = App.lang;
+    const text = prompt(l === "ar" ? "أدخل نص المهمة الجديدة الناتجة عن التقسيم:" : "Enter the text for the new split-off task:");
+    if (!text || !text.trim()) return;
+    try {
+      await api("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          text_ar: text.trim(), text_en: text.trim(),
+          source_meeting_id: this._meetingId,
+          review_status: "pending",
+        }),
+      });
+      showToast(l === "ar" ? "✓ تم إنشاء مهمة جديدة من التقسيم" : "✓ New task created from split", "success");
+      await this._refresh();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
   _tableHtml(tasks, members, l) {
+    const deptOf = (ownerId) => {
+      const m = members.find((mm) => String(mm.id) === String(ownerId));
+      return (m && m.department) || "";
+    };
     const ownerOptions = (selectedId) =>
       `<option value="">${l === "ar" ? "-- غير مسند --" : "-- Unassigned --"}</option>` +
       members.map((m) => `<option value="${m.id}" ${String(selectedId) === String(m.id) ? "selected" : ""}>${esc(l === "ar" ? m.name_ar : m.name_en || m.name_ar)}</option>`).join("");
@@ -2081,16 +2257,21 @@ const ExecutiveActions = {
         .join("");
     const priorityOptions = (current) =>
       TASK_ASSIGNABLE_PRIORITIES.map((k) => `<option value="${k}" ${taskPriorityKey(current) === k ? "selected" : ""}>${l === "ar" ? TASK_PRIORITY_META[k].ar : TASK_PRIORITY_META[k].en}</option>`).join("");
+    const progressOptions = (current) =>
+      PROGRESS_STEPS.map((p) => `<option value="${p}" ${Number(current || 0) === p ? "selected" : ""}>${p}%</option>`).join("");
 
     return `<div class="exec-actions-table-wrap">
       <table class="exec-actions-table">
         <thead><tr>
-          <th>${l === "ar" ? "المهمة" : "Task"}</th>
-          <th>${l === "ar" ? "المسؤول" : "Responsible Person"}</th>
+          <th>${l === "ar" ? "الإجراء" : "Action"}</th>
+          <th>${l === "ar" ? "المسؤول" : "Owner"}</th>
+          <th>${l === "ar" ? "القسم" : "Department"}</th>
           <th>${l === "ar" ? "تاريخ الاستحقاق" : "Due Date"}</th>
           <th>${l === "ar" ? "الأولوية" : "Priority"}</th>
           <th>${l === "ar" ? "الحالة" : "Status"}</th>
+          <th>${l === "ar" ? "التقدم" : "Progress"}</th>
           <th>${l === "ar" ? "ملاحظات" : "Notes"}</th>
+          <th>${l === "ar" ? "آخر تحديث" : "Last Updated"}</th>
           <th></th>
         </tr></thead>
         <tbody>
@@ -2098,11 +2279,14 @@ const ExecutiveActions = {
             .map(
               (t) => `<tr id="exec-act-row-${t.id}">
             <td>${esc(l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar)}</td>
-            <td><select class="fi exec-act-owner">${ownerOptions(t.owner_id)}</select></td>
+            <td><select class="fi exec-act-owner" onchange="ExecutiveActions.ownerChanged(${t.id})">${ownerOptions(t.owner_id)}</select></td>
+            <td><span class="exec-act-dept" id="exec-act-dept-${t.id}">${esc(deptOf(t.owner_id)) || "—"}</span></td>
             <td><input type="date" class="fi exec-act-due" value="${esc(t.due_date || "")}"/></td>
             <td><select class="fi exec-act-priority">${priorityOptions(t.priority)}</select></td>
             <td><select class="fi exec-act-status">${statusOptions(t.status)}</select></td>
+            <td><select class="fi exec-act-progress">${progressOptions(t.progress)}</select></td>
             <td><input type="text" class="fi exec-act-notes" value="${esc(t.notes || "")}" placeholder="${l === "ar" ? "ملاحظات..." : "Notes..."}"/></td>
+            <td style="font-size:11px;color:var(--text3);white-space:nowrap">${esc((t.updated_at || t.created_at || "").substring(0, 16))}</td>
             <td><button class="btn-gold btn-sm" onclick="ExecutiveActions.saveRow(${t.id})">${l === "ar" ? "حفظ" : "Save"}</button></td>
           </tr>`,
             )
@@ -2110,6 +2294,15 @@ const ExecutiveActions = {
         </tbody>
       </table>
     </div>`;
+  },
+
+  ownerChanged(taskId) {
+    const row = document.getElementById(`exec-act-row-${taskId}`);
+    const deptEl = document.getElementById(`exec-act-dept-${taskId}`);
+    if (!row || !deptEl) return;
+    const ownerId = row.querySelector(".exec-act-owner").value;
+    const m = (this._members || []).find((mm) => String(mm.id) === String(ownerId));
+    deptEl.textContent = (m && m.department) || "—";
   },
 
   async saveRow(taskId) {
@@ -2120,6 +2313,7 @@ const ExecutiveActions = {
     const dueEl = row.querySelector(".exec-act-due");
     const prioritySel = row.querySelector(".exec-act-priority");
     const statusSel = row.querySelector(".exec-act-status");
+    const progressSel = row.querySelector(".exec-act-progress");
     const notesEl = row.querySelector(".exec-act-notes");
     const btn = row.querySelector("button");
     const originalText = btn.textContent;
@@ -2133,6 +2327,7 @@ const ExecutiveActions = {
           due_date: dueEl.value || "",
           priority: prioritySel.value,
           status: statusSel.value,
+          progress: Number(progressSel.value),
           notes: notesEl.value,
         }),
       });
@@ -2376,23 +2571,25 @@ const ImportFlow = {
 
   async populateMeetingsSel() {
     const sel = $('imp-meeting-sel');
-    if (!sel) return;
+    const prevSel = $('imp-new-prev-meeting');
+    if (!sel && !prevSel) return;
     const l = App.lang;
-    sel.innerHTML = `<option value="">${l === 'ar' ? 'جارٍ تحميل الاجتماعات…' : 'Loading meetings…'}</option>`;
+    if (sel) sel.innerHTML = `<option value="">${l === 'ar' ? 'جارٍ تحميل الاجتماعات…' : 'Loading meetings…'}</option>`;
     try {
       const meetings = await api('/api/meetings');
       if (!meetings.length) {
-        sel.innerHTML = `<option value="">${l === 'ar' ? 'لا توجد اجتماعات مسجلة بعد' : 'No meetings recorded yet'}</option>`;
+        if (sel) sel.innerHTML = `<option value="">${l === 'ar' ? 'لا توجد اجتماعات مسجلة بعد' : 'No meetings recorded yet'}</option>`;
         return;
       }
-      sel.innerHTML = `<option value="">${l === 'ar' ? '— اختر الاجتماع —' : '— Select Meeting —'}</option>` +
-        meetings.map((m) => {
-          const title = l === 'ar' ? m.title_ar : m.title_en || m.title_ar;
-          const date = (m.meeting_date || '').substring(0, 10);
-          return `<option value="${m.id}">${esc(title)}${date ? ' · ' + date : ''}</option>`;
-        }).join('');
+      const opts = meetings.map((m) => {
+        const title = l === 'ar' ? m.title_ar : m.title_en || m.title_ar;
+        const date = (m.meeting_date || '').substring(0, 10);
+        return `<option value="${m.id}">${esc(title)}${date ? ' · ' + date : ''}</option>`;
+      }).join('');
+      if (sel) sel.innerHTML = `<option value="">${l === 'ar' ? '— اختر الاجتماع —' : '— Select Meeting —'}</option>` + opts;
+      if (prevSel) prevSel.innerHTML = `<option value="">${l === 'ar' ? '— اجتماع سابق مرتبط (اختياري) —' : '— Linked Previous Meeting (optional) —'}</option>` + opts;
     } catch (_) {
-      sel.innerHTML = `<option value="">${l === 'ar' ? 'تعذّر تحميل الاجتماعات' : 'Could not load meetings'}</option>`;
+      if (sel) sel.innerHTML = `<option value="">${l === 'ar' ? 'تعذّر تحميل الاجتماعات' : 'Could not load meetings'}</option>`;
     }
   },
 
@@ -2421,6 +2618,7 @@ const ImportFlow = {
       type: (($('imp-new-type') || {}).value) || '',
       meeting_date: (($('imp-new-date') || {}).value) || '',
       meeting_provider: (($('imp-new-provider') || {}).value) || '',
+      prev_meeting_id: (($('imp-new-prev-meeting') || {}).value) || '',
     };
   },
 
@@ -2594,7 +2792,7 @@ const ImportFlow = {
       sec('🗣️', 'أبرز نقاط النقاش', 'Key Discussion Points', list(topics, (t) => `<div>• ${esc(t)}</div>`) || emptyRow('لا توجد نقاط مسجّلة', 'No discussion points recorded')),
       sec('⚖️', 'القرارات', 'Decisions', list(data.decisions, (d) => `<div>${esc(l === 'ar' ? d.text_ar || d.text_en : d.text_en || d.text_ar)}</div>`) || emptyRow('لا توجد قرارات', 'No decisions')),
       sec('✅', 'المهام / الإجراءات', 'Tasks / Action Items', list(data.tasks, (t) => `<div>${esc(l === 'ar' ? t.text_ar || t.text_en : t.text_en || t.text_ar)} ${t.owner_ar || t.owner_en ? `<span class="tag tgold" style="font-size:11px">${esc(l === 'ar' ? t.owner_ar || t.owner_en : t.owner_en || t.owner_ar)}</span>` : ''}</div>`) || emptyRow('لا توجد مهام', 'No tasks')),
-      sec('🎯', 'تعيين إجراءات التنفيذ', 'Executive Action Assignment', `<div id="exec-actions-import-${m.id}"><div class="es" style="padding:16px 0"><div class="loading"></div></div></div>`),
+      sec('🎯', 'إدارة إجراءات التنفيذ', 'Executive Action Management', `<div id="exec-actions-import-${m.id}"><div class="es" style="padding:16px 0"><div class="loading"></div></div></div>`),
       sec('📌', 'متابعات', 'Follow-ups', list(data.followups, (f) => `<div>${esc(l === 'ar' ? f.text_ar || f.text_en : f.text_en || f.text_ar)}</div>`) || emptyRow('لا توجد متابعات', 'No follow-ups')),
     ];
     if (data.risks && data.risks.length) {
@@ -2723,6 +2921,8 @@ async function renderTranscripts() {
       if (!t.source_meeting_id) return;
       (tasksByMeeting[t.source_meeting_id] = tasksByMeeting[t.source_meeting_id] || []).push(t);
     });
+    const meetingsById = {};
+    meetings.forEach((m) => { meetingsById[m.id] = m; });
     const l = App.lang;
     if (!meetings.length) {
       body.innerHTML = `<div style="text-align:center;padding:40px 24px">
@@ -2854,6 +3054,10 @@ async function renderTranscripts() {
             </div>
           </div>
           ${_meetingLifecycle(m, l)}
+          ${m.prev_meeting_id && meetingsById[m.prev_meeting_id] ? `<div style="margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">🔁 ${l === "ar" ? "مراجعة إجراءات الاجتماع السابق" : "Previous Meeting Action Review"} — ${esc(l === "ar" ? meetingsById[m.prev_meeting_id].title_ar : (meetingsById[m.prev_meeting_id].title_en || meetingsById[m.prev_meeting_id].title_ar))}</div>
+            ${execActionsSummaryChips(tasksByMeeting[m.prev_meeting_id], l)}
+          </div>` : ""}
           <div style="margin-bottom:10px">
             <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">🎯 ${l === "ar" ? "الإجراءات التنفيذية" : "Executive Actions"}</div>
             ${execActionsSummaryChips(tasksByMeeting[m.id], l)}
@@ -3110,12 +3314,21 @@ const MeetingHistory = {
     if (detail) detail.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
       const full = await api(`/api/meetings/${id}/full`);
-      this.renderDetail(full);
+      let prevMeetingTasks = null, prevMeeting = null;
+      if (full.meeting && full.meeting.prev_meeting_id) {
+        try {
+          [prevMeetingTasks, prevMeeting] = await Promise.all([
+            api(`/api/tasks?meeting_id=${full.meeting.prev_meeting_id}`),
+            api(`/api/meetings/${full.meeting.prev_meeting_id}`),
+          ]);
+        } catch (_) { /* previous meeting may have been deleted — skip silently */ }
+      }
+      this.renderDetail(full, prevMeetingTasks, prevMeeting);
     } catch (e) {
       if (detail) detail.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
     }
   },
-  renderDetail(full) {
+  renderDetail(full, prevMeetingTasks, prevMeeting) {
     const detail = $("hist-detail");
     if (!detail) return;
     const l = App.lang;
@@ -3224,6 +3437,15 @@ const MeetingHistory = {
             ? `<div class="tr-box" style="max-height:260px;overflow-y:auto;white-space:pre-wrap">${esc(m.transcript)}</div>`
             : emptyRow("لا يوجد نص مسجّل لهذا الاجتماع", "No transcript recorded for this meeting"),
       )}
+
+      ${prevMeetingTasks && prevMeeting
+        ? sec(
+            "🔁",
+            "مراجعة إجراءات الاجتماع السابق",
+            "Previous Meeting Action Review",
+            `<div style="margin-bottom:6px;font-size:11.5px;color:var(--text3)">${esc(l === "ar" ? prevMeeting.title_ar : prevMeeting.title_en || prevMeeting.title_ar)}</div>${execActionsSummaryChips(prevMeetingTasks, l)}`,
+          )
+        : ""}
 
       ${sec(
         "🎯",
@@ -3734,7 +3956,7 @@ async function pushLastMeetingWhatsApp(id) {
 // pattern as DocLib.search / MeetingHistory), so it stays in sync automatically
 // on every renderTasks() re-render without a new backend query.
 const TaskFilters = {
-  q: "", owner: "", status: "", priority: "", meeting: "", department: "", mine: false,
+  q: "", owner: "", status: "", priority: "", meeting: "", department: "", dueBefore: "", mine: false,
   _searchTimer: null,
   onSearch(q) {
     clearTimeout(this._searchTimer);
@@ -3749,6 +3971,7 @@ const TaskFilters = {
     this.priority = (($("tf-priority") || {}).value) || "";
     this.meeting = (($("tf-meeting") || {}).value) || "";
     this.department = (($("tf-department") || {}).value) || "";
+    this.dueBefore = (($("tf-due") || {}).value) || "";
     renderTasks();
   },
   toggleMine() {
@@ -3756,11 +3979,11 @@ const TaskFilters = {
     renderTasks();
   },
   reset() {
-    this.q = ""; this.owner = ""; this.status = ""; this.priority = ""; this.meeting = ""; this.department = ""; this.mine = false;
+    this.q = ""; this.owner = ""; this.status = ""; this.priority = ""; this.meeting = ""; this.department = ""; this.dueBefore = ""; this.mine = false;
     renderTasks();
   },
   isActive() {
-    return !!(this.q || this.owner || this.status || this.priority || this.meeting || this.department || this.mine);
+    return !!(this.q || this.owner || this.status || this.priority || this.meeting || this.department || this.dueBefore || this.mine);
   },
 };
 
@@ -3778,6 +4001,7 @@ async function renderTasks() {
     const l = App.lang;
     const f = TaskFilters;
 
+    const canFullyManage = TASK_FULL_MANAGE_ROLES.includes(App.systemRole);
     const ownerDept = {};
     members.forEach((m) => { ownerDept[m.id] = m.department || ""; });
     const meetingTitles = [...new Set(tasks.map((t) => (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)).filter(Boolean))];
@@ -3793,6 +4017,7 @@ async function renderTasks() {
         if (mtg !== f.meeting) return false;
       }
       if (f.department && ownerDept[t.owner_id] !== f.department) return false;
+      if (f.dueBefore && (!t.due_date || t.due_date > f.dueBefore)) return false;
       if (f.q) {
         const hay = [t.text_ar, t.text_en, t.owner_name_ar, t.owner_name_en].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(f.q)) return false;
@@ -3853,8 +4078,11 @@ async function renderTasks() {
       </select>`;
 
       const pri = taskPriorityMeta(t.priority);
+      const dept = ownerDept[t.owner_id];
+      const progress = Number(t.progress || 0);
 
       const accentColor = isOverdue ? "var(--red)" : isCritical ? "var(--red)" : isHigh ? "var(--amber)" : "var(--border2)";
+      const canManageThis = canFullyManage;
 
       return `<div class="trow" id="tr-${t.id}" style="border-inline-start:3px solid ${accentColor};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0;${isOverdue?"background:rgba(220,60,60,.04)":""}">
         <div style="display:flex;gap:11px;align-items:flex-start">
@@ -3863,6 +4091,7 @@ async function renderTasks() {
             <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
             <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
               ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
+              ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
               <span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l==="ar"?pri.ar:pri.en}</span>
               ${daysTag}
               ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
@@ -3871,6 +4100,14 @@ async function renderTasks() {
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
               ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"var(--red)":"var(--text3)"}">📅 ${l==="ar"?"الاستحقاق:":"Due:"} <strong style="color:${isOverdue?"var(--red)":"var(--text2)"}">${esc(t.due_date)}</strong></span>` : ""}
               ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>42?mtg.substring(0,42)+"…":mtg)}</span>` : ""}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <div style="flex:1;height:5px;background:var(--navy4);border-radius:4px;overflow:hidden;max-width:160px">
+                <div style="height:100%;border-radius:4px;background:${progress===100?"var(--green)":"var(--gold)"};width:${progress}%;transition:width .3s"></div>
+              </div>
+              <select class="st-select" style="font-size:10.5px;padding:2px 6px" onchange="Tasks.updateProgress(${t.id}, this.value)" title="${l==="ar"?"نسبة التقدم":"Progress"}">
+                ${PROGRESS_STEPS.map(p => `<option value="${p}" ${progress===p?"selected":""}>${p}%</option>`).join("")}
+              </select>
             </div>
             <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
               <span style="line-height:1.4">${
@@ -3883,7 +4120,7 @@ async function renderTasks() {
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
             <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1;font-weight:500" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l==="ar"?"تعديل":"Edit"}">✏️</button>
-            <button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l==="ar"?"حذف":"Delete"}">✕</button>
+            ${canManageThis ? `<button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l==="ar"?"حذف":"Delete"}">✕</button>` : ""}
           </div>
         </div>
       </div>`;
@@ -3959,6 +4196,7 @@ async function renderTasks() {
         ${_opt("", l==="ar"?"كل الأقسام":"All Departments", !f.department)}
         ${departments.map(d => _opt(d, d, f.department===d)).join("")}
       </select>` : ""}
+      <input type="date" class="fi" id="tf-due" value="${esc(f.dueBefore)}" onchange="TaskFilters.apply()" title="${l==="ar"?"مستحقة قبل أو في":"Due on or before"}"/>
       <label class="tf-mine${f.mine?" active":""}" onclick="TaskFilters.toggleMine()">
         <input type="checkbox" ${f.mine?"checked":""} onclick="event.stopPropagation();TaskFilters.toggleMine()"/> ${l==="ar"?"مهامي فقط":"My Tasks"}
       </label>
@@ -4036,6 +4274,17 @@ const Tasks = {
         body: JSON.stringify({ status }),
       });
       await loadBadges();
+      renderTasks();
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+  async updateProgress(id, progress) {
+    try {
+      await api(`/api/tasks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ progress: Number(progress) }),
+      });
       renderTasks();
     } catch (e) {
       alert(e.message);
@@ -6009,6 +6258,30 @@ async function renderOverview() {
               : "var(--red)",
         go: "tasks",
       },
+      {
+        key: "tasks_blocked",
+        icon: "⛔",
+        val: stats.tasks_blocked || 0,
+        label: lbl("إجراء معلّق", "Blocked Actions"),
+        color: (stats.tasks_blocked || 0) > 0 ? "var(--red)" : "var(--text3)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_high",
+        icon: "⚡",
+        val: stats.tasks_high || 0,
+        label: lbl("أولوية عالية", "High Priority"),
+        color: "var(--amber)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_critical",
+        icon: "🔥",
+        val: stats.tasks_critical || 0,
+        label: lbl("أولوية حرجة", "Critical Priority"),
+        color: (stats.tasks_critical || 0) > 0 ? "var(--red)" : "var(--text3)",
+        go: "tasks",
+      },
     ];
 
     const ROLE_STAT_KEYS = {
@@ -6021,6 +6294,9 @@ async function renderOverview() {
         "schedule",
         "users",
         "completion",
+        "tasks_blocked",
+        "tasks_high",
+        "tasks_critical",
       ],
       CEO: [
         "meetings",
@@ -6031,6 +6307,9 @@ async function renderOverview() {
         "schedule",
         "users",
         "completion",
+        "tasks_blocked",
+        "tasks_high",
+        "tasks_critical",
       ],
       "Board Member": ["meetings", "decisions", "schedule", "completion"],
       "Committee Member": [

@@ -296,8 +296,8 @@ async function processMeeting({ meetingId, userId = null }) {
     aiLog('task:none', { meetingId, reason });
   } else {
     const insertTask = db.prepare(`
-      INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, needs_review, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, needs_review, review_status, ai_confidence, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
     `);
     for (const t of tasks) {
       // Match on whichever owner field the model returned (AR or EN). A sentinel
@@ -312,10 +312,14 @@ async function processMeeting({ meetingId, userId = null }) {
       const uncertain = Boolean(t.needs_review) || !(t.owner_ar || t.owner_en) || !t.due;
       const review = uncertain ? 1 : 0;
       needsReviewCount += review;
+      // AI Task Review confidence: low when the model itself flagged uncertainty
+      // or owner/date are missing; high when a real team member was matched AND
+      // a due date was extracted; medium otherwise (e.g. owner named but unmatched).
+      const confidence = uncertain ? 'low' : (u && t.due ? 'high' : 'medium');
       insertTask.run(
         t.text_ar, t.text_en || t.text_ar,
         u ? u.id : null, t.owner_ar || '', t.owner_en || '',
-        t.due || '', t.priority || 'normal', review,
+        t.due || '', t.priority || 'normal', review, confidence,
         meeting.id, finalTitleAr, finalTitleEn, userId || meeting.recorded_by || null
       );
       tasksCreated++;

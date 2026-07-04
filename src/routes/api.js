@@ -557,7 +557,7 @@ router.patch('/meetings/:id', auth, (req, res) => {
 // meeting here; the actual file bytes go through the existing, already-tested
 // POST /meetings/:id/recording endpoint from the frontend.
 router.post('/meetings/import-content', auth, async (req, res) => {
-  const { meeting_target, meeting_id, title, type, meeting_date, meeting_provider, content_type, text } = req.body;
+  const { meeting_target, meeting_id, title, type, meeting_date, meeting_provider, prev_meeting_id, content_type, text } = req.body;
   const isTextContent = content_type === 'paste_text' || content_type === 'text_file';
 
   let targetId;
@@ -579,6 +579,7 @@ router.post('/meetings/import-content', auth, async (req, res) => {
     ).run(targetId, req.user.id, actor.name);
     if (meeting_date) db.prepare('UPDATE meetings SET meeting_date=? WHERE id=?').run(meeting_date, targetId);
     if (meeting_provider) db.prepare('UPDATE meetings SET recording_capture_type=? WHERE id=?').run(meeting_provider, targetId);
+    if (prev_meeting_id) db.prepare('UPDATE meetings SET prev_meeting_id=? WHERE id=?').run(prev_meeting_id, targetId);
   } else {
     if (!meeting_id) return res.status(400).json({ error: 'meeting_id is required when meeting_target is existing' });
     const exists = db.prepare('SELECT id FROM meetings WHERE id=?').get(meeting_id);
@@ -940,6 +941,18 @@ async function notifyTaskAssigned(task, actorUserId) {
   }
 }
 
+// ── Executive Action permissions ────────────────────────────────────────────
+// Full management (reassign owner, change text/priority/due date, delete) is
+// limited to roles that already govern meetings/tasks platform-wide.
+// Employees may only update status/notes/progress, and only on their own
+// tasks. Observers get no write access at all (defense in depth — the UI
+// already hides these actions for that role, this is the API-side backstop).
+const TASK_FULL_MANAGE_ROLES = ['Admin', 'CEO', 'Manager', 'Executive', 'Board Member', 'Committee Member'];
+function getUserRole(userId) {
+  const u = db.prepare('SELECT system_role FROM users WHERE id=?').get(userId);
+  return (u && u.system_role) || 'Admin';
+}
+
 router.get('/tasks', auth, (req, res) => {
   // Auto-mark overdue: any task with a past due_date that isn't in a
   // terminal/held state. Waiting and Blocked are deliberately excluded —
@@ -952,9 +965,8 @@ router.get('/tasks', auth, (req, res) => {
       AND status NOT IN ('done', 'cancelled', 'overdue', 'waiting', 'blocked')
   `).run(today);
 
-  const user = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
-  const role = (user && user.system_role) || 'Admin';
-  const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'blocked' THEN 2 WHEN 'inprogress' THEN 3 WHEN 'waiting' THEN 4 WHEN 'new' THEN 5 WHEN 'open' THEN 5 ELSE 6 END, due_date ASC";
+  const role = getUserRole(req.user.id);
+  const ORDER = "ORDER BY CASE status WHEN 'overdue' THEN 1 WHEN 'blocked' THEN 2 WHEN 'inprogress' THEN 3 WHEN 'waiting' THEN 4 WHEN 'new' THEN 5 WHEN 'open' THEN 5 WHEN 'assigned' THEN 5 ELSE 6 END, due_date ASC";
   const UPDATE_COLS = `,
       (SELECT COUNT(*) FROM task_updates WHERE task_id=t.id) AS update_count,
       (SELECT update_text FROM task_updates WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1) AS latest_update_text,
@@ -968,7 +980,9 @@ router.get('/tasks', auth, (req, res) => {
 });
 
 router.post('/tasks', auth, async (req, res) => {
-  const { text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en } = req.body;
+  const role = getUserRole(req.user.id);
+  if (role === 'Observer') return res.status(403).json({ error: 'Not permitted to create tasks' });
+  const { text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, review_status } = req.body;
   if (!text_ar) return res.status(400).json({ error: 'text_ar required' });
   let oNameAr = owner_name_ar || '';
   let oNameEn = owner_name_en || '';
@@ -977,18 +991,32 @@ router.post('/tasks', auth, async (req, res) => {
     if (u) { oNameAr = u.name_ar; oNameEn = u.name_en; }
   }
   const row = db.prepare(`
-    INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(text_ar, text_en || text_ar, owner_id || null, oNameAr, oNameEn, due_date || '', priority || 'normal', source_meeting_id || null, source_meeting_title_ar || '', source_meeting_title_en || '', req.user.id);
+    INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, status, review_status, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(text_ar, text_en || text_ar, owner_id || null, oNameAr, oNameEn, due_date || '', priority || 'normal', owner_id ? 'assigned' : 'open', review_status || 'approved', source_meeting_id || null, source_meeting_title_ar || '', source_meeting_title_en || '', req.user.id);
   const created = db.prepare('SELECT * FROM tasks WHERE id=?').get(row.lastInsertRowid);
   await notifyTaskAssigned(created, req.user.id);
   res.json(created);
 });
 
 router.patch('/tasks/:id', auth, async (req, res) => {
-  const { status, notes, due_date, priority, text_ar, text_en, owner_id, owner_name_ar, owner_name_en } = req.body;
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Not found' });
+
+  const role = getUserRole(req.user.id);
+  const canFullyManage = TASK_FULL_MANAGE_ROLES.includes(role);
+  if (!canFullyManage) {
+    if (role !== 'Employee' || task.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not permitted to manage this task' });
+    }
+  }
+  // Employees may only move their own task's status/notes/progress forward —
+  // not reassign, retitle, reprioritize, or reschedule it.
+  const body = canFullyManage
+    ? req.body
+    : { status: req.body.status, notes: req.body.notes, progress: req.body.progress };
+
+  const { status, notes, due_date, priority, text_ar, text_en, owner_id, owner_name_ar, owner_name_en, progress, review_status } = body;
   // Resolve a freshly-assigned owner (by id) to its bilingual names, so editing
   // the owner keeps owner_name_ar/en in sync with owner_id.
   let oId = (owner_id === undefined) ? undefined : (owner_id || null);
@@ -998,12 +1026,20 @@ router.patch('/tasks/:id', auth, async (req, res) => {
     const u = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(owner_id);
     if (u) { oNameAr = u.name_ar; oNameEn = u.name_en; }
   }
+  // If an owner is newly attached and the caller didn't also specify a status,
+  // move a still-unowned task straight to "Assigned" — a manager assigning a
+  // task shouldn't have to separately flip its status too.
+  let newStatus = status;
+  if (newStatus === undefined && oId && !task.owner_id && ['new', 'open'].includes(task.status)) {
+    newStatus = 'assigned';
+  }
   db.prepare(`UPDATE tasks SET
       status=COALESCE(?,status), notes=COALESCE(?,notes), due_date=COALESCE(?,due_date), priority=COALESCE(?,priority),
-      text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en),
+      text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en), progress=COALESCE(?,progress),
+      review_status=COALESCE(?,review_status),
       owner_id=COALESCE(?,owner_id), owner_name_ar=COALESCE(?,owner_name_ar), owner_name_en=COALESCE(?,owner_name_en),
       updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(status, notes, due_date, priority, text_ar, text_en, oId, oNameAr, oNameEn, req.params.id);
+    .run(newStatus, notes, due_date, priority, text_ar, text_en, progress, review_status, oId, oNameAr, oNameEn, req.params.id);
   const updated = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   // Only notify when the owner actually changed to a new, real assignee —
   // not on every unrelated field edit (status/notes/etc. don't re-notify).
@@ -1014,6 +1050,8 @@ router.patch('/tasks/:id', auth, async (req, res) => {
 });
 
 router.delete('/tasks/:id', auth, (req, res) => {
+  const role = getUserRole(req.user.id);
+  if (!TASK_FULL_MANAGE_ROLES.includes(role)) return res.status(403).json({ error: 'Not permitted to delete tasks' });
   db.prepare('DELETE FROM tasks WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -1669,8 +1707,11 @@ router.get('/stats', auth, (req, res) => {
   const decisions = db.prepare('SELECT COUNT(*) as c FROM decisions').get().c;
   const users = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
   const schedule = db.prepare('SELECT COUNT(*) as c FROM schedule').get().c;
+  const tasks_blocked = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE status = 'blocked'").get().c;
+  const tasks_high = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE priority = 'high' AND status NOT IN ('done','cancelled')").get().c;
+  const tasks_critical = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE priority IN ('critical','urgent') AND status NOT IN ('done','cancelled')").get().c;
   const completion = tasks_total > 0 ? Math.round((tasks_done / tasks_total) * 100) : 0;
-  res.json({ meetings, tasks_total, tasks_open, tasks_overdue, tasks_done, decisions, users, schedule, completion });
+  res.json({ meetings, tasks_total, tasks_open, tasks_overdue, tasks_done, decisions, users, schedule, tasks_blocked, tasks_high, tasks_critical, completion });
 });
 
 // ── Document History ───────────────────────────────────────────────────────
