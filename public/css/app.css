@@ -177,6 +177,8 @@ select.fi option{background:var(--navy3)}
 .qf-chip:hover{border-color:var(--gold-border)}
 .qf-chip.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
 .qf-count{font-size:10px;font-weight:800;opacity:.75}
+.qf-chip-alert{background:rgba(212,160,23,.14);border-color:rgba(212,160,23,.4);color:var(--gold)}
+.qf-chip-alert:not(.active):hover{border-color:var(--gold)}
 
 /* ── Executive Actions — Calendar view ────────────────────────────── */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}

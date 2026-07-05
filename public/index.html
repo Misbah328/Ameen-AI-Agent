@@ -613,7 +613,7 @@
       </div>
       <div id="doc-library-section"><div class="es"><div class="loading"></div></div></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;flex:1;min-height:0">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:15px;flex:1;min-height:0">
       <div class="card" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
         <div class="ct" data-ar="خصائص الوثيقة" data-en="Document Properties">خصائص الوثيقة</div>
         <div class="fs">
@@ -667,12 +667,12 @@
         </div>
       </div>
       <div class="card" style="display:flex;flex-direction:column;min-height:0">
-        <div class="ch">
+        <div class="ch" style="flex-wrap:wrap">
           <div>
             <div class="ct" data-ar="الوثيقة المُولَّدة" data-en="Generated Document">الوثيقة المُولَّدة</div>
             <div class="ctsub" data-ar="محفوظة تلقائياً" data-en="Automatically saved">محفوظة تلقائياً</div>
           </div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn-ghost btn-sm" onclick="DocGen.copy()">📋 <span data-ar="نسخ" data-en="Copy">نسخ</span></button>
             <button class="btn-ghost btn-sm" onclick="DocGen.print()">🖨 <span data-ar="طباعة" data-en="Print">طباعة</span></button>
             <button class="btn-ghost btn-sm" onclick="DocGen.downloadPDF()">⬇ <span data-ar="تنزيل PDF" data-en="Download PDF">تنزيل PDF</span></button>
@@ -703,7 +703,12 @@
       <div class="card">
         <div class="ch">
           <div class="ct" data-ar="الاجتماعات القادمة" data-en="Upcoming Meetings">الاجتماعات القادمة</div>
+          <div class="imp-seg" style="max-width:200px;margin-bottom:0">
+            <button class="imp-seg-btn" id="sched-view-list-btn" style="min-width:0;padding:6px 10px;font-size:11.5px" onclick="MasterCalendar.setView('list')" data-ar="📋 قائمة" data-en="📋 List">📋 قائمة</button>
+            <button class="imp-seg-btn" id="sched-view-cal-btn" style="min-width:0;padding:6px 10px;font-size:11.5px" onclick="MasterCalendar.setView('calendar')" data-ar="📅 تقويم" data-en="📅 Calendar">📅 تقويم</button>
+          </div>
         </div>
+        <div id="sched-calendar" style="display:none"></div>
         <div id="sched-items"><div class="es"><div class="loading"></div></div></div>
       </div>
       <div class="card">

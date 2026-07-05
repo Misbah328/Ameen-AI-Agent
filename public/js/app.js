@@ -1145,7 +1145,20 @@ const MEETING_TYPES = {
   "General Meeting": { ar: "الاجتماع العام", en: "General Meeting" },
   "Strategy Meeting": { ar: "اجتماع الاستراتيجية", en: "Strategy Meeting" },
   "Follow-up Meeting": { ar: "اجتماع المتابعة", en: "Follow-up Meeting" },
+  general_assembly: { ar: "الجمعية العمومية", en: "General Assembly" },
 };
+const CAL_TYPE_COLORS = {
+  "Board Meeting": "#5B9BD6",
+  "Committee Meeting": "#2ECC8A",
+  "Executive Meeting": "#D4A017",
+  "General Meeting": "#9AA0A6",
+  "Strategy Meeting": "#9B72DB",
+  "Follow-up Meeting": "#EFA827",
+  general_assembly: "#E05A5A",
+};
+function calTypeColor(type) {
+  return CAL_TYPE_COLORS[type] || "#9AA0A6";
+}
 function mtLabel(type, lang) {
   const t = MEETING_TYPES[type];
   if (!t || !type) return type || "";
@@ -4893,15 +4906,22 @@ async function renderTasks() {
   const body = $("tasks-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const [tasks, decisions, members] = await Promise.all([
+    const [tasksRaw, decisions, members] = await Promise.all([
       api("/api/tasks"),
       api("/api/decisions"),
       api("/api/members"),
     ]);
-    App.tasksCache = tasks;
+    App.tasksCache = tasksRaw;
     App._members = members;
     const l = App.lang;
     const f = TaskFilters;
+
+    // ── AI-extracted tasks awaiting human review never mix into the regular
+    // board/list/calendar — they haven't been vetted yet (owner/due/priority
+    // may just be the AI's best guess). They only appear in the dedicated
+    // "Pending Review" quick filter below, until approved or rejected.
+    const pendingReviewTasks = tasksRaw.filter((t) => t.review_status === "pending");
+    const tasks = tasksRaw.filter((t) => t.review_status !== "pending" && t.review_status !== "rejected");
 
     const canFullyManage = App.can("actions.assign");
     const ownerDept = {};
@@ -5137,6 +5157,7 @@ async function renderTasks() {
       favorites: tasks.filter((t) => TaskFavorites.has(t.id)).length,
     };
     const quickChips = [
+      ...(pendingReviewTasks.length ? [{ key: "review", icon: "⏳", ar: "بانتظار المراجعة", en: "Pending Review", alert: true }] : []),
       { key: "my", icon: "👤", ar: "مهامي", en: "My Actions" },
       { key: "team", icon: "👥", ar: "إجراءات الفريق", en: "Team Actions" },
       ...(myDept ? [{ key: "dept", icon: "🏢", ar: "إجراءات القسم", en: "Department Actions" }] : []),
@@ -5150,9 +5171,9 @@ async function renderTasks() {
     const quickFilterBarHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
       ${quickChips
         .map((c) => {
-          const count = c.key === "recent" ? "" : quickCounts[c.key] || 0;
+          const count = c.key === "recent" ? "" : c.key === "review" ? pendingReviewTasks.length : quickCounts[c.key] || 0;
           const active = f.quick === c.key;
-          return `<button class="qf-chip ${active ? "active" : ""}" onclick="TaskFilters.setQuick('${c.key}')">${c.icon} ${l === "ar" ? c.ar : c.en}${count !== "" ? ` <span class="qf-count">${count}</span>` : ""}</button>`;
+          return `<button class="qf-chip ${active ? "active" : ""}${c.alert ? " qf-chip-alert" : ""}" onclick="TaskFilters.setQuick('${c.key}')">${c.icon} ${l === "ar" ? c.ar : c.en}${count !== "" ? ` <span class="qf-count">${count}</span>` : ""}</button>`;
         })
         .join("")}
     </div>`;
@@ -5291,15 +5312,84 @@ async function renderTasks() {
       </div>` : ""}
     `;
 
+    // ── Pending Review queue — dedicated card list for AI-extracted tasks that
+    // haven't been approved/rejected yet. Shown instead of the normal board/
+    // list/calendar view whenever the "Pending Review" quick chip is active.
+    const pendingReviewBodyHtml = `
+      <div class="card" style="margin-bottom:14px;background:rgba(212,160,23,.06);border:.5px solid rgba(212,160,23,.25)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="rv-select-all" onchange="ReviewQueue.toggleAll(this.checked)" style="width:16px;height:16px;cursor:pointer"/>
+            <label for="rv-select-all" style="font-size:12.5px;color:var(--text2);cursor:pointer">${l === "ar" ? "تحديد الكل" : "Select all"}</label>
+            <span id="rv-selected-count" class="tag" style="background:var(--navy4);font-size:11px">0 ${l === "ar" ? "محدد" : "selected"}</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button id="rv-bulk-approve" class="btn-gold btn-sm" disabled onclick="ReviewQueue.bulkApprove()">✓ ${l === "ar" ? "اعتماد المحدد" : "Approve Selected"}</button>
+            <button id="rv-bulk-assign" class="btn-ghost btn-sm" disabled onclick="ReviewQueue.bulkAssign()">👤 ${l === "ar" ? "إسناد المحدد" : "Assign Selected"}</button>
+            <button id="rv-bulk-reject" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" disabled onclick="ReviewQueue.bulkReject()">✕ ${l === "ar" ? "رفض المحدد" : "Reject Selected"}</button>
+            <button id="rv-bulk-delete" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" disabled onclick="ReviewQueue.bulkDelete()">🗑 ${l === "ar" ? "حذف المحدد" : "Delete Selected"}</button>
+          </div>
+        </div>
+        <div id="rv-assign-bar" style="display:none;margin-top:10px;padding-top:10px;border-top:.5px solid var(--border2)">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:12.5px;color:var(--text2)">${l === "ar" ? "إسناد إلى:" : "Assign to:"}</span>
+            <select id="rv-assign-owner" class="fi" style="width:auto;min-width:180px">
+              <option value="">${l === "ar" ? "-- اختر عضواً --" : "-- Choose member --"}</option>
+              ${members.map((m) => `<option value="${m.id}">${esc(l === "ar" ? m.name_ar : m.name_en || m.name_ar)}</option>`).join("")}
+            </select>
+            <button class="btn-gold btn-sm" onclick="ReviewQueue.confirmBulkAssign()">${l === "ar" ? "تأكيد الإسناد" : "Confirm Assign"}</button>
+            <button class="btn-ghost btn-sm" onclick="ReviewQueue.cancelBulkAssign()">${l === "ar" ? "إلغاء" : "Cancel"}</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px">
+        ${pendingReviewTasks
+          .map((t) => {
+            const text = l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar;
+            const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
+            const dept = ownerDept[t.owner_id];
+            const mtg = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
+            const pri = taskPriorityMeta(t.priority);
+            return `<div class="card" id="rv-card-${t.id}" style="border-inline-start:3px solid var(--gold)">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <input type="checkbox" class="rv-chk" data-id="${t.id}" onchange="ReviewQueue.updateCount()" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0"/>
+                <div style="flex:1;min-width:0">
+                  <div id="rv-text-${t.id}" style="font-size:13.5px;font-weight:600;color:var(--text);line-height:1.45;margin-bottom:8px">${esc(text)}</div>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                    ${ExecutiveActions._confidenceBadge(t.ai_confidence, l)}
+                    <span class="tag" style="font-size:11px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l === "ar" ? pri.ar : pri.en}</span>
+                    ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : `<span class="tag" style="background:var(--navy4);font-size:11px;color:var(--text3)">👤 ${l === "ar" ? "غير مسند" : "Unassigned"}</span>`}
+                    ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
+                    ${t.due_date ? `<span class="tag" style="background:var(--navy4);font-size:11px">📅 ${esc(t.due_date)}</span>` : ""}
+                  </div>
+                  ${mtg ? `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">📝 ${esc(mtg)}</div>` : ""}
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="btn-ghost btn-sm" onclick="Tasks.edit(${t.id})">✏️ ${l === "ar" ? "تعديل" : "Edit"}</button>
+                    <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ReviewQueue.reject(${t.id})">✕ ${l === "ar" ? "رفض" : "Reject"}</button>
+                    <button class="btn-gold btn-sm" onclick="ReviewQueue.approve(${t.id})">✓ ${l === "ar" ? "اعتماد" : "Approve"}</button>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+          })
+          .join("")}
+      </div>
+    `;
+
+    const showReviewQueue = f.quick === "review" && pendingReviewTasks.length > 0;
     const viewBodyHtml = view === "list" ? listBodyHtml : view === "calendar" ? calendarBodyHtml : boardBodyHtml;
 
-    body.innerHTML =
-      quickFilterBarHtml +
-      _filterBar +
-      kpiHtml +
-      viewSwitcherHtml +
-      _secHdrT("⚡", "الجدول الزمني لحوكمة الإجراءات", "Action Governance Timeline") +
-      viewBodyHtml;
+    body.innerHTML = showReviewQueue
+      ? quickFilterBarHtml +
+        _secHdrT("⏳", "مراجعة إجراءات الذكاء الاصطناعي التنفيذية", "AI Executive Action Review") +
+        pendingReviewBodyHtml
+      : quickFilterBarHtml +
+        _filterBar +
+        kpiHtml +
+        viewSwitcherHtml +
+        _secHdrT("⚡", "الجدول الزمني لحوكمة الإجراءات", "Action Governance Timeline") +
+        viewBodyHtml;
+    if (showReviewQueue) ReviewQueue.updateCount();
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
@@ -5395,6 +5485,113 @@ const Tasks = {
       return;
     }
     renderTasks();
+  },
+};
+
+// ══ Pending Review Queue — bulk actions for AI-extracted tasks ═══════════════════
+const ReviewQueue = {
+  toggleAll(checked) {
+    document.querySelectorAll(".rv-chk").forEach((c) => { c.checked = checked; });
+    this.updateCount();
+  },
+  getSelected() {
+    return [...document.querySelectorAll(".rv-chk:checked")].map((c) => Number(c.dataset.id));
+  },
+  updateCount() {
+    const n = this.getSelected().length;
+    const countEl = $("rv-selected-count");
+    if (countEl) countEl.textContent = `${n} ${App.lang === "ar" ? "محدد" : "selected"}`;
+    ["rv-bulk-approve", "rv-bulk-assign", "rv-bulk-reject", "rv-bulk-delete"].forEach((id) => {
+      const btn = $(id);
+      if (btn) btn.disabled = n === 0;
+    });
+    const all = document.querySelectorAll(".rv-chk");
+    const allChk = $("rv-select-all");
+    if (allChk) allChk.checked = all.length > 0 && n === all.length;
+  },
+  async approve(id) {
+    try {
+      await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ review_status: "approved" }) });
+      showToast(App.lang === "ar" ? "✓ تم اعتماد الإجراء التنفيذي" : "✓ Executive Action approved", "success");
+      await loadBadges();
+      renderTasks();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+  async reject(id) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "رفض هذه المهمة المقترحة من الذكاء الاصطناعي؟" : "Reject this AI-suggested task?")) return;
+    try {
+      await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ review_status: "rejected", status: "cancelled" }) });
+      await loadBadges();
+      renderTasks();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+  async bulkApprove() {
+    const ids = this.getSelected();
+    if (!ids.length) return;
+    try {
+      await Promise.all(ids.map((id) => api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ review_status: "approved" }) })));
+      showToast(App.lang === "ar" ? `✓ تم إنشاء ${ids.length} إجراء تنفيذي` : `✓ ${ids.length} Executive Actions Created`, "success");
+      await loadBadges();
+      renderTasks();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+  async bulkReject() {
+    const ids = this.getSelected();
+    if (!ids.length) return;
+    const l = App.lang;
+    if (!confirm(l === "ar" ? `رفض ${ids.length} مهمة مقترحة؟` : `Reject ${ids.length} suggested tasks?`)) return;
+    try {
+      await Promise.all(ids.map((id) => api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ review_status: "rejected", status: "cancelled" }) })));
+      await loadBadges();
+      renderTasks();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+  async bulkDelete() {
+    const ids = this.getSelected();
+    if (!ids.length) return;
+    const l = App.lang;
+    if (!confirm(l === "ar" ? `حذف ${ids.length} مهمة؟` : `Delete ${ids.length} tasks?`)) return;
+    try {
+      await Promise.all(ids.map((id) => api(`/api/tasks/${id}`, { method: "DELETE" })));
+      await loadBadges();
+      renderTasks();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+  bulkAssign() {
+    if (!this.getSelected().length) return;
+    const bar = $("rv-assign-bar");
+    if (bar) bar.style.display = "";
+  },
+  cancelBulkAssign() {
+    const bar = $("rv-assign-bar");
+    if (bar) bar.style.display = "none";
+  },
+  async confirmBulkAssign() {
+    const ids = this.getSelected();
+    const sel = $("rv-assign-owner");
+    const ownerId = sel && sel.value;
+    if (!ids.length || !ownerId) {
+      showToast(App.lang === "ar" ? "اختر عضواً للإسناد" : "Choose a member to assign", "error");
+      return;
+    }
+    try {
+      await Promise.all(ids.map((id) => api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ owner_id: Number(ownerId) }) })));
+      showToast(App.lang === "ar" ? "✓ تم إسناد المهام المحددة" : "✓ Selected tasks assigned", "success");
+      renderTasks();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
   },
 };
 
@@ -6924,13 +7121,187 @@ const Schedule = {
   },
 };
 
+// ══ Master Calendar (Phase T) — month grid over the Schedule panel, color-
+// coded by meeting type + Executive Actions due, click any item to jump to
+// its correct workspace (Meeting Workspace / Governance / Executive Actions).
+const MasterCalendar = {
+  _offset: 0,
+  _selectedDay: null,
+
+  getView() {
+    return localStorage.getItem("sched_view") || "list";
+  },
+  setView(v) {
+    localStorage.setItem("sched_view", v);
+    this._selectedDay = null;
+    renderSchedule();
+  },
+  nav(delta) {
+    this._offset += delta;
+    this._selectedDay = null;
+    renderSchedule();
+  },
+  selectDay(dateStr) {
+    this._selectedDay = this._selectedDay === dateStr ? null : dateStr;
+    renderSchedule();
+  },
+
+  openAction(id) {
+    Tasks.edit(id);
+  },
+  openItem(kind, id) {
+    if (kind === "held") {
+      Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(id), 300));
+      return;
+    }
+    const item = (App.scheduleCache || []).find((s) => s.id === id);
+    if (!item) return;
+    if (item.meeting_type === "general_assembly") {
+      Panels.load("governance").then(() => {
+        const tryOpen = (attempts) => {
+          if (document.getElementById("gov-sel")) { Gov._selectGA(id); return; }
+          if (attempts > 0) setTimeout(() => tryOpen(attempts - 1), 200);
+        };
+        tryOpen(15);
+      });
+    } else if (item.source_meeting_id) {
+      Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(item.source_meeting_id), 300));
+    } else {
+      Schedule.edit(id);
+    }
+  },
+
+  render(scheduleItems, heldMeetings, tasks, l) {
+    const wrap = $("sched-calendar");
+    if (!wrap) return;
+    const today = new Date().toISOString().substring(0, 10);
+    const calBase = new Date();
+    calBase.setDate(1);
+    calBase.setMonth(calBase.getMonth() + this._offset);
+    const calYear = calBase.getFullYear();
+    const calMonthIdx = calBase.getMonth();
+    const startWeekday = new Date(calYear, calMonthIdx, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonthIdx + 1, 0).getDate();
+    const monthLabel = calBase.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
+    const weekDayNames = l === "ar" ? ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    const byDate = {};
+    scheduleItems.forEach((s) => {
+      const d = (s.meeting_date || "").substring(0, 10);
+      if (!d) return;
+      (byDate[d] = byDate[d] || []).push({ ...s, kind: "meeting", _kind: "schedule" });
+    });
+    // Held meetings (recorded/AI-processed) already linked to a schedule row
+    // via source_meeting_id are represented by that row — skip to avoid a
+    // duplicate dot for the same real-world meeting.
+    const linkedHeldIds = new Set(scheduleItems.filter((s) => s.source_meeting_id).map((s) => s.source_meeting_id));
+    heldMeetings.forEach((m) => {
+      if (linkedHeldIds.has(m.id)) return;
+      const d = (m.meeting_date || "").substring(0, 10);
+      if (!d) return;
+      (byDate[d] = byDate[d] || []).push({ ...m, kind: "meeting", _kind: "held" });
+    });
+    tasks.forEach((t) => {
+      if (!t.due_date || ["done", "cancelled"].includes(t.status)) return;
+      (byDate[t.due_date] = byDate[t.due_date] || []).push({ ...t, kind: "action" });
+    });
+
+    let cells = "";
+    for (let i = 0; i < startWeekday; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${calYear}-${String(calMonthIdx + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dayItems = byDate[dateStr] || [];
+      const isToday = dateStr === today;
+      const isSelected = this._selectedDay === dateStr;
+      cells += `<div class="cal-cell ${isToday ? "cal-today" : ""} ${isSelected ? "cal-selected" : ""}" onclick="MasterCalendar.selectDay('${dateStr}')" tabindex="0" role="button" aria-label="${dateStr}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();MasterCalendar.selectDay('${dateStr}')}">
+        <div class="cal-daynum">${d}</div>
+        ${dayItems.length ? `<div class="cal-dots">
+          ${dayItems.slice(0, 4).map((it) => it.kind === "action"
+            ? `<div class="cal-dot" style="background:var(--red);border-radius:2px" title="${esc(l === "ar" ? "إجراء مستحق" : "Action due")}: ${esc(l === "ar" ? it.text_ar : it.text_en || it.text_ar)}"></div>`
+            : `<div class="cal-dot" style="background:${calTypeColor(it.meeting_type)};${it.series_id ? "box-shadow:0 0 0 1.5px var(--gold)" : ""}" title="${esc(l === "ar" ? it.title_ar : it.title_en || it.title_ar)}"></div>`
+          ).join("")}
+          ${dayItems.length > 4 ? `<div class="cal-more">+${dayItems.length - 4}</div>` : ""}
+        </div>` : ""}
+      </div>`;
+    }
+
+    const selectedItems = this._selectedDay ? (byDate[this._selectedDay] || []) : [];
+    const legend = [
+      { c: CAL_TYPE_COLORS["Board Meeting"], ar: "مجلس الإدارة", en: "Board Meeting" },
+      { c: CAL_TYPE_COLORS["Committee Meeting"], ar: "اللجان", en: "Committee" },
+      { c: CAL_TYPE_COLORS["Executive Meeting"], ar: "تنفيذي", en: "Executive" },
+      { c: CAL_TYPE_COLORS["Strategy Meeting"], ar: "استراتيجية", en: "Strategy" },
+      { c: CAL_TYPE_COLORS["Follow-up Meeting"], ar: "متابعة", en: "Follow-up" },
+      { c: CAL_TYPE_COLORS.general_assembly, ar: "الجمعية العمومية", en: "General Assembly" },
+      { c: "var(--red)", ar: "إجراء مستحق", en: "Action Due", square: true },
+    ];
+
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <button class="btn-ghost btn-sm" onclick="MasterCalendar.nav(-1)">◀</button>
+        <div style="font-weight:700;font-size:13.5px">${esc(monthLabel)}</div>
+        <button class="btn-ghost btn-sm" onclick="MasterCalendar.nav(1)">▶</button>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        ${legend.map((g) => `<div style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--text3)"><span style="display:inline-block;width:8px;height:8px;${g.square ? "border-radius:2px" : "border-radius:50%"};background:${g.c}"></span>${l === "ar" ? g.ar : g.en}</div>`).join("")}
+        <div style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--text3)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--navy4);box-shadow:0 0 0 1.5px var(--gold)"></span>${l === "ar" ? "ضمن سلسلة" : "Part of a series"}</div>
+      </div>
+      <div class="cal-grid cal-grid-head">${weekDayNames.map((w) => `<div class="cal-headcell">${w}</div>`).join("")}</div>
+      <div class="cal-grid">${cells}</div>
+      ${this._selectedDay ? `<div class="card" style="margin-top:14px">
+        <div class="ch" style="margin-bottom:6px">
+          <div class="ct">📌 ${esc(this._selectedDay)}</div>
+          <span class="tag" style="background:var(--navy4)">${selectedItems.length}</span>
+        </div>
+        ${selectedItems.length ? selectedItems.map((it) => {
+          if (it.kind === "action") {
+            return `<div class="trow" style="border-inline-start:3px solid var(--red);padding-inline-start:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <div style="min-width:0">
+                <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(l === "ar" ? it.text_ar : it.text_en || it.text_ar)}</div>
+                <div style="font-size:11px;color:var(--text3)">🎯 ${l === "ar" ? "إجراء تنفيذي مستحق" : "Executive Action due"}</div>
+              </div>
+              <button class="btn-ghost btn-sm" onclick="MasterCalendar.openAction(${it.id})">${l === "ar" ? "عرض" : "View"}</button>
+            </div>`;
+          }
+          const title = l === "ar" ? it.title_ar : it.title_en || it.title_ar;
+          const isGA = it.meeting_type === "general_assembly";
+          const isHeld = it._kind === "held" || !!it.source_meeting_id;
+          return `<div class="trow" style="border-inline-start:3px solid ${calTypeColor(it.meeting_type)};padding-inline-start:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div style="min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(title)}</div>
+              <div style="font-size:11px;color:var(--text3);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <span>${esc(mtLabel(it.meeting_type, l))}</span>
+                ${it.meeting_time ? `<span>🕐 ${esc(it.meeting_time)}</span>` : ""}
+                ${it.series_name_ar ? `<span class="tag" style="background:var(--navy4);font-size:10.5px">🔗 ${esc(l === "ar" ? it.series_name_ar : it.series_name_en || it.series_name_ar)}</span>` : ""}
+              </div>
+            </div>
+            <button class="btn-ghost btn-sm" onclick="MasterCalendar.openItem('${it._kind}', ${it.id})">${isGA ? (l === "ar" ? "فتح الجمعية" : "Open GA") : isHeld ? (l === "ar" ? "فتح الاجتماع" : "Open Meeting") : (l === "ar" ? "تعديل" : "Edit")}</button>
+          </div>`;
+        }).join("") : `<div style="text-align:center;padding:16px"><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا عناصر هذا اليوم" : "No items this day"}</div></div>`}
+      </div>` : ""}
+    `;
+  },
+};
+
 async function renderSchedule() {
   const el = $("sched-items");
+  const calWrap = $("sched-calendar");
+  const view = MasterCalendar.getView();
+  const listBtn = $("sched-view-list-btn");
+  const calBtn = $("sched-view-cal-btn");
+  if (listBtn) listBtn.classList.toggle("active", view === "list");
+  if (calBtn) calBtn.classList.toggle("active", view === "calendar");
+  if (el) el.style.display = view === "list" ? "" : "none";
+  if (calWrap) calWrap.style.display = view === "calendar" ? "" : "none";
   el.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const items = await api("/api/schedule");
+    const [items, heldMeetings, tasks] = await Promise.all([api("/api/schedule"), api("/api/meetings"), api("/api/tasks")]);
     App.scheduleCache = items;
+    App.tasksCache = tasks;
     const l = App.lang;
+    if (view === "calendar") {
+      MasterCalendar.render(items, heldMeetings, tasks, l);
+    }
     if (!items.length) {
       el.innerHTML = `<div style="text-align:center;padding:36px 24px">
         <div style="font-size:44px;margin-bottom:14px">📅</div>
@@ -7781,12 +8152,13 @@ async function renderOverview() {
       </div>` : ""}`;
 
     const hasCharts = !!window.Chart;
+    const dashCfg = Dash.get();
     const chartsGridHtml = hasCharts
       ? `
       <div class="grid-2" style="margin-bottom:14px">
         <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">📊 ${lbl("مسار المهام — 8 أسابيع", "Task Trend — 8 Weeks")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-tasks"></canvas></div></div>
         <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">🎙 ${lbl("نشاط الاجتماعات — 6 أشهر", "Meeting Activity — 6 Months")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-meetings"></canvas></div></div>
-        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">👥 ${lbl("أداء الفريق", "Team Performance")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-team"></canvas></div></div>
+        ${dashCfg.team !== false ? `<div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">👥 ${lbl("أداء الفريق", "Team Performance")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-team"></canvas></div></div>` : ""}
         <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">⚖️ ${lbl("حالة القرارات", "Decision Status")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-decisions"></canvas></div></div>
       </div>`
       : "";

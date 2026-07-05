@@ -989,6 +989,203 @@ if (!db.prepare('SELECT id FROM ga_shareholders WHERE ga_schedule_id=33').get())
   console.log('✓ GA shareholders, votes, officers, minutes, documents seeded');
 }
 
+// ── Meeting Series demo data — "Digital Transformation Program" (Phase S) ────
+// A first-time CEO cannot understand what a Meeting Series is from an empty
+// list. Seed one realistic, fully-populated example: 3 already-held meetings
+// (with real AI summaries/tasks/decisions) plus 3 upcoming planned meetings,
+// all linked via series_id, so every series screen (progress %, timeline,
+// related executive actions, outstanding/resolved decisions) has real data
+// to show on first login. Runs once, independent of the fresh-DB user seed.
+if (!db.prepare("SELECT id FROM meeting_series WHERE name_en=?").get('Digital Transformation Program')) {
+  const byEmail = (email, fallbackOffset) =>
+    db.prepare('SELECT id FROM users WHERE email=?').get(email)?.id
+    || db.prepare('SELECT id FROM users ORDER BY id LIMIT 1 OFFSET ?').get(fallbackOffset)?.id;
+  const su1 = byEmail('ahmed@ameen.ai', 0);  // CEO — program sponsor
+  const su2 = byEmail('sara@ameen.ai', 1);   // Managing Director
+  const su3 = byEmail('khalid@ameen.ai', 2); // CFO — budget owner
+  const su4 = byEmail('noura@ameen.ai', 3);  // COO — program owner
+
+  if (su1 && su4) {
+    db.prepare("UPDATE users SET department=? WHERE id=? AND (department IS NULL OR department='')").run('Executive Office', su1);
+    db.prepare("UPDATE users SET department=? WHERE id=? AND (department IS NULL OR department='')").run('Operations', su2);
+    db.prepare("UPDATE users SET department=? WHERE id=? AND (department IS NULL OR department='')").run('Finance', su3);
+    db.prepare("UPDATE users SET department=? WHERE id=? AND (department IS NULL OR department='')").run('IT & Digital', su4);
+
+    const seriesId = db.prepare(`
+      INSERT INTO meeting_series (name_ar, name_en, description_ar, description_en, category, owner_id, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+    `).run(
+      'برنامج التحول الرقمي', 'Digital Transformation Program',
+      'مبادرة مؤسسية شاملة لتحديث الأنظمة والعمليات الرقمية عبر جميع الإدارات',
+      'A company-wide initiative to modernize systems and digital operations across all departments',
+      'Digital Transformation', su4, su1
+    ).lastInsertRowid;
+
+    const insertHeldMeeting = db.prepare(`
+      INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, ai_summary_ar, ai_summary_en, ai_tasks, ai_decisions, status, meeting_date, meeting_type, series_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'processed', ?, ?, ?)
+    `);
+    const insertTask = db.prepare(`
+      INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, status, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertDecision = db.prepare(`
+      INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    // 1 — Kickoff Meeting (held)
+    const dtKickoff = insertHeldMeeting.run(
+      'برنامج التحول الرقمي — اجتماع الانطلاق', 'Digital Transformation Program — Kickoff Meeting',
+      'م. نورة: نطلق اليوم برنامج التحول الرقمي على مدى 4 أشهر. م. أحمد: الهدف تحديث أنظمة العمليات الأساسية. م. خالد: الميزانية المعتمدة 2.4 مليون ريال. م. سارة: سنحتاج فريق مشترك من التقنية والعمليات.',
+      35, su4,
+      'انطلاق رسمي لبرنامج التحول الرقمي بميزانية 2.4 مليون ريال ومدة 4 أشهر. تم تشكيل فريق العمل المشترك وتحديد نطاق المرحلة الأولى.',
+      'Official launch of the Digital Transformation Program with a SAR 2.4M budget over 4 months. Cross-functional team formed and Phase 1 scope defined.',
+      JSON.stringify([
+        { text_ar: 'إعداد ميثاق المشروع ونطاق العمل', text_en: 'Prepare project charter and scope document', owner_ar: 'م. نورة', owner_en: 'Noura', due: '2026-05-11' },
+        { text_ar: 'تشكيل فريق العمل المشترك', text_en: 'Form the cross-functional working team', owner_ar: 'م. سارة', owner_en: 'Sara', due: '2026-05-08' },
+      ]),
+      JSON.stringify([
+        { text_ar: 'اعتماد ميزانية 2.4 مليون ريال للبرنامج', text_en: 'Approved SAR 2.4M program budget' },
+      ]),
+      '2026-05-04 10:00:00', 'Strategy Meeting', seriesId
+    ).lastInsertRowid;
+    insertTask.run('إعداد ميثاق المشروع ونطاق العمل', 'Prepare project charter and scope document', su4, 'م. نورة', 'Noura', '2026-05-11', 'high', 'done', dtKickoff, 'اجتماع الانطلاق', 'Kickoff Meeting', su1);
+    insertTask.run('تشكيل فريق العمل المشترك', 'Form the cross-functional working team', su2, 'م. سارة', 'Sara', '2026-05-08', 'high', 'done', dtKickoff, 'اجتماع الانطلاق', 'Kickoff Meeting', su1);
+    insertDecision.run('اعتماد ميزانية 2.4 مليون ريال للبرنامج', 'Approved SAR 2.4M program budget', dtKickoff, 'اجتماع الانطلاق', 'Kickoff Meeting', 'implemented');
+
+    // 2 — Requirements Review (held)
+    const dtReq = insertHeldMeeting.run(
+      'برنامج التحول الرقمي — مراجعة المتطلبات', 'Digital Transformation Program — Requirements Review',
+      'م. نورة: استكملنا جمع المتطلبات من 6 إدارات. م. خالد: بعض المتطلبات تتجاوز الميزانية الأولية. م. أحمد: أعطوا الأولوية لأنظمة المالية والموارد البشرية.',
+      40, su4,
+      'استكمال جمع المتطلبات من 6 إدارات مع تحديد أولوية أنظمة المالية والموارد البشرية للمرحلة الأولى. رُصد تجاوز طفيف في نطاق بعض المتطلبات.',
+      'Requirements gathering completed across 6 departments; Finance and HR systems prioritized for Phase 1. Minor scope overrun flagged in some requirements.',
+      JSON.stringify([
+        { text_ar: 'إعادة تقييم نطاق المتطلبات المتجاوزة للميزانية', text_en: 'Re-assess scope of over-budget requirements', owner_ar: 'م. خالد', owner_en: 'Khalid', due: '2026-06-01' },
+        { text_ar: 'إعداد وثيقة متطلبات المرحلة الأولى', text_en: 'Prepare Phase 1 requirements document', owner_ar: 'م. نورة', owner_en: 'Noura', due: '2026-06-05' },
+      ]),
+      JSON.stringify([
+        { text_ar: 'إعطاء أولوية أنظمة المالية والموارد البشرية للمرحلة الأولى', text_en: 'Prioritize Finance and HR systems for Phase 1' },
+      ]),
+      '2026-05-25 10:00:00', 'Executive Meeting', seriesId
+    ).lastInsertRowid;
+    insertTask.run('إعادة تقييم نطاق المتطلبات المتجاوزة للميزانية', 'Re-assess scope of over-budget requirements', su3, 'م. خالد', 'Khalid', '2026-06-01', 'high', 'done', dtReq, 'مراجعة المتطلبات', 'Requirements Review', su1);
+    insertTask.run('إعداد وثيقة متطلبات المرحلة الأولى', 'Prepare Phase 1 requirements document', su4, 'م. نورة', 'Noura', '2026-06-05', 'normal', 'done', dtReq, 'مراجعة المتطلبات', 'Requirements Review', su1);
+    insertDecision.run('إعطاء أولوية أنظمة المالية والموارد البشرية للمرحلة الأولى', 'Prioritize Finance and HR systems for Phase 1', dtReq, 'مراجعة المتطلبات', 'Requirements Review', 'implemented');
+
+    // 3 — Architecture Review (held)
+    const dtArch = insertHeldMeeting.run(
+      'برنامج التحول الرقمي — مراجعة العمارة التقنية', 'Digital Transformation Program — Architecture Review',
+      'م. نورة: اخترنا معمارية سحابية هجينة. م. أحمد: يجب التأكد من التوافق مع متطلبات حماية البيانات. م. سارة: الخطة الزمنية للتطوير تبدأ الشهر القادم.',
+      45, su4,
+      'اعتماد معمارية سحابية هجينة للأنظمة الجديدة مع مراجعة قانونية لمتطلبات حماية البيانات. تحديد بداية مرحلة التطوير الشهر القادم.',
+      'Hybrid cloud architecture approved for the new systems, pending legal review of data-protection requirements. Development phase set to begin next month.',
+      JSON.stringify([
+        { text_ar: 'مراجعة قانونية لمتطلبات حماية البيانات', text_en: 'Legal review of data-protection requirements', owner_ar: 'م. أحمد', owner_en: 'Ahmed', due: '2026-07-06', priority: 'high' },
+        { text_ar: 'إعداد خطة التطوير التفصيلية', text_en: 'Prepare detailed development plan', owner_ar: 'م. نورة', owner_en: 'Noura', due: '2026-06-25' },
+      ]),
+      JSON.stringify([
+        { text_ar: 'اعتماد المعمارية السحابية الهجينة', text_en: 'Approved hybrid cloud architecture' },
+      ]),
+      '2026-06-15 10:00:00', 'Executive Meeting', seriesId
+    ).lastInsertRowid;
+    insertTask.run('مراجعة قانونية لمتطلبات حماية البيانات', 'Legal review of data-protection requirements', su1, 'م. أحمد', 'Ahmed', '2026-07-06', 'high', 'inprogress', dtArch, 'مراجعة العمارة التقنية', 'Architecture Review', su1);
+    insertTask.run('إعداد خطة التطوير التفصيلية', 'Prepare detailed development plan', su4, 'م. نورة', 'Noura', '2026-06-25', 'normal', 'overdue', dtArch, 'مراجعة العمارة التقنية', 'Architecture Review', su1);
+    insertDecision.run('اعتماد المعمارية السحابية الهجينة', 'Approved hybrid cloud architecture', dtArch, 'مراجعة العمارة التقنية', 'Architecture Review', 'active');
+
+    // 4–6 — Upcoming planned meetings (schedule)
+    const insertPlanned = db.prepare(`
+      INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, created_by, meeting_type, series_id, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')
+    `);
+    insertPlanned.run(
+      'برنامج التحول الرقمي — مراجعة التطوير', 'Digital Transformation Program — Development Review',
+      '2026-07-13', '10:00', 60, 'Microsoft Teams', 'م. نورة، م. أحمد، م. خالد',
+      'تقدم التطوير مقابل الخطة، المخاطر التقنية، متطلبات إضافية', 'Development progress vs. plan, technical risks, additional requirements',
+      su4, 'Executive Meeting', seriesId
+    );
+    insertPlanned.run(
+      'برنامج التحول الرقمي — مراجعة الاختبار', 'Digital Transformation Program — Testing Review',
+      '2026-08-03', '10:00', 60, 'Microsoft Teams', 'م. نورة، م. سارة، فريق ضمان الجودة',
+      'نتائج اختبار القبول، الأخطاء الحرجة، جاهزية الانتقال', 'UAT results, critical defects, cutover readiness',
+      su4, 'Executive Meeting', seriesId
+    );
+    insertPlanned.run(
+      'برنامج التحول الرقمي — إطلاق التشغيل', 'Digital Transformation Program — Go Live',
+      '2026-08-24', '09:00', 90, 'قاعة الاجتماعات الرئيسية', 'م. أحمد، م. سارة، م. خالد، م. نورة',
+      'تأكيد جاهزية الإطلاق، خطة الدعم بعد الإطلاق، إغلاق البرنامج', 'Go-live readiness confirmation, post-launch support plan, program closeout',
+      su1, 'Strategy Meeting', seriesId
+    );
+
+    console.log('✓ Meeting Series demo data seeded — Digital Transformation Program (3 held + 3 planned)');
+  }
+}
+
+// ── Enterprise demo data expansion (Phase U) ──────────────────────────────────
+// The Master Calendar and Executive Actions board look sparse/monochrome when
+// most existing rows have a blank meeting_type or only 2 of 5 priority levels
+// in use. Rather than rewrite real user-created rows, add a modest, realistic
+// spread of additional Board/Committee/Executive/Strategy/Follow-up meetings
+// across the year (color-coding every category) plus a few Executive Actions
+// covering the full priority/status range — so every screen has something to
+// show on first login, regardless of how thin the organic data still is.
+if (!db.prepare("SELECT value FROM settings WHERE key='v22_demo_expansion_seeded'").get()) {
+  const allUsers = db.prepare('SELECT id FROM users ORDER BY id').all().map(u => u.id);
+  if (allUsers.length) {
+    const depts = ['Executive Office', 'Operations', 'Finance', 'IT & Digital', 'Legal & Compliance', 'Human Resources'];
+    allUsers.forEach((uid, i) => {
+      db.prepare("UPDATE users SET department=? WHERE id=? AND (department IS NULL OR department='')").run(depts[i % depts.length], uid);
+    });
+
+    const boardId = db.prepare("SELECT id FROM boards WHERE name_en LIKE '%Board of Directors%' ORDER BY id LIMIT 1").get()?.id || null;
+    const committeeId = db.prepare("SELECT id FROM committees WHERE name_en LIKE '%Audit Committee%' ORDER BY id LIMIT 1").get()?.id || null;
+    const u1 = allUsers[0];
+
+    const insertSched = db.prepare(`
+      INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, meeting_type, board_id, committee_id, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const scheduleRows = [
+      ['اجتماع مجلس الإدارة — الربع الأول', 'Board Meeting — Q1 Review', '2026-03-10', '09:00', 90, 'قاعة الاجتماعات الرئيسية', 'أعضاء مجلس الإدارة', 'مراجعة نتائج الربع الأول', 'Q1 results review', 'Board Meeting', boardId, null, 'confirmed'],
+      ['اجتماع لجنة المراجعة والتدقيق', 'Audit Committee Meeting', '2026-04-14', '10:00', 60, 'Microsoft Teams', 'أعضاء اللجنة', 'مراجعة الضوابط الداخلية', 'Internal controls review', 'Committee Meeting', null, committeeId, 'confirmed'],
+      ['الاجتماع التنفيذي — مراجعة الأداء', 'Executive Meeting — Performance Review', '2026-04-28', '11:00', 45, 'Zoom', 'الفريق التنفيذي', 'مؤشرات الأداء الرئيسية', 'Key performance indicators', 'Executive Meeting', null, null, 'confirmed'],
+      ['اجتماع متابعة — الالتزامات المفتوحة', 'Follow-up Meeting — Open Commitments', '2026-07-20', '10:00', 30, 'Microsoft Teams', 'الفريق التنفيذي', 'متابعة القرارات المعلقة', 'Track pending decisions', 'Follow-up Meeting', null, null, 'confirmed'],
+      ['اجتماع مجلس الإدارة — الربع الثالث', 'Board Meeting — Q3 Preview', '2026-08-10', '09:00', 90, 'قاعة الاجتماعات الرئيسية', 'أعضاء مجلس الإدارة', 'استعراض نتائج الربع الثالث المتوقعة', 'Q3 outlook review', 'Board Meeting', boardId, null, 'confirmed'],
+      ['اجتماع لجنة المخاطر', 'Risk Committee Meeting', '2026-08-25', '10:00', 60, 'Microsoft Teams', 'أعضاء اللجنة', 'تقييم المخاطر التشغيلية', 'Operational risk assessment', 'Committee Meeting', null, committeeId, 'confirmed'],
+      ['جلسة التخطيط الاستراتيجي السنوي', 'Annual Strategy Planning Session', '2026-09-22', '09:00', 120, 'قاعة الاجتماعات الرئيسية', 'الإدارة العليا', 'خطة العام القادم', 'Next year strategic plan', 'Strategy Meeting', null, null, 'confirmed'],
+      ['الاجتماع التنفيذي الشهري', 'Monthly Executive Meeting', '2026-10-05', '11:00', 45, 'Zoom', 'الفريق التنفيذي', 'مراجعة شهرية', 'Monthly business review', 'Executive Meeting', null, null, 'confirmed'],
+      ['اجتماع متابعة نهاية العام', 'Year-End Follow-up Meeting', '2026-11-12', '10:00', 30, 'Microsoft Teams', 'الفريق التنفيذي', 'إغلاق الإجراءات المفتوحة', 'Close out open actions', 'Follow-up Meeting', null, null, 'confirmed'],
+      ['الاجتماع العام السنوي للفريق', 'Annual All-Hands General Meeting', '2026-11-25', '14:00', 60, 'قاعة الاجتماعات الرئيسية', 'جميع الموظفين', 'ملخص إنجازات العام', 'Year achievements summary', 'General Meeting', null, null, 'confirmed'],
+      ['اجتماع مجلس الإدارة — ديسمبر', 'Board Meeting — December', '2026-12-08', '09:00', 90, 'قاعة الاجتماعات الرئيسية', 'أعضاء مجلس الإدارة', 'مراجعة الأداء السنوي والميزانية القادمة', 'Annual performance and next-year budget review', 'Board Meeting', boardId, null, 'confirmed'],
+    ];
+    scheduleRows.forEach(row => insertSched.run(...row, u1));
+
+    const insertTask = db.prepare(`
+      INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const userRow = (id) => db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(id) || { name_ar: '', name_en: '' };
+    const taskRows = [
+      ['مراجعة سياسة أمن المعلومات', 'Review information security policy', allUsers[0], 'low', 'new', '2026-08-15'],
+      ['تحديث دليل الحوكمة المؤسسية', 'Update corporate governance manual', allUsers[Math.min(1, allUsers.length - 1)], 'normal', 'inprogress', '2026-07-25'],
+      ['إعداد تقرير الاستدامة السنوي', 'Prepare annual sustainability report', allUsers[Math.min(2, allUsers.length - 1)], 'high', 'blocked', '2026-07-18'],
+      ['مراجعة عقود الموردين الرئيسيين', 'Review key vendor contracts', allUsers[Math.min(3, allUsers.length - 1)], 'critical', 'inprogress', '2026-07-10'],
+      ['تحديث خطة استمرارية الأعمال', 'Update business continuity plan', allUsers[0], 'high', 'new', '2026-09-05'],
+      ['إغلاق ملاحظات التدقيق الداخلي', 'Close internal audit findings', allUsers[Math.min(1, allUsers.length - 1)], 'critical', 'blocked', '2026-07-12'],
+      ['مراجعة مؤشرات رضا الموظفين', 'Review employee satisfaction metrics', allUsers[Math.min(2, allUsers.length - 1)], 'low', 'done', '2026-06-20'],
+      ['تحديث سياسة العمل عن بعد', 'Update remote work policy', allUsers[Math.min(3, allUsers.length - 1)], 'normal', 'done', '2026-06-25'],
+    ];
+    taskRows.forEach(([textAr, textEn, ownerId, priority, status, due]) => {
+      const u = userRow(ownerId);
+      insertTask.run(textAr, textEn, ownerId, u.name_ar, u.name_en, due, priority, status, u1);
+    });
+
+    db.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES ('v22_demo_expansion_seeded','1')").run();
+    console.log('✓ Enterprise demo data expansion seeded (schedule spread, task variety, user departments)');
+  }
+}
+
 // ── Ensure admin user has a valid bcrypt password ────────────────────────────
 // Runs once on startup. If the seed user's password is not a bcrypt hash,
 // sets a default development password and logs it ONCE to the console.
