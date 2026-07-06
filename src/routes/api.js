@@ -73,9 +73,12 @@ async function buildPdf({ title, lang, content, sections }) {
       year: 'numeric', month: 'long', day: 'numeric'
     });
 
-    // Header block
-    doc.font(boldFont).fontSize(8.5).fillColor('#666666')
-      .text(az('Ameen Executive Secretary · أمين للاجتماعات التنفيذية'), { align: textAlign });
+    // Header block — this line is always bilingual (contains Arabic text
+    // regardless of the report's own language), so it needs the Arabic-
+    // capable font and shaping even when the rest of the document is
+    // English/Helvetica, or the Arabic half renders as garbled glyphs.
+    doc.font(arabicFontPath ? 'Arabic' : boldFont).fontSize(8.5).fillColor('#666666')
+      .text(shapeArabicText('Ameen Executive Secretary · أمين للاجتماعات التنفيذية'), { align: textAlign });
     doc.moveDown(0.3);
     doc.font(boldFont).fontSize(17).fillColor('#1a1a2e')
       .text(az(title), { align: textAlign });
@@ -2465,6 +2468,162 @@ router.post('/reports/pdf', auth, requirePermission('reports.generate'), async (
   } catch (e) {
     console.error('PDF generation error:', e.message);
     res.status(500).json({ error: 'PDF generation failed', detail: e.message });
+  }
+});
+
+// ── Structured Reports (dashboard/department/board/committee/meeting/action) ──
+// One function computes each report's real data from the tables that already
+// hold it; /data, /pdf, and /excel below all call the exact same function so
+// the three export formats can never drift apart or show different numbers.
+const REPORT_TYPES = {
+  dashboard_summary: { ar: 'ملخص لوحة التحكم التنفيذية', en: 'Executive Dashboard Summary' },
+  department_performance: { ar: 'أداء الأقسام', en: 'Department Performance' },
+  executive_actions: { ar: 'تقرير الإجراءات التنفيذية', en: 'Executive Actions Report' },
+  board_meetings: { ar: 'تقرير اجتماعات مجلس الإدارة', en: 'Board Meetings Report' },
+  committee_meetings: { ar: 'تقرير اجتماعات اللجان', en: 'Committee Meetings Report' },
+  meeting_history: { ar: 'تقرير سجل الاجتماعات', en: 'Meeting History Report' },
+};
+
+function getReportData(type) {
+  if (type === 'dashboard_summary') {
+    const tasksTotal = db.prepare('SELECT COUNT(*) as c FROM tasks').get().c;
+    const tasksDone = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE status='done'").get().c;
+    const meetingTotals = db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='processed' THEN 1 ELSE 0 END) as done FROM meetings").get();
+    const { byDepartment } = computeTaskRollups();
+    return {
+      columns: [{ key: 'metric', ar: 'المؤشر', en: 'Metric' }, { key: 'value', ar: 'القيمة', en: 'Value' }],
+      rows: [
+        { metric: { ar: 'إجمالي الإجراءات التنفيذية', en: 'Total Executive Actions' }, value: tasksTotal },
+        { metric: { ar: 'الإجراءات المكتملة', en: 'Completed Actions' }, value: tasksDone },
+        { metric: { ar: 'معدل إنجاز الإجراءات', en: 'Action Completion Rate' }, value: `${tasksTotal ? Math.round(tasksDone / tasksTotal * 100) : 0}%` },
+        { metric: { ar: 'إجمالي الاجتماعات', en: 'Total Meetings' }, value: meetingTotals.total },
+        { metric: { ar: 'الاجتماعات المعالجة', en: 'Meetings Processed' }, value: meetingTotals.done },
+        { metric: { ar: 'معدل إنجاز الاجتماعات', en: 'Meeting Completion Rate' }, value: `${meetingTotals.total ? Math.round(meetingTotals.done / meetingTotals.total * 100) : 0}%` },
+        { metric: { ar: 'عدد الأقسام النشطة', en: 'Active Departments' }, value: byDepartment.length },
+      ],
+    };
+  }
+  if (type === 'department_performance') {
+    const { byDepartment } = computeTaskRollups();
+    return {
+      columns: [
+        { key: 'department', ar: 'القسم', en: 'Department' }, { key: 'total', ar: 'الإجمالي', en: 'Total' },
+        { key: 'done', ar: 'مكتملة', en: 'Done' }, { key: 'open', ar: 'مفتوحة', en: 'Open' },
+        { key: 'overdue', ar: 'متأخرة', en: 'Overdue' }, { key: 'blocked', ar: 'معطّلة', en: 'Blocked' },
+        { key: 'pct', ar: 'نسبة الإنجاز', en: 'Completion %' },
+      ],
+      rows: byDepartment.map(d => ({ department: d.department, total: d.total, done: d.done, open: d.open, overdue: d.overdue, blocked: d.blocked, pct: `${d.pct}%` })),
+    };
+  }
+  if (type === 'executive_actions') {
+    const tasks = db.prepare(`
+      SELECT text_ar, text_en, owner_name_ar, owner_name_en, status, priority, due_date FROM tasks ORDER BY due_date ASC
+    `).all();
+    return {
+      columns: [
+        { key: 'text', ar: 'الإجراء', en: 'Action' }, { key: 'owner', ar: 'المسؤول', en: 'Owner' },
+        { key: 'status', ar: 'الحالة', en: 'Status' }, { key: 'priority', ar: 'الأولوية', en: 'Priority' },
+        { key: 'due_date', ar: 'تاريخ الاستحقاق', en: 'Due Date' },
+      ],
+      rows: tasks.map(t => ({
+        text: { ar: t.text_ar, en: t.text_en || t.text_ar },
+        owner: { ar: t.owner_name_ar || '', en: t.owner_name_en || t.owner_name_ar || '' },
+        status: t.status, priority: t.priority, due_date: t.due_date || '',
+      })),
+    };
+  }
+  if (type === 'board_meetings' || type === 'committee_meetings') {
+    const where = type === 'board_meetings' ? 'board_id IS NOT NULL' : 'committee_id IS NOT NULL';
+    const rows = db.prepare(`
+      SELECT title_ar, title_en, meeting_date, meeting_time, status, platform FROM schedule
+      WHERE ${where} ORDER BY meeting_date DESC
+    `).all();
+    return {
+      columns: [
+        { key: 'title', ar: 'العنوان', en: 'Title' }, { key: 'date', ar: 'التاريخ', en: 'Date' },
+        { key: 'time', ar: 'الوقت', en: 'Time' }, { key: 'status', ar: 'الحالة', en: 'Status' },
+        { key: 'platform', ar: 'المنصة', en: 'Platform' },
+      ],
+      rows: rows.map(r => ({
+        title: { ar: r.title_ar, en: r.title_en || r.title_ar },
+        date: r.meeting_date, time: r.meeting_time, status: r.status, platform: r.platform,
+      })),
+    };
+  }
+  if (type === 'meeting_history') {
+    const rows = db.prepare(`
+      SELECT title_ar, title_en, meeting_date, status, ai_summary_ar, ai_summary_en FROM meetings ORDER BY meeting_date DESC LIMIT 200
+    `).all();
+    return {
+      columns: [
+        { key: 'title', ar: 'العنوان', en: 'Title' }, { key: 'date', ar: 'التاريخ', en: 'Date' },
+        { key: 'status', ar: 'الحالة', en: 'Status' }, { key: 'summary', ar: 'الملخص', en: 'Summary' },
+      ],
+      rows: rows.map(r => ({
+        title: { ar: r.title_ar, en: r.title_en || r.title_ar },
+        date: (r.meeting_date || '').substring(0, 10), status: r.status,
+        summary: { ar: (r.ai_summary_ar || '').slice(0, 150), en: (r.ai_summary_en || '').slice(0, 150) },
+      })),
+    };
+  }
+  return null;
+}
+
+function cellText(v, lang) {
+  if (v == null) return '';
+  if (typeof v === 'object') return lang === 'en' ? (v.en || v.ar || '') : (v.ar || v.en || '');
+  return String(v);
+}
+
+router.get('/reports/:type/data', auth, requirePermission('reports.view'), (req, res) => {
+  const meta = REPORT_TYPES[req.params.type];
+  if (!meta) return res.status(404).json({ error: 'Unknown report type' });
+  const data = getReportData(req.params.type);
+  res.json({ type: req.params.type, title: meta, ...data });
+});
+
+router.get('/reports/:type/pdf', auth, requirePermission('reports.generate'), async (req, res) => {
+  const meta = REPORT_TYPES[req.params.type];
+  if (!meta) return res.status(404).json({ error: 'Unknown report type' });
+  const lang = req.query.lang === 'en' ? 'en' : 'ar';
+  const data = getReportData(req.params.type);
+  try {
+    const items = data.rows.map(row => data.columns.map(c => `${lang === 'ar' ? c.ar : c.en}: ${cellText(row[c.key], lang)}`).join('  ·  '));
+    const pdfBuf = await buildPdf({
+      title: lang === 'ar' ? meta.ar : meta.en,
+      lang,
+      sections: [{ title: lang === 'ar' ? meta.ar : meta.en, items }],
+    });
+    const ascii = req.params.type.replace(/_/g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${ascii}.pdf"`);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('Structured report PDF error:', e.message);
+    res.status(500).json({ error: 'PDF generation failed', detail: e.message });
+  }
+});
+
+router.get('/reports/:type/excel', auth, requirePermission('reports.generate'), (req, res) => {
+  const meta = REPORT_TYPES[req.params.type];
+  if (!meta) return res.status(404).json({ error: 'Unknown report type' });
+  const lang = req.query.lang === 'en' ? 'en' : 'ar';
+  const data = getReportData(req.params.type);
+  try {
+    const XLSX = require('xlsx');
+    const header = data.columns.map(c => lang === 'ar' ? c.ar : c.en);
+    const sheetRows = data.rows.map(row => data.columns.map(c => cellText(row[c.key], lang)));
+    const ws = XLSX.utils.aoa_to_sheet([header, ...sheetRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, (lang === 'ar' ? meta.ar : meta.en).slice(0, 31));
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const ascii = req.params.type.replace(/_/g, '-');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${ascii}.xlsx"`);
+    res.send(buf);
+  } catch (e) {
+    console.error('Structured report Excel error:', e.message);
+    res.status(500).json({ error: 'Excel generation failed', detail: e.message });
   }
 });
 

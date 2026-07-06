@@ -6905,6 +6905,66 @@ function buildWelcomeMsg() {
   return d;
 }
 
+// ══ Structured Reports — real data pulled straight from GET /api/reports/:type/*,
+// distinct from DocGen below (which drafts free text from an AI prompt). PDF
+// and Excel downloads reuse the same fetch-then-blob pattern DocGen.downloadPDF
+// already established, for the same reason: credentials:'include' cookies plus
+// graceful error handling that a plain window.open() download link wouldn't give.
+const StructuredReports = {
+  async preview() {
+    const l = App.lang;
+    const type = $("structured-report-type").value;
+    const box = $("structured-report-preview");
+    box.innerHTML = `<div class="es" style="padding:16px"><div class="loading"></div></div>`;
+    try {
+      const data = await api(`/api/reports/${type}/data`);
+      const cellText = (v) => (v && typeof v === "object" ? (l === "ar" ? v.ar || v.en : v.en || v.ar) : v ?? "");
+      const head = data.columns.map((c) => `<th style="text-align:${l === "ar" ? "right" : "left"};padding:6px 8px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border2)">${esc(l === "ar" ? c.ar : c.en)}</th>`).join("");
+      const rows = data.rows.slice(0, 100).map((row) => `<tr>${data.columns.map((c) => `<td style="padding:6px 8px;font-size:12px;color:var(--text);border-bottom:1px solid var(--border3)">${esc(String(cellText(row[c.key])))}</td>`).join("")}</tr>`).join("");
+      box.innerHTML = data.rows.length
+        ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>${data.rows.length > 100 ? `<div style="font-size:11px;color:var(--text3);margin-top:6px">${l === "ar" ? `+ ${data.rows.length - 100} صفوف إضافية في التصدير الكامل` : `+ ${data.rows.length - 100} more rows in the full export`}</div>` : ""}`
+        : `<div class="es" style="padding:20px;font-size:12px">${l === "ar" ? "لا توجد بيانات لهذا التقرير" : "No data for this report"}</div>`;
+    } catch (e) {
+      box.innerHTML = `<div class="es" style="padding:16px;color:var(--red);font-size:12px">${esc(e.message)}</div>`;
+    }
+  },
+
+  async download(format) {
+    const l = App.lang;
+    const type = $("structured-report-type").value;
+    const label = $("structured-report-type").selectedOptions[0].text;
+    try {
+      const resp = await fetch(`/api/reports/${type}/${format}?lang=${l}`, { credentials: "include" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${type}.${format === "excel" ? "xlsx" : "pdf"}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast(l === "ar" ? `✓ تم تنزيل ${label}` : `✓ ${label} downloaded`);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  print() {
+    const box = $("structured-report-preview");
+    if (!box || !box.innerHTML.trim()) { this.preview().then(() => this.print()); return; }
+    const win = window.open("", "_blank");
+    const title = $("structured-report-type").selectedOptions[0].text;
+    win.document.write(`<html dir="${App.lang === "ar" ? "rtl" : "ltr"}"><head><title>${esc(title)}</title>
+      <style>body{font-family:Tahoma,Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:6px 8px;border-bottom:1px solid #ccc;font-size:12px}h1{font-size:18px}</style>
+      </head><body><h1>${esc(title)}</h1>${box.innerHTML}</body></html>`);
+    win.document.close();
+    win.onload = () => win.print();
+  },
+};
+
 // ══ Document Generator ════════════════════════════════════════════════════════
 const DocGen = {
   currentContent: "",

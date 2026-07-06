@@ -617,6 +617,32 @@
   </div>
   <div class="pbody">
     <div id="doc-quick-access"></div>
+    <!-- Structured Reports Section — real data straight from the database,
+         distinct from the AI document drafting card below (which composes
+         free text from a prompt). -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="ch" style="margin-bottom:10px">
+        <div>
+          <div class="ct" data-ar="📊 التقارير الهيكلية" data-en="📊 Structured Reports">📊 التقارير الهيكلية</div>
+          <div class="ctsub" data-ar="بيانات حية مباشرة من النظام" data-en="Live data straight from the system">بيانات حية مباشرة من النظام</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select class="fi" id="structured-report-type" style="max-width:260px">
+          <option value="dashboard_summary" data-ar="ملخص لوحة التحكم التنفيذية" data-en="Executive Dashboard Summary">ملخص لوحة التحكم التنفيذية</option>
+          <option value="department_performance" data-ar="أداء الأقسام" data-en="Department Performance">أداء الأقسام</option>
+          <option value="executive_actions" data-ar="تقرير الإجراءات التنفيذية" data-en="Executive Actions Report">تقرير الإجراءات التنفيذية</option>
+          <option value="board_meetings" data-ar="تقرير اجتماعات مجلس الإدارة" data-en="Board Meetings Report">تقرير اجتماعات مجلس الإدارة</option>
+          <option value="committee_meetings" data-ar="تقرير اجتماعات اللجان" data-en="Committee Meetings Report">تقرير اجتماعات اللجان</option>
+          <option value="meeting_history" data-ar="تقرير سجل الاجتماعات" data-en="Meeting History Report">تقرير سجل الاجتماعات</option>
+        </select>
+        <button class="btn-ghost btn-sm" onclick="StructuredReports.preview()">👁 <span data-ar="معاينة" data-en="Preview">معاينة</span></button>
+        <button class="btn-ghost btn-sm" onclick="StructuredReports.download('pdf')">📄 PDF</button>
+        <button class="btn-ghost btn-sm" onclick="StructuredReports.download('excel')">📊 Excel</button>
+        <button class="btn-ghost btn-sm" onclick="StructuredReports.print()">🖨 <span data-ar="طباعة" data-en="Print">طباعة</span></button>
+      </div>
+      <div id="structured-report-preview" style="margin-top:12px"></div>
+    </div>
     <!-- File Library Section -->
     <div class="card" style="margin-bottom:16px">
       <div class="ch" style="margin-bottom:10px">
