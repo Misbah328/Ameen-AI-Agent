@@ -5134,6 +5134,16 @@ async function renderTasks() {
     const meetingTitles = [...new Set(tasks.map((t) => (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)).filter(Boolean))];
     const departments = [...new Set(members.map((m) => m.department).filter(Boolean))];
 
+    // Manager View (Team/Department Overview, Bottlenecks, Workload) needs its
+    // own aggregated fetch — only load it when that view is actually active,
+    // and only for roles that can see it, so this never fires for everyone
+    // else's normal List/Board/Calendar render.
+    let managerOverview = null;
+    if (TaskView.get() === "manager" && canFullyManage) {
+      try { managerOverview = await api("/api/tasks/manager-overview"); }
+      catch (e) { managerOverview = { error: e.message }; }
+    }
+
     const matchesFilters = (t) => {
       if (f.mine && App.user && t.owner_id !== App.user.id) return false;
       if (f.owner && String(t.owner_id) !== f.owner) return false;
@@ -5157,6 +5167,12 @@ async function renderTasks() {
         case "my": return !!(App.user && t.owner_id === App.user.id);
         case "team": return !!(App.user && t.owner_id && t.owner_id !== App.user.id);
         case "dept": return !!(myDept && ownerDept[t.owner_id] === myDept);
+        case "duetoday": return !!(App.user && t.owner_id === App.user.id && t.due_date === new Date().toISOString().substring(0, 10) && !["done", "cancelled"].includes(t.status));
+        case "waitingoninput": return !!(App.user && t.owner_id === App.user.id && !["done", "cancelled"].includes(t.status) && (t.needs_review || t.status === "waiting"));
+        case "recentlyassigned": {
+          const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
+          return !!(App.user && t.owner_id === App.user.id && t.assigned_at && t.assigned_at.substring(0, 10) >= cutoff);
+        }
         case "overdue": return t.status === "overdue";
         case "high": return ["high", "critical"].includes(taskPriorityKey(t.priority));
         case "blocked": return taskStatusKey(t.status) === "blocked";
@@ -5349,28 +5365,37 @@ async function renderTasks() {
 
     // ── View switcher — Board (default, unchanged) / List / Calendar ──────────
     const view = TaskView.get();
-    const viewSwitcherHtml = `<div class="imp-seg" style="margin-bottom:16px;max-width:420px">
+    const viewSwitcherHtml = `<div class="imp-seg" style="margin-bottom:16px;max-width:${canFullyManage ? 560 : 420}px">
       <button class="imp-seg-btn ${view === "list" ? "active" : ""}" onclick="TaskView.set('list')">📋 ${l === "ar" ? "قائمة" : "List"}</button>
       <button class="imp-seg-btn ${view === "board" ? "active" : ""}" onclick="TaskView.set('board')">🗂 ${l === "ar" ? "لوحة" : "Board"}</button>
       <button class="imp-seg-btn ${view === "calendar" ? "active" : ""}" onclick="TaskView.set('calendar')">📅 ${l === "ar" ? "تقويم" : "Calendar"}</button>
+      ${canFullyManage ? `<button class="imp-seg-btn ${view === "manager" ? "active" : ""}" onclick="TaskView.set('manager')">📊 ${l === "ar" ? "عرض الإدارة" : "Manager View"}</button>` : ""}
     </div>`;
 
     // ── Quick filters — one-click executive shortcuts layered on top of the
     // detailed dropdown filters above; counts are computed over ALL tasks so
     // they stay meaningful regardless of what's currently selected.
+    const todayStr = new Date().toISOString().substring(0, 10);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
     const quickCounts = {
       my: tasks.filter((t) => App.user && t.owner_id === App.user.id).length,
       team: tasks.filter((t) => App.user && t.owner_id && t.owner_id !== App.user.id).length,
       dept: myDept ? tasks.filter((t) => ownerDept[t.owner_id] === myDept).length : 0,
+      duetoday: tasks.filter((t) => App.user && t.owner_id === App.user.id && t.due_date === todayStr && !["done", "cancelled"].includes(t.status)).length,
       overdue: tasks.filter((t) => t.status === "overdue").length,
       high: tasks.filter((t) => ["high", "critical"].includes(taskPriorityKey(t.priority))).length,
       blocked: tasks.filter((t) => taskStatusKey(t.status) === "blocked").length,
       completed: tasks.filter((t) => t.status === "done").length,
+      recentlyassigned: tasks.filter((t) => App.user && t.owner_id === App.user.id && t.assigned_at && t.assigned_at.substring(0, 10) >= sevenDaysAgo).length,
+      waitingoninput: tasks.filter((t) => App.user && t.owner_id === App.user.id && !["done", "cancelled"].includes(t.status) && (t.needs_review || t.status === "waiting")).length,
       favorites: tasks.filter((t) => TaskFavorites.has(t.id)).length,
     };
     const quickChips = [
       ...(pendingReviewTasks.length ? [{ key: "review", icon: "⏳", ar: "بانتظار المراجعة", en: "Pending Review", alert: true }] : []),
       { key: "my", icon: "👤", ar: "مهامي", en: "My Actions" },
+      { key: "duetoday", icon: "📅", ar: "مستحقة اليوم", en: "My Due Today" },
+      { key: "waitingoninput", icon: "✋", ar: "بانتظار ردي", en: "Waiting for My Input" },
+      { key: "recentlyassigned", icon: "🆕", ar: "أُسندت لي مؤخراً", en: "Recently Assigned" },
       { key: "team", icon: "👥", ar: "إجراءات الفريق", en: "Team Actions" },
       ...(myDept ? [{ key: "dept", icon: "🏢", ar: "إجراءات القسم", en: "Department Actions" }] : []),
       { key: "overdue", icon: "⚠️", ar: "متأخرة", en: "Overdue" },
@@ -5588,8 +5613,77 @@ async function renderTasks() {
       </div>
     `;
 
+    // ── Manager View — Team Overview, Department Overview, Bottlenecks,
+    // Workload Distribution, all from /api/tasks/manager-overview (the same
+    // tasks table every other view reads, just aggregated by person/dept).
+    const managerBodyHtml = (() => {
+      if (!managerOverview) return "";
+      if (managerOverview.error) return `<div class="es" style="color:var(--red)">${esc(managerOverview.error)}</div>`;
+      const { byPerson, byDepartment, bottlenecks } = managerOverview;
+      const nameOf = (p) => esc(l === "ar" ? p.name_ar : p.name_en || p.name_ar);
+      const barRow = (label, pct, sub, accent) => `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
+            <span style="font-size:12px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+            <span style="font-size:11px;color:var(--text3);flex-shrink:0">${sub}</span>
+          </div>
+          <div style="height:6px;background:var(--navy4);border-radius:4px;overflow:hidden">
+            <div style="height:100%;border-radius:4px;background:${accent};width:${pct}%"></div>
+          </div>
+        </div>`;
+      const peopleSection = byPerson.length
+        ? byPerson.map((p) => barRow(
+            nameOf(p) + (p.department ? ` <span style="color:var(--text3);font-weight:400">· ${esc(p.department)}</span>` : ""),
+            p.pct,
+            `${p.done}/${p.total} ${l === "ar" ? "منجزة" : "done"} · ${p.open} ${l === "ar" ? "مفتوحة" : "open"}${p.overdue ? ` · ${p.overdue} ${l === "ar" ? "متأخرة" : "overdue"}` : ""}${p.blocked ? ` · ${p.blocked} ${l === "ar" ? "معطّلة" : "blocked"}` : ""}`,
+            p.overdue > 0 ? "var(--red)" : p.blocked > 0 ? "#e0a030" : "var(--gold)"
+          )).join("")
+        : `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">${l === "ar" ? "لا توجد بيانات بعد" : "No data yet"}</div>`;
+      const deptSection = byDepartment.length
+        ? byDepartment.map((d) => barRow(
+            `${esc(d.department)} <span style="color:var(--text3);font-weight:400">· ${d.people} ${l === "ar" ? "أعضاء" : "member(s)"}</span>`,
+            d.pct,
+            `${d.done}/${d.total} ${l === "ar" ? "منجزة" : "done"} · ${d.open} ${l === "ar" ? "مفتوحة" : "open"}${d.overdue ? ` · ${d.overdue} ${l === "ar" ? "متأخرة" : "overdue"}` : ""}`,
+            d.overdue > 0 ? "var(--red)" : "#5B9BD6"
+          )).join("")
+        : `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">${l === "ar" ? "لا توجد بيانات قسم بعد" : "No department data yet"}</div>`;
+      const workload = [...byPerson].sort((a, b) => b.open - a.open).slice(0, 10);
+      const workloadSection = workload.length
+        ? workload.map((p) => barRow(nameOf(p), Math.min(100, p.open * 12), `${p.open} ${l === "ar" ? "إجراء مفتوح" : "open action(s)"}`, p.open > 5 ? "var(--red)" : "var(--gold)")).join("")
+        : `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">${l === "ar" ? "لا يوجد عبء عمل مفتوح" : "No open workload"}</div>`;
+      const bottleneckRows = bottlenecks.length
+        ? bottlenecks.map((b) => `
+          <div class="trow" style="border-inline-start:3px solid ${b.status === "blocked" ? "#e0a030" : "var(--red)"};padding-inline-start:10px;margin-bottom:8px;border-radius:0 8px 8px 0">
+            <div style="font-size:12.5px;color:var(--text);font-weight:600;margin-bottom:5px">${esc(l === "ar" ? b.text_ar : b.text_en || b.text_ar)}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+              ${b.owner_name_ar ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(l === "ar" ? b.owner_name_ar : b.owner_name_en || b.owner_name_ar)}</span>` : ""}
+              ${b.department ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(b.department)}</span>` : ""}
+              <span class="tag" style="font-size:11px;${b.status === "blocked" ? "background:rgba(224,160,48,.15);color:#e0a030" : "background:rgba(220,50,50,.15);color:var(--red)"}">${b.status === "blocked" ? (l === "ar" ? "⛔ معطّلة" : "⛔ Blocked") : `⚠️ ${b.days_late}${l === "ar" ? "ي متأخرة" : "d overdue"}`}</span>
+            </div>
+          </div>`).join("")
+        : `<div style="text-align:center;padding:24px"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد اختناقات حالياً" : "No bottlenecks right now"}</div></div>`;
+      return `<div class="grid-2" style="align-items:start;gap:14px">
+        <div class="card">
+          <div class="ch"><div class="ct">👥 ${l === "ar" ? "نظرة عامة على الفريق" : "Team Overview"}</div></div>
+          ${peopleSection}
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ct">🏢 ${l === "ar" ? "نظرة عامة على الأقسام" : "Department Overview"}</div></div>
+          ${deptSection}
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ct">📊 ${l === "ar" ? "توزيع عبء العمل" : "Workload Distribution"}</div><div class="ctsub">${l === "ar" ? "أعلى 10 حسب الإجراءات المفتوحة" : "Top 10 by open actions"}</div></div>
+          ${workloadSection}
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ct">🚧 ${l === "ar" ? "الاختناقات" : "Bottlenecks"}</div><div class="ctsub">${l === "ar" ? "معطّلة أو متأخرة بشكل ملحوظ" : "Blocked or significantly overdue"}</div></div>
+          ${bottleneckRows}
+        </div>
+      </div>`;
+    })();
+
     const showReviewQueue = f.quick === "review" && pendingReviewTasks.length > 0;
-    const viewBodyHtml = view === "list" ? listBodyHtml : view === "calendar" ? calendarBodyHtml : boardBodyHtml;
+    const viewBodyHtml = view === "manager" ? managerBodyHtml : view === "list" ? listBodyHtml : view === "calendar" ? calendarBodyHtml : boardBodyHtml;
 
     body.innerHTML = showReviewQueue
       ? quickFilterBarHtml +
@@ -6012,7 +6106,11 @@ const TaskTimeline = {
             ↑ ${l==='ar'?'تصعيد':'Escalate'}
           </button>
         </div>
+      </div>
+      <div id="task-attachments-section" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:10px">
+        <div style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0"><div class="loading" style="width:14px;height:14px;margin:0 auto"></div></div>
       </div>`;
+    TaskAttachments.load(taskId);
   },
 
   async addUpdate(taskId) {
@@ -6066,6 +6164,78 @@ const TaskTimeline = {
     } catch (e) {
       showToast(e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = `↑ ${l==='ar'?'تصعيد':'Escalate'}`; }
+    }
+  },
+};
+
+// ── Task Attachments — progress evidence / completion proof on an executive
+// action, same upload mechanics as meeting documents (DocLib.upload above).
+const TaskAttachments = {
+  async load(taskId) {
+    const l = App.lang;
+    const section = document.getElementById("task-attachments-section");
+    if (!section) return;
+    try {
+      const attachments = await api(`/api/tasks/${taskId}/attachments`);
+      this.render(section, taskId, attachments, l);
+    } catch (e) {
+      section.innerHTML = `<div style="font-size:11px;color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+  render(section, taskId, attachments, l) {
+    const fmtSize = (n) => n > 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+    const rows = attachments.map((a) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--navy3);border-radius:6px;margin-bottom:5px">
+        <span style="font-size:14px;flex-shrink:0">${a.kind === "completion" ? "✅" : "📎"}</span>
+        <a href="/uploads/${encodeURIComponent(a.file_path)}" target="_blank" rel="noopener" style="flex:1;min-width:0;font-size:11.5px;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.file_name)}">${esc(a.file_name)}</a>
+        <span style="font-size:10.5px;color:var(--text3);flex-shrink:0">${fmtSize(a.file_size)}</span>
+        <button onclick="TaskAttachments.remove(${taskId}, ${a.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;flex-shrink:0" title="${l === "ar" ? "حذف" : "Remove"}">✕</button>
+      </div>`).join("");
+    section.innerHTML = `
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">
+        📎 ${l === "ar" ? "المرفقات وأدلة الإنجاز" : "Attachments & Completion Evidence"}
+        ${attachments.length ? `<span class="tag" style="background:var(--navy4);font-size:11px;margin-${l === "ar" ? "right" : "left"}:4px">${attachments.length}</span>` : ""}
+      </div>
+      ${rows || `<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0 8px">${l === "ar" ? "لا توجد مرفقات بعد" : "No attachments yet"}</div>`}
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn-ghost btn-sm" id="task-att-btn" onclick="TaskAttachments.upload(${taskId}, 'attachment')">📎 ${l === "ar" ? "إرفاق ملف" : "Attach File"}</button>
+        <button class="btn-ghost btn-sm" onclick="TaskAttachments.upload(${taskId}, 'completion')" style="color:var(--green);border-color:rgba(50,180,100,.4)">✅ ${l === "ar" ? "إرفاق دليل إنجاز" : "Attach Completion Evidence"}</button>
+      </div>`;
+  },
+  upload(taskId, kind) {
+    const l = App.lang;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pdf,.docx,.xlsx,.pptx,.txt";
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const btn = document.getElementById("task-att-btn");
+      if (btn) { btn.disabled = true; btn.textContent = "..."; }
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("kind", kind);
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/attachments`, { method: "POST", credentials: "include", body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        await this.load(taskId);
+        showToast(l === "ar" ? "تم إرفاق الملف" : "File attached", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+        await this.load(taskId);
+      }
+    };
+    input.click();
+  },
+  async remove(taskId, attId) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "حذف هذا المرفق؟" : "Remove this attachment?")) return;
+    try {
+      await api(`/api/tasks/${taskId}/attachments/${attId}`, { method: "DELETE" });
+      await this.load(taskId);
+    } catch (e) {
+      showToast(e.message, "error");
     }
   },
 };

@@ -1064,6 +1064,14 @@ function canFullyManageActions(userId) {
   return rbacService.hasPermission(db, userId, 'actions.assign');
 }
 
+// SQLite's CURRENT_TIMESTAMP produces 'YYYY-MM-DD HH:MM:SS' (UTC, no
+// fractional seconds or offset) — match that format exactly when a
+// timestamp needs to be computed in JS instead, so string comparisons
+// against other DATETIME columns (e.g. date-range queries) stay correct.
+function sqlNow() {
+  return new Date().toISOString().replace('T', ' ').substring(0, 19);
+}
+
 router.get('/tasks', auth, (req, res) => {
   // Auto-mark overdue: any task with a past due_date that isn't in a
   // terminal/held state. Waiting and Blocked are deliberately excluded —
@@ -1093,6 +1101,68 @@ router.get('/tasks', auth, (req, res) => {
   res.json(tasks);
 });
 
+// ── Manager rollups: Team Overview, Department Overview, Bottlenecks, Workload ──
+// Reuses the same tasks table the individual "My Actions" views already read —
+// no new tracking, just aggregated differently for whoever can fully manage
+// actions (the same actions.assign bar the Team/Department quick filters use).
+router.get('/tasks/manager-overview', auth, requirePermission('actions.assign'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT t.owner_id, t.owner_name_ar, t.owner_name_en, t.status, t.due_date, t.priority,
+           t.text_ar, t.text_en, t.id, t.updated_at, t.created_at,
+           u.department
+    FROM tasks t LEFT JOIN users u ON u.id = t.owner_id
+    WHERE t.owner_name_ar IS NOT NULL AND t.owner_name_ar != ''
+  `).all();
+
+  const byPerson = {};
+  const byDept = {};
+  const bottlenecks = [];
+  const today = new Date().toISOString().substring(0, 10);
+
+  for (const t of rows) {
+    const personKey = t.owner_id || t.owner_name_ar;
+    const dept = t.department || null;
+    if (!byPerson[personKey]) {
+      byPerson[personKey] = { owner_id: t.owner_id, name_ar: t.owner_name_ar, name_en: t.owner_name_en, department: dept, total: 0, done: 0, open: 0, overdue: 0, blocked: 0 };
+    }
+    const p = byPerson[personKey];
+    p.total++;
+    if (t.status === 'done') p.done++;
+    else if (t.status === 'cancelled') { /* excluded from open/total-active counts */ }
+    else {
+      p.open++;
+      if (t.status === 'overdue') p.overdue++;
+      if (t.status === 'blocked') p.blocked++;
+    }
+    if (dept) {
+      if (!byDept[dept]) byDept[dept] = { department: dept, total: 0, done: 0, open: 0, overdue: 0, blocked: 0, people: new Set() };
+      const d = byDept[dept];
+      d.total++;
+      d.people.add(personKey);
+      if (t.status === 'done') d.done++;
+      else if (t.status !== 'cancelled') {
+        d.open++;
+        if (t.status === 'overdue') d.overdue++;
+        if (t.status === 'blocked') d.blocked++;
+      }
+    }
+    if (t.status === 'blocked' || (t.status === 'overdue' && t.due_date)) {
+      const daysLate = t.due_date ? Math.round((new Date(today) - new Date(t.due_date)) / 86400000) : 0;
+      bottlenecks.push({
+        id: t.id, text_ar: t.text_ar, text_en: t.text_en, status: t.status, priority: t.priority,
+        owner_name_ar: t.owner_name_ar, owner_name_en: t.owner_name_en, department: dept,
+        due_date: t.due_date, days_late: daysLate,
+      });
+    }
+  }
+
+  const byPersonArr = Object.values(byPerson).map(p => ({ ...p, pct: p.total ? Math.round(p.done / p.total * 100) : 0 })).sort((a, b) => b.open - a.open);
+  const byDeptArr = Object.values(byDept).map(d => ({ ...d, people: d.people.size, pct: d.total ? Math.round(d.done / d.total * 100) : 0 })).sort((a, b) => b.open - a.open);
+  bottlenecks.sort((a, b) => b.days_late - a.days_late);
+
+  res.json({ byPerson: byPersonArr, byDepartment: byDeptArr, bottlenecks: bottlenecks.slice(0, 30) });
+});
+
 router.post('/tasks', auth, async (req, res) => {
   const canTouch = ['actions.view', 'actions.update', 'actions.assign', 'actions.close']
     .some((k) => rbacService.hasPermission(db, req.user.id, k));
@@ -1106,9 +1176,9 @@ router.post('/tasks', auth, async (req, res) => {
     if (u) { oNameAr = u.name_ar; oNameEn = u.name_en; }
   }
   const row = db.prepare(`
-    INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, status, review_status, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(text_ar, text_en || text_ar, owner_id || null, oNameAr, oNameEn, due_date || '', priority || 'normal', owner_id ? 'assigned' : 'open', review_status || 'approved', source_meeting_id || null, source_meeting_title_ar || '', source_meeting_title_en || '', req.user.id);
+    INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, status, review_status, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by, assigned_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(text_ar, text_en || text_ar, owner_id || null, oNameAr, oNameEn, due_date || '', priority || 'normal', owner_id ? 'assigned' : 'open', review_status || 'approved', source_meeting_id || null, source_meeting_title_ar || '', source_meeting_title_en || '', req.user.id, owner_id ? sqlNow() : null);
   const created = db.prepare('SELECT * FROM tasks WHERE id=?').get(row.lastInsertRowid);
   await notifyTaskAssigned(created, req.user.id);
   res.json(created);
@@ -1148,17 +1218,22 @@ router.patch('/tasks/:id', auth, async (req, res) => {
   if (newStatus === undefined && oId && !task.owner_id && ['new', 'open'].includes(task.status)) {
     newStatus = 'assigned';
   }
+  // Real (re)assignment vs. an unrelated field edit — used both to decide
+  // whether to notify the new owner and to stamp assigned_at, so "Recently
+  // Assigned" reflects genuine ownership changes, not every touch of the row.
+  const ownerChanged = oId !== undefined && oId !== null && oId !== task.owner_id;
   db.prepare(`UPDATE tasks SET
       status=COALESCE(?,status), notes=COALESCE(?,notes), due_date=COALESCE(?,due_date), priority=COALESCE(?,priority),
       text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en), progress=COALESCE(?,progress),
       review_status=COALESCE(?,review_status),
       owner_id=COALESCE(?,owner_id), owner_name_ar=COALESCE(?,owner_name_ar), owner_name_en=COALESCE(?,owner_name_en),
+      assigned_at=COALESCE(?,assigned_at),
       updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(newStatus, notes, due_date, priority, text_ar, text_en, progress, review_status, oId, oNameAr, oNameEn, req.params.id);
+    .run(newStatus, notes, due_date, priority, text_ar, text_en, progress, review_status, oId, oNameAr, oNameEn, ownerChanged ? sqlNow() : null, req.params.id);
   const updated = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   // Only notify when the owner actually changed to a new, real assignee —
   // not on every unrelated field edit (status/notes/etc. don't re-notify).
-  if (oId !== undefined && oId !== null && oId !== task.owner_id) {
+  if (ownerChanged) {
     await notifyTaskAssigned(updated, req.user.id);
   }
   res.json(updated);
@@ -1195,6 +1270,40 @@ router.post('/tasks/:id/updates', auth, (req, res) => {
   ).run(task.id, req.user.id, author_name, author_role, update_text, task.status);
   const created = db.prepare('SELECT * FROM task_updates WHERE id=?').get(row.lastInsertRowid);
   res.json(created);
+});
+
+// ── Task Attachments (progress evidence / completion proof) ───────────────────
+router.get('/tasks/:id/attachments', auth, (req, res) => {
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  res.json(db.prepare('SELECT * FROM task_attachments WHERE task_id=? ORDER BY created_at DESC').all(req.params.id));
+});
+
+router.post('/tasks/:id/attachments', auth, upload.single('file'), (req, res) => {
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) {
+    try { if (req.file) fs.unlinkSync(req.file.path); } catch {}
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (PDF, DOCX, XLSX, PPTX, TXT only)' });
+  const uploaderName = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+  const kind = ['completion', 'evidence'].includes(req.body.kind) ? 'completion' : 'attachment';
+  const row = db.prepare(`
+    INSERT INTO task_attachments (task_id, file_name, file_path, file_size, kind, uploaded_by, uploaded_by_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(task.id, req.file.originalname, req.file.filename, req.file.size, kind, req.user.id, uploaderName ? (uploaderName.name_en || uploaderName.name_ar) : '');
+  res.json(db.prepare('SELECT * FROM task_attachments WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.delete('/tasks/:id/attachments/:attId', auth, (req, res) => {
+  const att = db.prepare('SELECT * FROM task_attachments WHERE id=? AND task_id=?').get(req.params.attId, req.params.id);
+  if (!att) return res.status(404).json({ error: 'Not found' });
+  if (att.uploaded_by !== req.user.id && !canFullyManageActions(req.user.id)) {
+    return res.status(403).json({ error: 'Only the uploader or a manager can remove this attachment' });
+  }
+  try { fs.unlinkSync(path.join(UPLOADS_DIR, att.file_path)); } catch {}
+  db.prepare('DELETE FROM task_attachments WHERE id=?').run(req.params.attId);
+  res.json({ success: true });
 });
 
 // ── Task Escalation ────────────────────────────────────────────────────────────

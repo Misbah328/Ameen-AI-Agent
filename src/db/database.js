@@ -147,6 +147,11 @@ ensureColumn('tasks', 'assignee_email', 'TEXT');
 ensureColumn('tasks', 'confirmed', 'INTEGER DEFAULT 0');
 ensureColumn('tasks', 'confirmed_at', 'DATETIME');
 ensureColumn('tasks', 'assignee_phone', 'TEXT');
+// Real timestamp of the most recent owner_id change — stamped in the create/
+// PATCH routes whenever an owner is actually (re)assigned, so "Recently
+// Assigned" can be a genuine recency query instead of a proxy off updated_at
+// (which also changes on unrelated edits like a status tweak or a note).
+ensureColumn('tasks', 'assigned_at', 'DATETIME');
 // Pending-Review flag for AI-extracted tasks the model was unsure about.
 ensureColumn('tasks', 'needs_review', 'INTEGER DEFAULT 0');
 // Draft vs confirmed scheduling, and the meeting a draft was auto-created from.
@@ -366,6 +371,47 @@ db.exec(`
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
   )
 `);
+
+// Task attachments — files a task owner attaches as progress evidence or
+// completion proof. Stored on disk under data/uploads (same directory
+// meeting_documents already uses) with a DB row for metadata.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS task_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER DEFAULT 0,
+    kind TEXT DEFAULT 'attachment',
+    uploaded_by INTEGER,
+    uploaded_by_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+  )
+`);
+
+// In-app notifications — the existing notify.js only sends outbound email/
+// WhatsApp; nothing persisted a record a user could read inside the product
+// itself. One row per (event, recipient).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    title_ar TEXT NOT NULL,
+    title_en TEXT NOT NULL,
+    body_ar TEXT DEFAULT '',
+    body_en TEXT DEFAULT '',
+    priority TEXT DEFAULT 'normal',
+    source_type TEXT,
+    source_id INTEGER,
+    deep_link TEXT,
+    read_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read_at)`);
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
