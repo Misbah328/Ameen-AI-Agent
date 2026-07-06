@@ -729,15 +729,22 @@ const App = {
     }
   },
 
+  // This is very likely the first thing a technical evaluator interacts with
+  // when setting up a pilot (pasting in their AI API key) — a raw browser
+  // prompt() here undermines the "professional first impression" bar more
+  // than almost anywhere else in the app. Reuses the same modal system as
+  // everywhere else instead.
   promptApiKey() {
     const cur = sessionStorage.getItem("api_key") || "";
-    const k = prompt(
-      this.lang === "ar"
-        ? "أدخل مفتاح Anthropic API (sk-ant-...):\n\nاتركه فارغاً للوضع التجريبي"
-        : "Enter Anthropic API key (sk-ant-...):\n\nLeave blank for demo mode",
-      cur,
-    );
-    if (k === null) return;
+    const input = $("api-key-input");
+    if (input) input.value = cur;
+    $("modal-api-key").classList.add("open");
+  },
+  closeApiKeyModal() {
+    $("modal-api-key").classList.remove("open");
+  },
+  saveApiKey() {
+    const k = (($("api-key-input") || {}).value || "").trim();
     if (k && k.startsWith("sk-ant")) {
       sessionStorage.setItem("api_key", k);
       api("/api/ai/setkey", {
@@ -748,16 +755,19 @@ const App = {
           $("api-key-btn").style.borderColor = "var(--green)";
           $("api-status-txt").textContent =
             this.lang === "ar" ? "✓ مفعّل" : "✓ Active";
+          this.closeApiKeyModal();
         })
         .catch(() => {});
     } else if (k === "") {
       sessionStorage.removeItem("api_key");
       $("api-status-txt").textContent = "Anthropic API";
-    } else if (k) {
-      alert(
+      this.closeApiKeyModal();
+    } else {
+      showToast(
         this.lang === "ar"
           ? "مفتاح غير صالح — يجب أن يبدأ بـ sk-ant"
           : "Invalid key — must start with sk-ant",
+        "error",
       );
     }
   },
@@ -4595,6 +4605,9 @@ const ApprovalModal = {
 function minutesApprovalAction(meetingId, action) {
   ApprovalModal.open(meetingId, action);
 }
+$("modal-api-key") && $("modal-api-key").addEventListener("click", (e) => {
+  if (e.target === $("modal-api-key")) App.closeApiKeyModal();
+});
 $("modal-approval-action") && $("modal-approval-action").addEventListener("click", (e) => {
   if (e.target === $("modal-approval-action")) ApprovalModal.close();
 });
@@ -6385,7 +6398,16 @@ const Chat = {
     msgs.scrollTop = msgs.scrollHeight;
   },
   showDemoNote() {
+    // appendChild always lands at the very end of #chat-msgs, which also
+    // hosts the persistent Recent Searches / quick-action chips block — so
+    // every demo note piled up below that furniture, disconnected from the
+    // reply it was actually about, instead of near it. One note, replaced
+    // each time (same pattern DocGen.showDemoNote already uses), keeps a
+    // single clear notice instead of a growing stack of identical banners.
+    const old = document.getElementById("chat-demo-note");
+    if (old) old.remove();
     const note = document.createElement("div");
+    note.id = "chat-demo-note";
     note.style.cssText =
       "font-size:11px;color:var(--amber);padding:6px 10px;background:rgba(201,168,76,.1);border-radius:6px;margin:4px 0;text-align:center";
     note.textContent =

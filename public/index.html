@@ -1115,6 +1115,24 @@
   </div>
 </div>
 
+<!-- ══ MODAL: ANTHROPIC API KEY ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-api-key">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title" data-ar="مفتاح Anthropic API" data-en="Anthropic API Key">Anthropic API Key</div>
+    <div class="fs">
+      <div class="frow">
+        <div class="fl" data-ar="مفتاح API (sk-ant-...)" data-en="API Key (sk-ant-...)">API Key (sk-ant-...)</div>
+        <input class="fi" id="api-key-input" type="password" dir="ltr" style="text-align:left" placeholder="sk-ant-..." autocomplete="off"/>
+        <div style="margin-top:6px;font-size:11px;color:var(--text3)" data-ar="اتركه فارغاً للتبديل إلى الوضع التجريبي" data-en="Leave blank to switch to demo mode">Leave blank to switch to demo mode</div>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" onclick="App.saveApiKey()">✓ <span data-ar="حفظ" data-en="Save">Save</span></button>
+        <button class="btn-ghost" onclick="App.closeApiKeyModal()"><span data-ar="إلغاء" data-en="Cancel">Cancel</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MODAL: MINUTES APPROVAL ACTION (Circulate/Approve/Request Revision/Final Approve/Archive) ══ -->
 <div class="modal-overlay" id="modal-approval-action">
   <div class="modal" style="max-width:460px">
