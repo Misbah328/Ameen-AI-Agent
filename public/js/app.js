@@ -5160,44 +5160,51 @@ async function renderTasks() {
       const accentColor = isOverdue ? "var(--red)" : isCritical ? "var(--red)" : isHigh ? "var(--amber)" : "var(--border2)";
       const canManageThis = canFullyManage;
 
+      // Controls (status dropdown + favorite/edit/delete) live in their own
+      // header row, ABOVE the title — not inline beside it. Board view packs
+      // three cards per row into much narrower columns than the List view; an
+      // inline flex row with fixed-width controls and no wrapping used to
+      // squeeze the title's flex:1 column down to a sliver, forcing it onto
+      // one word per line. Stacking guarantees the title always gets the
+      // card's full width, in both views.
       return `<div class="trow" id="tr-${t.id}" style="border-inline-start:3px solid ${accentColor};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0;${isOverdue?"background:rgba(220,60,60,.04)":""}">
-        <div style="display:flex;gap:11px;align-items:flex-start">
-          <div style="margin-top:2px;flex-shrink:0">${statusSelect}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
-              ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
-              ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
-              <span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l==="ar"?pri.ar:pri.en}</span>
-              ${daysTag}
-              ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
-              ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:11.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
-            </div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-              ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"var(--red)":"var(--text3)"}">📅 ${l==="ar"?"الاستحقاق:":"Due:"} <strong style="color:${isOverdue?"var(--red)":"var(--text2)"}">${esc(t.due_date)}</strong></span>` : ""}
-              ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>42?mtg.substring(0,42)+"…":mtg)}</span>` : ""}
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-              <div style="flex:1;height:5px;background:var(--navy4);border-radius:4px;overflow:hidden;max-width:160px">
-                <div style="height:100%;border-radius:4px;background:${progress===100?"var(--green)":"var(--gold)"};width:${progress}%;transition:width .3s"></div>
-              </div>
-              <select class="st-select" style="font-size:10.5px;padding:2px 6px" onchange="Tasks.updateProgress(${t.id}, this.value)" title="${l==="ar"?"نسبة التقدم":"Progress"}">
-                ${PROGRESS_STEPS.map(p => `<option value="${p}" ${progress===p?"selected":""}>${p}%</option>`).join("")}
-              </select>
-            </div>
-            <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-              <span style="line-height:1.4">${
-                t.update_count
-                  ? `💬 ${esc((t.latest_update_text || "").length > 90 ? t.latest_update_text.substring(0,90)+"…" : (t.latest_update_text||""))}${t.latest_update_author ? ` — ${esc(t.latest_update_author)}` : ""}${t.update_count > 1 ? ` (${t.update_count} ${l==="ar"?"تحديثات":"updates"})` : ""}`
-                  : (l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed.")
-              }</span>
-              <button onclick="Tasks.edit(${t.id})" style="font-size:11px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
-            </div>
-          </div>
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px">
+          ${statusSelect}
           <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
             <button onclick="TaskFavorites.toggle(${t.id})" style="background:${TaskFavorites.has(t.id) ? "rgba(212,160,23,.14)" : "var(--navy3)"};border:1px solid ${TaskFavorites.has(t.id) ? "var(--gold)" : "var(--border2)"};color:${TaskFavorites.has(t.id) ? "var(--gold)" : "var(--text3)"};cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" title="${l==="ar"?"مفضّلة":"Favorite"}" aria-label="${l==="ar"?"إجراء مفضّل":"Favorite action"}">${TaskFavorites.has(t.id) ? "★" : "☆"}</button>
             <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1;font-weight:500" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l==="ar"?"تعديل":"Edit"}">✏️</button>
             ${canManageThis ? `<button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l==="ar"?"حذف":"Delete"}">✕</button>` : ""}
+          </div>
+        </div>
+        <div style="width:100%">
+          <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
+            ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
+            ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
+            <span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l==="ar"?pri.ar:pri.en}</span>
+            ${daysTag}
+            ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
+            ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:11.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+            ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"var(--red)":"var(--text3)"}">📅 ${l==="ar"?"الاستحقاق:":"Due:"} <strong style="color:${isOverdue?"var(--red)":"var(--text2)"}">${esc(t.due_date)}</strong></span>` : ""}
+            ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>42?mtg.substring(0,42)+"…":mtg)}</span>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="flex:1;height:5px;background:var(--navy4);border-radius:4px;overflow:hidden;max-width:160px">
+              <div style="height:100%;border-radius:4px;background:${progress===100?"var(--green)":"var(--gold)"};width:${progress}%;transition:width .3s"></div>
+            </div>
+            <select class="st-select" style="font-size:10.5px;padding:2px 6px" onchange="Tasks.updateProgress(${t.id}, this.value)" title="${l==="ar"?"نسبة التقدم":"Progress"}">
+              ${PROGRESS_STEPS.map(p => `<option value="${p}" ${progress===p?"selected":""}>${p}%</option>`).join("")}
+            </select>
+          </div>
+          <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <span style="line-height:1.4">${
+              t.update_count
+                ? `💬 ${esc((t.latest_update_text || "").length > 90 ? t.latest_update_text.substring(0,90)+"…" : (t.latest_update_text||""))}${t.latest_update_author ? ` — ${esc(t.latest_update_author)}` : ""}${t.update_count > 1 ? ` (${t.update_count} ${l==="ar"?"تحديثات":"updates"})` : ""}`
+                : (l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed.")
+            }</span>
+            <button onclick="Tasks.edit(${t.id})" style="font-size:11px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
           </div>
         </div>
       </div>`;
