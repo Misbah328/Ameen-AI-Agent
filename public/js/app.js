@@ -10133,6 +10133,7 @@ async function renderAnalytics() {
           <div style="position:relative;height:210px"><canvas id="cht-dec-type"></canvas></div>
         </div>
       </div>
+      <div id="team-performance-section"></div>
       <div class="card" style="margin-top:16px">
         <div class="ct" style="margin-bottom:12px;font-size:13px">📊 ${lbl("ملخص التحليلات", "Analytics Summary")}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;font-size:12px">
@@ -10297,9 +10298,93 @@ async function renderAnalytics() {
       },
       options: _chartPie(),
     });
+
+    if (App.can("actions.assign")) await renderTeamPerformance(l, lbl);
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
+}
+
+// ── Team Performance — workload, department comparison, completion time,
+// overdue trend, risk areas. Reuses GET /api/analytics/team-performance
+// (built on the same computeTaskRollups() the Manager View and Dashboard
+// Intelligence already use — no separate aggregation to keep in sync).
+// actions.assign gated to match the backend; simply absent for anyone who
+// doesn't manage a team, same pattern as the Manager View toggle in Tasks.
+async function renderTeamPerformance(l, lbl) {
+  const section = $("team-performance-section");
+  if (!section) return;
+  section.innerHTML = `<div class="es" style="padding:16px"><div class="loading"></div></div>`;
+  let data;
+  try {
+    data = await api("/api/analytics/team-performance");
+  } catch (e) {
+    section.innerHTML = "";
+    return;
+  }
+
+  const riskChips = (data.risk_areas || []).length
+    ? data.risk_areas.map((d) => `<span class="tag" style="background:rgba(220,50,50,.12);color:var(--red);font-size:11px;margin-inline-end:6px;margin-bottom:6px;display:inline-block">⚠️ ${esc(d.department)} — ${d.ratio}% ${lbl("متأخرة", "overdue")}</span>`).join("")
+    : `<span style="font-size:12px;color:var(--text3)">${lbl("لا توجد مخاطر عاجلة حالياً", "No urgent risk areas right now")}</span>`;
+
+  section.innerHTML = `
+    <div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:22px 0 12px;padding-inline-start:2px">— ${lbl("أداء الفريق", "Team Performance")} —</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div class="ct" style="margin-bottom:10px;font-size:13px">👥 ${lbl("عبء العمل حسب الفرد", "Workload by Person")}</div>
+        <div style="position:relative;height:220px"><canvas id="cht-tp-workload"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct" style="margin-bottom:10px;font-size:13px">🏢 ${lbl("مقارنة الأقسام — نسبة الإنجاز", "Department Comparison — Completion %")}</div>
+        <div style="position:relative;height:220px"><canvas id="cht-tp-dept"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct" style="margin-bottom:10px;font-size:13px">📉 ${lbl("اتجاه التأخر الأسبوعي", "Weekly Overdue Trend")}</div>
+        <div style="position:relative;height:220px"><canvas id="cht-tp-overdue-trend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct" style="margin-bottom:10px;font-size:13px">⏱ ${lbl("متوسط زمن الإنجاز", "Average Completion Time")}</div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px">
+          <div style="font-size:36px;font-weight:800;color:var(--gold)">${data.avg_completion_days != null ? data.avg_completion_days : "—"}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">${lbl("يوم (تقريبي، من آخر تحديث للمهمة المكتملة)", "days (approximate, based on each completed task's last update)")}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct" style="margin-bottom:10px;font-size:13px">🚧 ${lbl("مناطق الخطر", "Risk Areas")}</div>
+      <div>${riskChips}</div>
+    </div>`;
+
+  const base = _chartBase(l);
+  const workload = [...data.workload].sort((a, b) => b.open - a.open).slice(0, 10);
+  Charts.render("cht-tp-workload", {
+    type: "bar",
+    data: {
+      labels: workload.map((p) => (l === "ar" ? p.name_ar : p.name_en || p.name_ar)),
+      datasets: [{ label: lbl("إجراءات مفتوحة", "Open actions"), data: workload.map((p) => p.open), backgroundColor: "#C9A84Cbb", borderColor: "#C9A84C", borderWidth: 1.5, borderRadius: 4 }],
+    },
+    options: { ...base, indexAxis: "y", plugins: { ...base.plugins, legend: { display: false } } },
+  });
+
+  const dept = data.department_comparison || [];
+  Charts.render("cht-tp-dept", {
+    type: "bar",
+    data: {
+      labels: dept.map((d) => d.department),
+      datasets: [{ label: lbl("نسبة الإنجاز %", "Completion %"), data: dept.map((d) => d.pct), backgroundColor: dept.map((d) => (d.overdue > 0 ? "#DC3232bb" : "#2ECC8Abb")), borderColor: dept.map((d) => (d.overdue > 0 ? "#DC3232" : "#2ECC8A")), borderWidth: 1.5, borderRadius: 4 }],
+    },
+    options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...base.scales?.y, min: 0, max: 100 } } },
+  });
+
+  const trend = data.overdue_trend || [];
+  Charts.render("cht-tp-overdue-trend", {
+    type: "line",
+    data: {
+      labels: trend.map((w) => _weekLabel(w.week_start, l)),
+      datasets: [{ label: lbl("مهام متأخرة عند الاستحقاق", "Tasks late at due date"), data: trend.map((w) => w.late_count), borderColor: "#DC3232", backgroundColor: "#DC323222", fill: true, tension: 0.3 }],
+    },
+    options: base,
+  });
 }
 
 // ══ Textarea auto-resize ══════════════════════════════════════════════════════

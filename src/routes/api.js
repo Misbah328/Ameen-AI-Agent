@@ -1200,6 +1200,62 @@ router.get('/tasks/manager-overview', auth, requirePermission('actions.assign'),
   res.json({ byPerson, byDepartment, bottlenecks: bottlenecks.slice(0, 30) });
 });
 
+// ── Team Performance analytics ───────────────────────────────────────────────
+// Workload and department comparison reuse computeTaskRollups() (same
+// aggregation as manager-overview/dashboard-intelligence — not recomputed
+// three different ways). Two things genuinely don't exist anywhere yet:
+router.get('/analytics/team-performance', auth, requirePermission('actions.assign'), (req, res) => {
+  const { byPerson, byDepartment } = computeTaskRollups();
+
+  // Average completion time — the tasks table has no dedicated
+  // completed_at column, so this is updated_at minus created_at for rows
+  // currently status='done'. That's an approximation (updated_at moves on
+  // any edit, not only the completing one) rather than a fabricated number;
+  // documented here and in the frontend label so it isn't read as more
+  // precise than it is.
+  const completionTimes = db.prepare(`
+    SELECT owner_id, (julianday(updated_at) - julianday(created_at)) as days
+    FROM tasks WHERE status='done' AND created_at IS NOT NULL AND updated_at IS NOT NULL
+  `).all();
+  const avgCompletionDays = completionTimes.length
+    ? Math.round((completionTimes.reduce((s, r) => s + r.days, 0) / completionTimes.length) * 10) / 10
+    : null;
+
+  // Overdue trend — there's no historical snapshot of status changes, so
+  // "overdue over time" is reconstructed from real due_date/updated_at data:
+  // for each of the last 8 weeks (bucketed by due date), how many of the
+  // tasks due that week are either still overdue now, or were completed
+  // after their due date (i.e. were late when they finished).
+  const weeks = [];
+  for (let i = 7; i >= 0; i--) {
+    const start = new Date(Date.now() - i * 7 * 86400000);
+    start.setUTCHours(0, 0, 0, 0);
+    const startStr = start.toISOString().substring(0, 10);
+    const end = new Date(start.getTime() + 7 * 86400000).toISOString().substring(0, 10);
+    const row = db.prepare(`
+      SELECT
+        COUNT(*) as due_count,
+        SUM(CASE WHEN status='overdue' THEN 1
+                 WHEN status='done' AND date(updated_at) > date(due_date) THEN 1
+                 ELSE 0 END) as late_count
+      FROM tasks WHERE due_date >= ? AND due_date < ? AND due_date != ''
+    `).get(startStr, end);
+    weeks.push({ week_start: startStr, due_count: row.due_count || 0, late_count: row.late_count || 0 });
+  }
+
+  const atRiskDepartments = byDepartment
+    .filter(d => d.open >= 3 && d.overdue / d.open >= 0.3)
+    .map(d => ({ department: d.department, overdue: d.overdue, open: d.open, ratio: Math.round((d.overdue / d.open) * 100) }));
+
+  res.json({
+    workload: byPerson.map(p => ({ name_ar: p.name_ar, name_en: p.name_en, department: p.department, open: p.open, done: p.done, total: p.total, pct: p.pct })),
+    department_comparison: byDepartment,
+    avg_completion_days: avgCompletionDays,
+    overdue_trend: weeks,
+    risk_areas: atRiskDepartments,
+  });
+});
+
 router.post('/tasks', auth, async (req, res) => {
   const canTouch = ['actions.view', 'actions.update', 'actions.assign', 'actions.close']
     .some((k) => rbacService.hasPermission(db, req.user.id, k));
