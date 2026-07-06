@@ -5582,6 +5582,21 @@ const Tasks = {
     $("nt-priority").value = taskPriorityKey(t.priority);
     const ownerSel = $("nt-owner");
     if (ownerSel && t.owner_id) ownerSel.value = String(t.owner_id);
+    // When the AI extracted a name but couldn't match it to a real system
+    // user, owner_id stays null and the dropdown falls back to "-- Select --"
+    // with no clue what the AI actually saw — the manager would have to
+    // already remember the name from the meeting to fill it in correctly.
+    // Surface the AI-suggested name explicitly instead of leaving it silent.
+    const ownerHint = $("nt-owner-hint");
+    if (ownerHint) {
+      const aiName = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
+      if (!t.owner_id && aiName) {
+        ownerHint.style.display = "";
+        ownerHint.textContent = (l === "ar" ? "⚑ اقترحه الذكاء الاصطناعي: " : "⚑ AI suggested: ") + aiName + (l === "ar" ? " — لم يُربط بمستخدم في النظام" : " — not linked to a system user");
+      } else {
+        ownerHint.style.display = "none";
+      }
+    }
     const statusRow = $("nt-status-row");
     const statusSel = $("nt-status");
     if (statusRow && statusSel) {
