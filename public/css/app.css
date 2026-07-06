@@ -169,6 +169,39 @@ select.fi option{background:var(--navy3)}
 .imp-note{font-size:11.5px;color:var(--text3);line-height:1.65;padding:10px 12px;background:var(--navy3);border-radius:var(--rm);margin-bottom:12px;border-inline-start:3px solid var(--gold-border)}
 #imp-content-av,#imp-content-text,#imp-content-file{padding-top:2px}
 
+/* ── Task/action card owner avatar bubble ─────────────────────────── */
+.owner-chip{padding-inline-start:3px !important}
+.owner-av{width:16px;height:16px;border-radius:50%;background:var(--gold);color:var(--navy);font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
+
+/* ── Guided wizard (Schedule Meeting create flow) ─────────────────── */
+.wiz-header{display:flex;align-items:center;margin-bottom:24px;padding:0 4px}
+.wiz-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+.wiz-step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--navy3);border:1.5px solid var(--border2);color:var(--text3);transition:var(--t)}
+.wiz-step.active .wiz-step-dot{background:var(--gold-dim);border-color:var(--gold);color:var(--gold)}
+.wiz-step.done .wiz-step-dot{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+.wiz-step-label{font-size:10.5px;color:var(--text3);font-weight:600;white-space:nowrap}
+.wiz-step.active .wiz-step-label{color:var(--text)}
+.wiz-connector{flex:1;height:1.5px;background:var(--border2);margin:0 2px;margin-bottom:20px;transition:var(--t)}
+.wiz-connector.done{background:var(--gold)}
+.wiz-panel{display:none}
+.wiz-panel.active{display:flex;flex-direction:column;gap:12px;animation:wizFade .25s ease}
+@keyframes wizFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.wiz-nav{display:flex;justify-content:space-between;align-items:center;margin-top:22px;padding-top:16px;border-top:1px solid var(--border2)}
+.wiz-review-group{margin-bottom:16px}
+.wiz-review-group-title{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.wiz-review-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border3);font-size:13px}
+.wiz-review-row .wiz-rl{color:var(--text3);flex-shrink:0}
+.wiz-review-row .wiz-rv{color:var(--text);font-weight:600;text-align:end;overflow:hidden;text-overflow:ellipsis}
+.wiz-empty-hint{color:var(--text3);font-style:italic}
+/* Edit mode shows every field at once (today's original flat layout) instead
+   of stepping through the create-flow wizard — editing one field on an
+   existing meeting shouldn't require walking back through steps you already
+   filled in. */
+.wiz-flat .wiz-header{display:none}
+.wiz-flat .wiz-panel{display:flex !important;flex-direction:column;gap:12px;animation:none}
+.wiz-flat .wiz-nav-btn{display:none}
+.wiz-flat #nm-wiz-review{display:none}
+
 /* ── Meeting Workspace — sticky action bar ────────────────────────── */
 .ws-action-bar{position:sticky;top:-1px;z-index:5;background:var(--navy);padding:8px 0;margin-bottom:10px;border-bottom:1px solid var(--border2)}
 

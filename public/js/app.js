@@ -5217,6 +5217,14 @@ async function renderTasks() {
     const renderTask = (t) => {
       const text  = l === "ar" ? t.text_ar : t.text_en || t.text_ar;
       const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
+      const ownerInitials = (owner || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0] || "")
+        .join("")
+        .toUpperCase();
       const mtg   = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
       const isOverdue = t.status === "overdue";
       const isDone    = t.status === "done";
@@ -5264,7 +5272,7 @@ async function renderTasks() {
         <div style="width:100%">
           <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
-            ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : ""}
+            ${owner ? `<span class="tag tgold owner-chip" style="font-size:11px"><span class="owner-av">${esc(ownerInitials)}</span>${esc(owner)}</span>` : ""}
             ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
             <span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l==="ar"?pri.ar:pri.en}</span>
             ${daysTag}
@@ -7476,6 +7484,75 @@ const Schedule = {
       inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
     }
   },
+  // ── Guided wizard (create-flow only — edit mode uses .wiz-flat to show
+  // every step at once, see _setFormMode). Pure presentation: every field
+  // keeps its existing id, so add()/edit()/_resetForm() above are untouched.
+  _wizStep: 1,
+  wizGoTo(step) {
+    this._wizStep = step;
+    for (let i = 1; i <= 4; i++) {
+      const panel = $(`nm-wiz-panel-${i}`);
+      if (panel) panel.classList.toggle("active", i === step);
+      const dot = $(`nm-wiz-dot-${i}`);
+      if (dot) dot.classList.toggle("active", i === step);
+      if (dot) dot.classList.toggle("done", i < step);
+      const conn = $(`nm-wiz-conn-${i}`);
+      if (conn) conn.classList.toggle("done", i < step);
+    }
+    if (step === 4) this._renderWizReview();
+    const card = $("nm-form-card");
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  },
+  _renderWizReview() {
+    const box = $("nm-wiz-review");
+    if (!box) return;
+    const l = App.lang;
+    const selText = (id) => {
+      const el = $(id);
+      return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : "";
+    };
+    const val = (id) => (($(id) && $(id).value) || "").trim();
+    const empty = l === "ar" ? "— لم يُحدَّد —" : "— not set —";
+    const row = (labelAr, labelEn, v) => `
+      <div class="wiz-review-row">
+        <span class="wiz-rl">${l === "ar" ? labelAr : labelEn}</span>
+        <span class="wiz-rv">${v ? esc(v) : `<span class="wiz-empty-hint">${empty}</span>`}</span>
+      </div>`;
+    const group = (titleAr, titleEn, rowsHtml) => `
+      <div class="wiz-review-group">
+        <div class="wiz-review-group-title">${l === "ar" ? titleAr : titleEn}</div>
+        ${rowsHtml}
+      </div>`;
+
+    const seriesMode = ($("nm-series-seg") && $("nm-series-seg").querySelector(".imp-seg-btn.active")?.dataset.val) || "standalone";
+    const seriesLabel = seriesMode === "new"
+      ? (l === "ar" ? "سلسلة جديدة: " : "New series: ") + (val("nm-series-name-ar") || val("nm-series-name-en") || empty)
+      : seriesMode === "continue"
+      ? (l === "ar" ? "متابعة: " : "Continuing: ") + (selText("nm-series-existing") || empty)
+      : l === "ar" ? "اجتماع مستقل" : "Standalone meeting";
+
+    box.innerHTML =
+      group(
+        "التفاصيل", "Details",
+        row("العنوان", "Title", val("nm-title")) +
+        row("النوع", "Type", selText("nm-type")) +
+        row("التاريخ والوقت", "Date & time", [val("nm-date"), val("nm-time")].filter(Boolean).join(" · ")) +
+        row("المدة", "Duration", val("nm-dur") ? `${val("nm-dur")} ${l === "ar" ? "دقيقة" : "min"}` : "") +
+        row("المنصة", "Platform", selText("nm-plat"))
+      ) +
+      group(
+        "المشاركون", "Participants",
+        row("المشاركون", "Attendees", val("nm-att")) +
+        row("المجلس", "Board", selText("nm-board")) +
+        row("اللجنة", "Committee", selText("nm-committee")) +
+        row("قناة التذكير", "Reminder", selText("nm-channel"))
+      ) +
+      group(
+        "جدول الأعمال والسلسلة", "Agenda & series",
+        row("العلاقة", "Relationship", seriesLabel) +
+        row("جدول الأعمال", "Agenda", val("nm-agenda-ar") || val("nm-agenda-en"))
+      );
+  },
   _editingId: null,
   _resetForm() {
     ["nm-title", "nm-att", "nm-agenda-ar", "nm-agenda-en"].forEach(
@@ -7494,10 +7571,12 @@ const Schedule = {
     SeriesUI.invalidate();
     SeriesUI.setMode("nm", "standalone");
     SeriesUI.init("nm");
+    this.wizGoTo(1);
   },
-  // Toggles the "Schedule New Meeting" form between create mode and edit mode
-  // (title/button text + Cancel button visibility) without introducing a
-  // second form — same pattern as Modals._editingId for tasks/series.
+  // Toggles the "Schedule New Meeting" form between create mode (guided
+  // wizard, one step at a time) and edit mode (every field visible at once,
+  // via .wiz-flat — see the wizard CSS) — same pattern as Modals._editingId
+  // for tasks/series, just extended to also switch the step layout.
   _setFormMode(editing) {
     const l = App.lang;
     const titleEl = $("nm-form-title");
@@ -7512,6 +7591,8 @@ const Schedule = {
     if (cancelBtn) cancelBtn.style.display = editing ? "" : "none";
     const tplBtn = $("nm-template-save-btn");
     if (tplBtn) tplBtn.style.display = editing ? "none" : "";
+    const card = $("nm-form-card");
+    if (card) card.classList.toggle("wiz-flat", editing);
   },
   cancelEdit() {
     this._editingId = null;
