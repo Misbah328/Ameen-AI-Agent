@@ -96,6 +96,130 @@ const fmtDate = (d) =>
       })
     : "—";
 
+// ══ Meeting Minutes document renderer ═══════════════════════════════════════════
+// ai_minutes_ar/ai_minutes_en are now a JSON-encoded structured document
+// ({format:'structured_v1', executive_summary, meeting_info, attendees,
+// apologies, agenda, discussion, decisions, actions, risks, followups,
+// next_meeting_note, approvals} — see assembleMinutesDoc() server-side) rather
+// than a single markdown blob, so every render site gets guaranteed section
+// structure instead of hoping the model formatted its free text consistently.
+// Meetings processed before this rewrite still have the old markdown-string
+// format in the DB — parseMinutesRaw() falls back to running those through
+// mdToHtml() (previously they were dumped through esc() as raw text, showing
+// literal "#"/"**" characters to the user).
+function parseMinutesRaw(raw) {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && obj.format === "structured_v1") return obj;
+  } catch (_) {
+    /* legacy markdown string — fall through */
+  }
+  return { format: "legacy_markdown", _raw: raw };
+}
+
+function renderMinutesDoc(raw, lang) {
+  const doc = parseMinutesRaw(raw);
+  if (!doc) return "";
+  const l = lang;
+  if (doc.format === "legacy_markdown") {
+    return `<div class="minutes-doc minutes-doc-legacy">${mdToHtml(doc._raw)}</div>`;
+  }
+
+  const t = (ar, en) => (l === "ar" ? ar : en);
+  const sec = (icon, titleAr, titleEn, bodyHtml) =>
+    bodyHtml
+      ? `<div class="minutes-sec">
+        <div class="minutes-sec-h">${icon} ${t(titleAr, titleEn)}</div>
+        <div class="minutes-sec-body">${bodyHtml}</div>
+      </div>`
+      : "";
+
+  const errorBanner = doc.generation_error
+    ? `<div class="minutes-err">⚠ ${t(
+        "تعذّر توليد هذا المحضر باللغة المطلوبة — يرجى إعادة معالجة الاجتماع.",
+        "This language's minutes could not be generated — please reprocess the meeting.",
+      )}</div>`
+    : "";
+
+  const mi = doc.meeting_info || {};
+  const miHtml = [
+    mi.date ? `<div><span class="minutes-mi-k">${t("التاريخ", "Date")}:</span> ${esc(String(mi.date).substring(0, 16))}</div>` : "",
+    mi.type ? `<div><span class="minutes-mi-k">${t("النوع", "Type")}:</span> ${esc(typeof mtLabel === "function" ? mtLabel(mi.type, l) : mi.type)}</div>` : "",
+    mi.duration_mins ? `<div><span class="minutes-mi-k">${t("المدة", "Duration")}:</span> ${mi.duration_mins} ${t("دقيقة", "min")}</div>` : "",
+  ].filter(Boolean).join("");
+
+  const attendeesHtml = (doc.attendees || []).length
+    ? `<div class="minutes-chips">${doc.attendees.map((a) => `<span class="tag tgold" style="font-size:11.5px">${esc(a)}</span>`).join("")}</div>`
+    : `<div class="minutes-empty">${t("غير محدد في النص", "Not specified in the transcript")}</div>`;
+  const apologiesHtml = (doc.apologies || []).length
+    ? `<div class="minutes-chips">${doc.apologies.map((a) => `<span class="tag" style="background:var(--navy4);font-size:11.5px">${esc(a)}</span>`).join("")}</div>`
+    : "";
+
+  const agendaHtml = (doc.agenda || []).length
+    ? `<ol class="minutes-list">${doc.agenda.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>`
+    : "";
+
+  const discussionHtml = (doc.discussion || []).length
+    ? doc.discussion.map((d) => `<div class="minutes-topic">
+        <div class="minutes-topic-h">${esc(d.topic || "")}</div>
+        <div class="minutes-topic-body">${esc(d.narrative || "")}</div>
+      </div>`).join("")
+    : "";
+
+  const decisionsHtml = (doc.decisions || []).length
+    ? `<ul class="minutes-list">${doc.decisions.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>`
+    : "";
+
+  const actionsHtml = (doc.actions || []).length
+    ? `<div class="minutes-actions">${doc.actions.map((a) => `<div class="minutes-action-row">
+        <div class="minutes-action-text">${esc(a.text)}</div>
+        <div class="minutes-action-meta">${a.owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(a.owner)}</span>` : ""}${a.due ? `<span class="tag" style="background:var(--navy4);font-size:11px">📅 ${esc(a.due)}</span>` : ""}</div>
+      </div>`).join("")}</div>`
+    : "";
+
+  const riskSevColor = { high: "var(--red)", medium: "var(--amber)", low: "var(--text3)" };
+  const risksHtml = (doc.risks || []).length
+    ? doc.risks.map((r) => `<div class="minutes-risk" style="border-inline-start-color:${riskSevColor[r.severity] || "var(--text3)"}">
+        <div class="minutes-risk-text">${esc(r.text)}</div>
+        ${r.mitigation ? `<div class="minutes-risk-mit">${t("تخفيف", "Mitigation")}: ${esc(r.mitigation)}</div>` : ""}
+      </div>`).join("")
+    : "";
+
+  const followupsHtml = (doc.followups || []).length
+    ? `<ul class="minutes-list">${doc.followups.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>`
+    : "";
+
+  const approvals = doc.approvals || {};
+  const approvalLabel = {
+    draft: t("مسودة", "Draft"),
+    circulated: t("مُعمَّم", "Circulated"),
+    approved: t("مُعتمد", "Approved"),
+    revision_needed: t("يتطلب تعديلاً", "Revision Needed"),
+    final_approved: t("اعتماد نهائي", "Final Approved"),
+  }[approvals.status] || approvals.status || t("مسودة", "Draft");
+  const approvalsHtml = `<div class="minutes-approvals">
+    <span class="tag" style="background:var(--navy4)">${esc(approvalLabel)}</span>
+    ${approvals.circulated_at ? `<span class="minutes-mi-k">${t("عُمِّم في", "Circulated")}: ${esc(String(approvals.circulated_at).substring(0, 16))}</span>` : ""}
+    ${approvals.final_approved_at ? `<span class="minutes-mi-k">${t("اعتُمد نهائياً في", "Final approved")}: ${esc(String(approvals.final_approved_at).substring(0, 16))}</span>` : ""}
+  </div>`;
+
+  return `<div class="minutes-doc">
+    ${errorBanner}
+    ${doc.executive_summary ? `<div class="minutes-exec-summary">${esc(doc.executive_summary)}</div>` : ""}
+    ${sec("🗓️", "معلومات الاجتماع", "Meeting Information", miHtml)}
+    ${sec("👥", "الحضور", "Attendees", attendeesHtml + apologiesHtml)}
+    ${sec("📋", "جدول الأعمال", "Agenda", agendaHtml)}
+    ${sec("💬", "المناقشات", "Discussion", discussionHtml)}
+    ${sec("⚖️", "القرارات الرئيسية", "Key Decisions", decisionsHtml)}
+    ${sec("🎯", "الإجراءات التنفيذية", "Executive Actions", actionsHtml)}
+    ${sec("⚠️", "المخاطر", "Risks", risksHtml)}
+    ${sec("🔁", "المتابعات", "Follow-ups", followupsHtml)}
+    ${doc.next_meeting_note ? sec("⏭️", "الاجتماع القادم", "Next Meeting", `<div>${esc(doc.next_meeting_note)}</div>`) : ""}
+    ${sec("✅", "الاعتماد", "Approvals", approvalsHtml)}
+  </div>`;
+}
+
 // ══ RBAC ═══════════════════════════════════════════════════════════════════════
 const ROLE_ACCESS = {
   Admin: new Set([
@@ -2010,14 +2134,15 @@ const Rec = {
       </div>`
       : "";
 
-    // Formal minutes
-    const minutes =
-      l === "ar" ? r.minutes_ar || "" : r.minutes_en || r.minutes_ar || "";
-    const minutesHtml = minutes
+    // Formal minutes — structured document straight from the just-completed
+    // processing call (minutes_ar_doc/minutes_en_doc), rendered with the same
+    // section-by-section renderer used everywhere else in the app.
+    const minutesDoc = l === "ar" ? r.minutes_ar_doc : r.minutes_en_doc;
+    const minutesHtml = minutesDoc
       ? `
-      <div style="background:var(--navy3);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+      <div style="margin-bottom:12px">
         <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">📄 ${lbl("محضر الاجتماع الرسمي", "Official Meeting Minutes")}</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.8;white-space:pre-wrap">${esc(minutes)}</div>
+        ${renderMinutesDoc(JSON.stringify(minutesDoc), l)}
       </div>`
       : "";
 
@@ -2167,7 +2292,18 @@ const Rec = {
       </div>`
       : "";
 
-    // Task-tracker connection banner
+    // Task-tracker connection banner — the natural next step right after
+    // processing is to review and approve what the AI extracted (see the
+    // Pending Review queue in renderTasks()), not to land on the generic
+    // board with no orientation. Every task created here starts life with
+    // review_status='pending' (pipeline.js), so as long as any were created,
+    // link straight into that filter instead of the plain task list.
+    const nextStepLabel = tasks.length
+      ? lbl("مراجعة واعتماد الإجراءات", "Review & Approve Actions")
+      : lbl("عرض المهام", "View Tasks");
+    const nextStepOnclick = tasks.length
+      ? "Panels.load('tasks').then(()=>TaskFilters.setQuick('review'))"
+      : "Panels.load('tasks')";
     const tracker = `
       <div style="background:rgba(46,204,138,.07);border:1px solid rgba(46,204,138,.18);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
         <span style="font-size:18px">✅</span>
@@ -2175,7 +2311,7 @@ const Rec = {
           <div style="font-size:12px;font-weight:700;color:#2ecc8a">${lbl("متتبع المهام المدمج", "Built-in Task Tracker")}</div>
           <div style="font-size:11px;color:var(--text3)">${tasks.length} ${lbl("مهمة أُضيفت تلقائياً", "tasks added automatically")} · ${decisions.length} ${lbl("قرار", "decisions")} · ${risks.length} ${lbl("مخاطر مُكتشفة", "risks identified")}</div>
         </div>
-        <button class="btn-ghost btn-sm" onclick="Panels.load('tasks')" style="font-size:11px">${lbl("عرض المهام", "View Tasks")} →</button>
+        <button class="btn-gold btn-sm" onclick="${nextStepOnclick}" style="font-size:11px">${nextStepLabel} →</button>
       </div>`;
 
     // Dual-side recording download (only when display audio was captured)
@@ -3784,7 +3920,10 @@ const MeetingHistory = {
     const decisions = full.decisions && full.decisions.length ? full.decisions : tryParse(m.ai_decisions, []);
     const speakerTr = tryParse(m.speaker_transcript, []);
     const summary = l === "ar" ? m.ai_summary_ar || "" : m.ai_summary_en || m.ai_summary_ar || "";
-    const minutes = l === "ar" ? m.ai_minutes_ar || "" : m.ai_minutes_en || m.ai_minutes_ar || "";
+    // No cross-language fallback here (unlike summary above): minutes_ar/en
+    // are independently generated now, so an honest empty/error state beats
+    // silently showing the other language's document mislabeled.
+    const minutesRaw = l === "ar" ? m.ai_minutes_ar || "" : m.ai_minutes_en || "";
     const isProcessed = m.status === "processed";
     const providerLabels = {
       browser_microphone: l === "ar" ? "🖥 ميكروفون المتصفح" : "🖥 Browser Microphone",
@@ -3861,7 +4000,7 @@ const MeetingHistory = {
 
     const pr = full.previous_review;
     const prevSummary = pr && (l === "ar" ? pr.meeting.ai_summary_ar : (pr.meeting.ai_summary_en || pr.meeting.ai_summary_ar));
-    const prevMinutes = pr && (l === "ar" ? pr.meeting.ai_minutes_ar : (pr.meeting.ai_minutes_en || pr.meeting.ai_minutes_ar));
+    const prevMinutesRaw = pr && (l === "ar" ? pr.meeting.ai_minutes_ar : pr.meeting.ai_minutes_en) || "";
     const prevReviewHtml = pr ? `
       <div style="margin-bottom:10px;font-size:11.5px;color:var(--text3)">${esc(l === "ar" ? pr.meeting.title_ar : (pr.meeting.title_en || pr.meeting.title_ar))} — ${(pr.meeting.meeting_date || "").substring(0, 10)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
@@ -3873,7 +4012,7 @@ const MeetingHistory = {
         <div class="prev-review-stat"><span>${l === "ar" ? "مخاطر مفتوحة" : "Open Risks"}</span><strong>${pr.open_risks.length}</strong></div>
       </div>
       ${prevSummary ? `<details style="margin-bottom:8px"><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "الملخص الذكي للاجتماع السابق" : "Previous AI Summary"}</summary><div style="margin-top:6px;white-space:pre-wrap">${esc(prevSummary)}</div></details>` : ""}
-      ${prevMinutes ? `<details style="margin-bottom:8px"><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "محضر الاجتماع السابق" : "Previous Minutes"}</summary><div style="margin-top:6px;white-space:pre-wrap">${esc(prevMinutes)}</div></details>` : ""}
+      ${prevMinutesRaw ? `<details style="margin-bottom:8px"><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "محضر الاجتماع السابق" : "Previous Minutes"}</summary><div style="margin-top:6px">${renderMinutesDoc(prevMinutesRaw, l)}</div></details>` : ""}
       ${pr.attachments.length ? `<div style="font-size:11.5px;color:var(--text3);margin-bottom:4px">${l === "ar" ? "مرفقات سابقة" : "Previous Attachments"}:</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">${pr.attachments.map((d) => `<a href="/uploads/${esc(d.file_path)}" download="${esc(d.title || "")}" class="btn-ghost btn-sm" style="font-size:11px;text-decoration:none;width:fit-content">📎 ${esc(d.title || d.title_ar || d.title_en || "")}</a>`).join("")}</div>` : ""}
       <button class="btn-ghost btn-sm" onclick="MeetingHistory.select(${pr.meeting.id})">${l === "ar" ? "عرض الاجتماع السابق بالكامل" : "View full previous meeting"}</button>
     ` : "";
@@ -4005,11 +4144,12 @@ const MeetingHistory = {
     const aiBody = `
       ${sec(
         "✦",
-        "الملخص والمحضر",
-        "AI Summary / Minutes",
-        (summary || minutes
-          ? `${summary ? `<div style="margin-bottom:8px">${esc(summary)}</div>` : ""}
-        ${minutes ? `<details><summary style="cursor:pointer;color:var(--text3);font-size:11.5px">${l === "ar" ? "عرض المحضر الكامل" : "Show full minutes"}</summary><div style="margin-top:8px;white-space:pre-wrap">${esc(minutes)}</div></details>` : ""}`
+        "المحضر الرسمي للاجتماع",
+        "Official Meeting Minutes",
+        (minutesRaw
+          ? renderMinutesDoc(minutesRaw, l)
+          : summary
+          ? `<div class="minutes-doc"><div class="minutes-exec-summary" style="border:none;padding-bottom:0;margin-bottom:0">${esc(summary)}</div></div>`
           : emptyRow("لم تتم معالجة هذا الاجتماع بعد بواسطة الذكاء الاصطناعي", "This meeting has not been AI-processed yet")) +
           (mApprovalBtns ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${mStatusBadge}${mApprovalBtns}</div>` : mStatusBadge ? `<div style="margin-top:10px">${mStatusBadge}</div>` : ""),
       )}

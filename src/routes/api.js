@@ -2179,8 +2179,59 @@ router.post('/meetings/:id/board-pack', auth, requirePermission('reports.generat
   const summary = isAr ? meeting.ai_summary_ar : (meeting.ai_summary_en || meeting.ai_summary_ar);
   if (summary) sections.push({ title: isAr ? 'ملخص تنفيذي' : 'Executive Summary', text: summary });
 
-  const minutes = isAr ? meeting.ai_minutes_ar : (meeting.ai_minutes_en || meeting.ai_minutes_ar);
-  if (minutes) sections.push({ title: isAr ? 'محضر الاجتماع' : 'Meeting Minutes', text: minutes });
+  // ai_minutes_ar/en hold a JSON-encoded structured document
+  // ({format:'structured_v1', meeting_info, attendees, agenda, discussion,
+  // next_meeting_note, approvals, ...} — see assembleMinutesDoc() in
+  // pipeline.js) for meetings processed after this rewrite. Each narrative
+  // part becomes its own PDF section below instead of one raw blob passed to
+  // pdfkit's plain .text() (which has no markdown support at all — the old
+  // code handed pdfkit a "# Meeting Minutes\n**Date:**..." string and it drew
+  // those "#"/"**" characters literally). Decisions/Actions/Risks are NOT
+  // duplicated from inside the minutes doc — the existing Decision
+  // Log/Action Plan/Risks sections below already source those from the same
+  // canonical arrays, so repeating them here would just print everything twice.
+  const minutesRaw = isAr ? meeting.ai_minutes_ar : meeting.ai_minutes_en;
+  let minutesDoc = null;
+  try {
+    const parsed = minutesRaw ? JSON.parse(minutesRaw) : null;
+    if (parsed && parsed.format === 'structured_v1') minutesDoc = parsed;
+  } catch (_) { /* legacy markdown string — handled below */ }
+
+  if (minutesDoc) {
+    const mi = minutesDoc.meeting_info || {};
+    const miLines = [
+      mi.date ? `${isAr ? 'التاريخ' : 'Date'}: ${String(mi.date).substring(0, 16)}` : '',
+      mi.type ? `${isAr ? 'النوع' : 'Type'}: ${mi.type}` : '',
+      mi.duration_mins ? `${isAr ? 'المدة' : 'Duration'}: ${mi.duration_mins} ${isAr ? 'دقيقة' : 'min'}` : '',
+    ].filter(Boolean);
+    if (miLines.length) sections.push({ title: isAr ? 'معلومات الاجتماع' : 'Meeting Information', text: miLines.join(isAr ? '  ·  ' : '  |  ') });
+
+    const attendeeLines = [
+      ...(minutesDoc.attendees || []),
+      ...(minutesDoc.apologies || []).map(a => `${a} (${isAr ? 'اعتذر' : 'apologies'})`),
+    ];
+    if (attendeeLines.length) sections.push({ title: isAr ? 'الحضور' : 'Attendees', items: attendeeLines });
+
+    if ((minutesDoc.agenda || []).length) sections.push({ title: isAr ? 'جدول الأعمال' : 'Agenda', items: minutesDoc.agenda });
+
+    if ((minutesDoc.discussion || []).length) {
+      sections.push({
+        title: isAr ? 'المناقشات' : 'Discussion',
+        text: minutesDoc.discussion.map(d => `${d.topic}\n${d.narrative}`).join('\n\n'),
+      });
+    }
+
+    if (minutesDoc.next_meeting_note) sections.push({ title: isAr ? 'الاجتماع القادم' : 'Next Meeting', text: minutesDoc.next_meeting_note });
+  } else if (minutesRaw) {
+    // Legacy pre-rewrite meeting: markdown string. Strip syntax markers so the
+    // PDF at least reads as plain prose instead of visible "#"/"**"/"- ".
+    const plain = String(minutesRaw)
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/^[-*]\s+/gm, '• ')
+      .trim();
+    if (plain) sections.push({ title: isAr ? 'محضر الاجتماع' : 'Meeting Minutes', text: plain });
+  }
 
   if (decisions.length) {
     sections.push({
@@ -2217,6 +2268,20 @@ router.post('/meetings/:id/board-pack', auth, requirePermission('reports.generat
       items: docRows.map(d => `${d.title}${d.doc_classification ? ' [' + d.doc_classification + ']' : ''}: ${d.ai_summary || ''}`)
     });
   }
+
+  const approvalStatusLabels = {
+    draft: isAr ? 'مسودة' : 'Draft',
+    circulated: isAr ? 'مُعمَّم' : 'Circulated',
+    approved: isAr ? 'مُعتمد' : 'Approved',
+    revision_needed: isAr ? 'يتطلب تعديلاً' : 'Revision Needed',
+    final_approved: isAr ? 'اعتماد نهائي' : 'Final Approved',
+  };
+  const approvalLines = [
+    `${isAr ? 'الحالة' : 'Status'}: ${approvalStatusLabels[meeting.minutes_status] || meeting.minutes_status || approvalStatusLabels.draft}`,
+    meeting.circulated_at ? `${isAr ? 'عُمِّم في' : 'Circulated'}: ${String(meeting.circulated_at).substring(0, 16)}` : '',
+    meeting.final_approved_at ? `${isAr ? 'اعتُمد نهائياً في' : 'Final approved'}: ${String(meeting.final_approved_at).substring(0, 16)}` : '',
+  ].filter(Boolean);
+  sections.push({ title: isAr ? 'الاعتماد' : 'Approvals', text: approvalLines.join(isAr ? '  ·  ' : '  |  ') });
 
   try {
     const packTitle = `${isAr ? 'حزمة مجلس الإدارة' : 'Board Pack'} — ${title}`;
