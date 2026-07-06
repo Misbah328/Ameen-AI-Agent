@@ -2753,6 +2753,107 @@ router.post('/notifications/read-all', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Global Smart Search ───────────────────────────────────────────────────────
+// One query fanned out across every entity that already exists, each gated
+// by the same permission its own list endpoint already requires — a Guest
+// searching "budget" gets meeting/schedule matches but no task or governance
+// results, exactly as if they'd tried each panel individually. Ask Ameen
+// history is deliberately absent: it's stored only in the browser's
+// localStorage (see Chat.STORAGE_KEY in app.js), there is no server-side
+// copy to search — the frontend merges its own local matches in separately.
+router.get('/search', auth, (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json({ results: [] });
+  const like = `%${q}%`;
+  const limitPer = Math.min(Number(req.query.limit_per) || 8, 25);
+  const results = [];
+
+  for (const m of db.prepare(`
+    SELECT id, title_ar, title_en, ai_summary_ar, ai_summary_en, meeting_date
+    FROM meetings
+    WHERE title_ar LIKE ? OR title_en LIKE ? OR ai_summary_ar LIKE ? OR ai_summary_en LIKE ?
+    ORDER BY meeting_date DESC LIMIT ?
+  `).all(like, like, like, like, limitPer)) {
+    results.push({
+      category: 'meetings',
+      title_ar: m.title_ar, title_en: m.title_en || m.title_ar,
+      subtitle_ar: (m.ai_summary_ar || '').slice(0, 120), subtitle_en: (m.ai_summary_en || '').slice(0, 120),
+      date: m.meeting_date, source_type: 'meeting', source_id: m.id,
+    });
+  }
+
+  const hasTaskView = rbacService.hasPermission(db, req.user.id, 'actions.view');
+  const taskWhere = hasTaskView
+    ? `(text_ar LIKE ? OR text_en LIKE ? OR owner_name_ar LIKE ? OR owner_name_en LIKE ?)`
+    : `(text_ar LIKE ? OR text_en LIKE ? OR owner_name_ar LIKE ? OR owner_name_en LIKE ?) AND owner_id=?`;
+  const taskParams = hasTaskView ? [like, like, like, like, limitPer] : [like, like, like, like, req.user.id, limitPer];
+  for (const t of db.prepare(`
+    SELECT id, text_ar, text_en, owner_name_ar, owner_name_en, due_date, status
+    FROM tasks WHERE ${taskWhere} ORDER BY updated_at DESC LIMIT ?
+  `).all(...taskParams)) {
+    results.push({
+      category: 'tasks',
+      title_ar: t.text_ar, title_en: t.text_en || t.text_ar,
+      subtitle_ar: t.owner_name_ar || '', subtitle_en: t.owner_name_en || t.owner_name_ar || '',
+      date: t.due_date, source_type: 'task', source_id: t.id,
+    });
+  }
+
+  if (rbacService.hasPermission(db, req.user.id, 'documents.download')) {
+    for (const d of db.prepare(`
+      SELECT id, title, title_ar, title_en, ai_summary_ar, ai_summary_en, upload_date
+      FROM meeting_documents
+      WHERE title LIKE ? OR title_ar LIKE ? OR title_en LIKE ? OR ai_summary_ar LIKE ? OR ai_summary_en LIKE ?
+      ORDER BY id DESC LIMIT ?
+    `).all(like, like, like, like, like, limitPer)) {
+      const titleAr = d.title_ar || d.title;
+      const titleEn = d.title_en || d.title;
+      results.push({
+        category: 'documents',
+        title_ar: titleAr, title_en: titleEn,
+        subtitle_ar: (d.ai_summary_ar || '').slice(0, 120), subtitle_en: (d.ai_summary_en || '').slice(0, 120),
+        date: d.upload_date, source_type: 'document', source_id: d.id,
+      });
+    }
+  }
+
+  if (rbacService.hasPermission(db, req.user.id, 'governance.resolutions')) {
+    for (const r of db.prepare(`
+      SELECT id, title, description, created_at FROM resolutions
+      WHERE title LIKE ? OR description LIKE ? ORDER BY created_at DESC LIMIT ?
+    `).all(like, like, limitPer)) {
+      results.push({
+        category: 'governance',
+        title_ar: r.title, title_en: r.title,
+        subtitle_ar: (r.description || '').slice(0, 120), subtitle_en: (r.description || '').slice(0, 120),
+        date: r.created_at, source_type: 'resolution', source_id: r.id,
+      });
+    }
+  }
+
+  // schedule covers scheduled meetings, committee meetings, and general
+  // assemblies — same table, split by meeting_type/committee_id/board_id
+  // exactly like the Master Calendar UI already does.
+  for (const s of db.prepare(`
+    SELECT id, title_ar, title_en, agenda_ar, agenda_en, meeting_date, meeting_type, committee_id, board_id
+    FROM schedule
+    WHERE title_ar LIKE ? OR title_en LIKE ? OR agenda_ar LIKE ? OR agenda_en LIKE ?
+    ORDER BY meeting_date DESC LIMIT ?
+  `).all(like, like, like, like, limitPer)) {
+    const category = s.meeting_type === 'general_assembly' ? 'general_assembly'
+      : s.committee_id ? 'committee_meetings'
+      : 'meetings';
+    results.push({
+      category,
+      title_ar: s.title_ar, title_en: s.title_en || s.title_ar,
+      subtitle_ar: (s.agenda_ar || '').slice(0, 120), subtitle_en: (s.agenda_en || '').slice(0, 120),
+      date: s.meeting_date, source_type: 'schedule', source_id: s.id,
+    });
+  }
+
+  res.json({ results });
+});
+
 // ── Organization-wide Activity Timeline ──────────────────────────────────────
 // Every entry here comes from a table the product already writes to for its
 // own reasons (lifecycle tracking, approval audit, progress notes, RBAC

@@ -6360,6 +6360,116 @@ const NotificationCenter = {
   },
 };
 
+// ── Global Smart Search — GET /api/search fanned out server-side across
+// meetings, tasks, documents, governance/resolutions, and schedule (which
+// covers committee meetings and general assemblies too). Ask Ameen history
+// has no server-side copy (see Chat.STORAGE_KEY) so it's matched here,
+// client-side, against the same localStorage array the chat panel restores
+// from — "if available" per the spec, and it genuinely is, just not on the
+// backend.
+const SmartSearch = {
+  _open: false,
+  _outsideHandler: null,
+
+  toggle() {
+    if (this._open) return this.close();
+    this._open = true;
+    const dd = $("smart-search-dropdown");
+    if (!dd) return;
+    dd.style.display = "block";
+    const input = $("smart-search-input");
+    if (input) { input.value = ""; setTimeout(() => input.focus(), 0); }
+    $("smart-search-results").innerHTML = "";
+    this._outsideHandler = (e) => {
+      if (!dd.contains(e.target) && !e.target.closest("#smart-search-btn")) this.close();
+    };
+    setTimeout(() => document.addEventListener("click", this._outsideHandler), 0);
+  },
+
+  close() {
+    this._open = false;
+    const dd = $("smart-search-dropdown");
+    if (dd) dd.style.display = "none";
+    if (this._outsideHandler) {
+      document.removeEventListener("click", this._outsideHandler);
+      this._outsideHandler = null;
+    }
+  },
+
+  onInput(v) {
+    clearTimeout(this._debounce);
+    this._debounce = setTimeout(() => this.run(v.trim()), 300);
+  },
+
+  async run(q) {
+    const l = App.lang;
+    const results = $("smart-search-results");
+    if (!results) return;
+    if (q.length < 2) {
+      results.innerHTML = `<div class="es" style="padding:20px;font-size:12px">${l === "ar" ? "اكتب حرفين على الأقل" : "Type at least 2 characters"}</div>`;
+      return;
+    }
+    results.innerHTML = `<div class="es" style="padding:20px"><div class="loading"></div></div>`;
+    let data;
+    try {
+      data = await api(`/api/search?q=${encodeURIComponent(q)}`);
+    } catch (e) {
+      results.innerHTML = `<div class="es" style="padding:20px;color:var(--red);font-size:12px">${esc(e.message)}</div>`;
+      return;
+    }
+    const all = [...(data.results || []), ...this._localAskAmeenMatches(q)];
+    if (!all.length) {
+      results.innerHTML = `<div class="es" style="padding:24px"><div style="font-size:26px;margin-bottom:6px">🔍</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا نتائج" : "No results"}</div></div>`;
+      return;
+    }
+    const CAT_LABEL = {
+      meetings: { ar: "📁 الاجتماعات", en: "📁 Meetings" },
+      tasks: { ar: "📋 الإجراءات التنفيذية", en: "📋 Executive Actions" },
+      documents: { ar: "📄 الوثائق", en: "📄 Documents" },
+      governance: { ar: "⚖️ الحوكمة والقرارات", en: "⚖️ Governance & Resolutions" },
+      committee_meetings: { ar: "🧭 اجتماعات اللجان", en: "🧭 Committee Meetings" },
+      general_assembly: { ar: "🏛️ الجمعية العمومية", en: "🏛️ General Assembly" },
+      ask_ameen: { ar: "🤖 اسأل أمين", en: "🤖 Ask Ameen" },
+    };
+    const byCategory = {};
+    all.forEach((r) => { (byCategory[r.category] = byCategory[r.category] || []).push(r); });
+    results.innerHTML = Object.keys(byCategory).map((cat) => {
+      const label = CAT_LABEL[cat] || { ar: cat, en: cat };
+      const rows = byCategory[cat].slice(0, 8).map((r, i) => {
+        const idx = all.indexOf(r);
+        const title = l === "ar" ? r.title_ar : r.title_en || r.title_ar;
+        const subtitle = l === "ar" ? r.subtitle_ar : r.subtitle_en || r.subtitle_ar;
+        return `<div onclick="SmartSearch.open(${idx})" style="padding:9px 16px;cursor:pointer;border-bottom:1px solid var(--border3)">
+          <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(title || "")}</div>
+          ${subtitle ? `<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(subtitle)}</div>` : ""}
+        </div>`;
+      }).join("");
+      return `<div style="padding:8px 16px 4px;font-size:11px;font-weight:700;color:var(--gold);background:var(--navy3)">${l === "ar" ? label.ar : label.en}</div>${rows}`;
+    }).join("");
+    this._lastResults = all;
+  },
+
+  _localAskAmeenMatches(q) {
+    const qLower = q.toLowerCase();
+    return (App.chatHistory || [])
+      .filter((m) => m.role === "user" && (m.content || "").toLowerCase().includes(qLower))
+      .slice(-5)
+      .map((m) => ({ category: "ask_ameen", title_ar: m.content, title_en: m.content, subtitle_ar: "", subtitle_en: "", source_type: "ask_ameen", source_id: null }));
+  },
+
+  async open(idx) {
+    const r = this._lastResults[idx];
+    if (!r) return;
+    this.close();
+    const PANEL_FOR = { meeting: "history", task: "tasks", document: "documents", resolution: "governance", schedule: "schedule", ask_ameen: "ask" };
+    const panel = PANEL_FOR[r.source_type];
+    if (!panel) return;
+    await Panels.load(panel);
+    if (r.source_type === "task" && r.source_id) Tasks.edit(r.source_id);
+    else if (r.source_type === "meeting" && r.source_id && typeof MeetingHistory !== "undefined") MeetingHistory.select(r.source_id);
+  },
+};
+
 // ── Organization-wide Activity Timeline — GET /api/activity, a live merge of
 // meeting lifecycle, minutes approval, task, and governance history the
 // backend already logs for its own reasons. See src/routes/api.js for the
