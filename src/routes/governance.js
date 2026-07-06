@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { requirePermission } = auth;
+const { createNotification } = require('../services/notifications');
 
 // ── Agenda Items ──────────────────────────────────────────────────────────────
 
@@ -536,6 +537,23 @@ router.post('/resolutions/:id/voting-status', auth, requirePermission('governanc
       const derived = (r.votes_approve||0) > (r.votes_reject||0) ? 'approved'
         : (r.votes_reject||0) > (r.votes_approve||0) ? 'rejected' : 'pending';
       db.prepare('UPDATE resolutions SET status=? WHERE id=?').run(derived, req.params.id);
+      // Notify whoever organized the meeting this resolution belongs to —
+      // the only real user link a resolution has is via its schedule row's
+      // creator (resolutions carry no owner/decided-by user id of their own).
+      if (derived === 'approved' && r.schedule_id) {
+        const sched = db.prepare('SELECT created_by FROM schedule WHERE id=?').get(r.schedule_id);
+        if (sched && sched.created_by && sched.created_by !== req.user.id) {
+          createNotification(db, {
+            userId: sched.created_by,
+            type: 'decision_approved',
+            titleAr: 'تمت الموافقة على قرار',
+            titleEn: 'A resolution was approved',
+            bodyAr: r.title,
+            bodyEn: r.title,
+            sourceType: 'resolution', sourceId: r.id, deepLink: 'governance',
+          });
+        }
+      }
     }
   }
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));

@@ -135,6 +135,7 @@ async function buildPdf({ title, lang, content, sections }) {
 }
 const db = require('../db/database');
 const auth = require('../middleware/auth');
+const { createNotification, notifyUsers } = require('../services/notifications');
 
 // ── Ensure escalation columns exist (safe, idempotent) ───────────────────────
 ;[
@@ -1029,13 +1030,24 @@ router.get('/ai/debug-log', auth, (req, res) => {
 // block a task create/update response.
 async function notifyTaskAssigned(task, actorUserId) {
   if (!task.owner_id) return;
+  const actor = resolveActor(actorUserId);
+  const actorName = actor.name || 'Ameen';
+  const taskTitleAr = task.text_ar || `مهمة #${task.id}`;
+  const taskTitleEn = task.text_en || task.text_ar || `Task #${task.id}`;
+  // In-app notification — independent of whether the owner has an email on
+  // file, so it always shows up in the Notification Center.
+  createNotification(db, {
+    userId: task.owner_id,
+    type: 'task_assigned',
+    titleAr: 'تم تعيين مهمة تنفيذية لك',
+    titleEn: 'Executive task assigned to you',
+    bodyAr: `${actorName} عيّن لك: "${taskTitleAr}"${task.due_date ? ` — تاريخ الاستحقاق ${task.due_date}` : ''}`,
+    bodyEn: `${actorName} assigned you: "${taskTitleEn}"${task.due_date ? ` — due ${task.due_date}` : ''}`,
+    sourceType: 'task', sourceId: task.id, deepLink: 'tasks',
+  });
   try {
     const owner = db.prepare('SELECT email, phone FROM users WHERE id=?').get(task.owner_id);
     if (!owner || !owner.email) return;
-    const actor = resolveActor(actorUserId);
-    const actorName = actor.name || 'Ameen';
-    const taskTitleAr = task.text_ar || `مهمة #${task.id}`;
-    const taskTitleEn = task.text_en || task.text_ar || `Task #${task.id}`;
     const subject = `تم تعيين مهمة تنفيذية لك: ${taskTitleAr} / Executive Task Assigned to You: ${taskTitleEn}`;
     const body =
       `${actorName} قام بتعيين المهمة التالية لك:\n\n"${taskTitleAr}"\n\n${task.due_date ? `تاريخ الاستحقاق: ${task.due_date}\n\n` : ''}يرجى المراجعة ضمن "مهامي التنفيذية".\n\n———\n\n` +
@@ -1078,11 +1090,26 @@ router.get('/tasks', auth, (req, res) => {
   // like Done/Cancelled, they're states a human set on purpose and the
   // automatic sweep must not silently overwrite them.
   const today = new Date().toISOString().substring(0, 10);
-  db.prepare(`
-    UPDATE tasks SET status='overdue', updated_at=CURRENT_TIMESTAMP
-    WHERE due_date != '' AND due_date IS NOT NULL AND due_date < ?
-      AND status NOT IN ('done', 'cancelled', 'overdue', 'waiting', 'blocked')
-  `).run(today);
+  const OVERDUE_WHERE = `due_date != '' AND due_date IS NOT NULL AND due_date < ?
+      AND status NOT IN ('done', 'cancelled', 'overdue', 'waiting', 'blocked')`;
+  // Read the about-to-flip rows before the sweep UPDATE so their owners can
+  // be notified exactly once — once a task's status becomes 'overdue' it no
+  // longer matches this WHERE clause on subsequent polls, so this can't
+  // double-notify.
+  const flippingToOverdue = db.prepare(`SELECT id, owner_id, text_ar, text_en, due_date FROM tasks WHERE ${OVERDUE_WHERE}`).all(today);
+  db.prepare(`UPDATE tasks SET status='overdue', updated_at=CURRENT_TIMESTAMP WHERE ${OVERDUE_WHERE}`).run(today);
+  for (const t of flippingToOverdue) {
+    if (!t.owner_id) continue;
+    createNotification(db, {
+      userId: t.owner_id,
+      type: 'task_overdue',
+      titleAr: 'مهمة تنفيذية متأخرة',
+      titleEn: 'Executive task overdue',
+      bodyAr: `تجاوزت المهمة "${t.text_ar || t.id}" تاريخ استحقاقها (${t.due_date})`,
+      bodyEn: `"${t.text_en || t.text_ar || t.id}" is past its due date (${t.due_date})`,
+      priority: 'high', sourceType: 'task', sourceId: t.id, deepLink: 'tasks',
+    });
+  }
 
   const hasView = rbacService.hasPermission(db, req.user.id, 'actions.view');
   const hasUpdate = rbacService.hasPermission(db, req.user.id, 'actions.update');
@@ -1465,6 +1492,25 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
       }
     }
   })();
+  // attendees is free-text (names/emails/phones, comma or newline separated)
+  // rather than a list of user ids — match whatever looks like an email
+  // against real accounts so registered attendees get an in-app notification
+  // too. Anyone who doesn't resolve to an account (external attendees) simply
+  // doesn't get one, same as they don't get an account-linked anything else.
+  const { splitRecipients, isValidEmail } = require('../utils/validate');
+  const attendeeEmails = splitRecipients(attendees || '').filter(isValidEmail);
+  if (attendeeEmails.length) {
+    const placeholders = attendeeEmails.map(() => '?').join(',');
+    const matchedUsers = db.prepare(`SELECT id FROM users WHERE email IN (${placeholders})`).all(...attendeeEmails);
+    notifyUsers(db, matchedUsers.map(u => u.id), {
+      type: 'meeting_scheduled',
+      titleAr: 'تمت جدولة اجتماع جديد',
+      titleEn: 'New meeting scheduled',
+      bodyAr: `"${title_ar}" — ${meeting_date} الساعة ${meeting_time}`,
+      bodyEn: `"${title_en || title_ar}" — ${meeting_date} at ${meeting_time}`,
+      sourceType: 'schedule', sourceId: row.lastInsertRowid, deepLink: 'schedule',
+    }, req.user.id);
+  }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -2126,7 +2172,7 @@ router.post('/documents/share', auth, requirePermission('documents.share'), requ
   const content = (req.body.content || '').toString().trim();
   const title = (req.body.title || 'تقرير / Report').toString().trim();
   if (!content) return res.status(400).json({ error: 'لا يوجد محتوى للمشاركة / No content to share' });
-  const members = db.prepare("SELECT name_ar, name_en, email FROM users WHERE email IS NOT NULL AND email != ''").all();
+  const members = db.prepare("SELECT id, name_ar, name_en, email FROM users WHERE email IS NOT NULL AND email != ''").all();
   if (!members.length) return res.status(400).json({ error: 'لا يوجد أعضاء فريق بعناوين بريد / No team members with emails' });
   const subject = `تقرير من أمين: ${title} | Report from Ameen: ${title}`;
   const results = [];
@@ -2148,6 +2194,17 @@ router.post('/documents/share', auth, requirePermission('documents.share'), requ
     let out;
     try { out = await notify.sendEmail({ to: mem.email, subject, text, html }); }
     catch (e) { out = { error: e.message }; }
+    if (!out.error && mem.id !== req.user.id) {
+      createNotification(db, {
+        userId: mem.id,
+        type: 'document_shared',
+        titleAr: 'تمت مشاركة تقرير معك',
+        titleEn: 'A report was shared with you',
+        bodyAr: title,
+        bodyEn: title,
+        sourceType: 'document', deepLink: 'documents',
+      });
+    }
     results.push({ name: mem.name_ar || mem.name_en, email: mem.email, ...out });
   }
   // Every result was counted as a success regardless of whether the send
@@ -2571,6 +2628,17 @@ router.post('/meetings/:id/approve', auth, requirePermission('minutes.approve'),
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'approved', req.user, comments, version);
   transitionMeeting(meeting.id, 'chairman_approval', req.user && req.user.id, 'Minutes approved by chairman');
+  if (meeting.recorded_by && meeting.recorded_by !== req.user.id) {
+    createNotification(db, {
+      userId: meeting.recorded_by,
+      type: 'minutes_approved',
+      titleAr: 'تمت الموافقة على محضر الاجتماع',
+      titleEn: 'Meeting minutes approved',
+      bodyAr: `اعتمد الرئيس محضر "${meeting.title_ar}"`,
+      bodyEn: `The chairman approved the minutes for "${meeting.title_en || meeting.title_ar}"`,
+      sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+    });
+  }
   res.json({ success: true, minutes_status: 'approved' });
 });
 
@@ -2599,6 +2667,17 @@ router.post('/meetings/:id/final-approve', auth, requirePermission('minutes.appr
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'final_approved', req.user, comments, version);
   transitionMeeting(meeting.id, 'board_approval', req.user && req.user.id, 'Minutes given final board approval');
+  if (meeting.recorded_by && meeting.recorded_by !== req.user.id) {
+    createNotification(db, {
+      userId: meeting.recorded_by,
+      type: 'minutes_approved',
+      titleAr: 'اعتماد نهائي لمحضر الاجتماع',
+      titleEn: 'Meeting minutes given final approval',
+      bodyAr: `حصل محضر "${meeting.title_ar}" على الاعتماد النهائي من المجلس`,
+      bodyEn: `"${meeting.title_en || meeting.title_ar}" received final board approval`,
+      sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+    });
+  }
   res.json({ success: true, minutes_status: 'final_approved' });
 });
 
@@ -2639,6 +2718,39 @@ router.get('/meetings/:id/lifecycle', auth, requirePermission('meetings.view'), 
     stages: LIFECYCLE_STAGES,
     log,
   });
+});
+
+// ── Notification Center ──────────────────────────────────────────────────────
+// Every notification row already belongs to a single user_id, so these
+// routes never take an id parameter for "whose" — it's always req.user.
+
+router.get('/notifications', auth, (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 30, 100);
+  const unreadOnly = req.query.unread_only === '1' || req.query.unread_only === 'true';
+  const rows = db.prepare(`
+    SELECT * FROM notifications
+    WHERE user_id=? ${unreadOnly ? 'AND read_at IS NULL' : ''}
+    ORDER BY created_at DESC LIMIT ?
+  `).all(req.user.id, limit);
+  const unread = db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND read_at IS NULL').get(req.user.id);
+  res.json({ notifications: rows, unread_count: unread.c });
+});
+
+router.get('/notifications/unread-count', auth, (req, res) => {
+  const unread = db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND read_at IS NULL').get(req.user.id);
+  res.json({ unread_count: unread.c });
+});
+
+router.patch('/notifications/:id/read', auth, (req, res) => {
+  const row = db.prepare('SELECT id FROM notifications WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE id=?').run(row.id);
+  res.json({ success: true });
+});
+
+router.post('/notifications/read-all', auth, (req, res) => {
+  db.prepare('UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE user_id=? AND read_at IS NULL').run(req.user.id);
+  res.json({ success: true });
 });
 
 module.exports = router;

@@ -66,6 +66,12 @@
     <span id="t-welcome" data-ar="نظام إدارة الاجتماعات التنفيذي" data-en="Executive Meeting Intelligence System">نظام إدارة الاجتماعات التنفيذي</span>
   </div>
   <div class="topbar-right">
+    <div style="position:relative">
+      <button class="theme-toggle btn-sm" id="notif-bell-btn" onclick="NotificationCenter.toggle()" title="Notifications" style="position:relative">
+        🔔<span id="notif-bell-badge" style="display:none;position:absolute;top:-4px;inset-inline-end:-4px;min-width:16px;height:16px;line-height:16px;text-align:center;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:100px;padding:0 3px">0</span>
+      </button>
+      <div id="notif-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);inset-inline-end:0;width:360px;max-height:480px;overflow-y:auto;background:var(--navy2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:3000"></div>
+    </div>
     <div class="lang-toggle">
       <button class="lb active" onclick="App.setLang('ar')">ع</button>
       <button class="lb" onclick="App.setLang('en')">EN</button>

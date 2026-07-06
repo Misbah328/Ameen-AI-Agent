@@ -551,6 +551,7 @@ const App = {
     this.renderUser();
     applySidebarRoles();
     await loadBadges();
+    NotificationCenter.init();
     await loadSelectLists();
     Panels.init();
     Chat.restore();
@@ -6237,6 +6238,122 @@ const TaskAttachments = {
     } catch (e) {
       showToast(e.message, "error");
     }
+  },
+};
+
+// ── Notification Center — in-app notifications backed by GET /api/notifications.
+// Polls the unread count on an interval independent of Panels' own live-refresh
+// (the bell lives in the topbar, visible from every panel, not just the ones
+// with a registered live-refresh handler).
+const NotificationCenter = {
+  _open: false,
+  _pollTimer: null,
+  _outsideHandler: null,
+
+  init() {
+    this.refreshBadge();
+    if (this._pollTimer) clearInterval(this._pollTimer);
+    this._pollTimer = setInterval(() => {
+      if (!document.hidden) this.refreshBadge();
+    }, 30000);
+  },
+
+  async refreshBadge() {
+    try {
+      const r = await api("/api/notifications/unread-count");
+      const badge = $("notif-bell-badge");
+      if (!badge) return;
+      badge.textContent = r.unread_count > 99 ? "99+" : String(r.unread_count);
+      badge.style.display = r.unread_count > 0 ? "" : "none";
+    } catch (e) {}
+  },
+
+  async toggle() {
+    const dd = $("notif-dropdown");
+    if (!dd) return;
+    if (this._open) return this.close();
+    this._open = true;
+    dd.style.display = "block";
+    dd.innerHTML = `<div class="es" style="padding:24px"><div class="loading"></div></div>`;
+    await this.render();
+    // Close on outside click — registered once per open so it doesn't pile up.
+    this._outsideHandler = (e) => {
+      if (!dd.contains(e.target) && e.target.id !== "notif-bell-btn" && !e.target.closest("#notif-bell-btn")) {
+        this.close();
+      }
+    };
+    setTimeout(() => document.addEventListener("click", this._outsideHandler), 0);
+  },
+
+  close() {
+    this._open = false;
+    const dd = $("notif-dropdown");
+    if (dd) dd.style.display = "none";
+    if (this._outsideHandler) {
+      document.removeEventListener("click", this._outsideHandler);
+      this._outsideHandler = null;
+    }
+  },
+
+  async render() {
+    const l = App.lang;
+    const dd = $("notif-dropdown");
+    if (!dd) return;
+    let data;
+    try {
+      data = await api("/api/notifications?limit=30");
+    } catch (e) {
+      dd.innerHTML = `<div class="es" style="padding:20px;color:var(--red)">${esc(e.message)}</div>`;
+      return;
+    }
+    const items = data.notifications || [];
+    const timeAgo = (ts) => {
+      const diffMin = Math.max(0, Math.round((Date.now() - new Date(ts.replace(" ", "T") + "Z").getTime()) / 60000));
+      if (diffMin < 1) return l === "ar" ? "الآن" : "just now";
+      if (diffMin < 60) return `${diffMin}${l === "ar" ? " د" : "m"}`;
+      const diffHr = Math.round(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}${l === "ar" ? " س" : "h"}`;
+      return `${Math.round(diffHr / 24)}${l === "ar" ? " ي" : "d"}`;
+    };
+    const rows = items.map((n) => {
+      const unread = !n.read_at;
+      const title = l === "ar" ? n.title_ar : n.title_en || n.title_ar;
+      const body = l === "ar" ? n.body_ar : n.body_en || n.body_ar;
+      return `<div onclick="NotificationCenter.open(${n.id}, '${n.source_type || ""}', ${n.source_id || "null"})"
+          style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border3);cursor:pointer;${unread ? "background:rgba(201,168,76,.06)" : ""}">
+        <span style="flex-shrink:0;margin-top:4px;width:8px;height:8px;border-radius:100%;background:${unread ? "var(--gold)" : "transparent"}"></span>
+        <div style="min-width:0;flex:1">
+          <div style="font-size:12.5px;font-weight:${unread ? "700" : "600"};color:var(--text);margin-bottom:2px">${esc(title)}</div>
+          <div style="font-size:11.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(body || "")}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">${timeAgo(n.created_at)}</div>
+        </div>
+      </div>`;
+    }).join("");
+    dd.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border2)">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">🔔 ${l === "ar" ? "الإشعارات" : "Notifications"}</span>
+        ${items.some((n) => !n.read_at) ? `<button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="NotificationCenter.readAll()">${l === "ar" ? "تحديد الكل كمقروء" : "Mark all read"}</button>` : ""}
+      </div>
+      ${rows || `<div class="es" style="padding:28px 16px"><div style="font-size:26px;margin-bottom:6px">🔕</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد إشعارات" : "No notifications yet"}</div></div>`}`;
+  },
+
+  async open(id, sourceType, sourceId) {
+    try { await api(`/api/notifications/${id}/read`, { method: "PATCH" }); } catch (e) {}
+    this.close();
+    this.refreshBadge();
+    const goto = { task: "tasks", meeting: "transcripts", schedule: "schedule", resolution: "governance", document: "documents" }[sourceType];
+    if (goto) {
+      await Panels.load(goto);
+      if (sourceType === "task" && sourceId) Tasks.edit(sourceId);
+    }
+  },
+
+  async readAll() {
+    try {
+      await api("/api/notifications/read-all", { method: "POST" });
+      await this.render();
+      this.refreshBadge();
+    } catch (e) {}
   },
 };
 
