@@ -5606,6 +5606,22 @@ const Tasks = {
       statusSel.innerHTML = opts.map((k) => `<option value="${k}">${l === "ar" ? TASK_STATUS_META[k].ar : TASK_STATUS_META[k].en}</option>`).join("");
       statusSel.value = taskStatusKey(t.status);
     }
+    // The backend (PATCH /api/tasks/:id) silently drops text/owner/due/
+    // priority edits from anyone without actions.assign — only status/notes/
+    // progress actually save. Without this, an assignee editing the title or
+    // reassigning the owner sees a "Task updated" success toast while those
+    // specific changes quietly vanish. Disable exactly what won't persist so
+    // the form matches reality instead of lying about what it can do.
+    const canManage = App.can("actions.assign");
+    ["nt-ar", "nt-en", "nt-due", "nt-priority", "nt-owner"].forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = !canManage;
+    });
+    const restrictedNote = $("modal-task-restricted-note");
+    if (restrictedNote) {
+      restrictedNote.style.display = canManage ? "none" : "";
+      restrictedNote.textContent = canManage ? "" : (l === "ar" ? "ℹ️ يمكنك تحديث الحالة وإضافة تحديثات التقدم فقط. لتعديل التفاصيل الأخرى تواصل مع مديرك." : "ℹ️ You can update status and add progress updates. Contact your manager to change other details.");
+    }
     $("modal-task").classList.add("open");
     TaskTimeline.load(id, t);
   },
@@ -5771,14 +5787,18 @@ const Modals = {
   addTask() {
     this._editingId = null;
     this._resetTitle();
-    ["nt-ar", "nt-en", "nt-due"].forEach((id) => {
+    ["nt-ar", "nt-en", "nt-due", "nt-priority", "nt-owner"].forEach((id) => {
       const el = $(id);
-      if (el) el.value = "";
+      if (el) { el.disabled = false; if (id !== "nt-priority") el.value = ""; }
     });
     const p = $("nt-priority");
     if (p) p.value = "medium";
     const o = $("nt-owner");
     if (o) o.value = "";
+    const ownerHint = $("nt-owner-hint");
+    if (ownerHint) ownerHint.style.display = "none";
+    const restrictedNote = $("modal-task-restricted-note");
+    if (restrictedNote) restrictedNote.style.display = "none";
     const statusRow = $("nt-status-row");
     if (statusRow) statusRow.style.display = "none";
     $("modal-task").classList.add("open");
