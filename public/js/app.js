@@ -782,7 +782,14 @@ async function api(path, opts = {}) {
     headers: { ...headers, ...(opts.headers || {}) },
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || data.message || `HTTP ${r.status}`);
+  // message wins over error when both exist: most routes only set `error`
+  // with the human-readable text itself, but a few (e.g. the scheduling
+  // conflict response) set BOTH — a machine-checkable code in `error`
+  // ("CONFLICT") and the actual friendly sentence in `message`. Checking
+  // `error` first meant a double-booking attempt surfaced the raw literal
+  // string "CONFLICT" to the user instead of "This time overlaps a
+  // confirmed meeting."
+  if (!r.ok) throw new Error(data.message || data.error || `HTTP ${r.status}`);
   return data;
 }
 
@@ -3335,9 +3342,13 @@ async function renderTranscripts() {
   const body = $("transcripts-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
+    // A role without actions.view/actions.update (e.g. Observer, Guest) 403s
+    // on /api/tasks — that used to reject this whole Promise.all and blank
+    // the entire panel (including meetings.view-permitted meeting cards)
+    // behind a raw error message. Degrade independently instead.
     const [meetings, allTasks] = await Promise.all([
-      api("/api/meetings"),
-      api("/api/tasks"),
+      api("/api/meetings").catch(() => []),
+      api("/api/tasks").catch(() => []),
     ]);
     App.meetingsCache = meetings;
     const tasksByMeeting = {};
@@ -3619,7 +3630,13 @@ async function renderTranscripts() {
         })
         .join("")}
     </div>`;
-    meetings.forEach((m) => DocLib.loadAndRender(m.id));
+    // Every meeting card fires its own documents.download-gated request —
+    // for a role without that permission (e.g. Employee, who has meetings.view
+    // but not documents.download) this fired one 403 per meeting on every
+    // load of this panel (36 in testing). loadAndRender's own catch keeps the
+    // UI from breaking, but there's no reason to make requests guaranteed to
+    // be rejected.
+    if (App.can("documents.download")) meetings.forEach((m) => DocLib.loadAndRender(m.id));
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
@@ -6570,11 +6587,24 @@ const DocGen = {
         method: "POST",
         body: JSON.stringify({ content: this.currentContent, title }),
       });
-      alert(
-        l === "ar"
-          ? `✓ تمت المشاركة مع ${r.shared} عضو`
-          : `✓ Shared with ${r.shared} member(s)`,
-      );
+      // The backend used to report every recipient as "shared" even when the
+      // actual email send failed (e.g. no mail provider configured) — a
+      // manager would see "Shared with 12 members" while zero emails went
+      // out. It now reports real success/failure counts; reflect both here
+      // instead of only ever showing the happy path.
+      if (r.failed) {
+        alert(
+          l === "ar"
+            ? `⚠ تمت المشاركة مع ${r.shared} عضو، وفشلت المشاركة مع ${r.failed} — تحقق من إعدادات البريد الإلكتروني`
+            : `⚠ Shared with ${r.shared} member(s), but ${r.failed} failed — check your email provider settings`,
+        );
+      } else {
+        alert(
+          l === "ar"
+            ? `✓ تمت المشاركة مع ${r.shared} عضو`
+            : `✓ Shared with ${r.shared} member(s)`,
+        );
+      }
     } catch (e) {
       alert(
         (l === "ar" ? "تعذّرت المشاركة: " : "Could not share: ") + e.message,
@@ -7033,20 +7063,43 @@ const Schedule = {
       return;
     }
     const rec = data.recurrence;
+    await this._submit(data, editingId, rec, false);
+  },
+  // Split out of add() so a 409 double-booking response can re-submit with
+  // force:true after the user confirms — Schedule.confirm() already had this
+  // "overlap a confirmed meeting, confirm anyway?" flow; create/edit went
+  // through the generic api() helper instead, which can't see the 409's
+  // conflicts list, so both silently had no double-booking protection from
+  // the user's point of view (create showed a bare "CONFLICT" string with no
+  // way to proceed; edit had no conflict check at all until now).
+  async _submit(data, editingId, rec, force) {
+    const l = App.lang;
     try {
+      const url = editingId ? `/api/schedule/${editingId}` : "/api/schedule";
+      const res = await fetch(url, {
+        method: editingId ? "PATCH" : "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(force ? { ...data, force: true } : data),
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        const list = (resData.conflicts || [])
+          .map((c) => `• ${l === "ar" ? c.title_ar : c.title_en || c.title_ar} — ${(c.meeting_date || "").substring(0, 10)} ${c.meeting_time || ""}`)
+          .join("\n");
+        const msg =
+          l === "ar"
+            ? "يتعارض هذا الموعد مع اجتماع مؤكَّد:\n\n" + list + "\n\nهل تريد الحفظ رغم التعارض؟"
+            : "This time overlaps a confirmed meeting:\n\n" + list + "\n\nSave anyway?";
+        if (confirm(msg)) return this._submit(data, editingId, rec, true);
+        return;
+      }
+      if (!res.ok) throw new Error(resData.message || resData.error || `HTTP ${res.status}`);
       if (editingId) {
-        await api(`/api/schedule/${editingId}`, {
-          method: "PATCH",
-          body: JSON.stringify(data),
-        });
         this._editingId = null;
         this._setFormMode(false);
-        showToast(App.lang === "ar" ? "✓ تم حفظ التعديلات" : "✓ Changes saved");
+        showToast(l === "ar" ? "✓ تم حفظ التعديلات" : "✓ Changes saved");
       } else {
-        await api("/api/schedule", {
-          method: "POST",
-          body: JSON.stringify(data),
-        });
         $("sched-toast").style.display = "flex";
         setTimeout(() => ($("sched-toast").style.display = "none"), 2500);
       }
@@ -7055,9 +7108,9 @@ const Schedule = {
       this._resetForm();
       if (!editingId && rec !== "none")
         showToast(
-          App.lang === "ar"
-            ? `✓ تم جدولة الاجتماع + 3 تكرارات (${recurrenceLabel(rec, App.lang)})`
-            : `✓ Meeting + 3 recurrences scheduled (${recurrenceLabel(rec, App.lang)})`,
+          l === "ar"
+            ? `✓ تم جدولة الاجتماع + 3 تكرارات (${recurrenceLabel(rec, l)})`
+            : `✓ Meeting + 3 recurrences scheduled (${recurrenceLabel(rec, l)})`,
         );
     } catch (e) {
       alert(e.message);
@@ -8123,15 +8176,21 @@ async function renderOverview() {
   const body = $("overview-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
+    // Each call degrades independently on failure (most commonly a 403 for a
+    // role that lacks one specific permission, e.g. Observer/Guest lacking
+    // actions.view) instead of Promise.all rejecting as a whole — a single
+    // permission gap used to blank the entire dashboard (stats, meetings,
+    // schedule, etc. that the role *does* have access to) behind a raw error
+    // message instead of just omitting the one section it can't see.
     const [stats, tasks, meetings, schedule, members, decisions, analytics, govSummary] =
       await Promise.all([
-        api("/api/stats"),
-        api("/api/tasks"),
-        api("/api/meetings"),
-        api("/api/schedule"),
-        api("/api/members"),
-        api("/api/decisions"),
-        api("/api/analytics"),
+        api("/api/stats").catch(() => ({})),
+        api("/api/tasks").catch(() => []),
+        api("/api/meetings").catch(() => []),
+        api("/api/schedule").catch(() => []),
+        api("/api/members").catch(() => []),
+        api("/api/decisions").catch(() => []),
+        api("/api/analytics").catch(() => ({})),
         api("/api/gov/summary").catch(() => null),
       ]);
     const l = App.lang;

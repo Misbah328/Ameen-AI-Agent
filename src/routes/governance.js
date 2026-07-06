@@ -14,7 +14,7 @@ router.get('/agenda', auth, (req, res) => {
   res.status(400).json({ error: 'meetingId or scheduleId required' });
 });
 
-router.post('/agenda', auth, (req, res) => {
+router.post('/agenda', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   const { meeting_id, schedule_id, title, description, presenter, expected_outcome, duration_mins, sort_order } = req.body;
   if (!title) return res.status(400).json({ error: 'title required' });
   const row = db.prepare(`
@@ -24,7 +24,7 @@ router.post('/agenda', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM agenda_items WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/agenda/:id', auth, (req, res) => {
+router.patch('/agenda/:id', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   if (!db.prepare('SELECT id FROM agenda_items WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { title, description, presenter, expected_outcome, duration_mins, sort_order } = req.body;
   db.prepare(`UPDATE agenda_items SET
@@ -35,7 +35,7 @@ router.patch('/agenda/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM agenda_items WHERE id=?').get(req.params.id));
 });
 
-router.delete('/agenda/:id', auth, (req, res) => {
+router.delete('/agenda/:id', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   db.prepare('DELETE FROM agenda_items WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -85,7 +85,7 @@ router.get('/attendance', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id').all(meetingId));
 });
 
-router.post('/attendance', auth, (req, res) => {
+router.post('/attendance', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   const { meeting_id, name, email, phone, role, attendance_status } = req.body;
   if (!meeting_id || !name) return res.status(400).json({ error: 'meeting_id and name required' });
   const row = db.prepare(`
@@ -95,7 +95,7 @@ router.post('/attendance', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/attendance/:id', auth, (req, res) => {
+router.patch('/attendance/:id', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   if (!db.prepare('SELECT id FROM meeting_attendees WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { name, email, role, attendance_status } = req.body;
   db.prepare(`UPDATE meeting_attendees SET
@@ -105,7 +105,7 @@ router.patch('/attendance/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE id=?').get(req.params.id));
 });
 
-router.delete('/attendance/:id', auth, (req, res) => {
+router.delete('/attendance/:id', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   db.prepare('DELETE FROM meeting_attendees WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -119,7 +119,7 @@ router.get('/quorum', auth, (req, res) => {
   res.status(400).json({ error: 'meetingId or scheduleId required' });
 });
 
-router.put('/quorum', auth, (req, res) => {
+router.put('/quorum', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   const { meeting_id, schedule_id, required_members, present_members, notes } = req.body;
   const req_m = required_members || 0;
   const pres_m = present_members || 0;
@@ -199,14 +199,16 @@ router.post('/resolutions/:id/vote', auth, requirePermission('governance.voting'
     const agg = db.prepare('SELECT vote, COUNT(*) as c FROM votes WHERE resolution_id=? GROUP BY vote').all(req.params.id);
     const counts = { approve:0, reject:0, abstain:0 };
     agg.forEach(a => { if (a.vote in counts) counts[a.vote] = a.c; });
-    const totalV = counts.approve + counts.reject + counts.abstain;
-    let status = 'pending';
-    if (totalV > 0) {
-      if (counts.approve > counts.reject) status = 'approved';
-      else if (counts.reject > counts.approve) status = 'rejected';
-    }
-    db.prepare('UPDATE resolutions SET votes_approve=?, votes_reject=?, votes_abstain=?, status=? WHERE id=?')
-      .run(counts.approve, counts.reject, counts.abstain, status, req.params.id);
+    // Update the live running tally only — NOT `status`. Voting is still
+    // 'open' here (checked above), so the resolution isn't decided yet.
+    // This used to also recompute and persist status='approved'/'rejected'
+    // after every single vote — a resolution with 1 of 3 members voted could
+    // flash "Approved" on the dashboard and the resolution card mid-vote,
+    // before the other two members had even weighed in. `voting-status`
+    // (below) is the only place a final status should be derived, once
+    // voting is actually closed.
+    db.prepare('UPDATE resolutions SET votes_approve=?, votes_reject=?, votes_abstain=? WHERE id=?')
+      .run(counts.approve, counts.reject, counts.abstain, req.params.id);
   })();
   res.json(withFollowups(db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id)));
 });

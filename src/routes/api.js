@@ -409,8 +409,17 @@ router.get('/users', auth, (req, res) => {
 });
 
 // ── Team Members (CRUD) ───────────────────────────────────────────────────────
+// Kept open to any authenticated user (not gated behind admin.users) because
+// many features across most roles need it for name-based dropdowns — owner
+// pickers, attendee fields, escalation targets. But phone was going out to
+// every logged-in user including Guest/Observer, who have no legitimate need
+// for it; strip it unless the caller can actually manage users.
 router.get('/members', auth, (req, res) => {
-  const members = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, system_role, department, phone, created_at FROM users ORDER BY name_ar').all();
+  const canManageUsers = rbacService.hasPermission(db, req.user.id, 'admin.users');
+  const cols = canManageUsers
+    ? 'id, name_ar, name_en, email, role_ar, role_en, system_role, department, phone, created_at'
+    : 'id, name_ar, name_en, email, role_ar, role_en, system_role, department, created_at';
+  const members = db.prepare(`SELECT ${cols} FROM users ORDER BY name_ar`).all();
   res.json(members);
 });
 
@@ -754,7 +763,7 @@ router.delete('/meetings/:id', auth, requirePermission('meetings.delete'), (req,
 // ── Recording Storage & Approval ──────────────────────────────────────────────
 
 // POST /api/meetings/:id/recording — upload audio/video file to platform
-router.post('/meetings/:id/recording', auth, uploadRec.single('recording'), (req, res) => {
+router.post('/meetings/:id/recording', auth, requirePermission('meetings.create', 'meetings.edit'), uploadRec.single('recording'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (webm, mp4, mp3, wav, ogg, m4a, aac)' });
   const meeting = db.prepare('SELECT id, audio_recording_url FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) {
@@ -789,7 +798,7 @@ router.post('/meetings/:id/recording', auth, uploadRec.single('recording'), (req
 
 // PATCH /api/meetings/:id/recording/approve — approval workflow
 // body: { action: 'approve' | 'reject' | 'submit' }
-router.patch('/meetings/:id/recording/approve', auth, (req, res) => {
+router.patch('/meetings/:id/recording/approve', auth, requirePermission('minutes.approve'), (req, res) => {
   const meeting = db.prepare('SELECT id, audio_recording_url, recording_approval_status FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
   if (!meeting.audio_recording_url) return res.status(400).json({ error: 'No recording stored for this meeting' });
@@ -825,7 +834,7 @@ router.patch('/meetings/:id/recording/approve', auth, (req, res) => {
 });
 
 // DELETE /api/meetings/:id/recording — remove recording file and clear columns
-router.delete('/meetings/:id/recording', auth, (req, res) => {
+router.delete('/meetings/:id/recording', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   const meeting = db.prepare('SELECT id, audio_recording_url FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
   if (meeting.audio_recording_url) {
@@ -864,7 +873,7 @@ router.get('/meetings/:id/recording-status', auth, (req, res) => {
 });
 
 // POST /api/meetings/:id/recording/start
-router.post('/meetings/:id/recording/start', auth, (req, res) => {
+router.post('/meetings/:id/recording/start', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
   const { capture_type, source, scope } = req.body;
@@ -883,7 +892,7 @@ router.post('/meetings/:id/recording/start', auth, (req, res) => {
 });
 
 // POST /api/meetings/:id/recording/stop
-router.post('/meetings/:id/recording/stop', auth, (req, res) => {
+router.post('/meetings/:id/recording/stop', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
   const { notes } = req.body;
@@ -1256,12 +1265,12 @@ router.get('/decisions', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM decisions ORDER BY created_at DESC').all());
 });
 
-router.patch('/decisions/:id', auth, (req, res) => {
+router.patch('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {
   db.prepare('UPDATE decisions SET status=? WHERE id=?').run(req.body.status, req.params.id);
   res.json({ success: true });
 });
 
-router.delete('/decisions/:id', auth, (req, res) => {
+router.delete('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {
   db.prepare('DELETE FROM decisions WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -1315,7 +1324,7 @@ function addNPeriods(originDateStr, recurrence, n) {
 
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
 
-router.post('/schedule', auth, (req, res) => {
+router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) => {
   const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
@@ -1353,7 +1362,7 @@ router.post('/schedule', auth, (req, res) => {
 // ── Confirm a Draft meeting (finalize): runs the conflict check, then arms the
 // 15-minute reminder by clearing reminder_sent. Drafts are created automatically
 // from transcript scheduling intents. ───────────────────────────────────────────
-router.patch('/schedule/:id/confirm', auth, (req, res) => {
+router.patch('/schedule/:id/confirm', auth, requirePermission('calendar.manage'), (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   if (!row.meeting_date || !row.meeting_time) {
@@ -1365,7 +1374,7 @@ router.patch('/schedule/:id/confirm', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.id));
 });
 
-router.post('/schedule/:id/remind', auth, async (req, res) => {
+router.post('/schedule/:id/remind', auth, requirePermission('calendar.manage'), async (req, res) => {
  try {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Meeting not found' });
@@ -1397,7 +1406,7 @@ router.post('/schedule/:id/remind', auth, async (req, res) => {
  }
 });
 
-router.patch('/schedule/:id', auth, (req, res) => {
+router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, series_id, new_series, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
@@ -1406,6 +1415,19 @@ router.patch('/schedule/:id', auth, (req, res) => {
   }
   if (meeting_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
     return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
+  }
+  // Create and Confirm both check for double-booking a confirmed meeting —
+  // Edit never did, even though nudging an existing meeting's date/time is
+  // the most common way a coordinator introduces a real double-booking.
+  // Only re-check when a field that actually affects the time window changed.
+  if ((meeting_date !== undefined || meeting_time !== undefined || duration_mins !== undefined) && row.status !== 'draft') {
+    const conflicts = findConflicts({
+      date: meeting_date !== undefined ? meeting_date : row.meeting_date,
+      time: meeting_time !== undefined ? meeting_time : row.meeting_time,
+      durationMins: duration_mins !== undefined ? duration_mins : row.duration_mins,
+      excludeId: row.id,
+    });
+    if (conflicts.length && !req.body.force) return res.status(409).json(conflictPayload(conflicts));
   }
   const chan = reminder_channel !== undefined
     ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
@@ -1445,7 +1467,7 @@ router.patch('/schedule/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
 });
 
-router.delete('/schedule/:id/series', auth, (req, res) => {
+router.delete('/schedule/:id/series', auth, requirePermission('calendar.manage'), (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   if (row.recurrence_group_id) {
@@ -1456,7 +1478,7 @@ router.delete('/schedule/:id/series', auth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/schedule/:id', auth, (req, res) => {
+router.delete('/schedule/:id', auth, requirePermission('calendar.manage'), (req, res) => {
   db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -1501,7 +1523,7 @@ router.get('/schedule/from-template/:id', auth, (req, res) => {
 // Create a new schedule entry from a template's defaults, applying any request
 // overrides (date/time required). Mirrors POST /schedule: conflict check + auto
 // recurrence-series generation.
-router.post('/schedule/from-template/:id', auth, (req, res) => {
+router.post('/schedule/from-template/:id', auth, requirePermission('calendar.manage'), (req, res) => {
   const tpl = db.prepare('SELECT * FROM meeting_templates WHERE id=?').get(req.params.id);
   if (!tpl) return res.status(404).json({ error: 'Template not found' });
   const b = req.body || {};
@@ -2019,7 +2041,14 @@ router.post('/documents/share', auth, requirePermission('documents.share'), requ
     catch (e) { out = { error: e.message }; }
     results.push({ name: mem.name_ar || mem.name_en, email: mem.email, ...out });
   }
-  res.json({ success: true, shared: results.length, results });
+  // Every result was counted as a success regardless of whether the send
+  // actually failed (out.error set) — a broken mail provider meant a manager
+  // clicking "Share" saw "✓ Shared with 12 member(s)" while zero emails went
+  // out, with no way to tell from the UI that a board document never reached
+  // anyone.
+  const failed = results.filter(r => r.error);
+  const sharedCount = results.length - failed.length;
+  res.json({ success: failed.length === 0, shared: sharedCount, failed: failed.length, results });
  } catch (e) {
   console.error('✗ /documents/share failed:', e.message);
   res.status(500).json({ error: e.message });

@@ -16,8 +16,25 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads',    express.static(path.join(__dirname, 'data/uploads')));
-app.use('/recordings', express.static(path.join(__dirname, 'data/recordings')));
+
+// Uploaded documents and meeting recordings are private board material —
+// these were previously mounted as plain express.static with no auth check
+// at all, so anyone with a URL (forwarded email, browser history, a proxy
+// log, a Referer header) had permanent, unauthenticated read access to every
+// document, completely bypassing the documents.download RBAC permission.
+// `auth` only requires a valid session cookie (not the specific permission
+// that gated the original download action) — tightening further to check
+// per-document ownership would need a dedicated route instead of
+// express.static, which is a larger change than this pass covers, but this
+// closes the "no login at all" gap.
+const auth = require('./src/middleware/auth');
+app.use('/uploads',    auth, express.static(path.join(__dirname, 'data/uploads')));
+app.use('/recordings', auth, express.static(path.join(__dirname, 'data/recordings')));
+// A deleted or never-existent filename under these paths used to fall through
+// express.static's next() straight into the SPA catch-all below, which
+// answered with 200 + the app shell instead of 404 — so a dead document link
+// looked "alive" to anything checking response status.
+app.use(['/uploads', '/recordings'], (req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
 
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));
