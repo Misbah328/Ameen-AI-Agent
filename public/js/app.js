@@ -2937,7 +2937,14 @@ const SeriesUI = {
 // attach imported content (audio/video archive, pasted text, or a text file) to
 // either an existing meeting or a brand-new one, then shows results inline.
 const ImportFlow = {
-  target: 'existing',
+  // Defaults to 'new' rather than 'existing': pasting/uploading content for a
+  // meeting that doesn't exist yet is the overwhelmingly common first action
+  // (especially for a first-time user with no meetings in the system at all).
+  // With 'existing' as the default, a naive "paste text, click Process" click
+  // — the exact path a new customer takes — failed with a generic "select a
+  // meeting first" error, since the (empty, for a new account) existing-
+  // meetings dropdown had nothing selected.
+  target: 'new',
   contentType: 'live',
 
   init() {
@@ -4537,32 +4544,60 @@ if ($("modal-series")) {
 }
 
 // ── Minutes Approval Workflow helpers ──────────────────────────────────────
-async function minutesApprovalAction(meetingId, action) {
-  const l = App.lang;
-  const actionLabels = {
-    'circulate': l === 'ar' ? 'تعميم للاعتماد' : 'Circulate for Approval',
-    'approve': l === 'ar' ? 'اعتماد' : 'Approve',
-    'request-revision': l === 'ar' ? 'طلب مراجعة' : 'Request Revision',
-    'final-approve': l === 'ar' ? 'اعتماد نهائي' : 'Final Approve',
-    'archive': l === 'ar' ? 'أرشفة الاجتماع' : 'Archive Meeting',
-  };
-  const label = actionLabels[action] || action;
-  const comments = prompt(
-    l === 'ar' ? `${label} — ملاحظات اختيارية:` : `${label} — Optional comments:`,
-    ''
-  );
-  if (comments === null) return;
-  try {
-    await api(`/api/meetings/${meetingId}/${action}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comments }),
-    });
-    await renderTranscripts();
-  } catch (e) {
-    alert(l === 'ar' ? 'حدث خطأ: ' + e.message : 'Error: ' + e.message);
-  }
+// Governance minutes-approval actions (Circulate/Approve/Request Revision/
+// Final Approve/Archive) used to collect their optional comment via a native
+// prompt() — a jarring, unstyled OS dialog in an otherwise fully custom-
+// themed board-governance product. Now opens the same modal system already
+// used for tasks/team members instead of inventing a new component.
+const ApprovalModal = {
+  _meetingId: null,
+  _action: null,
+  open(meetingId, action) {
+    const l = App.lang;
+    const actionLabels = {
+      'circulate': l === 'ar' ? 'تعميم للاعتماد' : 'Circulate for Approval',
+      'approve': l === 'ar' ? 'اعتماد' : 'Approve',
+      'request-revision': l === 'ar' ? 'طلب مراجعة' : 'Request Revision',
+      'final-approve': l === 'ar' ? 'اعتماد نهائي' : 'Final Approve',
+      'archive': l === 'ar' ? 'أرشفة الاجتماع' : 'Archive Meeting',
+    };
+    this._meetingId = meetingId;
+    this._action = action;
+    const titleEl = $('approval-modal-title-txt');
+    if (titleEl) titleEl.textContent = actionLabels[action] || action;
+    const commentsEl = $('approval-modal-comments');
+    if (commentsEl) commentsEl.value = '';
+    $('modal-approval-action').classList.add('open');
+  },
+  close() {
+    $('modal-approval-action').classList.remove('open');
+    this._meetingId = null;
+    this._action = null;
+  },
+  async confirm() {
+    const l = App.lang;
+    const meetingId = this._meetingId, action = this._action;
+    if (!meetingId || !action) return;
+    const comments = ($('approval-modal-comments') && $('approval-modal-comments').value) || '';
+    try {
+      await api(`/api/meetings/${meetingId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comments }),
+      });
+      this.close();
+      await renderTranscripts();
+    } catch (e) {
+      showToast((l === 'ar' ? 'حدث خطأ: ' : 'Error: ') + e.message, 'error');
+    }
+  },
+};
+function minutesApprovalAction(meetingId, action) {
+  ApprovalModal.open(meetingId, action);
 }
+$("modal-approval-action") && $("modal-approval-action").addEventListener("click", (e) => {
+  if (e.target === $("modal-approval-action")) ApprovalModal.close();
+});
 
 async function minutesShowLog(meetingId) {
   const l = App.lang;

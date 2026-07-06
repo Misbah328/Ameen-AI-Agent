@@ -200,19 +200,19 @@
       <div class="imp-section" id="imp-target-section">
         <div class="imp-label" data-ar="الاجتماع المستهدف" data-en="Meeting Target">الاجتماع المستهدف</div>
         <div class="imp-seg" id="imp-target-seg">
-          <button type="button" class="imp-seg-btn active" data-val="existing" onclick="ImportFlow.setTarget('existing')">
+          <button type="button" class="imp-seg-btn" data-val="existing" onclick="ImportFlow.setTarget('existing')">
             <span data-ar="اختيار اجتماع موجود" data-en="Select Existing Meeting">اختيار اجتماع موجود</span>
           </button>
-          <button type="button" class="imp-seg-btn" data-val="new" onclick="ImportFlow.setTarget('new')">
+          <button type="button" class="imp-seg-btn active" data-val="new" onclick="ImportFlow.setTarget('new')">
             <span data-ar="إنشاء اجتماع جديد" data-en="Create New Meeting">إنشاء اجتماع جديد</span>
           </button>
         </div>
-        <div id="imp-target-existing">
+        <div id="imp-target-existing" style="display:none">
           <select id="imp-meeting-sel" class="fi">
             <option value="">— جارٍ التحميل —</option>
           </select>
         </div>
-        <div id="imp-target-new" style="display:none">
+        <div id="imp-target-new">
           <div class="imp-grid">
             <input class="fi" id="imp-new-title" data-ph-ar="عنوان الاجتماع" data-ph-en="Meeting title" placeholder="عنوان الاجتماع"/>
             <select id="imp-new-type" class="fi">
@@ -1110,6 +1110,23 @@
       <div class="fa">
         <button class="btn-gold" onclick="Modals.saveTask()">✓ <span data-ar="حفظ" data-en="Save">حفظ</span></button>
         <button class="btn-ghost" onclick="Modals.close()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: MINUTES APPROVAL ACTION (Circulate/Approve/Request Revision/Final Approve/Archive) ══ -->
+<div class="modal-overlay" id="modal-approval-action">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title"><span id="approval-modal-title-txt">Circulate for Approval</span></div>
+    <div class="fs">
+      <div class="frow">
+        <div class="fl" data-ar="ملاحظات (اختياري)" data-en="Comments (optional)">ملاحظات (اختياري)</div>
+        <textarea class="fi" id="approval-modal-comments" rows="3" data-ph-ar="أضف ملاحظة اختيارية..." data-ph-en="Add an optional note..." placeholder="Add an optional note..."></textarea>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" id="approval-modal-confirm-btn" onclick="ApprovalModal.confirm()">✓ <span data-ar="تأكيد" data-en="Confirm">Confirm</span></button>
+        <button class="btn-ghost" onclick="ApprovalModal.close()"><span data-ar="إلغاء" data-en="Cancel">Cancel</span></button>
       </div>
     </div>
   </div>
