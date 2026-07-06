@@ -8638,7 +8638,7 @@ async function renderOverview() {
     // permission gap used to blank the entire dashboard (stats, meetings,
     // schedule, etc. that the role *does* have access to) behind a raw error
     // message instead of just omitting the one section it can't see.
-    const [stats, tasks, meetings, schedule, members, decisions, analytics, govSummary] =
+    const [stats, tasks, meetings, schedule, members, decisions, analytics, govSummary, dashIntel] =
       await Promise.all([
         api("/api/stats").catch(() => ({})),
         api("/api/tasks").catch(() => []),
@@ -8648,6 +8648,7 @@ async function renderOverview() {
         api("/api/decisions").catch(() => []),
         api("/api/analytics").catch(() => ({})),
         api("/api/gov/summary").catch(() => null),
+        App.can("reports.view") ? api("/api/dashboard/intelligence").catch(() => null) : Promise.resolve(null),
       ]);
     const l = App.lang;
     const lbl = (ar, en) => (l === "ar" ? ar : en);
@@ -9287,6 +9288,71 @@ async function renderOverview() {
     const dash = Dash.get();
     const sec = (k, html) => (dash[k] === false ? "" : html);
     const showCharts = hasCharts && ROLE_ACCESS[role] && ROLE_ACCESS[role].has("analytics");
+
+    // ── Executive Dashboard Intelligence — meeting completion rate,
+    // department performance, at-risk flags, and rules-based insights /
+    // recommendations, all from GET /api/dashboard/intelligence (reports.view
+    // gated, so this whole block is simply absent for roles without it).
+    const intelHtml = dashIntel ? (() => {
+      const pctBar = (pct, accent) => `<div style="height:6px;background:var(--navy4);border-radius:4px;overflow:hidden;margin-top:5px"><div style="height:100%;border-radius:4px;background:${accent};width:${pct}%"></div></div>`;
+      const deptRows = (dashIntel.department_performance || []).slice(0, 6).map((d) => `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text)">
+            <span style="font-weight:600">${esc(d.department)}</span>
+            <span style="color:var(--text3)">${d.done}/${d.total} · ${d.pct}%</span>
+          </div>
+          ${pctBar(d.pct, d.overdue > 0 ? "var(--red)" : "var(--gold)")}
+        </div>`).join("") || `<div class="es" style="padding:16px;font-size:12px">${lbl("لا توجد بيانات أقسام بعد", "No department data yet")}</div>`;
+
+      const deadlineRows = (dashIntel.upcoming_deadlines?.tasks || []).slice(0, 5).map((t) => `
+        <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
+          <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
+          <span style="color:var(--text3);flex-shrink:0">${esc(t.due_date)}</span>
+        </div>`).join("") || `<div style="font-size:12px;color:var(--text3);padding:8px 0">${lbl("لا مواعيد نهائية قريبة", "No deadlines coming up")}</div>`;
+
+      const blockedRows = (dashIntel.blocked_actions || []).slice(0, 5).map((b) => `
+        <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
+          <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? b.text_ar : b.text_en || b.text_ar)}</span>
+          <span class="tag" style="background:rgba(224,160,48,.15);color:#e0a030;font-size:10.5px;flex-shrink:0">⛔ ${esc(b.owner_name_ar ? (l === "ar" ? b.owner_name_ar : b.owner_name_en || b.owner_name_ar) : "")}</span>
+        </div>`).join("") || `<div style="font-size:12px;color:var(--text3);padding:8px 0">${lbl("لا إجراءات معطّلة", "No blocked actions")}</div>`;
+
+      const insightRows = (dashIntel.insights || []).map((i) => `<li style="margin-bottom:6px;font-size:12.5px;color:var(--text)">${esc(l === "ar" ? i.ar : i.en)}</li>`).join("");
+      const recRows = (dashIntel.recommendations || []).map((r) => `<li style="margin-bottom:6px;font-size:12.5px;color:var(--text)">${esc(l === "ar" ? r.ar : r.en)}</li>`).join("");
+
+      return `<div style="margin-bottom:16px">
+        ${_secHdr("🧠", "ذكاء لوحة التحكم التنفيذية", "Executive Dashboard Intelligence", "", lbl("مبنية بالكامل من بيانات حية", "Built entirely from live data"))}
+        <div class="grid-2" style="gap:14px;margin-bottom:14px">
+          <div class="card">
+            <div class="ch"><div class="ct">📁 ${lbl("معدل إنجاز الاجتماعات", "Meeting Completion Rate")}</div></div>
+            <div style="font-size:28px;font-weight:800;color:var(--gold)">${dashIntel.meeting_completion_rate}%</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${dashIntel.meetings_processed}/${dashIntel.meetings_total} ${lbl("اجتماعاً تمت معالجتها", "meetings processed")}</div>
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">🏢 ${lbl("نظرة عامة على الأقسام", "Department Performance")}</div></div>
+            ${deptRows}
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">📅 ${lbl("مواعيد نهائية قريبة", "Upcoming Deadlines")}</div><div class="ctsub">${lbl("خلال 7 أيام", "Within 7 days")}</div></div>
+            ${deadlineRows}
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">⛔ ${lbl("إجراءات معطّلة", "Blocked Actions")}</div></div>
+            ${blockedRows}
+          </div>
+        </div>
+        <div class="grid-2" style="gap:14px">
+          <div class="card">
+            <div class="ch"><div class="ct">💡 ${lbl("رؤى تنفيذية", "Executive Insights")}</div></div>
+            ${insightRows ? `<ul style="margin:0;padding-inline-start:18px">${insightRows}</ul>` : `<div style="font-size:12px;color:var(--text3)">${lbl("لا رؤى إضافية حالياً", "No additional insights right now")}</div>`}
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">✅ ${lbl("توصيات", "Recommendations")}</div></div>
+            ${recRows ? `<ul style="margin:0;padding-inline-start:18px">${recRows}</ul>` : ""}
+          </div>
+        </div>
+      </div>`;
+    })() : "";
+
     body.innerHTML = `
       ${greetingHtml}
       ${roleHeader}
@@ -9294,6 +9360,7 @@ async function renderOverview() {
       ${todaysTimelineHtml}
       ${quickActionsHtml}
       ${Dash.bar(l)}
+      ${sec("intel", intelHtml)}
       ${sec("stats", `<div style="margin-bottom:14px"><div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
       <div class="grid-2" style="margin-bottom:16px">
         ${calendarPreviewHtml}
@@ -9449,7 +9516,7 @@ async function renderOverview() {
 // ══ Dashboard Customizer (persists which widgets are visible) ═══════════════════
 const Dash = {
   key: "ameen_dash_cfg",
-  defaults: { stats: true, team: true, upcoming: true, overdue: true },
+  defaults: { stats: true, intel: true, team: true, upcoming: true, overdue: true },
   get() {
     try {
       return {
@@ -9478,6 +9545,7 @@ const Dash = {
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
         <span style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">⚙️ ${l === "ar" ? "تخصيص" : "Customize"}</span>
         ${item("stats", "الإحصائيات", "Stats")}
+        ${item("intel", "ذكاء اللوحة", "Intelligence")}
         ${item("team", "أداء الفريق", "Team")}
         ${item("upcoming", "الاجتماعات القادمة", "Upcoming")}
         ${item("overdue", "المهام المتأخرة", "Overdue")}

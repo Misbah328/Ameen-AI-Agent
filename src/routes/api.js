@@ -1132,7 +1132,9 @@ router.get('/tasks', auth, (req, res) => {
 // Reuses the same tasks table the individual "My Actions" views already read —
 // no new tracking, just aggregated differently for whoever can fully manage
 // actions (the same actions.assign bar the Team/Department quick filters use).
-router.get('/tasks/manager-overview', auth, requirePermission('actions.assign'), (req, res) => {
+// Factored out so the Dashboard Intelligence endpoint below can reuse the same
+// per-department aggregation instead of recomputing it.
+function computeTaskRollups() {
   const rows = db.prepare(`
     SELECT t.owner_id, t.owner_name_ar, t.owner_name_en, t.status, t.due_date, t.priority,
            t.text_ar, t.text_en, t.id, t.updated_at, t.created_at,
@@ -1187,7 +1189,12 @@ router.get('/tasks/manager-overview', auth, requirePermission('actions.assign'),
   const byDeptArr = Object.values(byDept).map(d => ({ ...d, people: d.people.size, pct: d.total ? Math.round(d.done / d.total * 100) : 0 })).sort((a, b) => b.open - a.open);
   bottlenecks.sort((a, b) => b.days_late - a.days_late);
 
-  res.json({ byPerson: byPersonArr, byDepartment: byDeptArr, bottlenecks: bottlenecks.slice(0, 30) });
+  return { byPerson: byPersonArr, byDepartment: byDeptArr, bottlenecks };
+}
+
+router.get('/tasks/manager-overview', auth, requirePermission('actions.assign'), (req, res) => {
+  const { byPerson, byDepartment, bottlenecks } = computeTaskRollups();
+  res.json({ byPerson, byDepartment, bottlenecks: bottlenecks.slice(0, 30) });
 });
 
 router.post('/tasks', auth, async (req, res) => {
@@ -1999,6 +2006,124 @@ router.get('/stats', auth, (req, res) => {
   const tasks_critical = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE priority IN ('critical','urgent') AND status NOT IN ('done','cancelled')").get().c;
   const completion = tasks_total > 0 ? Math.round((tasks_done / tasks_total) * 100) : 0;
   res.json({ meetings, tasks_total, tasks_open, tasks_overdue, tasks_done, decisions, users, schedule, tasks_blocked, tasks_high, tasks_critical, completion });
+});
+
+// ── Dashboard Intelligence ────────────────────────────────────────────────────
+// Everything below is computed straight from tables the product already
+// maintains (tasks, meetings, users.department) — no separate metrics store,
+// no invented scores. "Executive insights" and "recommendations" are template
+// sentences filled in from those same real numbers (a rules engine, not an
+// LLM call) so they're always available even without an AI provider key
+// configured, and every claim in them traces back to a query above it.
+router.get('/dashboard/intelligence', auth, requirePermission('reports.view'), (req, res) => {
+  const today = new Date().toISOString().substring(0, 10);
+  const in7 = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+
+  // Meeting completion rate — 'processed' vs 'draft' is the real status
+  // column meetings already carry; no separate lifecycle math needed.
+  const meetingTotals = db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='processed' THEN 1 ELSE 0 END) as done FROM meetings").get();
+  const meetingCompletionRate = meetingTotals.total > 0 ? Math.round((meetingTotals.done / meetingTotals.total) * 100) : 0;
+
+  // Governance backlog — meetings actually in the approval pipeline (i.e.
+  // circulated or further). 'draft' is the default for every meeting
+  // including ones whose minutes were never even generated yet, so it does
+  // NOT belong here — counting it would flag nearly every meeting as
+  // "pending approval" regardless of whether anyone has touched it.
+  const meetingsPendingApproval = db.prepare(`
+    SELECT COUNT(*) as c FROM meetings WHERE minutes_status IN ('circulated', 'approved', 'revision_requested')
+  `).get().c;
+
+  const { byDepartment, bottlenecks } = computeTaskRollups();
+  const blockedActions = bottlenecks.filter(b => b.status === 'blocked');
+
+  const upcomingTasks = db.prepare(`
+    SELECT id, text_ar, text_en, owner_name_ar, owner_name_en, due_date FROM tasks
+    WHERE due_date >= ? AND due_date <= ? AND status NOT IN ('done', 'cancelled')
+    ORDER BY due_date ASC LIMIT 10
+  `).all(today, in7);
+  const upcomingMeetings = db.prepare(`
+    SELECT id, title_ar, title_en, meeting_date, meeting_time FROM schedule
+    WHERE meeting_date >= ? AND meeting_date <= ? ORDER BY meeting_date ASC, meeting_time ASC LIMIT 10
+  `).all(today, in7);
+
+  // Risk flag: a department is "at risk" if a meaningful share of its open
+  // work is overdue. The >=3 open-actions floor keeps a department with one
+  // overdue item out of five people from reading as equally risky as a
+  // department where half the team is behind.
+  const atRiskDepartments = byDepartment
+    .filter(d => d.open >= 3 && d.overdue / d.open >= 0.3)
+    .map(d => ({ department: d.department, overdue: d.overdue, open: d.open, ratio: Math.round((d.overdue / d.open) * 100) }));
+
+  const l = (ar, en) => ({ ar, en });
+  const insights = [];
+  const recommendations = [];
+
+  insights.push(l(
+    `معدل إنجاز الاجتماعات ${meetingCompletionRate}% (${meetingTotals.done} من ${meetingTotals.total} اجتماعاً تمت معالجتها).`,
+    `Meeting completion rate is ${meetingCompletionRate}% (${meetingTotals.done} of ${meetingTotals.total} meetings processed).`
+  ));
+  if (blockedActions.length) {
+    // days_late is only meaningful once a due date has actually passed — a
+    // blocked task whose due date is still in the future gives a negative
+    // number here, which would read as nonsense ("blocked for -6 days").
+    const oldestPastDue = blockedActions.find(b => b.days_late > 0);
+    insights.push(l(
+      oldestPastDue
+        ? `${blockedActions.length} إجراء تنفيذي معطّل حالياً، أقدمها متأخر منذ ${oldestPastDue.days_late} يوماً.`
+        : `${blockedActions.length} إجراء تنفيذي معطّل حالياً.`,
+      oldestPastDue
+        ? `${blockedActions.length} executive action(s) are currently blocked, the oldest for ${oldestPastDue.days_late} day(s).`
+        : `${blockedActions.length} executive action(s) are currently blocked.`
+    ));
+    recommendations.push(l(
+      `راجع الإجراءات المعطّلة وأزل العوائق أمامها — ${blockedActions.length} إجراء بانتظار ذلك.`,
+      `Review and unblock stalled actions — ${blockedActions.length} are currently waiting.`
+    ));
+  }
+  if (atRiskDepartments.length) {
+    atRiskDepartments.forEach(d => {
+      insights.push(l(
+        `قسم ${d.department} لديه ${d.overdue} من ${d.open} إجراءً مفتوحاً متأخراً (${d.ratio}%).`,
+        `${d.department} has ${d.overdue} of ${d.open} open actions overdue (${d.ratio}%).`
+      ));
+    });
+    recommendations.push(l(
+      `أعد توزيع الأحمال أو صعّد المتابعة في: ${atRiskDepartments.map(d => d.department).join('، ')}.`,
+      `Rebalance workload or escalate follow-up in: ${atRiskDepartments.map(d => d.department).join(', ')}.`
+    ));
+  }
+  if (meetingsPendingApproval > 0) {
+    insights.push(l(
+      `${meetingsPendingApproval} محضر اجتماع بانتظار الاعتماد النهائي.`,
+      `${meetingsPendingApproval} meeting minute(s) awaiting final approval.`
+    ));
+    recommendations.push(l(
+      `تابع مع المعتمدين لإنهاء اعتماد ${meetingsPendingApproval} محضر اجتماع معلّق.`,
+      `Follow up with approvers to close out ${meetingsPendingApproval} pending minutes approval(s).`
+    ));
+  }
+  if (upcomingTasks.length) {
+    insights.push(l(
+      `${upcomingTasks.length} إجراء تنفيذي مستحق خلال 7 أيام القادمة.`,
+      `${upcomingTasks.length} executive action(s) due within the next 7 days.`
+    ));
+  }
+  if (!blockedActions.length && !atRiskDepartments.length && meetingsPendingApproval === 0) {
+    recommendations.push(l('لا توجد مخاطر عاجلة حالياً — الأداء التشغيلي ضمن المسار الطبيعي.', 'No urgent risks detected right now — operations are on track.'));
+  }
+
+  res.json({
+    meeting_completion_rate: meetingCompletionRate,
+    meetings_total: meetingTotals.total,
+    meetings_processed: meetingTotals.done,
+    meetings_pending_approval: meetingsPendingApproval,
+    department_performance: byDepartment,
+    upcoming_deadlines: { tasks: upcomingTasks, meetings: upcomingMeetings },
+    blocked_actions: blockedActions.slice(0, 10),
+    at_risk_departments: atRiskDepartments,
+    insights,
+    recommendations,
+  });
 });
 
 // ── Document History ───────────────────────────────────────────────────────
