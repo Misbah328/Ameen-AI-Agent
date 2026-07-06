@@ -68,7 +68,7 @@
   <div class="topbar-right">
     <div style="position:relative">
       <button class="theme-toggle btn-sm" id="smart-search-btn" onclick="SmartSearch.toggle()" title="Search">🔍</button>
-      <div id="smart-search-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);inset-inline-end:0;width:420px;max-height:520px;overflow-y:auto;background:var(--navy2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:3000">
+      <div id="smart-search-dropdown" style="display:none;position:fixed;top:60px;inset-inline-end:10px;width:420px;max-width:calc(100vw - 20px);max-height:520px;overflow-y:auto;background:var(--navy2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:3000">
         <div style="padding:10px 12px;border-bottom:1px solid var(--border2)">
           <input class="fi" id="smart-search-input" data-ph-ar="ابحث في الاجتماعات، المهام، الوثائق، الحوكمة..." data-ph-en="Search meetings, tasks, documents, governance..." placeholder="ابحث في الاجتماعات، المهام، الوثائق، الحوكمة..." oninput="SmartSearch.onInput(this.value)"/>
         </div>
@@ -79,7 +79,7 @@
       <button class="theme-toggle btn-sm" id="notif-bell-btn" onclick="NotificationCenter.toggle()" title="Notifications" style="position:relative">
         🔔<span id="notif-bell-badge" style="display:none;position:absolute;top:-4px;inset-inline-end:-4px;min-width:16px;height:16px;line-height:16px;text-align:center;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:100px;padding:0 3px">0</span>
       </button>
-      <div id="notif-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);inset-inline-end:0;width:360px;max-height:480px;overflow-y:auto;background:var(--navy2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:3000"></div>
+      <div id="notif-dropdown" style="display:none;position:fixed;top:60px;inset-inline-end:10px;width:360px;max-width:calc(100vw - 20px);max-height:480px;overflow-y:auto;background:var(--navy2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:3000"></div>
     </div>
     <div class="lang-toggle">
       <button class="lb active" onclick="App.setLang('ar')">ع</button>
