@@ -6831,7 +6831,79 @@ const Schedule = {
       inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
     }
   },
+  _editingId: null,
+  _resetForm() {
+    ["nm-title", "nm-att", "nm-agenda-ar", "nm-agenda-en"].forEach(
+      (id) => ($(id).value = ""),
+    );
+    if ($("nm-type")) $("nm-type").value = "";
+    if ($("nm-board")) { $("nm-board").value = ""; Schedule.onBoardChange(); }
+    if ($("nm-committee")) $("nm-committee").value = "";
+    if ($("nm-prev")) $("nm-prev").value = "";
+    if ($("nm-recurrence")) $("nm-recurrence").value = "none";
+    if ($("nm-template")) $("nm-template").value = "";
+    if ($("nm-join-url")) $("nm-join-url").value = "";
+    if ($("nm-channel")) $("nm-channel").value = "email";
+    if ($("nm-dur")) $("nm-dur").value = "60";
+    if ($("nm-plat")) { $("nm-plat").value = "physical"; Schedule.onProviderChange(); }
+    SeriesUI.invalidate();
+    SeriesUI.setMode("nm", "standalone");
+    SeriesUI.init("nm");
+  },
+  // Toggles the "Schedule New Meeting" form between create mode and edit mode
+  // (title/button text + Cancel button visibility) without introducing a
+  // second form — same pattern as Modals._editingId for tasks/series.
+  _setFormMode(editing) {
+    const l = App.lang;
+    const titleEl = $("nm-form-title");
+    if (titleEl) titleEl.textContent = editing
+      ? (l === "ar" ? "تعديل الاجتماع" : "Edit Meeting")
+      : (l === "ar" ? "جدولة اجتماع جديد" : "Schedule New Meeting");
+    const labelEl = $("nm-submit-label");
+    if (labelEl) labelEl.textContent = editing
+      ? (l === "ar" ? "حفظ التعديلات" : "Save Changes")
+      : (l === "ar" ? "جدولة" : "Schedule");
+    const cancelBtn = $("nm-cancel-btn");
+    if (cancelBtn) cancelBtn.style.display = editing ? "" : "none";
+    const tplBtn = $("nm-template-save-btn");
+    if (tplBtn) tplBtn.style.display = editing ? "none" : "";
+  },
+  cancelEdit() {
+    this._editingId = null;
+    this._resetForm();
+    this._setFormMode(false);
+  },
+  async edit(id) {
+    const l = App.lang;
+    try {
+      const items = await api("/api/schedule");
+      const s = items.find((x) => x.id === id);
+      if (!s) return;
+      this._editingId = id;
+      if ($("nm-title")) $("nm-title").value = s.title_ar || s.title_en || "";
+      if ($("nm-type")) $("nm-type").value = s.meeting_type || "";
+      if ($("nm-recurrence")) $("nm-recurrence").value = "none";
+      if ($("nm-date")) $("nm-date").value = (s.meeting_date || "").substring(0, 10);
+      if ($("nm-time")) $("nm-time").value = (s.meeting_time || "").substring(0, 5);
+      if ($("nm-dur")) $("nm-dur").value = s.duration_mins || 60;
+      if ($("nm-plat")) { $("nm-plat").value = s.meeting_provider || "physical"; Schedule.onProviderChange(); }
+      if ($("nm-join-url")) $("nm-join-url").value = s.meeting_join_url || "";
+      if ($("nm-att")) $("nm-att").value = s.attendees || "";
+      if ($("nm-board")) { $("nm-board").value = s.board_id || ""; Schedule.onBoardChange(); }
+      if ($("nm-committee")) $("nm-committee").value = s.committee_id || "";
+      if ($("nm-channel")) $("nm-channel").value = s.reminder_channel || "email";
+      if ($("nm-agenda-ar")) $("nm-agenda-ar").value = s.agenda_ar || "";
+      if ($("nm-agenda-en")) $("nm-agenda-en").value = s.agenda_en || "";
+      SeriesUI.setMode("nm", "standalone");
+      this._setFormMode(true);
+      const card = $("nm-form-title");
+      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      alert((l === "ar" ? "تعذّر تحميل الاجتماع: " : "Could not load meeting: ") + e.message);
+    }
+  },
   async add() {
+    const editingId = this._editingId;
     const title = $("nm-title").value.trim();
     const data = {
       title_ar: title,
@@ -6863,29 +6935,26 @@ const Schedule = {
     }
     const rec = data.recurrence;
     try {
-      await api("/api/schedule", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-      $("sched-toast").style.display = "flex";
-      setTimeout(() => ($("sched-toast").style.display = "none"), 2500);
+      if (editingId) {
+        await api(`/api/schedule/${editingId}`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        });
+        this._editingId = null;
+        this._setFormMode(false);
+        showToast(App.lang === "ar" ? "✓ تم حفظ التعديلات" : "✓ Changes saved");
+      } else {
+        await api("/api/schedule", {
+          method: "POST",
+          body: JSON.stringify(data),
+        });
+        $("sched-toast").style.display = "flex";
+        setTimeout(() => ($("sched-toast").style.display = "none"), 2500);
+      }
       await renderSchedule();
       await loadBadges();
-      ["nm-title", "nm-att", "nm-agenda-ar", "nm-agenda-en"].forEach(
-        (id) => ($(id).value = ""),
-      );
-      if ($("nm-type")) $("nm-type").value = "";
-      if ($("nm-board")) $("nm-board").value = "";
-      if ($("nm-committee")) $("nm-committee").value = "";
-      if ($("nm-prev")) $("nm-prev").value = "";
-      if ($("nm-recurrence")) $("nm-recurrence").value = "none";
-      if ($("nm-template")) $("nm-template").value = "";
-      if ($("nm-join-url")) $("nm-join-url").value = "";
-      if ($("nm-plat")) { $("nm-plat").value = "physical"; Schedule.onProviderChange(); }
-      SeriesUI.invalidate();
-      SeriesUI.setMode("nm", "standalone");
-      SeriesUI.init("nm");
-      if (rec !== "none")
+      this._resetForm();
+      if (!editingId && rec !== "none")
         showToast(
           App.lang === "ar"
             ? `✓ تم جدولة الاجتماع + 3 تكرارات (${recurrenceLabel(rec, App.lang)})`
@@ -7014,67 +7083,6 @@ const Schedule = {
     }
   },
 
-  async edit(id) {
-    const l = App.lang;
-    try {
-      const items = await api("/api/schedule");
-      const s = items.find((x) => x.id === id);
-      if (!s) return;
-      const title = prompt(
-        l === "ar" ? "عنوان الاجتماع:" : "Meeting title:",
-        s.title_ar || "",
-      );
-      if (title === null) return;
-      const date = prompt(
-        l === "ar" ? "التاريخ (YYYY-MM-DD):" : "Date (YYYY-MM-DD):",
-        (s.meeting_date || "").substring(0, 10),
-      );
-      if (date === null) return;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim()) || isNaN(new Date(date.trim()).getTime())) {
-        alert(l === "ar" ? "صيغة التاريخ غير صحيحة. استخدم YYYY-MM-DD" : "Invalid date format. Use YYYY-MM-DD");
-        return;
-      }
-      const time = prompt(
-        l === "ar" ? "الوقت (HH:MM):" : "Time (HH:MM):",
-        (s.meeting_time || "").substring(0, 5),
-      );
-      if (time === null) return;
-      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time.trim())) {
-        alert(l === "ar" ? "صيغة الوقت غير صحيحة. استخدم HH:MM" : "Invalid time format. Use HH:MM");
-        return;
-      }
-      const attendees = prompt(
-        l === "ar"
-          ? "المشاركون (أسماء، إيميلات، أرق_�م جوال):"
-          : "Attendees (names, emails, phones):",
-        s.attendees || "",
-      );
-      if (attendees === null) return;
-      const TYPES_LIST = Object.keys(MEETING_TYPES).join(", ");
-      const typePrompt =
-        l === "ar"
-          ? `نوع الاجتماع (${TYPES_LIST}):`
-          : `Meeting type (${TYPES_LIST}):`;
-      const meetingType = prompt(typePrompt, s.meeting_type || "");
-      if (meetingType === null) return;
-      const t = title.trim();
-      await api("/api/schedule/" + id, {
-        method: "PATCH",
-        body: JSON.stringify({
-          title_ar: t,
-          title_en: t,
-          meeting_date: date.trim(),
-          meeting_time: time.trim(),
-          attendees: attendees.trim(),
-          meeting_type: meetingType.trim(),
-        }),
-      });
-      await renderSchedule();
-      await loadBadges();
-    } catch (e) {
-      alert((l === "ar" ? "تعذّر التعديل: " : "Could not edit: ") + e.message);
-    }
-  },
   async delete(id) {
     if (
       !confirm(
@@ -7307,7 +7315,7 @@ const MasterCalendar = {
     } else if (item.source_meeting_id) {
       Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(item.source_meeting_id), 300));
     } else {
-      Schedule.edit(id);
+      Panels.load("schedule").then(() => Schedule.edit(id));
     }
   },
 
@@ -8407,19 +8415,28 @@ async function renderOverview() {
     const dueTodayTasks = tasks.filter((t) => t.due_date === today && t.status !== "done" && t.status !== "cancelled");
     const criticalTasks = tasks.filter((t) => taskPriorityKey(t.priority) === "critical" && t.status !== "done" && t.status !== "cancelled");
     const decisionsAwaiting = decisions.filter((d) => d.status !== "implemented");
+    // "Meetings Today" used to just dump the user onto the Schedule panel's
+    // default List view, which sorts oldest-first — with any meeting history
+    // at all, that meant landing on a months-old past meeting instead of the
+    // one the stat card was actually about. Route into the Calendar view
+    // with today pre-selected instead, so the promised meeting is what's
+    // actually shown, not buried under history.
+    const meetingsTodayClick = todaysMeetings.length
+      ? `Panels.load('schedule').then(()=>{MasterCalendar.setView('calendar');MasterCalendar.selectDay('${today}');})`
+      : `Panels.load('schedule')`;
     const briefingItems = [
-      { icon: "📅", val: todaysMeetings.length, ar: "اجتماعات اليوم", en: "Meetings Today", go: "schedule", color: "var(--gold)" },
-      { icon: "🎯", val: dueTodayTasks.length, ar: "إجراءات مستحقة اليوم", en: "Executive Actions Due Today", go: "tasks", color: dueTodayTasks.length ? "var(--amber)" : "var(--text3)" },
-      { icon: "🔥", val: criticalTasks.length, ar: "إجراءات حرجة", en: "Critical Actions", go: "tasks", color: criticalTasks.length ? "var(--red)" : "var(--text3)" },
-      ...(canGov && govSummary ? [{ icon: "🏛️", val: govSummary.pendingMinutes || 0, ar: "موافقات معلقة", en: "Pending Approvals", go: "governance", color: (govSummary.pendingMinutes || 0) ? "var(--blue)" : "var(--text3)" }] : []),
-      { icon: "⚖️", val: decisionsAwaiting.length, ar: "قرارات بانتظار المراجعة", en: "Decisions Awaiting Review", go: "tasks", color: decisionsAwaiting.length ? "var(--amber)" : "var(--text3)" },
+      { icon: "📅", val: todaysMeetings.length, ar: "اجتماعات اليوم", en: "Meetings Today", onclick: meetingsTodayClick, color: "var(--gold)" },
+      { icon: "🎯", val: dueTodayTasks.length, ar: "إجراءات مستحقة اليوم", en: "Executive Actions Due Today", onclick: `Panels.load('tasks')`, color: dueTodayTasks.length ? "var(--amber)" : "var(--text3)" },
+      { icon: "🔥", val: criticalTasks.length, ar: "إجراءات حرجة", en: "Critical Actions", onclick: `Panels.load('tasks')`, color: criticalTasks.length ? "var(--red)" : "var(--text3)" },
+      ...(canGov && govSummary ? [{ icon: "🏛️", val: govSummary.pendingMinutes || 0, ar: "موافقات معلقة", en: "Pending Approvals", onclick: `Panels.load('governance')`, color: (govSummary.pendingMinutes || 0) ? "var(--blue)" : "var(--text3)" }] : []),
+      { icon: "⚖️", val: decisionsAwaiting.length, ar: "قرارات بانتظار المراجعة", en: "Decisions Awaiting Review", onclick: `Panels.load('tasks')`, color: decisionsAwaiting.length ? "var(--amber)" : "var(--text3)" },
     ];
     const briefingHtml = `<div class="card" style="margin-bottom:16px">
       <div class="ct" style="margin-bottom:10px">📰 ${lbl("موجز اليوم التنفيذي", "Today's Executive Briefing")}</div>
       <div style="display:flex;flex-direction:column">
         ${briefingItems
           .map(
-            (b, i) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 4px;${i > 0 ? "border-top:.5px solid var(--border2)" : ""}" onclick="Panels.load('${b.go}')">
+            (b, i) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 4px;${i > 0 ? "border-top:.5px solid var(--border2)" : ""}" onclick="${b.onclick}">
           <span style="font-size:18px;flex-shrink:0">${b.icon}</span>
           <span style="font-size:20px;font-weight:800;color:${b.color};min-width:28px">${b.val}</span>
           <span style="font-size:13px;color:var(--text2);flex:1">${l === "ar" ? b.ar : b.en}</span>

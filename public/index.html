@@ -712,7 +712,7 @@
         <div id="sched-items"><div class="es"><div class="loading"></div></div></div>
       </div>
       <div class="card">
-        <div class="ch"><div class="ct" data-ar="جدولة اجتماع جديد" data-en="Schedule New Meeting">جدولة اجتماع جديد</div></div>
+        <div class="ch"><div class="ct" id="nm-form-title" data-ar="جدولة اجتماع جديد" data-en="Schedule New Meeting">جدولة اجتماع جديد</div></div>
         <div class="fs">
           <div class="frow">
             <div class="fl" data-ar="استخدام قالب" data-en="Use Template">قالب</div>
@@ -842,8 +842,9 @@
             <textarea class="fi" id="nm-agenda-en" rows="2" placeholder="Meeting agenda items..." dir="ltr" style="text-align:left"></textarea>
           </div>
           <div class="fa" style="flex-wrap:wrap;gap:8px">
-            <button class="btn-gold" onclick="Schedule.add()">✓ <span data-ar="جدولة" data-en="Schedule">جدولة</span></button>
-            <button class="btn-ghost btn-sm" onclick="Schedule.saveAsTemplate()" title="Save as template">📋 <span data-ar="حفظ كقالب" data-en="Save as Template">حفظ كقالب</span></button>
+            <button class="btn-gold" id="nm-submit-btn" onclick="Schedule.add()">✓ <span id="nm-submit-label" data-ar="جدولة" data-en="Schedule">جدولة</span></button>
+            <button class="btn-ghost btn-sm" id="nm-cancel-btn" onclick="Schedule.cancelEdit()" style="display:none">✕ <span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+            <button class="btn-ghost btn-sm" id="nm-template-save-btn" onclick="Schedule.saveAsTemplate()" title="Save as template">📋 <span data-ar="حفظ كقالب" data-en="Save as Template">حفظ كقالب</span></button>
             <div class="toast" id="sched-toast">✓ <span data-ar="تمت الجدولة" data-en="Scheduled">تمت الجدولة</span></div>
           </div>
         </div>

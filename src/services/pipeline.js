@@ -154,9 +154,10 @@ function buildExtractionPrompt(memberNames, meetingDate) {
    - أي متابعة أو وعد أو بند معلّق ذُكر ولو بشكل عابر.
    عند الشك في كون العبارة مهمة من عدمه، أدرجها كمهمة مع needs_review=true. الإغفال خطأ فادح؛ الإفراط في الاستخراج مقبول.
 2) انسب كل مهمة إلى "الشخص المسؤول" بالاسم من خلال سياق الحوار. عند ذكر اسم شخص، طابقه دائماً مع أقرب اسم من قائمة أعضاء الفريق أعلاه وصحّح أي خطأ إملائي ناتج عن التعرّف الصوتي ليطابق الاسم المعروف بالضبط (لا تخترع أسماء غير موجودة في القائمة).
-3) استخرج التواريخ المحددة لكل مهمة (YYYY-MM-DD). حوّل العبارات النسبية مثل "الأسبوع القادم" أو "يوم الثلاثاء" إلى تاريخ مطلق بالاعتماد على تاريخ الاجتماع المرجعي.
-4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة، أو كانت مجرد اقتراح/سؤال) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين.
-5) تعرّف على نوايا الجدولة: عبارات مثل "لنجتمع الثلاثاء القادم" أو "حدد اجتماع متابعة" يجب أن تُنتج عنصراً في scheduling_intents بتاريخ ووقت مطلقين متى أمكن.
+3) استخرج التواريخ المحددة لكل مهمة (YYYY-MM-DD). حوّل العبارات النسبية مثل "الأسبوع القادم" أو "يوم الثلاثاء" إلى تاريخ مطلق بالاعتماد **دائماً** على تاريخ الاجتماع المرجعي المزوّد أعلاه، وليس على أي تاريخ آخر قد يذكره أحد المتحدثين شفهياً ضمن النص (فقد يكون خطأ من المتحدث أو من التفريغ الصوتي؛ التاريخ المرجعي المزوّد في البيانات الوصفية هو المصدر الموثّق والمعتمد لحساب كل التواريخ النسبية).
+4) إن لم تكن متأكداً من مهمة (مسؤول غير واضح، أو لا تاريخ، أو صياغة غامضة، أو كانت مجرد اقتراح/سؤال) فلا تتجاهلها إطلاقاً — أدرجها واضبط needs_review=true مع review_reason يوضح سبب عدم اليقين. ينطبق هذا أيضاً إذا تعارض اسم اليوم المذكور مع التاريخ الصريح المذكور معه (مثال: "الجمعة القادمة الموافق أول أغسطس" بينما أول أغسطس ليس يوم جمعة فعلياً) — في هذه الحالة استخدم التاريخ الرقمي الصريح كنتيجة، لكن اضبط needs_review=true مع review_reason يوضح التناقض بين اسم اليوم والتاريخ حتى يراجعه إنسان.
+   لا تدمج بندين نوقشا في سياقين منفصلين ضمن مهمة واحدة إلا إذا ربط المتحدث بينهما صراحة في نفس الجملة أو السياق المباشر.
+5) تعرّف على نوايا الجدولة: عبارات مثل "لنجتمع الثلاثاء القادم" أو "حدد اجتماع متابعة" يجب أن تُنتج عنصراً في scheduling_intents بتاريخ ووقت مطلقين متى أمكن، محسوبين أيضاً من تاريخ الاجتماع المرجعي المزوّد أعلاه (نفس قاعدة البند 3)، وبنفس منطق رصد تعارض اسم اليوم مع التاريخ الصريح إن وُجد.
 6) إذا كان النص يحتوي على بوادئ بالشكل [اسم]: فهذه علامات متحدث فعلية مُعيَّنة يدوياً من المنسّق — اعتمد عليها مصدراً رئيسياً لحقل speaker_transcript وللنسب الصحيحة للمهام.
 7) استخرج المخاطر والتحديات: أي تهديد أو عائق أو قلق ذُكر صراحةً أو استُنتج من السياق. صنّف الخطورة: high (يهدد الهدف الرئيسي أو الجدول الزمني)، medium (يعيق التنفيذ ويحتاج متابعة)، low (ملاحظة احترازية). أضف تدابير تخفيف موجزة. إذا لم تكن هناك مخاطر واضحة أعِد مصفوفة فارغة.
 
@@ -201,6 +202,8 @@ function buildArabicMinutesPrompt(memberNames, meetingDate) {
 - صحّح تلقائياً وبصمت الركاكة الناتجة عن التفريغ الصوتي (تكرار كلمات، جمل غير مكتملة، حشو لفظي مثل "يعني"، "امم") دون تغيير المعنى أو اختلاق أي معلومة غير واردة في النص.
 - استخدم علامات الترقيم العربية الصحيحة وفقرات قصيرة وواضحة — لا تكتب فقرة واحدة ضخمة تجمع كل شيء.
 - طابق أي اسم شخص مذكور مع أقرب اسم من قائمة الأعضاء أعلاه وصحّح خطأه الإملائي إن وُجد.
+- احتفظ بأي اسم شخص صريح ورد في النص حتى لو لم يكن ضمن قائمة الأعضاء أعلاه (كطرف خارجي أو جهة ثالثة ذُكرت بالاسم) — لا تستبدله بوصف عام للدور بدلاً من اسمه.
+- لا ترفع درجة القطعية في الملخص التنفيذي أعلى مما يعكسه سرد المناقشة الفعلي: استخدم صيغة القطع ("تقرر"، "اعتمد المجلس"، "تمت الموافقة على") فقط عند وجود إشارة صريحة في النص إلى اعتماد أو موافقة نهائية، واستخدم صيغة مخففة ("نوقش"، "اقتُرح"، "قيد المراجعة"، "بانتظار التأكيد") لأي بند لا يزال مقترحاً أو غير نهائي أو بانتظار موافقة طرف آخر. يجب ألا يتعارض الملخص التنفيذي مع تفاصيل المناقشة من حيث درجة القطعية.
 - عند غياب معلومة (كتحديد الحضور أو موعد الاجتماع القادم) اكتب "غير محدد في النص" أو مصفوفة فارغة بدلاً من اختلاقها إطلاقاً.
 
 أعد JSON فقط بدون أي شرح خارج JSON، بالبنية التالية:
@@ -233,6 +236,8 @@ Mandatory writing rules:
 - Silently and automatically correct speech-to-text artifacts (repeated words, incomplete sentences, verbal filler like "um", "you know") without changing meaning or inventing any information not present in the transcript.
 - Use correct punctuation and short, clear paragraphs — never one large undifferentiated paragraph.
 - Match any person mentioned to the closest name in the member list above and correct minor misspellings.
+- Preserve every person explicitly named in the transcript even if they are not on the member list above (e.g. an external third party mentioned by name) — never replace their name with a generic role description.
+- Never state an item with more certainty than the discussion narrative actually supports: use decisive language ("It was resolved...", "The Board approved...", "It was decided...") only when the transcript contains an explicit ratification or final-approval signal, and use hedged language ("was discussed", "was proposed", "is pending confirmation", "under review") for anything still tentative, proposed, or awaiting another party's sign-off. The executive summary must never contradict the discussion section on how final/settled an item is.
 - When information is missing (e.g. a specific attendee list, next meeting date), write "Not specified in the transcript" or an empty array rather than inventing it.
 
 Return JSON only, no explanation outside the JSON, with this exact structure:
