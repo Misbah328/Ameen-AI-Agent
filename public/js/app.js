@@ -234,7 +234,7 @@ const ROLE_ACCESS = {
     "series",
     "team",
     "overview",
-    "analytics",
+    "analytics", "activity",
     "governance",
     "admin",
   ]),
@@ -250,7 +250,7 @@ const ROLE_ACCESS = {
     "series",
     "team",
     "overview",
-    "analytics",
+    "analytics", "activity",
     "governance",
   ]),
   "Board Member": new Set([
@@ -263,7 +263,7 @@ const ROLE_ACCESS = {
     "schedule",
     "series",
     "overview",
-    "analytics",
+    "analytics", "activity",
     "governance",
   ]),
   "Committee Member": new Set([
@@ -287,7 +287,7 @@ const ROLE_ACCESS = {
     "schedule",
     "series",
     "overview",
-    "analytics",
+    "analytics", "activity",
   ]),
   Manager: new Set([
     "record",
@@ -300,30 +300,30 @@ const ROLE_ACCESS = {
     "series",
     "team",
     "overview",
-    "analytics",
+    "analytics", "activity",
   ]),
   Employee: new Set(["overview", "record", "transcripts", "history", "tasks", "ask"]),
   Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
   // ── Phase 4 enterprise RBAC roles ──────────────────────────────────────────
   "Super Admin": new Set([
     "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
-    "documents", "schedule", "series", "team", "overview", "analytics",
+    "documents", "schedule", "series", "team", "overview", "analytics", "activity",
     "governance", "admin",
   ]),
   "Organization Admin": new Set([
     "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
-    "documents", "schedule", "series", "team", "overview", "analytics",
+    "documents", "schedule", "series", "team", "overview", "analytics", "activity",
     "governance", "admin",
   ]),
   "Board Secretary": new Set([
     "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
-    "documents", "schedule", "series", "overview", "analytics", "governance",
+    "documents", "schedule", "series", "overview", "analytics", "activity", "governance",
   ]),
   "Committee Chair": new Set([
     "transcripts", "history", "tasks", "ask", "documents", "schedule",
     "series", "overview", "governance",
   ]),
-  Auditor: new Set(["transcripts", "history", "lastmeeting", "tasks", "overview", "analytics"]),
+  Auditor: new Set(["transcripts", "history", "lastmeeting", "tasks", "overview", "analytics", "activity"]),
   Guest: new Set(["overview", "transcripts", "history", "lastmeeting"]),
 };
 
@@ -891,6 +891,9 @@ const Panels = {
         break;
       case "analytics":
         await renderAnalytics();
+        break;
+      case "activity":
+        await Activity.render();
         break;
       case "team":
         await Team.load();
@@ -6354,6 +6357,62 @@ const NotificationCenter = {
       await this.render();
       this.refreshBadge();
     } catch (e) {}
+  },
+};
+
+// ── Organization-wide Activity Timeline — GET /api/activity, a live merge of
+// meeting lifecycle, minutes approval, task, and governance history the
+// backend already logs for its own reasons. See src/routes/api.js for the
+// exact sources; there is no separate frontend data model to keep in sync.
+const Activity = {
+  _search: "",
+  _category: "",
+
+  setSearch(v) {
+    this._search = v;
+    clearTimeout(this._debounce);
+    this._debounce = setTimeout(() => this.render(), 300);
+  },
+  setCategory(v) {
+    this._category = v;
+    this.render();
+  },
+
+  async render() {
+    const l = App.lang;
+    const body = $("activity-body");
+    if (!body) return;
+    body.innerHTML = `<div class="es"><div class="loading"></div></div>`;
+    const params = new URLSearchParams({ limit: "150" });
+    if (this._search) params.set("q", this._search);
+    let data;
+    try {
+      data = await api(`/api/activity?${params}`);
+    } catch (e) {
+      body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+      return;
+    }
+    let items = data.activity || [];
+    if (this._category) items = items.filter((i) => i.category === this._category);
+    if (!items.length) {
+      body.innerHTML = `<div class="es"><div style="font-size:32px;margin-bottom:8px">🕘</div><div>${l === "ar" ? "لا يوجد نشاط بعد" : "No activity yet"}</div></div>`;
+      return;
+    }
+    const CAT_ICON = { meetings: "📁", tasks: "📋", governance: "⚖️" };
+    const timeStr = (ts) => (ts || "").substring(0, 16).replace(" ", " · ");
+    const rows = items.map((e) => {
+      const title = l === "ar" ? e.title_ar : e.title_en || e.title_ar;
+      const body_ = l === "ar" ? e.body_ar : e.body_en || e.body_ar;
+      return `<div class="trow" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--border3)">
+        <span style="font-size:16px;flex-shrink:0;margin-top:2px">${CAT_ICON[e.category] || "•"}</span>
+        <div style="min-width:0;flex:1">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text)">${esc(title)}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(body_ || "")}</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:4px">${e.actor_name ? esc(e.actor_name) + " · " : ""}${timeStr(e.created_at)}</div>
+        </div>
+      </div>`;
+    }).join("");
+    body.innerHTML = `<div class="card" style="padding:0;overflow:hidden">${rows}</div>`;
   },
 };
 

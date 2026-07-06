@@ -2753,4 +2753,162 @@ router.post('/notifications/read-all', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Organization-wide Activity Timeline ──────────────────────────────────────
+// Every entry here comes from a table the product already writes to for its
+// own reasons (lifecycle tracking, approval audit, progress notes, RBAC
+// audit) — nothing is fabricated. "Report generated" from the Stage 2 spec
+// is deliberately absent: report/PDF generation is synchronous and streamed
+// straight back to the requester, there is no persisted record of it to
+// surface here.
+const MEETING_STAGE_LABELS = {
+  created: { ar: 'تم إنشاء الاجتماع', en: 'Meeting created' },
+  invited: { ar: 'تمت دعوة الحضور', en: 'Attendees invited' },
+  scheduled: { ar: 'تمت جدولة الاجتماع', en: 'Meeting scheduled' },
+  recording: { ar: 'بدأ تسجيل الاجتماع', en: 'Meeting recording started' },
+  uploaded: { ar: 'تم رفع التسجيل/النص', en: 'Recording/transcript uploaded' },
+  transcript_generated: { ar: 'تم توليد النص الحرفي', en: 'Transcript generated' },
+  ai_minutes_generated: { ar: 'تم توليد ملخص الذكاء الاصطناعي', en: 'AI summary generated' },
+  secretary_review: { ar: 'قيد مراجعة الأمانة', en: 'Under secretary review' },
+  chairman_approval: { ar: 'اعتماد الرئيس', en: 'Chairman approval' },
+  board_approval: { ar: 'الاعتماد النهائي للمجلس', en: 'Final board approval' },
+  archived: { ar: 'تمت أرشفة الاجتماع', en: 'Meeting archived' },
+};
+
+router.get('/activity', auth, requirePermission('reports.view'), (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const q = (req.query.q || '').trim().toLowerCase();
+  const canSeeAdmin = rbacService.hasPermission(db, req.user.id, 'admin.users');
+
+  const entries = [];
+
+  // chairman_approval/board_approval are excluded here — both are always
+  // paired 1:1 with a minutes_approval_log 'approved'/'final_approved' row
+  // written by the same route handler, which already covers them below with
+  // clearer wording. Without this filter every approval would show twice.
+  for (const row of db.prepare(`
+    SELECT l.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en
+    FROM meeting_lifecycle_log l LEFT JOIN meetings m ON m.id = l.meeting_id
+    WHERE l.to_stage NOT IN ('chairman_approval', 'board_approval')
+    ORDER BY l.created_at DESC LIMIT 300
+  `).all()) {
+    const label = MEETING_STAGE_LABELS[row.to_stage] || { ar: row.to_stage, en: row.to_stage };
+    const meetingTitle = row.meeting_title_ar || row.meeting_title_en || `#${row.meeting_id}`;
+    entries.push({
+      type: row.to_stage === 'ai_minutes_generated' ? 'ai_summary_generated' : 'meeting_lifecycle',
+      category: 'meetings',
+      title_ar: label.ar, title_en: label.en,
+      body_ar: meetingTitle, body_en: row.meeting_title_en || row.meeting_title_ar || `#${row.meeting_id}`,
+      actor_name: row.actor_name, created_at: row.created_at,
+      source_type: 'meeting', source_id: row.meeting_id,
+    });
+  }
+
+  for (const row of db.prepare(`
+    SELECT a.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en
+    FROM minutes_approval_log a LEFT JOIN meetings m ON m.id = a.meeting_id
+    WHERE a.action IN ('approved', 'final_approved', 'circulated', 'revision_requested')
+    ORDER BY a.created_at DESC LIMIT 300
+  `).all()) {
+    const ACTION_LABELS = {
+      approved: { ar: 'اعتماد محضر الاجتماع', en: 'Meeting minutes approved' },
+      final_approved: { ar: 'اعتماد نهائي لمحضر الاجتماع', en: 'Minutes given final approval' },
+      circulated: { ar: 'تعميم محضر الاجتماع للمراجعة', en: 'Minutes circulated for review' },
+      revision_requested: { ar: 'طلب تعديل على المحضر', en: 'Revision requested on minutes' },
+    };
+    const label = ACTION_LABELS[row.action];
+    const meetingTitle = row.meeting_title_ar || row.meeting_title_en || `#${row.meeting_id}`;
+    entries.push({
+      type: 'minutes_' + row.action,
+      category: 'governance',
+      title_ar: label.ar, title_en: label.en,
+      body_ar: meetingTitle, body_en: row.meeting_title_en || row.meeting_title_ar || `#${row.meeting_id}`,
+      actor_name: row.actor_name, created_at: row.created_at,
+      source_type: 'meeting', source_id: row.meeting_id,
+    });
+  }
+
+  for (const row of db.prepare(`
+    SELECT id, task_id, author_name, update_text, status_snapshot, created_at FROM task_updates
+    ORDER BY created_at DESC LIMIT 300
+  `).all()) {
+    entries.push({
+      type: 'task_update',
+      category: 'tasks',
+      title_ar: 'تحديث على مهمة تنفيذية', title_en: 'Executive task update',
+      body_ar: row.update_text, body_en: row.update_text,
+      actor_name: row.author_name, created_at: row.created_at,
+      source_type: 'task', source_id: row.task_id,
+    });
+  }
+
+  for (const row of db.prepare(`
+    SELECT id, text_ar, text_en, owner_name_ar, owner_name_en, assigned_at
+    FROM tasks WHERE assigned_at IS NOT NULL ORDER BY assigned_at DESC LIMIT 300
+  `).all()) {
+    entries.push({
+      type: 'task_assigned',
+      category: 'tasks',
+      title_ar: 'تم تعيين مهمة تنفيذية', title_en: 'Executive task assigned',
+      body_ar: `${row.text_ar || row.id} ← ${row.owner_name_ar || ''}`,
+      body_en: `${row.text_en || row.text_ar || row.id} ← ${row.owner_name_en || row.owner_name_ar || ''}`,
+      actor_name: null, created_at: row.assigned_at,
+      source_type: 'task', source_id: row.id,
+    });
+  }
+
+  for (const row of db.prepare(`
+    SELECT id, text_ar, text_en, owner_name_ar, owner_name_en, updated_at
+    FROM tasks WHERE status='done' ORDER BY updated_at DESC LIMIT 300
+  `).all()) {
+    entries.push({
+      type: 'task_completed',
+      category: 'tasks',
+      title_ar: 'تم إنجاز مهمة تنفيذية', title_en: 'Executive task completed',
+      body_ar: `${row.text_ar || row.id} — ${row.owner_name_ar || ''}`,
+      body_en: `${row.text_en || row.text_ar || row.id} — ${row.owner_name_en || row.owner_name_ar || ''}`,
+      actor_name: null, created_at: row.updated_at,
+      source_type: 'task', source_id: row.id,
+    });
+  }
+
+  for (const row of db.prepare(`SELECT id, title, created_at FROM resolutions ORDER BY created_at DESC LIMIT 200`).all()) {
+    entries.push({
+      type: 'resolution_created',
+      category: 'governance',
+      title_ar: 'إضافة قرار جديد', title_en: 'New resolution added',
+      body_ar: row.title, body_en: row.title,
+      actor_name: null, created_at: row.created_at,
+      source_type: 'resolution', source_id: row.id,
+    });
+  }
+
+  if (canSeeAdmin) {
+    const AUDIT_ACTION_LABELS = {
+      grant: { ar: 'منح صلاحية', en: 'Permission granted' },
+      revoke: { ar: 'سحب صلاحية', en: 'Permission revoked' },
+    };
+    for (const row of db.prepare(`SELECT * FROM permission_audit_log ORDER BY created_at DESC LIMIT 200`).all()) {
+      const label = AUDIT_ACTION_LABELS[row.action] || { ar: 'تعديل صلاحيات', en: 'Permissions updated' };
+      entries.push({
+        type: 'permission_' + row.action,
+        category: 'governance',
+        title_ar: label.ar, title_en: label.en,
+        body_ar: row.role_key, body_en: row.role_key,
+        actor_name: row.actor_name, created_at: row.created_at,
+        source_type: 'role', source_id: row.role_id,
+      });
+    }
+  }
+
+  entries.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  const filtered = q
+    ? entries.filter((e) =>
+        (e.title_ar || '').toLowerCase().includes(q) || (e.title_en || '').toLowerCase().includes(q) ||
+        (e.body_ar || '').toLowerCase().includes(q) || (e.body_en || '').toLowerCase().includes(q) ||
+        (e.actor_name || '').toLowerCase().includes(q))
+    : entries;
+
+  res.json({ activity: filtered.slice(0, limit) });
+});
+
 module.exports = router;

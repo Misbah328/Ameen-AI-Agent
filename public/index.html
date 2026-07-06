@@ -155,6 +155,10 @@
     <span class="nb-icon">📊</span>
     <span class="nb-label" data-ar="التحليلات" data-en="Analytics">التحليلات</span>
   </button>
+  <button class="nb" data-p="activity">
+    <span class="nb-icon">🕘</span>
+    <span class="nb-label" data-ar="سجل النشاط" data-en="Activity Timeline">سجل النشاط</span>
+  </button>
   <button class="nb" data-p="integrations">
     <span class="nb-icon">🔗</span>
     <span class="nb-label" data-ar="مركز التكاملات" data-en="Integration Center">مركز التكاملات</span>
@@ -994,6 +998,31 @@
     </div>
   </div>
   <div class="pbody" id="analytics-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
+<!-- ══ ACTIVITY TIMELINE ══════════════════════════════════════ -->
+<section class="panel" id="panel-activity">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="سجل النشاط" data-en="Activity Timeline">سجل النشاط</div>
+        <div class="ptitle-sub" data-ar="كل حدث تنظيمي — اجتماعات، محاضر، مهام، حوكمة — في مكان واحد" data-en="Every organizational event — meetings, minutes, tasks, governance — in one place">كل حدث تنظيمي — اجتماعات، محاضر، مهام، حوكمة — في مكان واحد</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="Activity.render()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+    <div class="ph-row" style="margin-top:10px">
+      <input class="fi" id="activity-search" data-ph-ar="ابحث في سجل النشاط..." data-ph-en="Search activity..." placeholder="ابحث في سجل النشاط..." style="max-width:280px" oninput="Activity.setSearch(this.value)"/>
+      <select class="fi" id="activity-category" style="max-width:200px" onchange="Activity.setCategory(this.value)">
+        <option value="" data-ar="كل الفئات" data-en="All Categories">كل الفئات</option>
+        <option value="meetings" data-ar="📁 الاجتماعات" data-en="📁 Meetings">📁 الاجتماعات</option>
+        <option value="tasks" data-ar="📋 المهام" data-en="📋 Tasks">📋 المهام</option>
+        <option value="governance" data-ar="⚖️ الحوكمة" data-en="⚖️ Governance">⚖️ الحوكمة</option>
+      </select>
+    </div>
+  </div>
+  <div class="pbody" id="activity-body">
     <div class="es"><div class="loading"></div></div>
   </div>
 </section>
