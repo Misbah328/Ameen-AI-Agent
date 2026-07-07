@@ -614,21 +614,38 @@ router.get('/meetings/:id/full', auth, (req, res) => {
 });
 
 router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) => {
-  const { title_ar, title_en, transcript, duration, meeting_type } = req.body;
+  const {
+    title_ar, title_en, transcript, duration, meeting_type,
+    board_id, committee_id, series_id, new_series, prev_meeting_id, meeting_date,
+    platform, organizer_id, purpose_ar, purpose_en, expected_decisions, expected_actions,
+  } = req.body;
+  const resolvedSeriesId = (series_id || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
   const row = db.prepare(`
-    INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '');
+    INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type,
+      board_id, committee_id, series_id, prev_meeting_id, meeting_date, platform, organizer_id,
+      purpose_ar, purpose_en, expected_decisions, expected_actions)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?)
+  `).run(
+    title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '',
+    board_id || null, committee_id || null, resolvedSeriesId || null, prev_meeting_id || null, meeting_date || null,
+    platform || '', organizer_id || req.user.id, purpose_ar || '', purpose_en || '',
+    JSON.stringify(Array.isArray(expected_decisions) ? expected_decisions : []),
+    JSON.stringify(Array.isArray(expected_actions) ? expected_actions : []),
+  );
   const actor = resolveActor(req.user.id);
   db.prepare(
     `INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
      VALUES (?, NULL, 'created', ?, ?, 'Meeting created')`
   ).run(row.lastInsertRowid, req.user.id, actor.name);
-  res.json({ id: row.lastInsertRowid });
+  res.json(db.prepare('SELECT * FROM meetings WHERE id=?').get(row.lastInsertRowid));
 });
 
 router.patch('/meetings/:id', auth, requirePermission('meetings.edit'), (req, res) => {
-  const { transcript, duration, title_ar, title_en, meeting_type, source_type, series_id, new_series } = req.body;
+  const {
+    transcript, duration, title_ar, title_en, meeting_type, source_type, series_id, new_series,
+    board_id, committee_id, prev_meeting_id, meeting_date, platform, organizer_id,
+    purpose_ar, purpose_en, expected_decisions, expected_actions,
+  } = req.body;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
 
@@ -641,10 +658,25 @@ router.patch('/meetings/:id', auth, requirePermission('meetings.edit'), (req, re
   const newSeriesId = (series_id !== undefined || new_series)
     ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id)
     : meeting.series_id;
+  const newBoardId = board_id !== undefined ? (board_id || null) : meeting.board_id;
+  const newCommitteeId = committee_id !== undefined ? (committee_id || null) : meeting.committee_id;
+  const newPrevMeetingId = prev_meeting_id !== undefined ? (prev_meeting_id || null) : meeting.prev_meeting_id;
+  const newMeetingDate = meeting_date !== undefined ? (meeting_date || meeting.meeting_date) : meeting.meeting_date;
+  const newPlatform = platform !== undefined ? platform : meeting.platform;
+  const newOrganizerId = organizer_id !== undefined ? (organizer_id || null) : meeting.organizer_id;
+  const newPurposeAr = purpose_ar !== undefined ? purpose_ar : meeting.purpose_ar;
+  const newPurposeEn = purpose_en !== undefined ? purpose_en : meeting.purpose_en;
+  const newExpectedDecisions = expected_decisions !== undefined ? JSON.stringify(Array.isArray(expected_decisions) ? expected_decisions : []) : meeting.expected_decisions;
+  const newExpectedActions = expected_actions !== undefined ? JSON.stringify(Array.isArray(expected_actions) ? expected_actions : []) : meeting.expected_actions;
 
   db.transaction(() => {
-    db.prepare('UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=?, source_type=?, series_id=? WHERE id=?')
-      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, newSourceType, newSeriesId, req.params.id);
+    db.prepare(`UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=?, source_type=?, series_id=?,
+        board_id=?, committee_id=?, prev_meeting_id=?, meeting_date=?, platform=?, organizer_id=?,
+        purpose_ar=?, purpose_en=?, expected_decisions=?, expected_actions=?
+      WHERE id=?`)
+      .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, newSourceType, newSeriesId,
+        newBoardId, newCommitteeId, newPrevMeetingId, newMeetingDate, newPlatform, newOrganizerId,
+        newPurposeAr, newPurposeEn, newExpectedDecisions, newExpectedActions, req.params.id);
 
     // Keep denormalized titles in tasks & decisions in sync
     if (title_ar !== undefined || title_en !== undefined) {
@@ -1467,6 +1499,23 @@ router.get('/decisions', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM decisions ORDER BY created_at DESC').all());
 });
 
+// Manually record a decision — used by the Live Meeting Quick Action "Add
+// Decision" (AI-extracted decisions from processed transcripts go through the
+// pipeline instead; this is for a decision the chair wants captured on the spot).
+router.post('/decisions', auth, (req, res) => {
+  const canTouch = ['actions.view', 'actions.update', 'actions.assign', 'actions.close']
+    .some((k) => rbacService.hasPermission(db, req.user.id, k));
+  if (!canTouch) return res.status(403).json({ error: 'Not permitted to record decisions' });
+  const { text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en, decided_by, notes } = req.body;
+  if (!text_ar) return res.status(400).json({ error: 'text_ar required' });
+  const actor = resolveActor(req.user.id);
+  const row = db.prepare(`
+    INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en, decided_by, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(text_ar, text_en || text_ar, meeting_id || null, meeting_title_ar || '', meeting_title_en || '', decided_by || actor.name || '', notes || '');
+  res.json(db.prepare('SELECT * FROM decisions WHERE id=?').get(row.lastInsertRowid));
+});
+
 router.patch('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {
   db.prepare('UPDATE decisions SET status=? WHERE id=?').run(req.body.status, req.params.id);
   res.json({ success: true });
@@ -1527,7 +1576,7 @@ function addNPeriods(originDateStr, recurrence, n) {
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
 
 router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
     return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
@@ -1544,17 +1593,17 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
   const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[prov] || (platform || 'قاعة الاجتماعات');
   const resolvedSeriesId = resolveOrCreateSeriesId({ series_id, new_series }, req.user.id);
   const insertSched = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const dur = duration_mins || 60;
   let row;
   db.transaction(() => {
-    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', source_meeting_id || null);
     if (rec !== 'none') {
       for (let i = 1; i <= 3; i++) {
         const nextDate = addNPeriods(meeting_date, rec, i);
-        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '');
+        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', null);
       }
     }
   })();
@@ -1685,6 +1734,9 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
       transcript_provider !== undefined ? (transcript_provider || '') : null,
       req.params.id
     );
+  if (req.body.source_meeting_id !== undefined) {
+    db.prepare('UPDATE schedule SET source_meeting_id=? WHERE id=?').run(req.body.source_meeting_id || null, req.params.id);
+  }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
 });
 
@@ -2260,6 +2312,50 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
     transitionMeeting(meetingId, 'scheduled', req.user.id, 'Meeting date/time confirmed');
   }
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(meetingId));
+});
+
+// Replace the agenda for a meeting — used by the Create Meeting wizard's Agenda
+// step and by the Meeting Workspace's Agenda tab. Mirrors the bulk-replace
+// pattern used by /attendees above.
+router.post('/meetings/:id/agenda', auth, requirePermission('meetings.edit'), (req, res) => {
+  const meetingId = req.params.id;
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(meetingId);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const list = Array.isArray(req.body.agenda) ? req.body.agenda : [];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM agenda_items WHERE meeting_id=?').run(meetingId);
+    const ins = db.prepare(`INSERT INTO agenda_items
+      (meeting_id, title, title_ar, title_en, description_ar, description_en, presenter, expected_outcome_ar, expected_outcome_en, duration_mins, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    list.forEach((item, i) => {
+      const titleAr = (item.title_ar || '').trim();
+      const titleEn = (item.title_en || '').trim();
+      if (!titleAr && !titleEn) return;
+      ins.run(meetingId, titleAr || titleEn, titleAr, titleEn || titleAr,
+        item.description_ar || '', item.description_en || '', item.presenter || '',
+        item.expected_outcome_ar || '', item.expected_outcome_en || '', item.duration_mins || 15, i);
+    });
+  });
+  tx();
+  res.json(db.prepare('SELECT * FROM agenda_items WHERE meeting_id=? ORDER BY sort_order ASC, id ASC').all(meetingId));
+});
+
+// Append a manual, unowned note captured during a live meeting (Quick Action:
+// Add Note). Stored separately from tasks/decisions so live facilitation
+// scratch notes don't clutter the Executive Actions tracker.
+router.post('/meetings/:id/notes', auth, (req, res) => {
+  const meetingId = req.params.id;
+  const meeting = db.prepare('SELECT live_notes FROM meetings WHERE id=?').get(meetingId);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const text = (req.body.text || '').toString().trim();
+  if (!text) return res.status(400).json({ error: 'text is required' });
+  let notes = [];
+  try { notes = JSON.parse(meeting.live_notes || '[]'); } catch {}
+  const actor = resolveActor(req.user.id);
+  const note = { text, by: req.user.id, by_name: actor.name, at: sqlNow() };
+  notes.push(note);
+  db.prepare('UPDATE meetings SET live_notes=? WHERE id=?').run(JSON.stringify(notes), meetingId);
+  res.json(note);
 });
 
 // ── Share meeting outcomes to selected attendees (PRO) ─────────────────────

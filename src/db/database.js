@@ -222,6 +222,18 @@ ensureColumn('meetings', 'recording_scope',        "TEXT DEFAULT 'unknown'");
 ensureColumn('meetings', 'recording_status',       "TEXT DEFAULT 'not_started'");
 ensureColumn('meetings', 'recording_notes',        "TEXT DEFAULT ''");
 
+// ── Meeting lifecycle redesign columns (Create Meeting → Scheduled → Live →
+// Workspace) — the meetings row already carries lifecycle_stage end to end,
+// these just fill in the planning-stage fields the old bare title-only
+// creation form never captured. ─────────────────────────────────────────────
+ensureColumn('meetings', 'platform', "TEXT DEFAULT ''");
+ensureColumn('meetings', 'organizer_id', 'INTEGER');
+ensureColumn('meetings', 'purpose_ar', "TEXT DEFAULT ''");
+ensureColumn('meetings', 'purpose_en', "TEXT DEFAULT ''");
+ensureColumn('meetings', 'expected_decisions', "TEXT DEFAULT '[]'");
+ensureColumn('meetings', 'expected_actions', "TEXT DEFAULT '[]'");
+ensureColumn('meetings', 'live_notes', "TEXT DEFAULT '[]'");
+
 // Minutes approval audit log
 db.exec(`
   CREATE TABLE IF NOT EXISTS minutes_approval_log (
@@ -1229,6 +1241,63 @@ if (!db.prepare("SELECT value FROM settings WHERE key='v22_demo_expansion_seeded
 
     db.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES ('v22_demo_expansion_seeded','1')").run();
     console.log('✓ Enterprise demo data expansion seeded (schedule spread, task variety, user departments)');
+  }
+}
+
+// ── Meeting lifecycle redesign demo data ──────────────────────────────────────
+// The Create Meeting → Scheduled → Live → Workspace flow needs one realistic
+// example of each state on first login. Existing seed data already covers
+// "scheduled" (the schedule rows above) and "completed with AI minutes +
+// actions" (the processed demo meetings + series meetings below) — the one
+// state missing is a meeting actually in progress right now, so the Live
+// Meetings screen isn't empty on a fresh install.
+if (!db.prepare("SELECT value FROM settings WHERE key='v_meetings_redesign_seeded'").get()) {
+  const allUsers = db.prepare('SELECT id, name_ar, name_en FROM users ORDER BY id').all();
+  if (allUsers.length) {
+    const organizer = allUsers[0];
+    const boardId = db.prepare("SELECT id FROM boards WHERE name_en LIKE '%Board of Directors%' ORDER BY id LIMIT 1").get()?.id || null;
+    const liveTranscript = [
+      'Fahad Al-Rasheed: Let\'s review the proposed budget for Q3.',
+      'Sarah Al-Hammadi: The total proposed budget is 480 million SAR...',
+      'Ahmed Al-Mutairi: What is the expected ROI on the new initiatives?',
+      'Sarah Al-Hammadi: We expect 18% ROI based on our projections...',
+    ].join('\n');
+    const meetingRow = db.prepare(`
+      INSERT INTO meetings (title_ar, title_en, transcript, recorded_by, meeting_type, board_id, organizer_id,
+        purpose_ar, purpose_en, platform, source_type, lifecycle_stage, lifecycle_updated_at,
+        recording_status, recording_started_by, recording_started_at, recording_capture_type, recording_scope,
+        meeting_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', 'recording', CURRENT_TIMESTAMP,
+        'recording', ?, CURRENT_TIMESTAMP, 'browser_microphone', 'local_microphone_only',
+        CURRENT_TIMESTAMP)
+    `).run(
+      'اجتماع مجلس الإدارة الربعي — اعتماد الميزانية', 'Q3 Board Meeting — Budget Ratification',
+      liveTranscript, organizer.id, 'Board Meeting', boardId, organizer.id,
+      'مناقشة واعتماد ميزانية الربع الثالث', 'Discuss and ratify the proposed Q3 budget', 'Board Room A',
+      organizer.id
+    );
+    const meetingId = meetingRow.lastInsertRowid;
+    db.prepare(
+      `INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+       VALUES (?, NULL, 'created', ?, ?, 'Meeting created'), (?, 'created', 'scheduled', ?, ?, 'Meeting date/time confirmed'), (?, 'scheduled', 'recording', ?, ?, 'Recording started')`
+    ).run(
+      meetingId, organizer.id, organizer.name_en || organizer.name_ar,
+      meetingId, organizer.id, organizer.name_en || organizer.name_ar,
+      meetingId, organizer.id, organizer.name_en || organizer.name_ar
+    );
+    const insAttendee = db.prepare(`INSERT INTO meeting_attendees (meeting_id, name, role, attendance_status) VALUES (?, ?, ?, 'present')`);
+    [[organizer.name_en || organizer.name_ar, 'Chair'], ['Sarah Al-Hammadi', 'CFO'], ['Ahmed Al-Mutairi', 'Board Member'], ['Khalid Al-Mansour', 'Board Member']]
+      .forEach(([name, role]) => insAttendee.run(meetingId, name, role));
+    db.prepare(`INSERT INTO agenda_items (meeting_id, title, title_ar, title_en, sort_order) VALUES
+      (?, 'Q3 Budget Review', 'مراجعة ميزانية الربع الثالث', 'Q3 Budget Review', 1),
+      (?, 'Capital Expenditure Plan', 'خطة الإنفاق الرأسمالي', 'Capital Expenditure Plan', 2),
+      (?, 'Hiring Plan Approval', 'اعتماد خطة التوظيف', 'Hiring Plan Approval', 3)`
+    ).run(meetingId, meetingId, meetingId);
+    db.prepare('INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, meeting_type, board_id, status, created_by, source_meeting_id) VALUES (?, ?, date(\'now\'), \'09:00\', 180, ?, ?, ?, ?, ?, ?, \'confirmed\', ?, ?)')
+      .run('اجتماع مجلس الإدارة الربعي — اعتماد الميزانية', 'Q3 Board Meeting — Budget Ratification', 'Board Room A', 'Fahad Al-Rasheed, Sarah Al-Hammadi, Ahmed Al-Mutairi, Khalid Al-Mansour', 'مراجعة ميزانية الربع الثالث', 'Q3 Budget Review', 'Board Meeting', boardId, organizer.id, meetingId);
+
+    db.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES ('v_meetings_redesign_seeded','1')").run();
+    console.log('✓ Meeting lifecycle redesign demo data seeded (1 live in-progress meeting)');
   }
 }
 
