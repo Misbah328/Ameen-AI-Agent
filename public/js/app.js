@@ -684,8 +684,16 @@ const App = {
       el.placeholder = l === "ar" ? el.dataset.phAr : el.dataset.phEn;
     });
 
-    // Ask Ameen hero + history sidebar
-    if (typeof AskUI !== "undefined") AskUI.onLangChange();
+    // Chat welcome
+    const wt = $("welcome-text");
+    const wts = $("welcome-ts");
+    if (wt) {
+      wt.textContent =
+        l === "ar"
+          ? "أنا أمين، مساعدكم التنفيذي الذكي. يمكنني تحليل الاجتماعات، متابعة المهام والقرارات، والإجابة على أي سؤال تنفيذي."
+          : "I'm Ameen, your executive AI. I can analyse meetings, track tasks and decisions, and answer any executive question.";
+    }
+    if (wts) wts.textContent = now();
 
     // Chat input
     const ci = $("ci");
@@ -6567,193 +6575,20 @@ const FavoritePrompts = {
   },
 };
 
-// ── Ask Ameen conversation log — append-only, frontend-only (localStorage),
-// independent of App.chatHistory (the live transcript, which "New Chat"
-// clears). Powers the history sidebar's Today/Yesterday/This Week/Earlier
-// grouping and search, so starting a new chat doesn't erase yesterday's
-// questions from the sidebar the way clearing chatHistory would.
-const ChatLog = {
-  key: "ameen_chat_log",
-  MAX: 200,
-  append(role, content) {
-    let list = this.list();
-    list.push({ role, content, ts: Date.now() });
-    if (list.length > this.MAX) list = list.slice(-this.MAX);
-    try {
-      localStorage.setItem(this.key, JSON.stringify(list));
-    } catch (e) {}
-  },
-  list() {
-    try {
-      const v = JSON.parse(localStorage.getItem(this.key) || "[]");
-      return Array.isArray(v) ? v : [];
-    } catch (e) {
-      return [];
-    }
-  },
-};
-
-// ══ Ask Ameen — empty-state hero (greeting + action cards + recommendations)
-// and the history sidebar. Every action card/recommendation either sends an
-// existing quick-prompt kind through Chat.quick() (same AI call as before,
-// only the visual entry point changed) or navigates to an existing panel —
-// no new endpoints, no AI/prompt changes.
-const AskUI = {
-  HERO_CARDS: [
-    { icon: "📋", ar: "تحضير اجتماع المجلس", en: "Prepare Board Meeting", action: "chat", kind: "draft_agenda", qAr: "ساعدني في صياغة جدول أعمال للاجتماع القادم", qEn: "Help me draft an agenda for the upcoming meeting" },
-    { icon: "📄", ar: "صياغة قرار", en: "Draft Resolution", action: "chat", kind: "draft_resolution", qAr: "ساعدني في صياغة نص قرار مجلس إدارة", qEn: "Help me draft a board resolution" },
-    { icon: "📈", ar: "ملخص تنفيذي", en: "Executive Summary", action: "chat", kind: "exec_summary", qAr: "أنشئ لي ملخصاً تنفيذياً لهذا الأسبوع", qEn: "Generate an executive summary for this week" },
-    { icon: "📅", ar: "جدولة اجتماع", en: "Schedule Meeting", action: "nav", panel: "schedule" },
-    { icon: "⚖", ar: "مراجعة الحوكمة", en: "Review Governance", action: "nav", panel: "governance" },
-    { icon: "📊", ar: "توليد تقرير مجلس", en: "Generate Board Report", action: "nav", panel: "documents" },
-  ],
-  RECOMMENDED: [
-    { ar: "تلخيص اجتماعات اليوم", en: "Summarize today's meetings", kind: "", qAr: "لخّص لي اجتماعات اليوم", qEn: "Summarize today's meetings for me" },
-    { ar: "مراجعة الإجراءات التنفيذية المتأخرة", en: "Review overdue executive actions", kind: "find_owner", qAr: "من هو المسؤول عن كل إجراء تنفيذي متأخر؟", qEn: "Who owns each overdue executive action?" },
-    { ar: "تحضير موجز اجتماع المجلس", en: "Prepare Board briefing", kind: "", qAr: "حضّر لي موجزاً لاجتماع المجلس القادم", qEn: "Prepare a briefing for my next board meeting" },
-    { ar: "مقارنة آخر اجتماعين للمجلس", en: "Compare last two Board meetings", kind: "compare_meetings", qAr: "قارن بين آخر اجتماعين لمجلس الإدارة من حيث القرارات والمهام", qEn: "Compare the last two board meetings in terms of decisions and tasks" },
-    { ar: "إيجاد القرارات غير المحسومة", en: "Find unresolved decisions", kind: "find_decisions", qAr: "ابحث عن القرارات — أرني القرارات المعلقة", qEn: "Find decisions — show me the pending decisions" },
-  ],
-  _query: "",
-
-  showHero() {
-    const hero = $("ask-hero");
-    if (!hero) return;
-    document.querySelectorAll("#chat-msgs > .msg, #chat-msgs > #chat-demo-note").forEach((el) => el.remove());
-    hero.style.display = "";
-    hero.innerHTML = this._heroHTML();
-  },
-  showTranscript() {
-    const hero = $("ask-hero");
-    if (hero) hero.style.display = "none";
-  },
-  onLangChange() {
-    const hero = $("ask-hero");
-    if (hero && hero.style.display !== "none") this.showHero();
-    this.renderHistory();
-  },
-
-  _heroHTML() {
-    const l = App.lang;
-    const lbl = (ar, en) => (l === "ar" ? ar : en);
-    const hour = new Date().getHours();
-    const greet = hour < 12 ? lbl("صباح الخير", "Good Morning") : hour < 18 ? lbl("مساء الخير", "Good Afternoon") : lbl("مساء الخير", "Good Evening");
-    const fullName = App.user ? (l === "ar" ? App.user.name_ar : App.user.name_en || App.user.name_ar) : "";
-    const firstName = (fullName || "").trim().split(/\s+/)[0] || "";
-
-    const card = (c) => {
-      const attrs = c.action === "chat" ? `data-kind="${c.kind}" data-q-ar="${esc(c.qAr)}" data-q-en="${esc(c.qEn)}" onclick="Chat.quick(this)"` : `onclick="Panels.load('${c.panel}')"`;
-      return `<button class="ask-card" ${attrs}>
-        <span class="ask-card-icon">${c.icon}</span>
-        <span class="ask-card-label">${l === "ar" ? c.ar : c.en}</span>
-      </button>`;
-    };
-    const rec = (r) => `<button class="ask-rec-row" data-kind="${r.kind}" data-q-ar="${esc(r.qAr)}" data-q-en="${esc(r.qEn)}" onclick="Chat.quick(this)">
-      <span class="ask-rec-dot">›</span><span>${l === "ar" ? r.ar : r.en}</span>
-    </button>`;
-
-    return `<div class="ask-hero-in">
-      <div class="ask-greet">
-        <div class="ask-greet-title">${greet}${firstName ? ", " + esc(firstName) : ""}.</div>
-        <div class="ask-greet-sub">${lbl("أنا جاهز لمساعدتك في أولوياتك التنفيذية اليوم.", "I'm ready to help you manage today's executive priorities.")}</div>
-      </div>
-      <div class="ask-cards">${this.HERO_CARDS.map(card).join("")}</div>
-      <div class="ask-rec">
-        <div class="ask-rec-title">${lbl("موصى به اليوم", "Recommended Today")}</div>
-        <div class="ask-rec-list">${this.RECOMMENDED.map(rec).join("")}</div>
-      </div>
-    </div>`;
-  },
-
-  toggleSidebar() {
-    $("ask-sidebar") && $("ask-sidebar").classList.toggle("open");
-    $("ask-backdrop") && $("ask-backdrop").classList.toggle("open");
-  },
-  closeSidebar() {
-    $("ask-sidebar") && $("ask-sidebar").classList.remove("open");
-    $("ask-backdrop") && $("ask-backdrop").classList.remove("open");
-  },
-  replay(text) {
-    $("ci").value = text;
-    Chat.send();
-    this.closeSidebar();
-  },
-
-  search(v) {
-    this._query = (v || "").trim();
-    this.renderHistory();
-  },
-  _bucketKey(ts) {
-    if (!ts) return "earlier";
-    const d = new Date(ts), now = new Date();
-    const day0 = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-    const diff = Math.round((day0(now) - day0(d)) / 86400000);
-    if (diff <= 0) return "today";
-    if (diff === 1) return "yesterday";
-    if (diff <= 7) return "week";
-    return "earlier";
-  },
-  renderHistory() {
-    const body = $("ask-history-body");
-    if (!body) return;
-    const l = App.lang;
-    const lbl = (ar, en) => (l === "ar" ? ar : en);
-    const q = this._query.toLowerCase();
-    const truncate = (s) => (s.length > 52 ? s.slice(0, 52) + "…" : s);
-    const row = (text) => `<button class="ask-hist-row" onclick="AskUI.replay(${esc(JSON.stringify(text))})" title="${esc(text)}">${esc(truncate(text))}</button>`;
-
-    const log = ChatLog.list();
-    const qas = [];
-    for (let i = 0; i < log.length; i++) {
-      if (log[i].role === "user") {
-        const answer = log[i + 1] && log[i + 1].role === "assistant" ? log[i + 1].content : "";
-        qas.push({ q: log[i].content, a: answer, ts: log[i].ts });
-      }
-    }
-    qas.reverse();
-    const filtered = q ? qas.filter((x) => x.q.toLowerCase().includes(q) || (x.a || "").toLowerCase().includes(q)) : qas;
-
-    let html = "";
-    if (q) {
-      html = filtered.length
-        ? `<div class="ask-hist-group"><div class="ask-hist-label">${lbl("نتائج البحث", "Search Results")}</div>${filtered.map((x) => row(x.q)).join("")}</div>`
-        : `<div class="ask-hist-empty">${lbl("لا نتائج", "No results")}</div>`;
-    } else {
-      const buckets = { today: [], yesterday: [], week: [], earlier: [] };
-      filtered.forEach((x) => buckets[this._bucketKey(x.ts)].push(x));
-      const group = (key, label) => (buckets[key].length ? `<div class="ask-hist-group"><div class="ask-hist-label">${label}</div>${buckets[key].map((x) => row(x.q)).join("")}</div>` : "");
-      html += group("today", lbl("اليوم", "Today"));
-      html += group("yesterday", lbl("أمس", "Yesterday"));
-      html += group("week", lbl("هذا الأسبوع", "This Week"));
-      html += group("earlier", lbl("سابقاً", "Earlier"));
-
-      const favs = FavoritePrompts.list();
-      if (favs.length) html += `<div class="ask-hist-group"><div class="ask-hist-label">⭐ ${lbl("المفضّلة", "Favorites")}</div>${favs.map(row).join("")}</div>`;
-
-      const recents = RecentSearches.list();
-      if (recents.length) html += `<div class="ask-hist-group"><div class="ask-hist-label">🕘 ${lbl("عمليات بحث حديثة", "Recent Searches")}</div>${recents.map(row).join("")}</div>`;
-
-      if (!html) html = `<div class="ask-hist-empty">${lbl("لا محادثات سابقة بعد", "No conversations yet")}</div>`;
-    }
-    body.innerHTML = html;
-  },
-};
-
 // ══ Chat ══════════════════════════════════════════════════════════════════════
 const Chat = {
   STORAGE_KEY: "ameen_chat_history",
+  _chipsHTML: null,
   async send(kind) {
     const inp = $("ci");
     const text = inp.value.trim();
     if (!text) return;
     inp.value = "";
     inp.style.height = "";
-    AskUI.showTranscript();
     this.append(text, true);
     this.showTyping();
     App.chatHistory.push({ role: "user", content: text });
     this.persist();
-    ChatLog.append("user", text);
     try {
       const r = await api("/api/ai/chat", {
         method: "POST",
@@ -6766,9 +6601,8 @@ const Chat = {
       this.append(r.reply, false);
       App.chatHistory.push({ role: "assistant", content: r.reply });
       this.persist();
-      ChatLog.append("assistant", r.reply);
       RecentSearches.log(text);
-      AskUI.renderHistory();
+      this.renderRecentSearches();
       if (r.demo) this.showDemoNote();
       if (kind) await this.appendSmartCards(kind);
     } catch (e) {
@@ -6800,27 +6634,47 @@ const Chat = {
     } catch (e) {}
   },
   restore() {
+    this.renderFavoritePrompts();
+    this.renderRecentSearches();
     let saved = [];
     try {
       saved = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || "[]");
     } catch (e) {
       saved = [];
     }
-    App.chatHistory = Array.isArray(saved) ? saved : [];
-    if (!App.chatHistory.length) {
-      AskUI.showHero();
-    } else {
-      AskUI.showTranscript();
-      App.chatHistory.forEach((m) => this.append(m.content, m.role === "user"));
-    }
-    AskUI.renderHistory();
+    if (!Array.isArray(saved) || !saved.length) return;
+    App.chatHistory = saved;
+    saved.forEach((m) => this.append(m.content, m.role === "user"));
   },
   clear() {
     App.chatHistory = [];
     try {
       localStorage.removeItem(this.STORAGE_KEY);
     } catch (e) {}
-    AskUI.showHero();
+    const m = $("chat-msgs");
+    if (m) {
+      if (this._chipsHTML === null) {
+        // Cache the whole static tail (favorites row + recent-searches row +
+        // suggested-action chips) once, so clearing the conversation doesn't
+        // also wipe these persistent, always-available shortcuts.
+        const fav = $("chat-favorite-prompts");
+        const recent = $("chat-recent-searches");
+        const chips = $("chat-chips");
+        this._chipsHTML = (fav ? fav.outerHTML : "") + (recent ? recent.outerHTML : "") + (chips ? chips.outerHTML : "");
+      }
+      m.innerHTML = "";
+      m.appendChild(buildWelcomeMsg());
+      if (this._chipsHTML) m.insertAdjacentHTML("beforeend", this._chipsHTML);
+      this.renderFavoritePrompts();
+      this.renderRecentSearches();
+    }
+  },
+  searchConversation(q) {
+    const query = (q || "").trim().toLowerCase();
+    document.querySelectorAll("#chat-msgs .msg").forEach((el) => {
+      if (el.id === "welcome-msg" || el.id === "chat-chips") return;
+      el.style.display = !query || el.textContent.toLowerCase().includes(query) ? "" : "none";
+    });
   },
   toggleFavorite(text, btn) {
     FavoritePrompts.toggle(text);
@@ -6829,7 +6683,35 @@ const Chat = {
       btn.textContent = isFav ? "★" : "☆";
       btn.style.color = isFav ? "var(--gold)" : "var(--text3)";
     }
-    AskUI.renderHistory();
+    this.renderFavoritePrompts();
+  },
+  renderFavoritePrompts() {
+    const el = $("chat-favorite-prompts");
+    if (!el) return;
+    const l = App.lang;
+    const favs = FavoritePrompts.list();
+    if (!favs.length) {
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML = `<div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px">⭐ ${l === "ar" ? "المفضّلة" : "Favorites"}</div>
+      <div class="qchips">
+        ${favs.map((f) => `<button class="qc" onclick="$('ci').value=${esc(JSON.stringify(f))};Chat.send()" title="${esc(f)}">⭐ ${esc(f.length > 36 ? f.substring(0, 36) + "…" : f)}</button>`).join("")}
+      </div>`;
+  },
+  renderRecentSearches() {
+    const el = $("chat-recent-searches");
+    if (!el) return;
+    const l = App.lang;
+    const recents = RecentSearches.list();
+    if (!recents.length) {
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML = `<div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px">🕐 ${l === "ar" ? "عمليات بحث حديثة" : "Recent Searches"}</div>
+      <div class="qchips">
+        ${recents.map((q) => `<button class="qc" onclick="$('ci').value=${esc(JSON.stringify(q))};Chat.send()" title="${esc(q)}">${esc(q.length > 36 ? q.substring(0, 36) + "…" : q)}</button>`).join("")}
+      </div>`;
   },
   copyConversation() {
     const l = App.lang;
@@ -6926,6 +6808,7 @@ const Chat = {
   appendCards(items, headerText) {
     if (!items || !items.length) return;
     const msgs = $("chat-msgs");
+    const anchor = this._tailAnchor();
     const wrap = document.createElement("div");
     wrap.className = "msg";
     wrap.innerHTML = `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>
@@ -6942,11 +6825,22 @@ const Chat = {
             .join("")}
         </div>
       </div>`;
-    msgs.appendChild(wrap);
+    if (anchor && msgs.contains(anchor)) {
+      msgs.insertBefore(wrap, anchor);
+    } else {
+      msgs.appendChild(wrap);
+    }
     msgs.scrollTop = msgs.scrollHeight;
+  },
+  _tailAnchor() {
+    // The favorites row / recent-searches row / suggested-chips row form one
+    // persistent tail pinned at the bottom of the conversation — new
+    // messages are inserted before all three, in DOM order, not just chips.
+    return $("chat-favorite-prompts") || $("chat-recent-searches") || $("chat-chips");
   },
   append(text, isUser) {
     const msgs = $("chat-msgs");
+    const anchor = this._tailAnchor();
     const d = document.createElement("div");
     d.className = "msg" + (isUser ? " user" : "");
     const name = App.user
@@ -6968,7 +6862,11 @@ const Chat = {
       ? `<button onclick="Chat.toggleFavorite(${esc(JSON.stringify(text))}, this)" style="background:none;border:none;cursor:pointer;font-size:12px;color:${FavoritePrompts.has(text) ? "var(--gold)" : "var(--text3)"};padding:0 4px;flex-shrink:0" title="${App.lang === "ar" ? "مفضّلة" : "Favorite"}" aria-label="${App.lang === "ar" ? "مفضّلة" : "Favorite prompt"}">${FavoritePrompts.has(text) ? "★" : "☆"}</button>`
       : "";
     d.innerHTML = `${av}<div style="flex:1;min-width:0"><div style="display:flex;align-items:flex-start;gap:4px"><div class="mb" dir="${dir}" style="flex:1">${mdToHtml(text)}</div>${favBtn}</div><div class="mts">${now()}</div></div>`;
-    msgs.appendChild(d);
+    if (anchor && msgs.contains(anchor)) {
+      msgs.insertBefore(d, anchor);
+    } else {
+      msgs.appendChild(d);
+    }
     msgs.scrollTop = msgs.scrollHeight;
   },
   showTyping() {
@@ -6981,6 +6879,12 @@ const Chat = {
     msgs.scrollTop = msgs.scrollHeight;
   },
   showDemoNote() {
+    // appendChild always lands at the very end of #chat-msgs, which also
+    // hosts the persistent Recent Searches / quick-action chips block — so
+    // every demo note piled up below that furniture, disconnected from the
+    // reply it was actually about, instead of near it. One note, replaced
+    // each time (same pattern DocGen.showDemoNote already uses), keeps a
+    // single clear notice instead of a growing stack of identical banners.
     const old = document.getElementById("chat-demo-note");
     if (old) old.remove();
     const note = document.createElement("div");
@@ -6996,6 +6900,17 @@ const Chat = {
 };
 function removeTyping() {
   var _typ = $("typ"); if (_typ) _typ.remove();
+}
+function buildWelcomeMsg() {
+  const d = document.createElement("div");
+  d.className = "msg";
+  d.id = "welcome-msg";
+  const txt =
+    App.lang === "ar"
+      ? "أنا أمين، مساعدكم التنفيذي الذكي. يمكنني تحليل الاجتماعات، متابعة المهام والقرارات، والإجابة على أي سؤال تنفيذي."
+      : "I'm Ameen, your executive AI. I can analyse meetings, track tasks and decisions, and answer any executive question.";
+  d.innerHTML = `<div class="mav"><img src="/logo.png" alt="Ameen"/></div><div><div class="mb">${esc(txt)}</div><div class="mts">${now()}</div></div>`;
+  return d;
 }
 
 // ══ Structured Reports — real data pulled straight from GET /api/reports/:type/*,
