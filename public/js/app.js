@@ -8776,240 +8776,470 @@ async function renderOverview() {
     // Each call degrades independently on failure (most commonly a 403 for a
     // role that lacks one specific permission, e.g. Observer/Guest lacking
     // actions.view) instead of Promise.all rejecting as a whole — a single
-    // permission gap used to blank the entire dashboard behind a raw error
+    // permission gap used to blank the entire dashboard (stats, meetings,
+    // schedule, etc. that the role *does* have access to) behind a raw error
     // message instead of just omitting the one section it can't see.
-    const [stats, tasks, meetings, schedule, govSummary, dashIntel] =
+    const [stats, tasks, meetings, schedule, members, decisions, analytics, govSummary, dashIntel] =
       await Promise.all([
         api("/api/stats").catch(() => ({})),
         api("/api/tasks").catch(() => []),
         api("/api/meetings").catch(() => []),
         api("/api/schedule").catch(() => []),
+        api("/api/members").catch(() => []),
+        api("/api/decisions").catch(() => []),
+        api("/api/analytics").catch(() => ({})),
         api("/api/gov/summary").catch(() => null),
         App.can("reports.view") ? api("/api/dashboard/intelligence").catch(() => null) : Promise.resolve(null),
       ]);
     const l = App.lang;
     const lbl = (ar, en) => (l === "ar" ? ar : en);
     const today = new Date().toISOString().substring(0, 10);
+    const upcoming = schedule.filter((s) => s.meeting_date >= today);
     const todaysMeetings = schedule.filter((s) => s.meeting_date === today);
-    const role = App.systemRole || "Admin";
-    const canGov = ROLE_ACCESS[role] && ROLE_ACCESS[role].has("governance");
 
-    const initialsOf = (name) =>
-      (name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
-
-    // ── 1. Executive greeting ────────────────────────────────────────────────
+    // ── Executive greeting — the command center opens with the person, not
+    // a metrics wall.
     const hour = new Date().getHours();
-    const greetText = hour < 12 ? lbl("صباح الخير", "Good Morning") : hour < 18 ? lbl("مساء الخير", "Good Afternoon") : lbl("مساء الخير", "Good Evening");
-    const userName = App.user ? (l === "ar" ? App.user.name_ar : App.user.name_en || App.user.name_ar) : "";
-    const todayLabel = new Date().toLocaleDateString(l === "ar" ? "ar-SA" : "en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    const greetingHtml = `<div class="exh-greet">
-      <div class="exh-greet-title">${greetText}${userName ? ", " + esc(userName) : ""}</div>
-      <div class="exh-greet-sub">${esc(todayLabel)}</div>
-    </div>`;
-
-    // ── 2. Written executive briefing — 3–5 plain-language sentences composed
-    // from the same data every section below renders, so it reads like a real
-    // EA's morning note rather than a repeated bullet list of the stats below.
-    const overdueList = tasks.filter((t) => t.status === "overdue");
-    const criticalTasks = tasks.filter((t) => taskPriorityKey(t.priority) === "critical" && t.status !== "done" && t.status !== "cancelled");
-    const highTasks = tasks.filter((t) => taskPriorityKey(t.priority) === "high" && t.status !== "done" && t.status !== "cancelled");
-    const govPendingRes = ((govSummary && govSummary.recentRes) || []).filter((r) => r.status === "pending");
-    const pendingApprovalsCount = canGov && govSummary ? (govSummary.resPending || 0) + (govSummary.pendingMinutes || 0) : 0;
-
-    const briefSentences = [];
-    if (todaysMeetings.length === 0) {
-      briefSentences.push(lbl("لا اجتماعات مجدولة لك اليوم.", "You have no meetings scheduled today."));
-    } else {
-      const first = todaysMeetings[0];
-      const firstTitle = esc(l === "ar" ? first.title_ar : first.title_en || first.title_ar);
-      briefSentences.push(
-        todaysMeetings.length === 1
-          ? lbl(`لديك اجتماع واحد اليوم — "${firstTitle}"${first.meeting_time ? " في " + esc(first.meeting_time) : ""}.`, `You have one meeting today — "${firstTitle}"${first.meeting_time ? " at " + esc(first.meeting_time) : ""}.`)
-          : lbl(`لديك ${todaysMeetings.length} اجتماعات اليوم، يبدأ أولها بـ "${firstTitle}"${first.meeting_time ? " في " + esc(first.meeting_time) : ""}.`, `You have ${todaysMeetings.length} meetings today, starting with "${firstTitle}"${first.meeting_time ? " at " + esc(first.meeting_time) : ""}.`),
-      );
-    }
-    if (overdueList.length > 0 || criticalTasks.length > 0) {
-      briefSentences.push(
-        lbl(
-          `${overdueList.length} إجراء متأخر${criticalTasks.length ? ` و${criticalTasks.length} إجراء حرج` : ""} يستحقان انتباهك.`,
-          `${overdueList.length} action${overdueList.length === 1 ? "" : "s"} ${overdueList.length === 1 ? "is" : "are"} overdue${criticalTasks.length ? `, and ${criticalTasks.length} ${criticalTasks.length === 1 ? "is" : "are"} marked critical` : ""}.`,
-        ),
-      );
-    } else {
-      briefSentences.push(lbl("جميع الإجراءات التنفيذية على المسار الصحيح — لا يوجد متأخر أو حرج حالياً.", "All executive actions are on track — nothing overdue or critical right now."));
-    }
-    if (canGov && govSummary && pendingApprovalsCount > 0) {
-      briefSentences.push(lbl(`${pendingApprovalsCount} موافقة حوكمة بانتظار مراجعتك.`, `${pendingApprovalsCount} governance approval${pendingApprovalsCount === 1 ? "" : "s"} ${pendingApprovalsCount === 1 ? "is" : "are"} waiting on your review.`));
-    }
-    const calmDay = overdueList.length === 0 && criticalTasks.length === 0 && pendingApprovalsCount === 0;
-    briefSentences.push(
-      calmDay
-        ? lbl("بشكل عام، يومك هادئ — فرصة جيدة للتركيز على الأولويات الاستراتيجية.", "Overall, today looks calm — a good day to focus on strategic priorities.")
-        : lbl("يُنصح بالبدء بالإجراءات الحرجة والموافقات المعلقة أولاً للحفاظ على سير الأعمال.", "I'd recommend starting with the critical actions and pending approvals first to keep things moving."),
+    const greetText =
+      hour < 12
+        ? lbl("صباح الخير", "Good Morning")
+        : hour < 18
+          ? lbl("مساء الخير", "Good Afternoon")
+          : lbl("مساء الخير", "Good Evening");
+    const userName = App.user
+      ? l === "ar"
+        ? App.user.name_ar
+        : App.user.name_en || App.user.name_ar
+      : "";
+    const todayLabel = new Date().toLocaleDateString(
+      l === "ar" ? "ar-SA" : "en-US",
+      { weekday: "long", year: "numeric", month: "long", day: "numeric" },
     );
-    const briefingHtml = `<div class="exh-brief">${briefSentences.join(" ")}</div>`;
-
-    // ── 3. Needs Your Attention — a cross-module triage feed: overdue and
-    // blocked executive actions, items flagged for review, and (for roles with
-    // governance access) pending approvals — the things that are stuck or
-    // waiting on this person specifically, from every module in one glance.
-    const attnMap = new Map();
-    const addAttn = (key, kind, data) => { if (!attnMap.has(key)) attnMap.set(key, { kind, data }); };
-    overdueList.forEach((t) => addAttn("t" + t.id, "overdue", t));
-    canGov && govPendingRes.slice(0, 2).forEach((r) => addAttn("r" + r.id, "approval", r));
-    tasks.filter((t) => t.status === "blocked").forEach((t) => addAttn("t" + t.id, "blocked", t));
-    tasks.filter((t) => t.needs_review && t.status !== "done" && t.status !== "cancelled").forEach((t) => addAttn("t" + t.id, "review", t));
-    const ATTN_ORDER = { overdue: 0, approval: 1, blocked: 2, review: 3 };
-    const ATTN_META = {
-      overdue: { icon: "⚠️", color: "var(--red)", ar: "متأخرة", en: "Overdue" },
-      approval: { icon: "🏛️", color: "var(--blue)", ar: "بانتظار موافقتك", en: "Awaiting your approval" },
-      blocked: { icon: "⛔", color: "var(--amber)", ar: "معطّلة", en: "Blocked" },
-      review: { icon: "⚑", color: "var(--amber)", ar: "بانتظار المراجعة", en: "Needs review" },
-    };
-    const attnItems = Array.from(attnMap.values()).sort((a, b) => ATTN_ORDER[a.kind] - ATTN_ORDER[b.kind]);
-    const attnRow = (item) => {
-      const meta = ATTN_META[item.kind];
-      if (item.kind === "approval") {
-        const r = item.data;
-        return `<div class="exh-row" style="border-inline-start:2.5px solid ${meta.color};padding-inline-start:10px" onclick="Panels.load('governance')">
-          <span class="exh-row-icon">${meta.icon}</span>
-          <div class="exh-row-main">
-            <div class="exh-row-title">${esc(r.title)}</div>
-            <div class="exh-row-meta">${l === "ar" ? meta.ar : meta.en}</div>
-          </div>
-        </div>`;
-      }
-      const t = item.data;
-      const text = l === "ar" ? t.text_ar : t.text_en || t.text_ar;
-      const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
-      return `<div class="exh-row" style="border-inline-start:2.5px solid ${meta.color};padding-inline-start:10px" onclick="Panels.load('tasks')">
-        <span class="exh-row-icon">${meta.icon}</span>
-        <div class="exh-row-main">
-          <div class="exh-row-title">${esc(text || "")}</div>
-          <div class="exh-row-meta">${owner ? `<span class="owner-av" style="display:inline-flex;margin-inline-end:5px;vertical-align:-3px">${esc(initialsOf(owner))}</span>${esc(owner)} · ` : ""}${l === "ar" ? meta.ar : meta.en}</div>
-        </div>
-        ${t.due_date ? `<span class="exh-row-tail" style="font-size:11px;font-weight:600;color:${meta.color}">${esc(t.due_date)}</span>` : ""}
-      </div>`;
-    };
-    const attentionHtml = `<div class="exh-sec">
-      <div class="exh-sec-head">
-        <div class="exh-sec-title">🎯 ${lbl("يحتاج انتباهك", "Needs Your Attention")}</div>
-        <button class="exh-sec-action" onclick="Panels.load('tasks')">${lbl("فتح متابعة الإجراءات", "Open Action Tracker")} ${l === "ar" ? "←" : "→"}</button>
-      </div>
-      ${
-        attnItems.length
-          ? attnItems.slice(0, 6).map(attnRow).join("") +
-            (attnItems.length > 6 ? `<div class="exh-empty" style="justify-content:center">${lbl(`+${attnItems.length - 6} أخرى`, `+${attnItems.length - 6} more`)}</div>` : "")
-          : `<div class="exh-empty">✓ ${lbl("لا شيء يحتاج انتباهك الآن — عمل ممتاز.", "Nothing needs your attention right now — great work.")}</div>`
-      }
-    </div>`;
-
-    // ── 4. Today's Meetings ───────────────────────────────────────────────────
-    const meetingsTodayHtml = `<div class="exh-sec">
-      <div class="exh-sec-head">
-        <div class="exh-sec-title">📅 ${lbl("اجتماعات اليوم", "Today's Meetings")}</div>
-        <button class="exh-sec-action" onclick="Panels.load('schedule')">${lbl("عرض الجدول الكامل", "View Full Schedule")} ${l === "ar" ? "←" : "→"}</button>
-      </div>
-      ${
+    const greetingHtml = `<div style="margin-bottom:22px">
+      <div style="font-size:26px;font-weight:800;color:var(--text);letter-spacing:-.02em;line-height:1.2">${greetText}${userName ? ", " + esc(userName) : ""}</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:6px">${esc(todayLabel)} · ${
         todaysMeetings.length
-          ? todaysMeetings
-              .map(
-                (s) => `<div class="exh-row" onclick="Panels.load('schedule')">
-          <span class="exh-row-icon">🎙</span>
-          <div class="exh-row-main">
-            <div class="exh-row-title">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
-            <div class="exh-row-meta">${s.meeting_time ? "🕐 " + esc(s.meeting_time) : ""}${s.platform ? " · " + esc(s.platform) : ""}</div>
-          </div>
-          ${s.meeting_type ? `<span class="exh-row-tail tag tgold" style="font-size:11px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
-        </div>`,
-              )
-              .join("")
-          : `<div class="exh-empty">✓ ${lbl("لا اجتماعات اليوم — استغل وقتك الحر.", "No meetings today — enjoy the clear calendar.")}</div>`
-      }
+          ? todaysMeetings.length +
+            " " +
+            lbl(
+              "اجتماع اليوم",
+              todaysMeetings.length === 1 ? "meeting today" : "meetings today",
+            )
+          : lbl("لا اجتماعات اليوم", "no meetings today")
+      }</div>
     </div>`;
 
-    // ── 5. Critical Executive Actions — the priority queue from the Action
-    // Tracker (critical/high, still open), independent of the attention feed
-    // above which is about what's stuck, not what's most important.
-    const priorityTasks = tasks
-      .filter((t) => (taskPriorityKey(t.priority) === "critical" || taskPriorityKey(t.priority) === "high") && t.status !== "done" && t.status !== "cancelled")
-      .sort((a, b) => {
-        const pd = (taskPriorityKey(a.priority) === "critical" ? 0 : 1) - (taskPriorityKey(b.priority) === "critical" ? 0 : 1);
-        return pd !== 0 ? pd : (a.due_date || "9999").localeCompare(b.due_date || "9999");
-      });
-    const criticalActionsHtml = `<div class="exh-sec">
-      <div class="exh-sec-head">
-        <div class="exh-sec-title">🔥 ${lbl("إجراءات تنفيذية حرجة", "Critical Executive Actions")}</div>
-        <button class="exh-sec-action" onclick="Panels.load('tasks')">${lbl("فتح متابعة الإجراءات", "Open Action Tracker")} ${l === "ar" ? "←" : "→"}</button>
-      </div>
-      ${
-        priorityTasks.length
-          ? priorityTasks
-              .slice(0, 5)
-              .map((t) => {
-                const isCrit = taskPriorityKey(t.priority) === "critical";
-                const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
-                return `<div class="exh-row" style="border-inline-start:2.5px solid ${isCrit ? "var(--red)" : "var(--amber)"};padding-inline-start:10px" onclick="Panels.load('tasks')">
-            <span class="exh-row-icon">${isCrit ? "🔥" : "⚡"}</span>
-            <div class="exh-row-main">
-              <div class="exh-row-title">${esc((l === "ar" ? t.text_ar : t.text_en || t.text_ar) || "")}</div>
-              <div class="exh-row-meta">${owner ? `<span class="owner-av" style="display:inline-flex;margin-inline-end:5px;vertical-align:-3px">${esc(initialsOf(owner))}</span>${esc(owner)}` : lbl(isCrit ? "أولوية حرجة" : "أولوية عالية", isCrit ? "Critical priority" : "High priority")}</div>
-            </div>
-            ${t.due_date ? `<span class="exh-row-tail" style="font-size:11px;color:var(--text3)">${esc(t.due_date)}</span>` : ""}
-          </div>`;
-              })
-              .join("")
-          : `<div class="exh-empty">✓ ${lbl("لا إجراءات حرجة أو عالية الأولوية مفتوحة حالياً.", "No critical or high-priority actions open right now.")}</div>`
-      }
-    </div>`;
+    const role = App.systemRole || "Admin";
+    const allStatCards = [
+      {
+        key: "meetings",
+        icon: "🎙",
+        val: stats.meetings,
+        label: lbl("اجتماع مسجل", "Recorded Meetings"),
+        color: "var(--gold)",
+        go: "transcripts",
+      },
+      {
+        key: "tasks_open",
+        icon: "📋",
+        val: stats.tasks_open,
+        label: lbl("مهمة مفتوحة", "Open Tasks"),
+        color: stats.tasks_overdue > 0 ? "var(--red)" : "var(--amber)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_overdue",
+        icon: "⚠️",
+        val: stats.tasks_overdue,
+        label: lbl("مهمة متأخرة", "Overdue Tasks"),
+        color: "var(--red)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_done",
+        icon: "✓",
+        val: stats.tasks_done,
+        label: lbl("مهمة مكتملة", "Completed Tasks"),
+        color: "var(--green)",
+        go: "tasks",
+      },
+      {
+        key: "decisions",
+        icon: "⚖️",
+        val: stats.decisions,
+        label: lbl("قرار مسجل", "Decisions"),
+        color: "var(--blue)",
+        go: "transcripts",
+      },
+      {
+        key: "schedule",
+        icon: "📅",
+        val: stats.schedule,
+        label: lbl("اجتماع مجدول", "Scheduled"),
+        color: "var(--gold)",
+        go: "schedule",
+      },
+      {
+        key: "users",
+        icon: "👥",
+        val: stats.users,
+        label: lbl("عضو فريق", "Team Members"),
+        color: "var(--text)",
+        go: "team",
+      },
+      {
+        key: "completion",
+        icon: "🎯",
+        val: stats.completion + "%",
+        label: lbl("نسبة الإنجاز", "Completion Rate"),
+        color:
+          stats.completion > 70
+            ? "var(--green)"
+            : stats.completion > 40
+              ? "var(--amber)"
+              : "var(--red)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_blocked",
+        icon: "⛔",
+        val: stats.tasks_blocked || 0,
+        label: lbl("إجراء معلّق", "Blocked Actions"),
+        color: (stats.tasks_blocked || 0) > 0 ? "var(--red)" : "var(--text3)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_high",
+        icon: "⚡",
+        val: stats.tasks_high || 0,
+        label: lbl("أولوية عالية", "High Priority"),
+        color: "var(--amber)",
+        go: "tasks",
+      },
+      {
+        key: "tasks_critical",
+        icon: "🔥",
+        val: stats.tasks_critical || 0,
+        label: lbl("أولوية حرجة", "Critical Priority"),
+        color: (stats.tasks_critical || 0) > 0 ? "var(--red)" : "var(--text3)",
+        go: "tasks",
+      },
+    ];
 
-    // ── 6. Pending Approvals — governance-gated; simply absent for roles
-    // without governance access (unchanged permission behaviour).
-    const pendingApprovalsHtml = canGov && govSummary
-      ? `<div class="exh-sec">
-        <div class="exh-sec-head">
-          <div class="exh-sec-title">🏛️ ${lbl("موافقات معلقة", "Pending Approvals")}</div>
-          <button class="exh-sec-action" onclick="Panels.load('governance')">${lbl("مراجعة الحوكمة", "Review in Governance")} ${l === "ar" ? "←" : "→"}</button>
+    const ROLE_STAT_KEYS = {
+      Admin: [
+        "meetings",
+        "tasks_open",
+        "tasks_overdue",
+        "tasks_done",
+        "decisions",
+        "schedule",
+        "users",
+        "completion",
+        "tasks_blocked",
+        "tasks_high",
+        "tasks_critical",
+      ],
+      CEO: [
+        "meetings",
+        "tasks_open",
+        "tasks_overdue",
+        "tasks_done",
+        "decisions",
+        "schedule",
+        "users",
+        "completion",
+        "tasks_blocked",
+        "tasks_high",
+        "tasks_critical",
+      ],
+      "Board Member": ["meetings", "decisions", "schedule", "completion"],
+      "Committee Member": [
+        "tasks_open",
+        "tasks_overdue",
+        "tasks_done",
+        "decisions",
+      ],
+      Executive: [
+        "meetings",
+        "tasks_open",
+        "tasks_overdue",
+        "tasks_done",
+        "decisions",
+        "schedule",
+        "completion",
+      ],
+      Manager: [
+        "meetings",
+        "tasks_open",
+        "tasks_overdue",
+        "tasks_done",
+        "users",
+        "completion",
+      ],
+      Employee: ["tasks_open", "tasks_overdue", "tasks_done"],
+      Observer: ["meetings", "decisions", "schedule"],
+      "Super Admin": [
+        "meetings", "tasks_open", "tasks_overdue", "tasks_done", "decisions",
+        "schedule", "users", "completion", "tasks_blocked", "tasks_high", "tasks_critical",
+      ],
+      "Organization Admin": [
+        "meetings", "tasks_open", "tasks_overdue", "tasks_done", "decisions",
+        "schedule", "users", "completion", "tasks_blocked", "tasks_high", "tasks_critical",
+      ],
+      "Board Secretary": ["meetings", "decisions", "schedule", "completion", "tasks_open", "tasks_overdue"],
+      "Committee Chair": ["tasks_open", "tasks_overdue", "tasks_done", "decisions"],
+      Auditor: ["meetings", "decisions", "schedule", "tasks_open", "tasks_overdue", "tasks_done", "completion"],
+      Guest: ["meetings", "schedule"],
+    };
+    const allowedKeys = new Set(
+      ROLE_STAT_KEYS[role] || ROLE_STAT_KEYS["Admin"],
+    );
+    const statCards = allStatCards.filter((c) => allowedKeys.has(c.key));
+
+    const roleColor = ROLE_COLORS[role] || "var(--gold)";
+    const roleHeader =
+      role !== "Admin" && role !== "CEO"
+        ? `
+      <div style="background:${roleColor}0d;border:1px solid ${roleColor}33;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">👤</span>
+        <div>
+          <span style="color:${roleColor};font-weight:700;font-size:13px">${esc(role)}</span>
+          <span style="color:var(--text3);font-size:12px"> · ${l === "ar" ? "لوحة التحكم مخصصة لدورك" : "Dashboard customised for your role"}</span>
         </div>
-        ${
-          govPendingRes.length
-            ? govPendingRes
-                .slice(0, 4)
-                .map(
-                  (r) => `<div class="exh-row" onclick="Panels.load('governance')">
-            <span class="exh-row-icon">⚖️</span>
-            <div class="exh-row-main">
-              <div class="exh-row-title">${esc(r.title)}</div>
-              <div class="exh-row-meta">${esc(l === "ar" ? r.meeting_title_ar : r.meeting_title_en || r.meeting_title_ar || "")}</div>
-            </div>
-          </div>`,
-                )
-                .join("")
-            : `<div class="exh-empty">✓ ${lbl("لا موافقات معلقة عليك حالياً.", "Nothing waiting on your approval right now.")}</div>`
-        }
+      </div>`
+        : "";
+
+    // Trend & sub-description per metric
+    const statTrendData = (s) => ({
+      meetings:      { trend:'neu', tl: lbl('كل الاجتماعات','All sessions'), sub: lbl('انقر لعرض المحاضر','Click to view transcripts') },
+      tasks_open:    { trend: s.val > 0 ? 'warn' : 'neu', tl: s.val > 0 ? lbl(`${stats.tasks_overdue} متأخرة`,''+stats.tasks_overdue+' overdue') : lbl('لا مهام مفتوحة','No open tasks'), sub: lbl('المهام الجارية والجديدة','In-progress & new tasks') },
+      tasks_overdue: { trend: s.val > 0 ? 'down' : 'neu', tl: s.val > 0 ? lbl('تحتاج انتباهاً فورياً','Requires immediate action') : lbl('لا متأخرة ✓','None overdue ✓'), sub: lbl('المهام المتجاوزة للموعد','Past due date') },
+      tasks_done:    { trend:'up',  tl: stats.completion + '% ' + lbl('نسبة إنجاز','completion'), sub: lbl('مكتملة هذا الأسبوع','Completed tasks') },
+      decisions:     { trend:'neu', tl: lbl('قيد التنفيذ','Tracked decisions'), sub: lbl('من كل الاجتماعات','Across all meetings') },
+      schedule:      { trend:'neu', tl: lbl('الـ 30 يوم القادمة','Next 30 days'), sub: lbl('اجتماعات مجدولة','Scheduled meetings') },
+      users:         { trend:'neu', tl: lbl('أعضاء الفريق','Team members'), sub: lbl('لديهم صلاحية الوصول','With system access') },
+      completion:    { trend: s.val >= 70 ? 'up' : s.val >= 40 ? 'warn' : 'down', tl: s.val >= 70 ? lbl('أداء ممتاز','Excellent performance') : s.val >= 40 ? lbl('أداء متوسط','Moderate performance') : lbl('يحتاج متابعة','Needs attention'), sub: lbl('نسبة إنجاز المهام','Overall task completion') },
+    }[s.key] || { trend:'neu', tl: '', sub: '' });
+
+    // Executive hierarchy: the first few metrics (meetings + task pipeline)
+    // read as large "hero" KPIs; the rest are compact pills below them — per
+    // "large KPIs... not dozens of equal-sized boxes" rather than one flat
+    // grid of identical cards.
+    const heroCards = statCards.slice(0, 4);
+    const secondaryCards = statCards.slice(4);
+
+    const statsHtml = `<div class="stat-hero-grid" style="margin-bottom:${secondaryCards.length ? '12px' : '16px'}">
+        ${heroCards.map((s) => {
+          const td = statTrendData(s);
+          const trendClass = { up:'trend-up', down:'trend-down', neu:'trend-neu', warn:'trend-warn' }[td.trend];
+          const trendIcon  = { up:'↑', down:'↓', neu:'●', warn:'⚠' }[td.trend];
+          return `<div class="card stat-clickable" style="text-align:center;padding:24px 16px 20px;cursor:pointer;position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${s.color};opacity:.9;border-radius:14px 14px 0 0"></div>
+          <div style="font-size:32px;margin-bottom:10px;line-height:1">${s.icon}</div>
+          <div class="stat-hero-val" style="font-weight:800;color:${s.color};letter-spacing:-.04em;line-height:1">${s.val}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.3">${s.label}</div>
+          <div class="stat-trend ${trendClass}">${trendIcon} ${td.tl}</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.4">${td.sub}</div>
+          <div class="stat-click-hint">${l === 'ar' ? '← اضغط للعرض' : 'click to view →'}</div>
+        </div>`;
+        }).join("")}
+      </div>
+      ${secondaryCards.length ? `<div class="stat-mini-row" style="margin-bottom:16px">
+        ${secondaryCards.map((s) => `<div class="stat-mini" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
+          <span class="stat-mini-icon">${s.icon}</span>
+          <div>
+            <div class="stat-mini-val" style="color:${s.color}">${s.val}</div>
+            <div class="stat-mini-lbl">${s.label}</div>
+          </div>
+        </div>`).join("")}
+      </div>` : ""}`;
+
+    const hasCharts = !!window.Chart;
+    const dashCfg = Dash.get();
+    const chartsGridHtml = hasCharts
+      ? `
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">📊 ${lbl("مسار المهام — 8 أسابيع", "Task Trend — 8 Weeks")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-tasks"></canvas></div></div>
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">🎙 ${lbl("نشاط الاجتماعات — 6 أشهر", "Meeting Activity — 6 Months")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-meetings"></canvas></div></div>
+        ${dashCfg.team !== false ? `<div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">👥 ${lbl("أداء الفريق", "Team Performance")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-team"></canvas></div></div>` : ""}
+        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">⚖️ ${lbl("حالة القرارات", "Decision Status")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-decisions"></canvas></div></div>
       </div>`
       : "";
 
-    // ── 7. AI Insight — one sentence, not a grid. Prefers the rules-based
-    // Dashboard Intelligence endpoint (reports.view gated); falls back to a
-    // sentence synthesised from data every role already has, so the section
-    // still says something useful without that permission.
-    const insightText = (() => {
-      if (dashIntel && dashIntel.insights && dashIntel.insights.length) return l === "ar" ? dashIntel.insights[0].ar : dashIntel.insights[0].en;
-      if (dashIntel && dashIntel.recommendations && dashIntel.recommendations.length) return l === "ar" ? dashIntel.recommendations[0].ar : dashIntel.recommendations[0].en;
-      if (overdueList.length > 0) return lbl(`${overdueList.length} إجراء متأخر هو أكبر عائق أمام الإنجاز هذا الأسبوع.`, `${overdueList.length} overdue action${overdueList.length === 1 ? "" : "s"} ${overdueList.length === 1 ? "is" : "are"} the biggest drag on completion this week.`);
-      if (criticalTasks.length > 0) return lbl(`${criticalTasks.length} إجراء بأولوية حرجة يستحق المتابعة الشخصية.`, `${criticalTasks.length} critical-priority action${criticalTasks.length === 1 ? "" : "s"} ${criticalTasks.length === 1 ? "deserves" : "deserve"} personal follow-up.`);
-      if (typeof stats.completion === "number") return lbl(`نسبة إنجاز الإجراءات التنفيذية ${stats.completion}% حتى الآن.`, `Executive actions are ${stats.completion}% complete so far.`);
-      return lbl("لا توجد رؤى إضافية حالياً — الأداء العام مستقر.", "No additional insights right now — overall performance is steady.");
-    })();
-    const aiInsightHtml = `<div class="exh-sec">
-      <div class="exh-insight">
-        <div class="exh-insight-tag">✦ ${lbl("رؤية الذكاء الاصطناعي", "AI Insight")}</div>
-        <div class="exh-insight-text">${esc(insightText)}</div>
+    const upcomingHtml = `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')" title="${lbl("فتح الجدول", "Open schedule")}">
+          <div class="ct" style="margin-bottom:12px">📅 ${lbl("الاجتماعات القادمة", "Upcoming Meetings")}</div>
+          ${
+            upcoming.length
+              ? upcoming
+                  .slice(0, 5)
+                  .map(
+                    (s) => `
+            <div style="padding:8px 0;border-bottom:.5px solid var(--border2)">
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
+                ${s.meeting_type ? `<span class="tag tgold" style="font-size:11px;padding:2px 6px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? "🕐 " + esc(s.meeting_time) : ""} · ${esc(s.platform || "")}</div>
+            </div>`,
+                  )
+                  .join("")
+              : `<div style="font-size:12px;color:var(--text3)">${lbl("لا اجتماعات قادمة", "No upcoming meetings")}</div>`
+          }
+        </div>`;
+
+    // ── Today's Meetings — meetings dated today, distinct from the 30-day
+    // "Upcoming Meetings" preview.
+    const todaysMeetingsHtml = todaysMeetings.length
+      ? `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')" title="${lbl("فتح الجدول", "Open schedule")}">
+          <div class="ct" style="margin-bottom:12px">🎯 ${lbl("اجتماعات اليوم", "Today's Meetings")}</div>
+          ${todaysMeetings
+            .map(
+              (s) => `
+            <div style="padding:9px 0;border-bottom:.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">🕐 ${esc(s.meeting_time || "")}${s.platform ? " · " + esc(s.platform) : ""}</div>
+              </div>
+              ${s.meeting_type ? `<span class="tag tgold" style="font-size:11px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
+            </div>`,
+            )
+            .join("")}
+        </div>`
+      : `<div class="card" style="text-align:center;padding:22px 16px">
+          <div style="font-size:13px;color:var(--text3)">✓ ${lbl("لا اجتماعات مجدولة اليوم", "No meetings scheduled today")}</div>
+        </div>`;
+
+    // ── Pending Governance Approvals — reuses the existing /api/gov/summary
+    // endpoint (already auth-gated); shown only to roles with governance
+    // access, no backend change.
+    const canGov = ROLE_ACCESS[role] && ROLE_ACCESS[role].has("governance");
+    const govPendingRes = ((govSummary && govSummary.recentRes) || []).filter(
+      (r) => r.status === "pending",
+    );
+    const govWidgetHtml =
+      canGov && govSummary
+        ? `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('governance')" title="${lbl("فتح الحوكمة", "Open governance")}">
+          <div class="ct" style="margin-bottom:12px">🏛️ ${lbl("موافقات الحوكمة المعلقة", "Pending Governance Approvals")}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${govPendingRes.length ? "10px" : "0"}">
+            <span style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--amber)">${govSummary.resPending || 0} ${lbl("قرار قيد الانتظار", "resolutions pending")}</span>
+            <span style="background:rgba(91,155,214,.1);border:1px solid rgba(91,155,214,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--blue)">${govSummary.pendingMinutes || 0} ${lbl("محضر قيد المراجعة", "minutes in review")}</span>
+            ${govSummary.openActions ? `<span style="background:rgba(224,90,90,.1);border:1px solid rgba(224,90,90,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--red)">${govSummary.openActions} ${lbl("إجراء متابعة مفتوح", "open follow-ups")}</span>` : ""}
+          </div>
+          ${
+            govPendingRes.length
+              ? govPendingRes
+                  .slice(0, 4)
+                  .map(
+                    (r) => `
+            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;color:var(--text)">${esc(r.title)}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(l === "ar" ? r.meeting_title_ar : r.meeting_title_en || r.meeting_title_ar || "")}</div>
+            </div>`,
+                  )
+                  .join("")
+              : `<div style="font-size:12px;color:var(--green)">✓ ${lbl("لا قرارات معلقة", "No pending resolutions")}</div>`
+          }
+        </div>`
+        : "";
+
+    // ── Recent AI Activity — derived from already-processed meetings; a
+    // truthful stand-in for a real activity log (out of scope: no backend
+    // change / new endpoint this round).
+    const recentAi = meetings
+      .filter((m) => m.ai_summary_ar || m.ai_summary_en)
+      .slice(0, 5);
+    const aiActivityHtml = recentAi.length
+      ? `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('transcripts')" title="${lbl("فتح المحاضر", "Open transcripts")}">
+          <div class="ct" style="margin-bottom:12px">🤖 ${lbl("نشاط الذكاء الاصطناعي الأخير", "Recent AI Activity")}</div>
+          ${recentAi
+            .map(
+              (m) => `
+            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar)}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">✓ ${lbl("محضر بالذكاء الاصطناعي جاهز", "AI minutes generated")}${m.meeting_date ? " · " + esc(String(m.meeting_date).substring(0, 10)) : ""}</div>
+            </div>`,
+            )
+            .join("")}
+        </div>`
+      : `<div class="card" style="text-align:center;padding:22px 16px">
+          <div style="font-size:13px;color:var(--text3)">${lbl("لا نشاط ذكاء اصطناعي بعد", "No AI activity yet")}</div>
+        </div>`;
+
+    // ── Today's Executive Briefing — a scannable bullet list, not another
+    // grid of equal-sized cards, so the most time-sensitive facts read first.
+    const dueTodayTasks = tasks.filter((t) => t.due_date === today && t.status !== "done" && t.status !== "cancelled");
+    const criticalTasks = tasks.filter((t) => taskPriorityKey(t.priority) === "critical" && t.status !== "done" && t.status !== "cancelled");
+    const decisionsAwaiting = decisions.filter((d) => d.status !== "implemented");
+    // "Meetings Today" used to just dump the user onto the Schedule panel's
+    // default List view, which sorts oldest-first — with any meeting history
+    // at all, that meant landing on a months-old past meeting instead of the
+    // one the stat card was actually about. Route into the Calendar view
+    // with today pre-selected instead, so the promised meeting is what's
+    // actually shown, not buried under history.
+    const meetingsTodayClick = todaysMeetings.length
+      ? `Panels.load('schedule').then(()=>{MasterCalendar.setView('calendar');MasterCalendar.selectDay('${today}');})`
+      : `Panels.load('schedule')`;
+    const briefingItems = [
+      { icon: "📅", val: todaysMeetings.length, ar: "اجتماعات اليوم", en: "Meetings Today", onclick: meetingsTodayClick, color: "var(--gold)" },
+      { icon: "🎯", val: dueTodayTasks.length, ar: "إجراءات مستحقة اليوم", en: "Executive Actions Due Today", onclick: `Panels.load('tasks')`, color: dueTodayTasks.length ? "var(--amber)" : "var(--text3)" },
+      { icon: "🔥", val: criticalTasks.length, ar: "إجراءات حرجة", en: "Critical Actions", onclick: `Panels.load('tasks')`, color: criticalTasks.length ? "var(--red)" : "var(--text3)" },
+      ...(canGov && govSummary ? [{ icon: "🏛️", val: govSummary.pendingMinutes || 0, ar: "موافقات معلقة", en: "Pending Approvals", onclick: `Panels.load('governance')`, color: (govSummary.pendingMinutes || 0) ? "var(--blue)" : "var(--text3)" }] : []),
+      { icon: "⚖️", val: decisionsAwaiting.length, ar: "قرارات بانتظار المراجعة", en: "Decisions Awaiting Review", onclick: `Panels.load('tasks')`, color: decisionsAwaiting.length ? "var(--amber)" : "var(--text3)" },
+    ];
+    const briefingHtml = `<div class="card" style="margin-bottom:16px">
+      <div class="ct" style="margin-bottom:10px">📰 ${lbl("موجز اليوم التنفيذي", "Today's Executive Briefing")}</div>
+      <div style="display:flex;flex-direction:column">
+        ${briefingItems
+          .map(
+            (b, i) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 4px;${i > 0 ? "border-top:.5px solid var(--border2)" : ""}" onclick="${b.onclick}">
+          <span style="font-size:18px;flex-shrink:0">${b.icon}</span>
+          <span style="font-size:20px;font-weight:800;color:${b.color};min-width:28px">${b.val}</span>
+          <span style="font-size:13px;color:var(--text2);flex:1">${l === "ar" ? b.ar : b.en}</span>
+          <span style="font-size:11px;color:var(--text3)">${l === "ar" ? "←" : "→"}</span>
+        </div>`,
+          )
+          .join("")}
       </div>
     </div>`;
 
-    // ── 8. Small calendar preview — read-only month glance.
+    // ── Today's Timeline — meetings (timed) and today-due actions (untimed)
+    // merged into one chronological read of the day.
+    const timelineEvents = [
+      ...todaysMeetings.map((s) => ({ time: s.meeting_time || "", icon: "🎙", title: l === "ar" ? s.title_ar : s.title_en || s.title_ar, meta: s.platform || "", go: "schedule" })),
+      ...dueTodayTasks.map((t) => ({ time: "", icon: "🎯", title: l === "ar" ? t.text_ar : t.text_en || t.text_ar, meta: l === "ar" ? t.owner_name_ar || "" : t.owner_name_en || t.owner_name_ar || "", go: "tasks" })),
+    ].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+    const todaysTimelineHtml = timelineEvents.length
+      ? `<div class="card" style="margin-bottom:16px">
+          <div class="ct" style="margin-bottom:10px">🕐 ${lbl("الجدول الزمني لليوم", "Today's Timeline")}</div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            ${timelineEvents
+              .map(
+                (e) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 4px" onclick="Panels.load('${e.go}')">
+              <span style="font-size:11px;font-weight:700;color:var(--gold);min-width:48px">${e.time ? esc(e.time) : lbl("اليوم", "Due today")}</span>
+              <span style="font-size:14px;flex-shrink:0">${e.icon}</span>
+              <span style="font-size:12.5px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title)}</span>
+              ${e.meta ? `<span style="font-size:11px;color:var(--text3);flex-shrink:0">${esc(e.meta)}</span>` : ""}
+            </div>`,
+              )
+              .join("")}
+          </div>
+        </div>`
+      : `<div class="card" style="margin-bottom:16px;text-align:center;padding:20px">
+          <div style="font-size:13px;color:var(--text3)">✓ ${lbl("لا أحداث مجدولة اليوم", "Nothing scheduled for today")}</div>
+        </div>`;
+
+    // ── Quick Actions — the fastest path into the four most common
+    // executive workflows, one click from the command center.
+    const quickActionsHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn-gold btn-sm" onclick="Panels.load('record')">🎙 ${lbl("تسجيل اجتماع", "Record Meeting")}</button>
+      <button class="btn-ghost btn-sm" onclick="Panels.load('tasks').then(()=>Modals.addTask())">➕ ${lbl("إجراء تنفيذي جديد", "New Executive Action")}</button>
+      <button class="btn-ghost btn-sm" onclick="Panels.load('ask')">✦ ${lbl("اسأل أمين", "Ask Ameen")}</button>
+      <button class="btn-ghost btn-sm" onclick="Panels.load('documents')">📄 ${lbl("توليد تقرير", "Generate Report")}</button>
+    </div>`;
+
+    // ── Meeting Calendar Preview — read-only month glance; click any day (or
+    // "Open Calendar") to jump to the full Schedule panel.
     const calBase = new Date();
     const calYear = calBase.getFullYear();
     const calMonthIdx = calBase.getMonth();
@@ -9024,82 +9254,446 @@ async function renderOverview() {
       const dateStr = `${calYear}-${String(calMonthIdx + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const hasMeeting = meetingDatesThisMonth.has(dateStr);
       const isToday = dateStr === today;
-      calPreviewCells += `<div class="cal-cell ${isToday ? "cal-today" : ""}" style="min-height:28px;cursor:pointer" onclick="Panels.load('schedule')" tabindex="0" role="button" aria-label="${dateStr}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();Panels.load('schedule')}">
-        <div class="cal-daynum" style="font-size:10.5px">${d}</div>
+      calPreviewCells += `<div class="cal-cell ${isToday ? "cal-today" : ""}" style="min-height:36px;cursor:pointer" onclick="Panels.load('schedule')" tabindex="0" role="button" aria-label="${dateStr}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();Panels.load('schedule')}">
+        <div class="cal-daynum" style="font-size:11px">${d}</div>
         ${hasMeeting ? `<div class="cal-dots"><div class="cal-dot" style="background:var(--gold)"></div></div>` : ""}
       </div>`;
     }
-    const calendarPreviewHtml = `<div class="exh-sec">
-      <div class="exh-cal">
-        <div class="exh-sec-head" style="margin-bottom:10px">
-          <div class="exh-sec-title" style="font-size:15px">📅 ${lbl("معاينة التقويم", "Calendar Preview")}</div>
-          <button class="exh-sec-action" onclick="Panels.load('schedule')">${lbl("فتح", "Open")} ${l === "ar" ? "←" : "→"}</button>
-        </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${esc(calMonthLabel)}</div>
-        <div class="cal-grid cal-grid-head">${calWeekDayNames.map((w) => `<div class="cal-headcell" style="font-size:9px">${w}</div>`).join("")}</div>
-        <div class="cal-grid">${calPreviewCells}</div>
+    const calendarPreviewHtml = `<div class="card" style="margin-bottom:16px">
+      <div class="ch" style="margin-bottom:10px">
+        <div class="ct">📅 ${lbl("معاينة تقويم الاجتماعات", "Meeting Calendar Preview")}</div>
+        <button class="btn-ghost btn-sm" onclick="Panels.load('schedule')">${lbl("فتح التقويم ←", "Open Calendar →")}</button>
       </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${esc(calMonthLabel)}</div>
+      <div class="cal-grid cal-grid-head">${calWeekDayNames.map((w) => `<div class="cal-headcell" style="font-size:9.5px">${w}</div>`).join("")}</div>
+      <div class="cal-grid">${calPreviewCells}</div>
     </div>`;
 
-    // ── 9. Recent Activity — AI-generated minutes and downloaded reports,
-    // merged into one feed (no dedicated activity-log endpoint exists yet, so
-    // this is composed from data already fetched by other panels).
-    const recentAi = meetings.filter((m) => m.ai_summary_ar || m.ai_summary_en).slice(0, 5);
+    // ── Recent Reports — this browser's own Board Pack download history (no
+    // backend "reports" log exists to query against).
     const recentReportsList = RecentReports.list();
-    const activityItems = [
-      ...recentAi.map((m) => ({
-        icon: "🤖",
-        title: l === "ar" ? m.title_ar : m.title_en || m.title_ar,
-        meta: lbl("محضر بالذكاء الاصطناعي جاهز", "AI minutes generated"),
-        date: (m.meeting_date || "").substring(0, 10),
-        onclick: "Panels.load('transcripts')",
-      })),
-      ...recentReportsList.slice(0, 5).map((r) => ({
-        icon: "📦",
-        title: r.title,
-        meta: lbl("تقرير تم تنزيله", "Report downloaded"),
-        date: (r.ts || "").substring(0, 10),
-        onclick: `Panels.load('history').then(()=>MeetingHistory.select(${r.meetingId}))`,
-      })),
-    ]
-      .filter((i) => i.title)
-      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-      .slice(0, 6);
-    const recentActivityHtml = `<div class="exh-sec">
-      <div class="exh-sec-head">
-        <div class="exh-sec-title">🕘 ${lbl("النشاط الأخير", "Recent Activity")}</div>
-      </div>
+    const recentReportsHtml = `<div class="card" style="margin-bottom:16px">
+      <div class="ct" style="margin-bottom:10px">📦 ${lbl("التقارير الأخيرة", "Recent Reports")}</div>
       ${
-        activityItems.length
-          ? activityItems
+        recentReportsList.length
+          ? recentReportsList
+              .slice(0, 5)
               .map(
-                (i) => `<div class="exh-row" onclick="${i.onclick}">
-          <span class="exh-row-icon">${i.icon}</span>
-          <div class="exh-row-main">
-            <div class="exh-row-title">${esc(i.title)}</div>
-            <div class="exh-row-meta">${i.meta}</div>
-          </div>
-          ${i.date ? `<span class="exh-row-tail" style="font-size:11px;color:var(--text3)">${esc(i.date)}</span>` : ""}
-        </div>`,
+                (r) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2)" onclick="Panels.load('history').then(()=>MeetingHistory.select(${r.meetingId}))">
+            <span style="font-size:12px;color:var(--text)">${esc(r.title)}</span>
+            <span style="font-size:11px;color:var(--text3)">${esc((r.ts || "").substring(0, 10))}</span>
+          </div>`,
               )
               .join("")
-          : `<div class="exh-empty">${lbl("لا نشاط حديث بعد.", "No recent activity yet.")}</div>`
+          : `<div style="font-size:12px;color:var(--text3)">${lbl("لم يتم توليد تقارير بعد — نزّل حزمة مجلس من مساحة عمل أي اجتماع", "No reports generated yet — download a Board Pack from any meeting's workspace")}</div>`
       }
     </div>`;
 
-    body.innerHTML = `<div class="exh">
-      ${greetingHtml}
-      ${briefingHtml}
-      ${attentionHtml}
-      <div class="grid-2">${meetingsTodayHtml}${calendarPreviewHtml}</div>
-      ${pendingApprovalsHtml ? `<div class="grid-2">${criticalActionsHtml}${pendingApprovalsHtml}</div>` : criticalActionsHtml}
-      ${aiInsightHtml}
-      ${recentActivityHtml}
+    // ── Notifications — personal call-outs (mine, overdue or flagged for
+    // review), distinct from the org-wide "Urgent Overdue Tasks" list below.
+    const myNotifications = App.user
+      ? tasks
+          .filter((t) => t.owner_id === App.user.id && (t.status === "overdue" || t.needs_review))
+          .slice(0, 5)
+      : [];
+    const notificationsHtml = `<div class="card" style="margin-bottom:16px">
+      <div class="ct" style="margin-bottom:10px">🔔 ${lbl("الإشعارات", "Notifications")}</div>
+      ${
+        myNotifications.length
+          ? myNotifications
+              .map(
+                (t) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2)" onclick="Panels.load('tasks')">
+            <span style="font-size:13px">${t.status === "overdue" ? "⚠️" : "⚑"}</span>
+            <span style="font-size:12px;color:var(--text);flex:1">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
+            <span style="font-size:11px;color:${t.status === "overdue" ? "var(--red)" : "var(--amber)"}">${t.status === "overdue" ? lbl("متأخرة", "Overdue") : lbl("مراجعة", "Review")}</span>
+          </div>`,
+              )
+              .join("")
+          : `<div style="font-size:12px;color:var(--green)">✓ ${lbl("لا إشعارات جديدة", "No new notifications")}</div>`
+      }
     </div>`;
+
+    const overdueList = tasks.filter((t) => t.status === "overdue");
+    const overdueHtml = overdueList.length
+      ? `
+      <div class="card stat-clickable" style="margin-top:14px;cursor:pointer" onclick="Panels.load('tasks')" title="${lbl("فتح المهام", "Open tasks")}">
+        <div class="ct" style="color:var(--red);margin-bottom:10px">⚠ ${lbl("المهام المتأخرة الفورية", "Urgent Overdue Tasks")}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px">
+          ${overdueList
+            .slice(0, 6)
+            .map(
+              (t) => `
+            <div style="background:var(--navy3);border-radius:8px;padding:10px;border:1px solid rgba(224,90,90,.2)">
+              <div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap">
+                ${t.owner_name_ar ? `<span class="tag tgold" style="font-size:11px">${esc(l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar)}</span>` : ""}
+                ${t.due_date ? `<span class="tag tr" style="font-size:11px">${esc(t.due_date)}</span>` : ""}
+              </div>
+            </div>`,
+            )
+            .join("")}
+        </div>
+      </div>`
+      : "";
+
+    // ── Board Member: governance/resolutions-focused section ──────────────────
+    const boardGovHtml =
+      role === "Board Member"
+        ? (() => {
+            const recentDec = decisions.slice(0, 8);
+            const openDec = decisions.filter(
+              (d) => d.status !== "implemented",
+            ).length;
+            return `<div class="card" style="margin-top:14px">
+        <div class="ct" style="margin-bottom:12px;color:var(--blue)">⚖️ ${lbl("قرارات مجلس الإدارة", "Board Resolutions")}</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="background:rgba(91,155,214,.1);border:1px solid rgba(91,155,214,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--blue)">
+            ${decisions.length} ${lbl("قرار إجمالي", "total decisions")}
+          </span>
+          <span style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--amber)">
+            ${openDec} ${lbl("قيد التنفيذ", "pending implementation")}
+          </span>
+        </div>
+        ${
+          recentDec.length
+            ? recentDec
+                .map(
+                  (d) => `
+          <div style="padding:9px 0;border-bottom:.5px solid var(--border2);display:flex;align-items:flex-start;gap:10px">
+            <span style="font-size:11px;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap;background:${d.status === "implemented" ? "rgba(46,204,113,.15)" : "rgba(255,193,7,.15)"};color:${d.status === "implemented" ? "var(--green)" : "var(--amber)"}">
+              ${esc(lbl(d.status === "implemented" ? "منفَّذ" : "قيد التنفيذ", d.status === "implemented" ? "Implemented" : "Pending"))}
+            </span>
+            <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? d.text_ar : d.text_en || d.text_ar)}</div>
+          </div>`,
+                )
+                .join("")
+            : `<div style="font-size:12px;color:var(--text3)">${lbl("لا قرارات مسجلة", "No decisions recorded yet")}</div>`
+        }
+        ${decisions.length > 8 ? `<div style="text-align:center;margin-top:10px"><button class="btn-ghost btn-sm" onclick="Panels.load('governance')" style="font-size:11px">${lbl("عرض كل القرارات", "View all decisions")}</button></div>` : ""}
+      </div>`;
+          })()
+        : "";
+
+    // ── Committee Member: scoped task + schedule section ──────────────────────
+    const committeeHtml =
+      role === "Committee Member"
+        ? (() => {
+            const myTasks = tasks.filter(
+              (t) => t.owner_id === (App.user && App.user.id),
+            );
+            const myOpen = myTasks.filter((t) => t.status !== "done");
+            const myOverdue = myTasks.filter((t) => t.status === "overdue");
+            const upcomingCom = upcoming.slice(0, 4);
+            return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+        <div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('tasks')">
+          <div class="ct" style="margin-bottom:12px;color:var(--green)">✅ ${lbl("مهامي", "My Tasks")}</div>
+          ${
+            myOpen.length
+              ? myOpen
+                  .slice(0, 5)
+                  .map(
+                    (t) => `
+            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
+              <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
+                ${t.due_date ? `<span class="tag ${t.status === "overdue" ? "tr" : "ta"}" style="font-size:11px">${esc(t.due_date)}</span>` : ""}
+                <span class="tag" style="font-size:11px;background:var(--navy4)">${esc(t.status)}</span>
+              </div>
+            </div>`,
+                  )
+                  .join("")
+              : `<div style="font-size:12px;color:var(--green)">✓ ${lbl("كل المهام مكتملة", "All tasks complete")}</div>`
+          }
+          ${myOverdue.length ? `<div style="margin-top:8px;font-size:11px;color:var(--red)">⚠ ${myOverdue.length} ${lbl("مهمة متأخرة", "overdue")}</div>` : ""}
+        </div>
+        <div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')">
+          <div class="ct" style="margin-bottom:12px;color:var(--gold)">📅 ${lbl("الاجتماعات القادمة", "Upcoming Meetings")}</div>
+          ${
+            upcomingCom.length
+              ? upcomingCom
+                  .map(
+                    (s) => `
+            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
+              <div style="font-size:11px;color:var(--text3)">📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? "🕐 " + esc(s.meeting_time) : ""}</div>
+            </div>`,
+                  )
+                  .join("")
+              : `<div style="font-size:12px;color:var(--text3)">${lbl("لا اجتماعات قادمة", "No upcoming meetings")}</div>`
+          }
+        </div>
+      </div>`;
+          })()
+        : "";
+
+    const dash = Dash.get();
+    const sec = (k, html) => (dash[k] === false ? "" : html);
+    const showCharts = hasCharts && ROLE_ACCESS[role] && ROLE_ACCESS[role].has("analytics");
+
+    // ── Executive Dashboard Intelligence — meeting completion rate,
+    // department performance, at-risk flags, and rules-based insights /
+    // recommendations, all from GET /api/dashboard/intelligence (reports.view
+    // gated, so this whole block is simply absent for roles without it).
+    const intelHtml = dashIntel ? (() => {
+      const pctBar = (pct, accent) => `<div style="height:6px;background:var(--navy4);border-radius:4px;overflow:hidden;margin-top:5px"><div style="height:100%;border-radius:4px;background:${accent};width:${pct}%"></div></div>`;
+      const deptRows = (dashIntel.department_performance || []).slice(0, 6).map((d) => `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text)">
+            <span style="font-weight:600">${esc(d.department)}</span>
+            <span style="color:var(--text3)">${d.done}/${d.total} · ${d.pct}%</span>
+          </div>
+          ${pctBar(d.pct, d.overdue > 0 ? "var(--red)" : "var(--gold)")}
+        </div>`).join("") || `<div class="es" style="padding:16px;font-size:12px">${lbl("لا توجد بيانات أقسام بعد", "No department data yet")}</div>`;
+
+      const deadlineRows = (dashIntel.upcoming_deadlines?.tasks || []).slice(0, 5).map((t) => `
+        <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
+          <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
+          <span style="color:var(--text3);flex-shrink:0">${esc(t.due_date)}</span>
+        </div>`).join("") || `<div style="font-size:12px;color:var(--text3);padding:8px 0">${lbl("لا مواعيد نهائية قريبة", "No deadlines coming up")}</div>`;
+
+      const blockedRows = (dashIntel.blocked_actions || []).slice(0, 5).map((b) => `
+        <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
+          <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? b.text_ar : b.text_en || b.text_ar)}</span>
+          <span class="tag" style="background:rgba(224,160,48,.15);color:#e0a030;font-size:10.5px;flex-shrink:0">⛔ ${esc(b.owner_name_ar ? (l === "ar" ? b.owner_name_ar : b.owner_name_en || b.owner_name_ar) : "")}</span>
+        </div>`).join("") || `<div style="font-size:12px;color:var(--text3);padding:8px 0">${lbl("لا إجراءات معطّلة", "No blocked actions")}</div>`;
+
+      const insightRows = (dashIntel.insights || []).map((i) => `<li style="margin-bottom:6px;font-size:12.5px;color:var(--text)">${esc(l === "ar" ? i.ar : i.en)}</li>`).join("");
+      const recRows = (dashIntel.recommendations || []).map((r) => `<li style="margin-bottom:6px;font-size:12.5px;color:var(--text)">${esc(l === "ar" ? r.ar : r.en)}</li>`).join("");
+
+      return `<div style="margin-bottom:16px">
+        ${_secHdr("🧠", "ذكاء لوحة التحكم التنفيذية", "Executive Dashboard Intelligence", "", lbl("مبنية بالكامل من بيانات حية", "Built entirely from live data"))}
+        <div class="grid-2" style="gap:14px;margin-bottom:14px">
+          <div class="card">
+            <div class="ch"><div class="ct">📁 ${lbl("معدل إنجاز الاجتماعات", "Meeting Completion Rate")}</div></div>
+            <div style="font-size:28px;font-weight:800;color:var(--gold)">${dashIntel.meeting_completion_rate}%</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${dashIntel.meetings_processed}/${dashIntel.meetings_total} ${lbl("اجتماعاً تمت معالجتها", "meetings processed")}</div>
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">🏢 ${lbl("نظرة عامة على الأقسام", "Department Performance")}</div></div>
+            ${deptRows}
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">📅 ${lbl("مواعيد نهائية قريبة", "Upcoming Deadlines")}</div><div class="ctsub">${lbl("خلال 7 أيام", "Within 7 days")}</div></div>
+            ${deadlineRows}
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">⛔ ${lbl("إجراءات معطّلة", "Blocked Actions")}</div></div>
+            ${blockedRows}
+          </div>
+        </div>
+        <div class="grid-2" style="gap:14px">
+          <div class="card">
+            <div class="ch"><div class="ct">💡 ${lbl("رؤى تنفيذية", "Executive Insights")}</div></div>
+            ${insightRows ? `<ul style="margin:0;padding-inline-start:18px">${insightRows}</ul>` : `<div style="font-size:12px;color:var(--text3)">${lbl("لا رؤى إضافية حالياً", "No additional insights right now")}</div>`}
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">✅ ${lbl("توصيات", "Recommendations")}</div></div>
+            ${recRows ? `<ul style="margin:0;padding-inline-start:18px">${recRows}</ul>` : ""}
+          </div>
+        </div>
+      </div>`;
+    })() : "";
+
+    body.innerHTML = `
+      ${greetingHtml}
+      ${roleHeader}
+      ${briefingHtml}
+      ${todaysTimelineHtml}
+      ${quickActionsHtml}
+      ${Dash.bar(l)}
+      ${sec("intel", intelHtml)}
+      ${sec("stats", `<div style="margin-bottom:14px"><div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
+      <div class="grid-2" style="margin-bottom:16px">
+        ${calendarPreviewHtml}
+        ${todaysMeetingsHtml}
+      </div>
+      <div style="margin-bottom:16px">${canGov && govSummary ? `<div class="grid-2">${aiActivityHtml}${govWidgetHtml}</div>` : aiActivityHtml}</div>
+      <div class="grid-2" style="margin-bottom:16px">
+        ${recentReportsHtml}
+        ${notificationsHtml}
+      </div>
+      ${showCharts ? sec("charts", `<div>${_secHdr('📈','الاتجاهات والرسوم البيانية','Trends & Charts','',lbl('بيانات حية من الاجتماعات المسجلة','Live data from recorded sessions'))}${chartsGridHtml}</div>`) : ""}
+      ${sec("upcoming", `<div style="margin-bottom:14px">${_secHdr('📅','الاجتماعات القادمة','Upcoming Meetings','',lbl('انقر للذهاب إلى الجدول','Click to open full schedule'))}${upcomingHtml}</div>`)}
+      ${overdueHtml ? `<div>${_secHdr('⚠','المهام تحتاج انتباهاً','Needs Immediate Attention','','')}</div>` : ''}
+      ${sec("overdue", overdueHtml)}
+      ${boardGovHtml}
+      ${committeeHtml}`;
+
+    if (showCharts) {
+      const base = _chartBase(l);
+      const tw = analytics.tasksByWeek || [];
+      Charts.render("cht-ov-tasks", {
+        type: "bar",
+        data: {
+          labels: tw.map((r) => _weekLabel(r.week_start, l)),
+          datasets: [
+            {
+              label: lbl("مكتملة", "Done"),
+              data: tw.map((r) => r.done),
+              backgroundColor: "#2ECC8A66",
+              borderColor: "#2ECC8A",
+              borderWidth: 1.5,
+            },
+            {
+              label: lbl("مفتوحة", "Open"),
+              data: tw.map((r) => r.open),
+              backgroundColor: "#EFA82766",
+              borderColor: "#EFA827",
+              borderWidth: 1.5,
+            },
+          ],
+        },
+        options: {
+          ...base,
+          plugins: {
+            ...base.plugins,
+            legend: { ...base.plugins.legend, display: true },
+          },
+          scales: { ...base.scales, y: { ...base.scales.y, stacked: false } },
+        },
+      });
+
+      const mm = analytics.meetingsByMonth || [];
+      Charts.render("cht-ov-meetings", {
+        type: "bar",
+        data: {
+          labels: mm.map((r) => _monthLabel(r.month, l)),
+          datasets: [
+            {
+              label: lbl("اجتماعات", "Meetings"),
+              data: mm.map((r) => r.count),
+              backgroundColor: "#C9A84C66",
+              borderColor: "#C9A84C",
+              borderWidth: 1.5,
+            },
+          ],
+        },
+        options: {
+          ...base,
+          plugins: { ...base.plugins, legend: { display: false } },
+          scales: {
+            ...base.scales,
+            y: {
+              ...base.scales.y,
+              ticks: { ...base.scales.y.ticks, stepSize: 1 },
+            },
+          },
+        },
+      });
+
+      const mc = analytics.memberCompletion || [];
+      Charts.render("cht-ov-team", {
+        type: "bar",
+        data: {
+          labels: mc.map((r) =>
+            l === "ar" ? r.owner_name_ar : r.owner_name_en || r.owner_name_ar,
+          ),
+          datasets: [
+            {
+              label: lbl("الإنجاز %", "Completion %"),
+              data: mc.map((r) => r.pct),
+              backgroundColor: mc.map((r) =>
+                r.pct === 100
+                  ? "#2ECC8A66"
+                  : r.pct > 50
+                    ? "#C9A84C66"
+                    : "#E05A5A66",
+              ),
+              borderColor: mc.map((r) =>
+                r.pct === 100 ? "#2ECC8A" : r.pct > 50 ? "#C9A84C" : "#E05A5A",
+              ),
+              borderWidth: 1.5,
+            },
+          ],
+        },
+        options: {
+          ...base,
+          indexAxis: "y",
+          plugins: { ...base.plugins, legend: { display: false } },
+          scales: {
+            x: { ...base.scales.x, max: 100 },
+            y: {
+              ticks: { color: "#808090", font: { size: 9 } },
+              grid: { color: "rgba(255,255,255,0.06)" },
+            },
+          },
+        },
+      });
+
+      const ds = analytics.decisionStatus || [];
+      const dsColorMap = {
+        active: "#EFA827",
+        implemented: "#2ECC8A",
+        pending: "#5B9BD6",
+      };
+      const dsLabelMap = {
+        active: lbl("نشط", "Active"),
+        implemented: lbl("منفَّذ", "Implemented"),
+        pending: lbl("معلق", "Pending"),
+      };
+      Charts.render("cht-ov-decisions", {
+        type: "doughnut",
+        data: {
+          labels: ds.map((r) => dsLabelMap[r.status] || esc(r.status)),
+          datasets: [
+            {
+              data: ds.map((r) => r.count),
+              backgroundColor: ds.map(
+                (r) => (dsColorMap[r.status] || "#888") + "bb",
+              ),
+              borderColor: ds.map((r) => dsColorMap[r.status] || "#888"),
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: _chartPie(),
+      });
+    }
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
 }
+
+// ══ Dashboard Customizer (persists which widgets are visible) ═══════════════════
+const Dash = {
+  key: "ameen_dash_cfg",
+  defaults: { stats: true, intel: true, team: true, upcoming: true, overdue: true },
+  get() {
+    try {
+      return {
+        ...this.defaults,
+        ...JSON.parse(localStorage.getItem(this.key) || "{}"),
+      };
+    } catch {
+      return { ...this.defaults };
+    }
+  },
+  set(k, v) {
+    const c = this.get();
+    c[k] = v;
+    localStorage.setItem(this.key, JSON.stringify(c));
+    renderOverview();
+  },
+  bar(l) {
+    const c = this.get();
+    const item = (
+      k,
+      ar,
+      en,
+    ) => `<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer">
+      <input type="checkbox" ${c[k] !== false ? "checked" : ""} onchange="Dash.set('${k}', this.checked)" style="width:15px;height:15px;accent-color:var(--gold)">${l === "ar" ? ar : en}</label>`;
+    return `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">⚙️ ${l === "ar" ? "تخصيص" : "Customize"}</span>
+        ${item("stats", "الإحصائيات", "Stats")}
+        ${item("intel", "ذكاء اللوحة", "Intelligence")}
+        ${item("team", "أداء الفريق", "Team")}
+        ${item("upcoming", "الاجتماعات القادمة", "Upcoming")}
+        ${item("overdue", "المهام المتأخرة", "Overdue")}
+      </div>
+    </div>`;
+  },
+};
 
 // ══ Admin Panel (Role Management) ═════════════════════════════════════════════
 async function renderAdminPanel() {

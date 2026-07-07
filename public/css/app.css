@@ -173,51 +173,6 @@ select.fi option{background:var(--navy3)}
 .owner-chip{padding-inline-start:3px !important}
 .owner-av{width:16px;height:16px;border-radius:50%;background:var(--gold);color:var(--navy);font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
 
-/* ── Executive Home (Home / Overview dashboard) ───────────────────────
-   A written-briefing, curated-list layout — deliberately fewer bordered
-   containers than the rest of the app: most sections are borderless rows
-   separated by hairlines (var(--border3)), not stacked .card boxes, so
-   hierarchy comes from typography and whitespace rather than boxes. */
-.exh{display:flex;flex-direction:column;max-width:1180px}
-.exh-greet-title{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.15;color:var(--text)}
-.exh-greet-sub{font-size:13.5px;color:var(--text3);margin-top:8px}
-
-.exh-brief{background:var(--navy3);border-inline-start:3px solid var(--gold-border);border-radius:var(--rm);padding:20px 24px;margin:26px 0 8px;font-size:15.5px;line-height:1.75;color:var(--text2)}
-
-.exh-sec{margin-top:30px}
-.exh-sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:6px}
-.exh-sec-title{font-size:19px;font-weight:700;letter-spacing:-.01em;color:var(--text);display:flex;align-items:center;gap:9px}
-.exh-sec-action{font-size:12.5px;font-weight:600;color:var(--gold);white-space:nowrap;cursor:pointer;background:none;border:none;padding:4px 0;flex-shrink:0}
-.exh-sec-action:hover{text-decoration:underline}
-
-.exh-row{display:flex;align-items:center;gap:12px;padding:13px 6px;border-bottom:1px solid var(--border3);cursor:pointer;transition:var(--t);border-radius:8px}
-.exh-row:last-child{border-bottom:none}
-.exh-row:hover{background:var(--navy3)}
-.exh-row-icon{font-size:15px;flex-shrink:0;width:18px;text-align:center}
-.exh-row-main{flex:1;min-width:0}
-.exh-row-title{font-size:13.5px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.exh-row-meta{font-size:11.5px;color:var(--text3);margin-top:3px;display:flex;align-items:center;flex-wrap:wrap}
-.exh-row-tail{flex-shrink:0}
-
-.exh-empty{padding:18px 6px;font-size:13px;color:var(--text3);display:flex;align-items:center;gap:8px}
-
-.exh-insight{background:linear-gradient(135deg,var(--gold-dim),transparent 70%);border:1px solid var(--gold-border);border-radius:var(--r);padding:22px 26px}
-.exh-insight-tag{font-size:10.5px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px;display:flex;align-items:center;gap:6px}
-.exh-insight-text{font-size:15.5px;line-height:1.65;color:var(--text);font-weight:500}
-
-.exh-cal{background:var(--navy2);border:1px solid var(--border2);border-radius:var(--r);padding:18px 20px;height:100%}
-.exh-cal .cal-cell{background:none;border:none;min-height:28px;padding:2px}
-.exh-cal .cal-cell.cal-today{background:var(--gold-dim);border-radius:6px}
-.exh-cal .cal-daynum{font-size:10.5px;margin-bottom:1px}
-
-@media (max-width:640px){
-  .exh-greet-title{font-size:25px}
-  .exh-brief{padding:16px 18px;font-size:14px;margin-top:18px}
-  .exh-sec{margin-top:24px}
-  .exh-sec-title{font-size:16px}
-  .exh-insight{padding:18px 20px}
-}
-
 /* ── Guided wizard (Schedule Meeting create flow) ─────────────────── */
 .wiz-header{display:flex;align-items:center;margin-bottom:24px;padding:0 4px}
 .wiz-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
