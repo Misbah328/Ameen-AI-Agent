@@ -557,50 +557,45 @@
 <section class="panel" id="panel-ask">
   <div class="ph">
     <div class="ph-row">
-      <div>
-        <div class="ptitle" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</div>
-        <div class="ptitle-sub" data-ar="مساعدك الذكي التنفيذي · سياق كامل لجميع الاجتماعات والمهام والقرارات" data-en="Your executive AI · Full context of all meetings, tasks and decisions">مساعدك الذكي التنفيذي · سياق كامل</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="ask-hist-toggle" id="ask-hist-toggle" onclick="AskUI.toggleSidebar()" title="History" aria-label="History">🕘</button>
+        <div>
+          <div class="ptitle" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</div>
+          <div class="ptitle-sub" data-ar="رئيس هيئة موظفيك التنفيذي" data-en="Your Executive Chief of Staff">رئيس هيئة موظفيك التنفيذي</div>
+        </div>
       </div>
       <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-        <input type="search" id="chat-search" class="fi" style="width:150px" oninput="Chat.searchConversation(this.value)"
-          data-ph-ar="🔍 بحث في المحادثة" data-ph-en="🔍 Search conversation" placeholder="🔍 Search conversation"/>
         <div class="ai-pill">✦ Claude · Anthropic</div>
         <button class="btn-ghost btn-sm" onclick="Chat.copyConversation()"><span data-ar="📋 نسخ" data-en="📋 Copy">📋 نسخ</span></button>
         <button class="btn-ghost btn-sm" onclick="Chat.exportConversation()"><span data-ar="⬇ تصدير" data-en="⬇ Export">⬇ تصدير</span></button>
-        <button class="btn-ghost btn-sm" onclick="Chat.clear()"><span data-ar="مسح" data-en="Clear">مسح</span></button>
+        <button class="btn-ghost btn-sm" onclick="Chat.clear()"><span data-ar="محادثة جديدة" data-en="New Chat">محادثة جديدة</span></button>
       </div>
     </div>
   </div>
-  <div class="chat-body" id="chat-msgs">
-    <div class="msg" id="welcome-msg">
-      <div class="mav"><img id="ameen-av" src="/logo.png" alt="Ameen"/></div>
-      <div>
-        <div class="mb" id="welcome-text"></div>
-        <div class="mts" id="welcome-ts"></div>
+  <div class="ask-layout" id="ask-layout">
+    <aside class="ask-sidebar" id="ask-sidebar">
+      <div class="ask-search-wrap">
+        <span class="ask-search-icon">🔍</span>
+        <input type="search" id="chat-search" class="ask-search" oninput="AskUI.search(this.value)"
+          data-ph-ar="ابحث في المحادثات والأسئلة..." data-ph-en="Search conversations and questions..."
+          placeholder="Search conversations and questions..."/>
+      </div>
+      <div id="ask-history-body"></div>
+    </aside>
+    <div class="ask-backdrop" id="ask-backdrop" onclick="AskUI.toggleSidebar()"></div>
+    <div class="ask-main">
+      <div class="chat-body" id="chat-msgs">
+        <div id="ask-hero"></div>
+      </div>
+      <div class="chat-ft">
+        <button class="sbtn" onclick="Chat.send()">↑</button>
+        <textarea class="ci" id="ci" rows="1"
+          data-ph-ar="اسأل أمين عن الاجتماعات أو المهام أو القرارات أو الفريق..."
+          data-ph-en="Ask Ameen about meetings, tasks, decisions or team..."
+          placeholder="اسأل أمين..."
+          onkeydown="Chat.key(event)"></textarea>
       </div>
     </div>
-    <div id="chat-favorite-prompts"></div>
-    <div id="chat-recent-searches"></div>
-    <div class="qchips" id="chat-chips">
-      <button class="qc" data-kind="search_meetings" data-q-ar="ابحث في الاجتماعات — أرني آخر الاجتماعات المسجلة" data-q-en="Search meetings — show me the most recent recorded meetings" onclick="Chat.quick(this)" data-ar="🔍 بحث في الاجتماعات" data-en="🔍 Search Meetings">🔍 بحث في الاجتماعات</button>
-      <button class="qc" data-kind="find_decisions" data-q-ar="ابحث عن القرارات — أرني القرارات المعلقة" data-q-en="Find decisions — show me the pending decisions" onclick="Chat.quick(this)" data-ar="⚖️ إيجاد القرارات" data-en="⚖️ Find Decisions">⚖️ إيجاد القرارات</button>
-      <button class="qc" data-kind="compare_meetings" data-q-ar="قارن بين آخر اجتماعين من حيث القرارات والمهام" data-q-en="Compare the last two meetings in terms of decisions and tasks" onclick="Chat.quick(this)" data-ar="📊 مقارنة اجتماعات" data-en="📊 Compare Meetings">📊 مقارنة اجتماعات</button>
-      <button class="qc" data-kind="draft_agenda" data-q-ar="ساعدني في صياغة جدول أعمال للاجتماع القادم" data-q-en="Help me draft an agenda for the upcoming meeting" onclick="Chat.quick(this)" data-ar="🗒️ صياغة جدول أعمال" data-en="🗒️ Draft Agenda">🗒️ صياغة جدول أعمال</button>
-      <button class="qc" data-kind="draft_resolution" data-q-ar="ساعدني في صياغة نص قرار مجلس إدارة" data-q-en="Help me draft a board resolution" onclick="Chat.quick(this)" data-ar="📜 صياغة قرار" data-en="📜 Draft Resolution">📜 صياغة قرار</button>
-      <button class="qc" data-kind="generate_report" data-q-ar="ما التقارير التي يمكنك مساعدتي في توليدها؟" data-q-en="What reports can you help me generate?" onclick="Chat.quick(this)" data-ar="📈 توليد تقرير" data-en="📈 Generate Report">📈 توليد تقرير</button>
-      <button class="qc" data-kind="create_action" data-q-ar="أريد إنشاء إجراء تنفيذي جديد" data-q-en="I want to create a new executive action" onclick="Chat.quick(this)" data-ar="🎯 إنشاء إجراء تنفيذي" data-en="🎯 Create Executive Action">🎯 إنشاء إجراء تنفيذي</button>
-      <button class="qc" data-kind="search_governance" data-q-ar="ابحث في الحوكمة — أرني آخر مستجدات الحوكمة" data-q-en="Search governance — show me the latest governance updates" onclick="Chat.quick(this)" data-ar="🏛️ بحث في الحوكمة" data-en="🏛️ Search Governance">🏛️ بحث في الحوكمة</button>
-      <button class="qc" data-kind="find_owner" data-q-ar="من هو المسؤول عن كل إجراء تنفيذي متأخر؟" data-q-en="Who owns each overdue executive action?" onclick="Chat.quick(this)" data-ar="👤 تحديد مسؤول الإجراء" data-en="👤 Find Action Owner">👤 تحديد مسؤول الإجراء</button>
-      <button class="qc" data-kind="exec_summary" data-q-ar="أنشئ لي ملخصاً تنفيذياً لهذا الأسبوع" data-q-en="Generate an executive summary for this week" onclick="Chat.quick(this)" data-ar="🧾 ملخص تنفيذي" data-en="🧾 Executive Summary">🧾 ملخص تنفيذي</button>
-    </div>
-  </div>
-  <div class="chat-ft">
-    <button class="sbtn" onclick="Chat.send()">↑</button>
-    <textarea class="ci" id="ci" rows="1"
-      data-ph-ar="اسأل أمين عن الاجتماعات أو المهام أو القرارات أو الفريق..."
-      data-ph-en="Ask Ameen about meetings, tasks, decisions or team..."
-      placeholder="اسأل أمين..."
-      onkeydown="Chat.key(event)"></textarea>
   </div>
 </section>
 
