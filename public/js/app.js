@@ -871,6 +871,7 @@ const Panels = {
         await renderTranscripts();
         break;
       case "history":
+        MeetingHistory._target = "hist";
         await MeetingHistory.refresh();
         break;
       case "tasks":
@@ -930,6 +931,7 @@ const Panels = {
         await LiveMeetingsPanel.refresh();
         break;
       case "workspace":
+        await WorkspacePanel.refresh();
         break;
     }
     this._startPolling();
@@ -1357,6 +1359,12 @@ const Rec = {
   _mixedRec: null,
   _mixedChunks: [],
   _dualAudioUrl: null,
+  // Set by enterLiveMeeting() when the user is starting/joining a meeting that
+  // already exists as a `meetings` row (created via the Create Meeting wizard
+  // or already `recording` server-side) — start() then binds to this meeting
+  // instead of creating a brand-new one, and preserves whatever transcript it
+  // already has instead of blanking it.
+  pendingMeeting: null,
 
   async toggle() {
     if (this.isRecording) {
@@ -1367,7 +1375,9 @@ const Rec = {
   },
 
   async start() {
+    const bound = this.pendingMeeting;
     const title =
+      (bound && (App.lang === "ar" ? bound.title_ar : bound.title_en || bound.title_ar)) ||
       $("mtg-title").value.trim() ||
       (App.lang === "ar" ? "اجتماع بدون عنوان" : "Untitled Meeting");
     // ── Browser compatibility guard ───────────────────────────────────────────
@@ -1381,36 +1391,48 @@ const Rec = {
       return;
     }
     const meetingType = ($("mtg-type") && $("mtg-type").value) || "";
-    try {
-      const row = await api("/api/meetings", {
-        method: "POST",
-        body: JSON.stringify({
-          title_ar: title,
-          title_en: title,
-          transcript: "",
-          meeting_type: meetingType,
-        }),
-      });
-      this.currentMeetingId = row.id;
-      await api(`/api/meetings/${row.id}/recording/start`, {
-        method: "POST",
-        body: JSON.stringify({ capture_type: "browser_microphone", scope: "local_microphone_only" }),
-      }).catch(() => {});
-    } catch (e) {
-      alert(e.message);
-      return;
+    if (bound) {
+      // Already created (and already transitioned to `recording` server-side)
+      // by ScheduledPanel.startMeeting()/LiveMeetingsPanel — just bind to it.
+      this.currentMeetingId = bound.id;
+    } else {
+      try {
+        const row = await api("/api/meetings", {
+          method: "POST",
+          body: JSON.stringify({
+            title_ar: title,
+            title_en: title,
+            transcript: "",
+            meeting_type: meetingType,
+          }),
+        });
+        this.currentMeetingId = row.id;
+        await api(`/api/meetings/${row.id}/recording/start`, {
+          method: "POST",
+          body: JSON.stringify({ capture_type: "browser_microphone", scope: "local_microphone_only" }),
+        }).catch(() => {});
+      } catch (e) {
+        alert(e.message);
+        return;
+      }
     }
 
-    this.fullTranscript = "";
+    // A bound meeting may already carry a transcript (seeded/imported content,
+    // or a previous local session that was stopped and resumed) — append to it
+    // rather than discarding it.
+    this.fullTranscript = (bound && bound.transcript) || "";
     this._lastSavedLen = 0;
     this.isRecording = true;
+    this.isPaused = false;
     $("rec-ring").classList.add("recording");
     $("rec-ic").textContent = "⏹";
     $("b-rec").style.display = "flex";
+    const pauseBtn0 = $("rec-pause-btn");
+    if (pauseBtn0) { pauseBtn0.style.display = ""; pauseBtn0.innerHTML = `⏸ <span data-ar="إيقاف مؤقت" data-en="Pause">${App.lang === "ar" ? "إيقاف مؤقت" : "Pause"}</span>`; }
     $("live-tr-card").style.display = "";
     $("live-ex-card").style.display = "";
     $("ai-res-card").style.display = "none";
-    $("live-tr").textContent = "";
+    $("live-tr").textContent = this.fullTranscript || "";
     $("ex-tasks").innerHTML =
       `<div style="font-size:11px;color:var(--text3);font-style:italic">${App.lang === "ar" ? "في انتظار الكلام..." : "Listening..."}</div>`;
     $("ex-decs").innerHTML =
@@ -1519,10 +1541,13 @@ const Rec = {
 
   async stop() {
     this.isRecording = false;
+    this.isPaused = false;
     clearInterval(this.timerInt);
     $("rec-ring").classList.remove("recording");
     $("rec-ic").textContent = "🎙";
     $("b-rec").style.display = "none";
+    const pauseBtn1 = $("rec-pause-btn");
+    if (pauseBtn1) pauseBtn1.style.display = "none";
     this.stopWaveform();
     clearInterval(this.liveExInt);
     clearInterval(this.saveInt);
@@ -1565,6 +1590,11 @@ const Rec = {
       }).catch(() => {});
     }
 
+    const finishedMeetingId = this.currentMeetingId;
+    const wasBound = !!this.pendingMeeting;
+    this.pendingMeeting = null;
+    this._unbindTitleInputs();
+
     if (this.currentMeetingId && this.fullTranscript) {
       const dur = Math.floor((Date.now() - this.startTime) / 1000);
       await api(`/api/meetings/${this.currentMeetingId}`, {
@@ -1579,8 +1609,96 @@ const Rec = {
         const blob = new Blob(this._mixedChunks, { type: "audio/webm" });
         this._dualAudioUrl = URL.createObjectURL(blob);
       }
-      this.processAI();
+      await this.processAI();
     }
+
+    // A meeting entered through the Create Meeting → Scheduled → Start Meeting
+    // flow (or Live Meetings' Join) has a real workspace waiting for it —
+    // land there instead of leaving the coordinator on this raw capture screen.
+    // Ad-hoc recordings (never bound to a pre-existing meeting) keep the
+    // existing in-place results view, since there's no richer workspace
+    // context (agenda/attendees/series) to show for those.
+    if (wasBound && finishedMeetingId) {
+      showToast(App.lang === "ar" ? "✓ تم إيقاف التسجيل — جارٍ فتح مساحة عمل الاجتماع" : "✓ Recording stopped — opening the meeting workspace");
+      WorkspacePanel.open(finishedMeetingId);
+    }
+  },
+
+  // Bind the title/type inputs to a pre-existing meeting: show its values and
+  // disable editing there (renaming a meeting belongs in its Workspace, not
+  // mid-capture — nothing reads these inputs back for a bound meeting).
+  _bindTitleInputs(bound) {
+    const l = App.lang;
+    const titleInp = $("mtg-title");
+    if (titleInp) {
+      titleInp.value = (l === "ar" ? bound.title_ar : bound.title_en || bound.title_ar) || "";
+      titleInp.disabled = true;
+    }
+    const typeInp = $("mtg-type");
+    if (typeInp) {
+      if (bound.meeting_type) typeInp.value = bound.meeting_type;
+      typeInp.disabled = true;
+    }
+    const ptitle = document.querySelector("#panel-record .ptitle");
+    if (ptitle) ptitle.textContent = (l === "ar" ? bound.title_ar : bound.title_en || bound.title_ar) || (l === "ar" ? "اجتماع مباشر" : "Live Meeting");
+    QuickCapture.show(bound.id);
+  },
+
+  _unbindTitleInputs() {
+    const titleInp = $("mtg-title");
+    if (titleInp) { titleInp.disabled = false; titleInp.value = ""; }
+    const typeInp = $("mtg-type");
+    if (typeInp) { typeInp.disabled = false; typeInp.value = ""; }
+    const ptitle = document.querySelector("#panel-record .ptitle");
+    if (ptitle) ptitle.setAttribute("data-ar", "تسجيل اجتماع") || ptitle.setAttribute("data-en", "Record Meeting");
+    App.applyLang(App.lang);
+    QuickCapture.hide();
+  },
+
+  // Pause/Resume — a lighter-weight suspend than stop(): keeps the meeting
+  // `recording` server-side and keeps fullTranscript intact, just stops the
+  // browser's speech recognition + timers until resumed. ("Mute" in the Live
+  // Meeting spec is the same action for this browser-speech-to-text engine —
+  // there's no separate audio-output channel to mute, so one Pause/Resume
+  // control covers both asks rather than adding a redundant second button.)
+  isPaused: false,
+  pause() {
+    if (!this.isRecording || this.isPaused) return;
+    this.isPaused = true;
+    clearInterval(this.timerInt);
+    clearInterval(this.liveExInt);
+    clearInterval(this.saveInt);
+    if (this.speechRec) { try { this.speechRec.stop(); } catch (e) {} }
+    const stEl = $("rec-st");
+    if (stEl) stEl.textContent = App.lang === "ar" ? "⏸ متوقف مؤقتاً" : "⏸ Paused";
+    const pauseBtn = $("rec-pause-btn");
+    if (pauseBtn) pauseBtn.innerHTML = `▶ <span data-ar="استئناف" data-en="Resume">${App.lang === "ar" ? "استئناف" : "Resume"}</span>`;
+  },
+  resume() {
+    if (!this.isRecording || !this.isPaused) return;
+    this.isPaused = false;
+    this.startTime = Date.now() - this._elapsedBeforePause();
+    this.timerInt = setInterval(() => {
+      const s = Math.floor((Date.now() - this.startTime) / 1000);
+      const ts = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+      $("rec-tm").textContent = ts;
+      $("rec-timer-lbl").textContent = ts;
+    }, 1000);
+    this.liveExInt = setInterval(() => { this.liveExtract(); }, 18000);
+    this.saveInt = setInterval(() => { this.persistTranscript(); }, 12000);
+    this.startSpeechRec();
+    const stEl = $("rec-st");
+    if (stEl) stEl.textContent = App.lang === "ar" ? "▶ جارٍ التسجيل" : "▶ Recording...";
+    const pauseBtn = $("rec-pause-btn");
+    if (pauseBtn) pauseBtn.innerHTML = `⏸ <span data-ar="إيقاف مؤقت" data-en="Pause">${App.lang === "ar" ? "إيقاف مؤقت" : "Pause"}</span>`;
+  },
+  togglePause() {
+    if (this.isPaused) this.resume(); else this.pause();
+  },
+  _elapsedBeforePause() {
+    const s = $("rec-tm") ? $("rec-tm").textContent : "00:00";
+    const [m, sec] = s.split(":").map(Number);
+    return ((m || 0) * 60 + (sec || 0)) * 1000;
   },
 
   startSpeechRec() {
@@ -2386,6 +2504,133 @@ const Rec = {
       fuHtml +
       actions
     );
+  },
+};
+
+// ══ Quick Capture — Live Meeting Quick Actions (Add Note/Decision/Action/Poll) ═
+// Manual capture during a live meeting, shown only when the recording is bound
+// to a pre-existing meeting (see Rec._bindTitleInputs). Note/Decision/Action
+// each persist via a real endpoint; Poll is a lightweight, in-session-only
+// straw-poll widget (no realtime multi-user infra exists to back a persisted
+// poll, so this is deliberately local to the facilitator's browser).
+const QuickCapture = {
+  meetingId: null,
+  type: "note",
+  feed: [],
+  polls: [],
+
+  show(meetingId) {
+    this.meetingId = meetingId;
+    this.feed = [];
+    this.polls = [];
+    const card = $("quick-capture-card");
+    if (card) card.style.display = "";
+    this.setType("note");
+    this.renderFeed();
+  },
+  hide() {
+    this.meetingId = null;
+    const card = $("quick-capture-card");
+    if (card) card.style.display = "none";
+  },
+
+  setType(t) {
+    this.type = t;
+    document.querySelectorAll("#qc-type-seg .imp-seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.val === t));
+    $("qc-form-note-decision-action").style.display = t === "poll" ? "none" : "";
+    $("qc-form-poll").style.display = t === "poll" ? "" : "none";
+  },
+
+  async submit() {
+    if (!this.meetingId) return;
+    const l = App.lang;
+    const input = $("qc-input");
+    const text = (input && input.value || "").trim();
+    if (!text) return;
+    const btn = event && event.target && event.target.closest ? event.target.closest("button") : null;
+    if (btn) btn.disabled = true;
+    try {
+      if (this.type === "note") {
+        const note = await api(`/api/meetings/${this.meetingId}/notes`, { method: "POST", body: JSON.stringify({ text }) });
+        this.feed.unshift({ kind: "note", text: note.text, at: note.at });
+      } else if (this.type === "decision") {
+        await api("/api/decisions", { method: "POST", body: JSON.stringify({ text_ar: text, text_en: text, meeting_id: this.meetingId }) });
+        this.feed.unshift({ kind: "decision", text, at: new Date().toISOString() });
+      } else if (this.type === "action") {
+        await api("/api/tasks", { method: "POST", body: JSON.stringify({ text_ar: text, text_en: text, source_meeting_id: this.meetingId }) });
+        this.feed.unshift({ kind: "action", text, at: new Date().toISOString() });
+      }
+      if (input) input.value = "";
+      this.renderFeed();
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر الإضافة: " : "Could not add: ") + e.message, "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  },
+
+  addPollOption() {
+    const box = $("qc-poll-options");
+    if (!box) return;
+    const n = box.querySelectorAll("input").length;
+    if (n >= 4) return;
+    const l = App.lang;
+    const inp = document.createElement("input");
+    inp.className = "fi";
+    inp.id = `qc-poll-opt-${n}`;
+    inp.placeholder = l === "ar" ? `خيار ${n + 1}` : `Option ${n + 1}`;
+    inp.style.marginBottom = "6px";
+    box.appendChild(inp);
+  },
+
+  startPoll() {
+    const l = App.lang;
+    const question = (($("qc-poll-question") || {}).value || "").trim();
+    if (!question) { showToast(l === "ar" ? "الرجاء إدخال سؤال الاستطلاع" : "Please enter a poll question", "error"); return; }
+    const options = Array.from(document.querySelectorAll("#qc-poll-options input"))
+      .map((i) => i.value.trim())
+      .filter(Boolean);
+    if (options.length < 2) { showToast(l === "ar" ? "أدخل خيارين على الأقل" : "Enter at least two options", "error"); return; }
+    this.polls.unshift({ question, options: options.map((o) => ({ label: o, votes: 0 })) });
+    $("qc-poll-question").value = "";
+    document.querySelectorAll("#qc-poll-options input").forEach((i) => (i.value = ""));
+    this.renderFeed();
+  },
+
+  vote(pollIdx, optIdx) {
+    const poll = this.polls[pollIdx];
+    if (!poll) return;
+    poll.options[optIdx].votes++;
+    this.renderFeed();
+  },
+
+  renderFeed() {
+    const l = App.lang;
+    const box = $("qc-feed");
+    if (!box) return;
+    const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString(l === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+    const icon = { note: "📝", decision: "⚖️", action: "🎯" };
+    const feedHtml = this.feed.map((f) => `
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;padding:6px 8px;background:var(--navy3);border-radius:8px">
+        <span>${icon[f.kind]}</span>
+        <span style="flex:1;color:var(--text)">${esc(f.text)}</span>
+        <span style="color:var(--text3);font-size:10px">${fmtTime(f.at)}</span>
+      </div>`).join("");
+    const pollsHtml = this.polls.map((p, pi) => {
+      const total = p.options.reduce((s, o) => s + o.votes, 0) || 1;
+      return `<div style="padding:10px;background:var(--navy3);border-radius:8px;border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:6px">📊 ${esc(p.question)}</div>
+        ${p.options.map((o, oi) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;cursor:pointer" onclick="QuickCapture.vote(${pi},${oi})">
+            <div style="flex:1;position:relative;background:var(--navy4);border-radius:6px;overflow:hidden;height:22px">
+              <div style="position:absolute;inset-inline-start:0;top:0;bottom:0;background:var(--gold-dim);width:${Math.round((o.votes / total) * 100)}%"></div>
+              <div style="position:relative;font-size:11px;padding:3px 8px;color:var(--text)">${esc(o.label)}</div>
+            </div>
+            <span style="font-size:11px;color:var(--text3);min-width:24px;text-align:end">${o.votes}</span>
+          </div>`).join("")}
+      </div>`;
+    }).join("");
+    box.innerHTML = pollsHtml + feedHtml || (this.meetingId ? "" : "");
   },
 };
 
@@ -3850,7 +4095,14 @@ const MeetingHistory = {
     }
     return html;
   },
+  // Render target: 'hist' for the Meeting History panel's searchable
+  // list+detail split view, 'ws' for the standalone Meeting Workspace panel
+  // (single-meeting view, no list alongside — see WorkspacePanel below).
+  // Both panels carry an identically-shaped set of container ids (just with
+  // the matching prefix) so this same rendering code drives both.
+  _target: "hist",
   renderList() {
+    if (this._target !== "hist") return;
     const list = $("hist-list");
     if (!list) return;
     const l = App.lang;
@@ -3909,7 +4161,7 @@ const MeetingHistory = {
     list.innerHTML = this._pinnedRecentHtml(l) + groupsHtml;
   },
   renderEmptyDetail() {
-    const detail = $("hist-detail");
+    const detail = $(`${this._target}-detail`);
     if (!detail) return;
     const l = App.lang;
     detail.innerHTML = `<div class="es" style="height:100%;justify-content:center">
@@ -3925,8 +4177,8 @@ const MeetingHistory = {
     if (id !== this._selectedId) this._tab = "overview";
     this._selectedId = id;
     MeetingRecent.log(id);
-    this.renderList();
-    const detail = $("hist-detail");
+    if (this._target === "hist") this.renderList();
+    const detail = $(`${this._target}-detail`);
     const l = App.lang;
     if (detail) detail.innerHTML = '<div class="es"><div class="loading"></div></div>';
     try {
@@ -3959,12 +4211,12 @@ const MeetingHistory = {
   ],
   setTab(tab) {
     this._tab = tab;
-    document.querySelectorAll("#hist-detail-tabs .imp-seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-    const body = $("hist-tab-body");
+    document.querySelectorAll(`#${this._target}-detail-tabs .imp-seg-btn`).forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+    const body = $(`${this._target}-tab-body`);
     if (body && this._tabs) body.innerHTML = this._tabs[tab] || "";
   },
   renderDetail(full) {
-    const detail = $("hist-detail");
+    const detail = $(`${this._target}-detail`);
     if (!detail) return;
     const l = App.lang;
     const m = full.meeting;
@@ -4345,7 +4597,7 @@ const MeetingHistory = {
       reports: reportsBody,
     };
 
-    const tabBarHtml = `<div class="imp-seg" id="hist-detail-tabs">
+    const tabBarHtml = `<div class="imp-seg" id="${this._target}-detail-tabs">
       ${this.TABS.map((t) => `<button class="imp-seg-btn ${t.key === this._tab ? "active" : ""}" data-tab="${t.key}" onclick="MeetingHistory.setTab('${t.key}')">${t.icon} ${l === "ar" ? t.ar : t.en}</button>`).join("")}
     </div>`;
 
@@ -4367,7 +4619,7 @@ const MeetingHistory = {
       ${_meetingLifecycle(m, l)}
       ${tabBarHtml}
       ${stickyActionBarHtml}
-      <div id="hist-tab-body">${this._tabs[this._tab]}</div>
+      <div id="${this._target}-tab-body">${this._tabs[this._tab]}</div>
     `;
   },
 };
@@ -8421,30 +8673,30 @@ const RowMenu = {
   },
 };
 
-// Bridges into the still-record-panel-shaped Live Meeting UI until a later
-// phase builds the real Live Meeting detail screen (see PROMPT Phase 1 scope).
-// Shared by ScheduledPanel.startMeeting() and LiveMeetingsPanel's Open/Join
-// button so the rough bridge exists in exactly one place.
+// Live Meeting entry point: the recording engine itself still lives in
+// panel-record (Rec / the waveform / live-transcript & extraction cards) —
+// this binds it to an already-created meeting (from Create Meeting → Start
+// Meeting, or Live Meetings' Join) instead of letting it create a fresh,
+// duplicate meeting the way ad-hoc recording does. Shared by
+// ScheduledPanel.startMeeting() and LiveMeetingsPanel's Open/Join button.
 async function enterLiveMeeting(meetingId) {
   await Panels.load("record");
-  Rec.currentMeetingId = meetingId;
-  // TODO(phase2): panel-record's controls (#mtg-title/#mtg-type, the
-  // waveform/timer, live-transcript & extraction cards, Rec.start()'s
-  // "create a brand-new meeting" flow) are all still built around starting a
-  // fresh recording from this form, not resuming a meeting that is already
-  // `recording` server-side. This only relabels the header so the user isn't
-  // confused about which meeting they landed on — a later phase should
-  // properly bind panel-record's controls to the meeting Rec.currentMeetingId
-  // now points at (resume/stop, live transcript, elapsed timer, etc.).
   try {
     const m = await api(`/api/meetings/${meetingId}`);
-    const l = App.lang;
-    const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
-    const titleInp = $("mtg-title");
-    if (titleInp) titleInp.value = title || "";
-    const ptitle = document.querySelector("#panel-record .ptitle");
-    if (ptitle) ptitle.textContent = title || (l === "ar" ? "اجتماع مباشر" : "Live Meeting");
-  } catch (_) {}
+    Rec.pendingMeeting = m;
+    Rec._bindTitleInputs(m);
+    // Already `recording` server-side (started by ScheduledPanel/LiveMeetingsPanel
+    // just before this call) — reflect that immediately instead of showing the
+    // idle "Tap to start" state, even before this browser's mic capture begins.
+    const stEl = $("rec-st");
+    if (stEl && m.recording_status === "recording") {
+      stEl.textContent = App.lang === "ar"
+        ? "الاجتماع مباشر — اضغط لبدء النسخ الصوتي في هذا المتصفح"
+        : "Meeting is live — tap to start transcribing in this browser";
+    }
+  } catch (e) {
+    showToast((App.lang === "ar" ? "تعذّر تحميل الاجتماع: " : "Could not load the meeting: ") + e.message, "error");
+  }
 }
 
 // ══ Scheduled Meetings list (Phase 1 redesign) ═════════════════════════════
@@ -8564,9 +8816,7 @@ const ScheduledPanel = {
   },
 
   openWorkspace(meetingId) {
-    // TODO(phase2): route directly into the generalized Meeting Workspace once
-    // it exists — Meeting History is the closest existing detail view for now.
-    Panels.load("history").then(() => MeetingHistory.select(meetingId));
+    WorkspacePanel.open(meetingId);
   },
 
   async startMeeting(scheduleId) {
@@ -8699,6 +8949,91 @@ const LiveMeetingsPanel = {
       </div>
       <button class="btn-gold" style="width:100%;justify-content:center" onclick="enterLiveMeeting(${m.id})">▶ ${l === "ar" ? "انضمام" : "Open / Join"}</button>
     </div>`;
+  },
+};
+
+// ══ Meeting Workspace (Phase 2 redesign) ═══════════════════════════════════
+// "One central workspace for each meeting" — rather than a second, duplicated
+// rendering of overview/agenda/transcript/AI review/actions/documents/
+// timeline/reports, this reuses MeetingHistory's existing tabbed detail view
+// (see MeetingHistory._target above) targeted at this panel's own `ws-*`
+// containers instead of History's `hist-*` ones. Reachable directly from the
+// sidebar (with a live/recent-aware landing choice), and as a deep link from
+// Scheduled ("Open Workspace"), Live Meetings (after Stop), and History
+// (which still also has its own inline split view for browsing).
+const WorkspacePanel = {
+  async refresh() {
+    // No specific meeting requested (plain sidebar click) — prefer whatever's
+    // most relevant right now: a meeting actually in progress, else the last
+    // one the user was looking at, else let them choose.
+    try {
+      const meetings = await api("/api/meetings");
+      const live = meetings.find((m) => m.lifecycle_stage === "recording");
+      if (live) { this.open(live.id); return; }
+    } catch (_) {}
+    const recentIds = MeetingRecent.list();
+    if (recentIds.length) { this.open(recentIds[0]); return; }
+    this.showPicker();
+  },
+
+  open(meetingId) {
+    Panels.current = "workspace";
+    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+    const panel = $("panel-workspace");
+    if (panel) panel.classList.add("active");
+    document.querySelectorAll(".nb").forEach((b) => b.classList.toggle("active", b.dataset.p === "workspace"));
+    App.applyLang(App.lang);
+    MeetingHistory._target = "ws";
+    const picker = $("ws-picker");
+    const detail = $("ws-detail");
+    const backBtn = $("ws-back-btn");
+    if (picker) picker.style.display = "none";
+    if (detail) detail.style.display = "";
+    if (backBtn) backBtn.style.display = "";
+    MeetingHistory.select(meetingId);
+  },
+
+  async showPicker() {
+    MeetingHistory._target = "ws";
+    const picker = $("ws-picker");
+    const detail = $("ws-detail");
+    const backBtn = $("ws-back-btn");
+    if (detail) detail.style.display = "none";
+    if (backBtn) backBtn.style.display = "none";
+    if (!picker) return;
+    picker.style.display = "";
+    picker.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    const l = App.lang;
+    try {
+      const [meetings, schedule] = await Promise.all([api("/api/meetings"), api("/api/schedule")]);
+      const live = meetings.filter((m) => m.lifecycle_stage === "recording");
+      const recentIds = MeetingRecent.list();
+      const byId = {}; meetings.forEach((m) => { byId[m.id] = m; });
+      const recent = recentIds.map((id) => byId[id]).filter(Boolean).slice(0, 5);
+      const upcoming = schedule.filter((s) => s.status !== "cancelled" && !(s.source_meeting_id && byId[s.source_meeting_id] && byId[s.source_meeting_id].lifecycle_stage !== "created" && byId[s.source_meeting_id].lifecycle_stage !== "invited" && byId[s.source_meeting_id].lifecycle_stage !== "scheduled")).slice(0, 5);
+      const title = (m) => (l === "ar" ? m.title_ar : m.title_en || m.title_ar) || "";
+      const section = (icon, ar, en, itemsHtml) => itemsHtml ? `
+        <div class="hist-sec" style="margin-bottom:14px">
+          <div class="hist-sec-h">${icon} ${l === "ar" ? ar : en}</div>
+          <div class="hist-sec-body">${itemsHtml}</div>
+        </div>` : "";
+      const liveHtml = live.map((m) => `<div class="task-row" style="cursor:pointer" onclick="WorkspacePanel.open(${m.id})">
+        <span class="live-badge-pulse"></span> <span style="flex:1">${esc(title(m))}</span></div>`).join("");
+      const recentHtml = recent.map((m) => `<div class="task-row" style="cursor:pointer" onclick="WorkspacePanel.open(${m.id})">
+        <span style="flex:1">${esc(title(m))}</span></div>`).join("");
+      const upcomingHtml = upcoming.map((s) => `<div class="task-row" style="cursor:pointer" onclick="Panels.load('scheduled')">
+        <span style="flex:1">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</span>
+        <span style="color:var(--text3);font-size:11px">${(s.meeting_date || "").substring(0, 10)}</span></div>`).join("");
+      const body = section("🔴", "مباشر الآن", "Live Now", liveHtml) + section("🕐", "شوهد مؤخراً", "Recently Viewed", recentHtml) + section("🗓", "قادمة", "Upcoming", upcomingHtml);
+      picker.innerHTML = body || `<div class="card"><div class="es">
+        <div class="es-icon">🗃</div>
+        <div class="es-title">${l === "ar" ? "لا توجد اجتماعات بعد" : "No meetings yet"}</div>
+        <div class="es-sub">${l === "ar" ? "أنشئ أول اجتماع لفتح مساحة عمله هنا" : "Create your first meeting to open its workspace here"}</div>
+        <button class="btn-gold" style="margin-top:10px" onclick="Panels.load('create-meeting')">➕ ${l === "ar" ? "إنشاء اجتماع" : "Create Meeting"}</button>
+      </div></div>`;
+    } catch (e) {
+      picker.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
   },
 };
 

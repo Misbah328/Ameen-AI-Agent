@@ -332,6 +332,7 @@
             </select>
             <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start">اضغط للبدء</div>
             <div class="rec-tm" id="rec-tm">00:00</div>
+            <button class="btn-ghost btn-sm" id="rec-pause-btn" style="display:none;margin-top:8px" onclick="Rec.togglePause()">⏸ <span data-ar="إيقاف مؤقت" data-en="Pause">إيقاف مؤقت</span></button>
             <div class="rec-ht" id="rec-ht" data-ar="سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً" data-en="Ameen will transcribe and extract tasks per team member in real time">سيقوم أمين بالنسخ واستخراج المهام لكل عضو فريق فورياً</div>
           </div>
           <div class="feat-pills">
@@ -425,6 +426,41 @@
         <button class="btn-ghost" onclick="Rec.saveOnly()">💾 <span data-ar="حفظ فقط" data-en="Save Only">حفظ فقط</span></button>
         <button class="btn-gold" id="ai-proc-btn" onclick="Rec.processAI()">✦ <span data-ar="استخراج المهام والمحضر" data-en="Extract Tasks & Minutes">استخراج المهام والمحضر</span></button>
       </div>
+    </div>
+
+    <!-- Quick Actions — manual capture during a live meeting, shown only when
+         bound to a pre-existing meeting (Start Meeting / Join a live meeting) -->
+    <div class="card" id="quick-capture-card" style="display:none">
+      <div class="ch">
+        <div>
+          <div class="ct" data-ar="إجراءات سريعة" data-en="Quick Actions">إجراءات سريعة</div>
+          <div class="ctsub" data-ar="أضف يدوياً أثناء الاجتماع" data-en="Manually add items during the meeting">أضف يدوياً أثناء الاجتماع</div>
+        </div>
+      </div>
+      <div class="imp-seg" id="qc-type-seg">
+        <button type="button" class="imp-seg-btn active" data-val="note" onclick="QuickCapture.setType('note')">📝 <span data-ar="ملاحظة" data-en="Note">ملاحظة</span></button>
+        <button type="button" class="imp-seg-btn" data-val="decision" onclick="QuickCapture.setType('decision')">⚖️ <span data-ar="قرار" data-en="Decision">قرار</span></button>
+        <button type="button" class="imp-seg-btn" data-val="action" onclick="QuickCapture.setType('action')">🎯 <span data-ar="إجراء" data-en="Action">إجراء</span></button>
+        <button type="button" class="imp-seg-btn" data-val="poll" onclick="QuickCapture.setType('poll')">📊 <span data-ar="استطلاع" data-en="Poll">استطلاع</span></button>
+      </div>
+      <div id="qc-form-note-decision-action">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input class="fi" id="qc-input" style="flex:1;min-width:200px" data-ph-ar="اكتب هنا..." data-ph-en="Type here..." placeholder="Type here..." onkeydown="if(event.key==='Enter')QuickCapture.submit()"/>
+          <button class="btn-gold btn-sm" onclick="QuickCapture.submit()">➕ <span data-ar="إضافة" data-en="Add">Add</span></button>
+        </div>
+      </div>
+      <div id="qc-form-poll" style="display:none">
+        <input class="fi" id="qc-poll-question" data-ph-ar="سؤال الاستطلاع" data-ph-en="Poll question" placeholder="Poll question" style="margin-bottom:8px"/>
+        <div id="qc-poll-options">
+          <input class="fi" id="qc-poll-opt-0" data-ph-ar="خيار 1" data-ph-en="Option 1" placeholder="Option 1" style="margin-bottom:6px"/>
+          <input class="fi" id="qc-poll-opt-1" data-ph-ar="خيار 2" data-ph-en="Option 2" placeholder="Option 2" style="margin-bottom:6px"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-ghost btn-sm" onclick="QuickCapture.addPollOption()">➕ <span data-ar="خيار آخر" data-en="Another option">Another option</span></button>
+          <button class="btn-gold btn-sm" onclick="QuickCapture.startPoll()">📊 <span data-ar="بدء الاستطلاع" data-en="Start Poll">Start Poll</span></button>
+        </div>
+      </div>
+      <div id="qc-feed" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
     <div class="card card-gold" id="ai-res-card" style="display:none">
@@ -723,16 +759,12 @@
         <div class="ptitle" data-ar="مساحة عمل الاجتماع" data-en="Meeting Workspace">مساحة عمل الاجتماع</div>
         <div class="ptitle-sub" data-ar="مركز موحّد لكل ما يخص الاجتماع" data-en="A unified hub for everything about a meeting">مركز موحّد لكل ما يخص الاجتماع</div>
       </div>
+      <button class="btn-ghost btn-sm" id="ws-back-btn" style="display:none" onclick="WorkspacePanel.showPicker()">← <span data-ar="اختيار اجتماع آخر" data-en="Choose another meeting">Choose another meeting</span></button>
     </div>
   </div>
   <div class="pbody">
-    <div class="card">
-      <div class="es">
-        <div class="es-icon">🗃</div>
-        <div class="es-title" data-ar="اختر اجتماعاً لعرض مساحة عمله" data-en="Select a meeting to open its workspace">Select a meeting to open its workspace</div>
-        <div class="es-sub" data-ar="افتح مساحة العمل من الاجتماعات المجدولة، المباشرة، أو سجل الاجتماعات" data-en="Open a workspace from Scheduled, Live, or Meeting History">Open a workspace from Scheduled, Live, or Meeting History</div>
-      </div>
-    </div>
+    <div id="ws-picker"></div>
+    <div class="hist-detail-pane" id="ws-detail" style="display:none"></div>
   </div>
 </section>
 
