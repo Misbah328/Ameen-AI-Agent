@@ -223,7 +223,7 @@ function renderMinutesDoc(raw, lang) {
 // ══ RBAC ═══════════════════════════════════════════════════════════════════════
 const ROLE_ACCESS = {
   Admin: new Set([
-    "record",
+    "create-meeting", "scheduled", "live", "workspace",
     "transcripts",
     "history",
     "lastmeeting",
@@ -239,7 +239,7 @@ const ROLE_ACCESS = {
     "admin",
   ]),
   CEO: new Set([
-    "record",
+    "create-meeting", "scheduled", "live", "workspace",
     "transcripts",
     "history",
     "lastmeeting",
@@ -277,7 +277,7 @@ const ROLE_ACCESS = {
     "governance",
   ]),
   Executive: new Set([
-    "record",
+    "create-meeting", "scheduled", "live", "workspace",
     "transcripts",
     "history",
     "lastmeeting",
@@ -290,7 +290,7 @@ const ROLE_ACCESS = {
     "analytics", "activity",
   ]),
   Manager: new Set([
-    "record",
+    "create-meeting", "scheduled", "live", "workspace",
     "transcripts",
     "history",
     "tasks",
@@ -302,21 +302,21 @@ const ROLE_ACCESS = {
     "overview",
     "analytics", "activity",
   ]),
-  Employee: new Set(["overview", "record", "transcripts", "history", "tasks", "ask"]),
+  Employee: new Set(["overview", "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "tasks", "ask"]),
   Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
   // ── Phase 4 enterprise RBAC roles ──────────────────────────────────────────
   "Super Admin": new Set([
-    "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
     "governance", "admin",
   ]),
   "Organization Admin": new Set([
-    "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
     "governance", "admin",
   ]),
   "Board Secretary": new Set([
-    "record", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "overview", "analytics", "activity", "governance",
   ]),
   "Committee Chair": new Set([
@@ -559,7 +559,7 @@ const App = {
     // Home (the executive command center) is the natural landing page for
     // every role that can see it — falls back to whatever else the role has
     // access to, same as before, for the handful of roles that can't.
-    const firstPanel = allowed.has("overview") ? "overview" : ([...allowed][0] || "record");
+    const firstPanel = allowed.has("overview") ? "overview" : ([...allowed][0] || "scheduled");
     Panels.load(firstPanel);
   },
 
@@ -851,6 +851,10 @@ const Panels = {
     overview: renderOverview,
   },
   async load(name) {
+    // Live Meetings runs a 1s elapsed-timer interval while open — stop it the
+    // moment we navigate away, same idea as Rec clearing its own timerInt on
+    // stop(), so it doesn't keep ticking against detached DOM in the background.
+    if (this.current === "live" && name !== "live") LiveMeetingsPanel.stopTimer();
     this.current = name;
     document
       .querySelectorAll(".panel")
@@ -915,6 +919,17 @@ const Panels = {
         break;
       case "integrations":
         renderIntegrations();
+        break;
+      case "create-meeting":
+        CreateMeetingWizard.init();
+        break;
+      case "scheduled":
+        await ScheduledPanel.refresh();
+        break;
+      case "live":
+        await LiveMeetingsPanel.refresh();
+        break;
+      case "workspace":
         break;
     }
     this._startPolling();
@@ -3844,9 +3859,9 @@ const MeetingHistory = {
         icon: "🗂",
         titleAr: "لا توجد اجتماعات بعد",
         titleEn: "No meetings yet",
-        descAr: "بمجرد تسجيل أو استيراد اجتماعك الأول، ستظهر هنا مساحة عمل كاملة لكل اجتماع.",
-        descEn: "Once you record or import your first meeting, a full workspace for it will appear here.",
-        primary: { ar: "🎙 تسجيل اجتماع", en: "🎙 Record Meeting", onclick: "Panels.load('record')" },
+        descAr: "بمجرد إنشاء اجتماعك الأول، ستظهر هنا مساحة عمل كاملة لكل اجتماع.",
+        descEn: "Once you create your first meeting, a full workspace for it will appear here.",
+        primary: { ar: "➕ إنشاء اجتماع", en: "➕ Create Meeting", onclick: "Panels.load('create-meeting')" },
       });
       this.renderEmptyDetail();
       return;
@@ -4833,9 +4848,9 @@ async function renderLastMeeting() {
         icon: "🎙",
         titleAr: "لا يوجد اجتماع بعد",
         titleEn: "No meeting yet",
-        descAr: "سجّل أول اجتماع أو استورد محضراً موجوداً ليظهر هنا تحليل الذكاء الاصطناعي الكامل.",
-        descEn: "Record your first meeting or import an existing one to see the full AI analysis here.",
-        primary: { ar: "🎙 تسجيل اجتماع", en: "🎙 Record Meeting", onclick: "Panels.load('record')" },
+        descAr: "أنشئ أول اجتماع لك ليظهر هنا تحليل الذكاء الاصطناعي الكامل بعد انعقاده.",
+        descEn: "Create your first meeting to see the full AI analysis here once it's held.",
+        primary: { ar: "➕ إنشاء اجتماع", en: "➕ Create Meeting", onclick: "Panels.load('create-meeting')" },
         secondary: { ar: "📥 استيراد محضر", en: "📥 Import Minutes", onclick: "Panels.load('record').then(()=>ImportFlow.setContentType('text'))" },
       });
       return;
@@ -8018,6 +8033,675 @@ const Schedule = {
   },
 };
 
+// ══ Create Meeting Wizard (Phase 1 redesign) ═══════════════════════════════
+// Drives the new "Create Meeting" panel — a 4-step wizard (Details → Agenda &
+// Planning → Attendees → Review) that creates a meetings row up-front (so it
+// has a real lifecycle_stage from the moment it's created) and, unless saved
+// as a draft, also creates a linked /api/schedule row via source_meeting_id so
+// it shows up in the new Scheduled list. Reuses SeriesUI (prefix 'cm') and the
+// exact board/committee/prev-meeting population + scheduling-conflict UX
+// already proven out by the Schedule object — see _submitSchedule() below.
+const CreateMeetingWizard = {
+  state: { step: 1, agenda: [], decisions: [], actions: [] },
+
+  init() {
+    this.state = { step: 1, agenda: [], decisions: [], actions: [] };
+    this._resetFields();
+    this._populateBoardSelects();
+    this._populateOrganizerSelect();
+    this._populatePrevMeetings();
+    SeriesUI.invalidate();
+    SeriesUI.setMode("cm", "standalone");
+    SeriesUI.init("cm");
+    this.renderAgenda();
+    this.renderChips("decisions");
+    this.renderChips("actions");
+    this.goStep(1);
+  },
+
+  _resetFields() {
+    ["cm-title", "cm-purpose-ar", "cm-purpose-en", "cm-join-url", "cm-attendees", "cm-decision-input", "cm-action-input"].forEach((id) => {
+      const el = $(id);
+      if (el) el.value = "";
+    });
+    if ($("cm-type")) $("cm-type").value = "";
+    if ($("cm-date")) $("cm-date").value = "";
+    if ($("cm-start")) $("cm-start").value = "09:00";
+    if ($("cm-end")) $("cm-end").value = "10:00";
+    if ($("cm-plat")) { $("cm-plat").value = "physical"; this.onProviderChange(); }
+    if ($("cm-prev")) $("cm-prev").value = "";
+    if ($("cm-channel")) $("cm-channel").value = "email";
+    if ($("cm-recurrence")) $("cm-recurrence").value = "none";
+    if ($("cm-attachments")) $("cm-attachments").value = "";
+  },
+
+  _populateBoardSelects() {
+    const l = App.lang;
+    const boards = App._boards || [];
+    const sel = $("cm-board");
+    if (!sel) return;
+    sel.innerHTML =
+      `<option value="">— ${l === "ar" ? "بدون مجلس" : "No board"} —</option>` +
+      boards.map((b) => `<option value="${b.id}">${esc(l === "ar" ? b.name_ar : b.name_en || b.name_ar)}</option>`).join("");
+    this.onBoardChange();
+  },
+  onBoardChange() {
+    const boardId = parseInt($("cm-board") && $("cm-board").value) || 0;
+    const l = App.lang;
+    const all = App._committees || [];
+    const committees = boardId ? all.filter((c) => c.board_id === boardId) : all;
+    const csel = $("cm-committee");
+    if (!csel) return;
+    csel.innerHTML =
+      `<option value="">— ${l === "ar" ? "بدون لجنة" : "No committee"} —</option>` +
+      committees.map((c) => `<option value="${c.id}">${esc(l === "ar" ? c.name_ar : c.name_en || c.name_ar)}</option>`).join("");
+  },
+  onProviderChange() {
+    const v = ($("cm-plat") && $("cm-plat").value) || "physical";
+    const row = $("cm-join-row");
+    if (row) row.style.display = v === "physical" ? "none" : "";
+    const inp = $("cm-join-url");
+    if (inp) inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
+  },
+  _populateOrganizerSelect() {
+    const sel = $("cm-organizer");
+    if (!sel) return;
+    const l = App.lang;
+    const members = App._members || [];
+    sel.innerHTML =
+      `<option value="">— ${l === "ar" ? "اختر" : "Select"} —</option>` +
+      members.map((m) => `<option value="${m.id}">${esc(l === "ar" ? m.name_ar : m.name_en || m.name_ar)}</option>`).join("");
+  },
+  async _populatePrevMeetings() {
+    const sel = $("cm-prev");
+    if (!sel) return;
+    const l = App.lang;
+    try {
+      const meetings = await api("/api/meetings");
+      sel.innerHTML =
+        `<option value="">— ${l === "ar" ? "لا يوجد" : "None"} —</option>` +
+        meetings.map((m) => {
+          const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
+          const date = (m.meeting_date || "").substring(0, 10);
+          return `<option value="${m.id}">${esc(title)}${date ? " · " + date : ""}</option>`;
+        }).join("");
+    } catch (_) {}
+  },
+
+  goStep(step) {
+    this.state.step = step;
+    for (let i = 1; i <= 4; i++) {
+      const panel = $(`cm-wiz-panel-${i}`);
+      if (panel) panel.classList.toggle("active", i === step);
+      const dot = $(`cm-wiz-dot-${i}`);
+      if (dot) { dot.classList.toggle("active", i === step); dot.classList.toggle("done", i < step); }
+      const conn = $(`cm-wiz-conn-${i}`);
+      if (conn) conn.classList.toggle("done", i < step);
+    }
+    if (step === 4) this._renderReview();
+    const card = $("cm-form-card");
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  },
+
+  addAgendaItem() {
+    this.state.agenda.push({ title_ar: "", title_en: "", presenter: "", duration_mins: 15 });
+    this.renderAgenda();
+  },
+  removeAgendaItem(i) {
+    this.state.agenda.splice(i, 1);
+    this.renderAgenda();
+  },
+  updateAgendaField(i, field, val) {
+    if (this.state.agenda[i]) this.state.agenda[i][field] = val;
+  },
+  renderAgenda() {
+    const box = $("cm-agenda-list");
+    if (!box) return;
+    const l = App.lang;
+    if (!this.state.agenda.length) {
+      box.innerHTML = `<div style="font-size:11.5px;color:var(--text3);font-style:italic;margin-bottom:8px">${l === "ar" ? "لا توجد بنود بعد" : "No agenda items yet"}</div>`;
+      return;
+    }
+    box.innerHTML = this.state.agenda.map((item, i) => `
+      <div class="imp-grid" style="margin-bottom:8px;padding:10px;background:var(--navy3);border-radius:var(--rm);border:1px solid var(--border2)">
+        <input class="fi" placeholder="${l === "ar" ? "عنوان البند (عربي)" : "Item title (Arabic)"}" value="${esc(item.title_ar || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_ar',this.value)"/>
+        <input class="fi" dir="ltr" style="text-align:left" placeholder="Item title (English)" value="${esc(item.title_en || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_en',this.value)"/>
+        <input class="fi" placeholder="${l === "ar" ? "مقدّم البند" : "Presenter"}" value="${esc(item.presenter || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'presenter',this.value)"/>
+        <input class="fi" type="number" min="5" step="5" placeholder="${l === "ar" ? "المدة (دقيقة)" : "Duration (min)"}" value="${item.duration_mins || 15}" oninput="CreateMeetingWizard.updateAgendaField(${i},'duration_mins',parseInt(this.value)||15)"/>
+        <button type="button" class="btn-ghost btn-sm" style="grid-column:1/-1;justify-self:start" onclick="CreateMeetingWizard.removeAgendaItem(${i})">✕ ${l === "ar" ? "إزالة" : "Remove"}</button>
+      </div>`).join("");
+  },
+
+  addExpected(kind) {
+    const inp = $(kind === "decisions" ? "cm-decision-input" : "cm-action-input");
+    const val = ((inp && inp.value) || "").trim();
+    if (!val) return;
+    this.state[kind].push(val);
+    if (inp) inp.value = "";
+    this.renderChips(kind);
+  },
+  removeExpected(kind, i) {
+    this.state[kind].splice(i, 1);
+    this.renderChips(kind);
+  },
+  renderChips(kind) {
+    const box = $(kind === "decisions" ? "cm-decisions-chips" : "cm-actions-chips");
+    if (!box) return;
+    box.innerHTML = this.state[kind].map((txt, i) =>
+      `<span class="chip">${esc(txt)}<button type="button" class="chip-remove" onclick="CreateMeetingWizard.removeExpected('${kind}',${i})">✕</button></span>`
+    ).join("");
+  },
+
+  _renderReview() {
+    const box = $("cm-review");
+    if (!box) return;
+    const l = App.lang;
+    const val = (id) => (($(id) && $(id).value) || "").trim();
+    const selText = (id) => { const el = $(id); return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : ""; };
+    const empty = l === "ar" ? "— لم يُحدَّد —" : "— not set —";
+    const row = (labelAr, labelEn, v) => `
+      <div class="wiz-review-row">
+        <span class="wiz-rl">${l === "ar" ? labelAr : labelEn}</span>
+        <span class="wiz-rv">${v ? esc(v) : `<span class="wiz-empty-hint">${empty}</span>`}</span>
+      </div>`;
+    const group = (titleAr, titleEn, rowsHtml) => `
+      <div class="wiz-review-group">
+        <div class="wiz-review-group-title">${l === "ar" ? titleAr : titleEn}</div>
+        ${rowsHtml}
+      </div>`;
+    const seriesMode = ($("cm-series-seg") && $("cm-series-seg").querySelector(".imp-seg-btn.active")?.dataset.val) || "standalone";
+    const seriesLabel = seriesMode === "new"
+      ? (l === "ar" ? "سلسلة جديدة: " : "New series: ") + (val("cm-series-name-ar") || val("cm-series-name-en") || empty)
+      : seriesMode === "continue"
+      ? (l === "ar" ? "متابعة: " : "Continuing: ") + (selText("cm-series-existing") || empty)
+      : l === "ar" ? "اجتماع مستقل" : "Standalone meeting";
+    const agendaCount = this.state.agenda.filter((a) => a.title_ar || a.title_en).length;
+    const fileCount = (($("cm-attachments") || {}).files || []).length;
+
+    box.innerHTML =
+      group("التفاصيل", "Details",
+        row("العنوان", "Title", val("cm-title")) +
+        row("النوع", "Type", selText("cm-type")) +
+        row("التاريخ والوقت", "Date & time", [val("cm-date"), (val("cm-start") && val("cm-end")) ? `${val("cm-start")}–${val("cm-end")}` : val("cm-start")].filter(Boolean).join(" · ")) +
+        row("المنصة", "Platform", selText("cm-plat")) +
+        row("المنظِّم", "Organizer", selText("cm-organizer")) +
+        row("المجلس", "Board", selText("cm-board")) +
+        row("اللجنة", "Committee", selText("cm-committee"))
+      ) +
+      group("جدول الأعمال والتخطيط", "Agenda & Planning",
+        row("العلاقة", "Relationship", seriesLabel) +
+        row("بنود جدول الأعمال", "Agenda Items", agendaCount ? String(agendaCount) : "") +
+        row("القرارات المتوقعة", "Expected Decisions", this.state.decisions.join("، ")) +
+        row("الإجراءات المتوقعة", "Expected Actions", this.state.actions.join("، ")) +
+        row("المرفقات", "Attachments", fileCount ? String(fileCount) : "")
+      ) +
+      group("المشاركون", "Attendees",
+        row("المشاركون", "Attendees", val("cm-attendees"))
+      );
+
+    // Creating the shared calendar/reminder entry (POST /schedule) requires
+    // calendar.manage — a role that can create meetings but not manage the
+    // calendar (e.g. Employee) can still save a draft, just not the full
+    // scheduled flow, so don't offer a button that would 403 partway through.
+    const canSchedule = App.can("calendar.manage");
+    const submitBtn = $("cm-submit-btn");
+    const note = $("cm-no-calendar-note");
+    if (submitBtn) submitBtn.style.display = canSchedule ? "" : "none";
+    if (note) note.style.display = canSchedule ? "none" : "";
+  },
+
+  _computeDuration(start, end) {
+    const [sh, sm] = start.split(":").map(Number);
+    const [eh, em] = end.split(":").map(Number);
+    let mins = (eh * 60 + em) - (sh * 60 + sm);
+    if (mins <= 0) mins += 24 * 60; // meeting crosses midnight
+    return mins || 60;
+  },
+
+  // Mirrors Schedule._submit's exact 409-conflict confirm/retry dance (same
+  // bilingual message, same confirm() UX) so double-booking protection behaves
+  // identically whether a meeting was scheduled from here or from the Schedule
+  // panel.
+  async _submitSchedule(data, force) {
+    const l = App.lang;
+    const res = await fetch("/api/schedule", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(force ? { ...data, force: true } : data),
+    });
+    const resData = await res.json().catch(() => ({}));
+    if (res.status === 409) {
+      const list = (resData.conflicts || [])
+        .map((c) => `• ${l === "ar" ? c.title_ar : c.title_en || c.title_ar} — ${(c.meeting_date || "").substring(0, 10)} ${c.meeting_time || ""}`)
+        .join("\n");
+      const msg = l === "ar"
+        ? "يتعارض هذا الموعد مع اجتماع مؤكَّد:\n\n" + list + "\n\nهل تريد الحفظ رغم التعارض؟"
+        : "This time overlaps a confirmed meeting:\n\n" + list + "\n\nSave anyway?";
+      if (confirm(msg)) return this._submitSchedule(data, true);
+      throw new Error(l === "ar" ? "تم إلغاء الجدولة بسبب التعارض" : "Scheduling cancelled due to the conflict");
+    }
+    if (!res.ok) throw new Error(resData.message || resData.error || `HTTP ${res.status}`);
+    return resData;
+  },
+
+  async submit(isDraft) {
+    const l = App.lang;
+    const title = (($("cm-title") || {}).value || "").trim();
+    const type = ($("cm-type") || {}).value || "";
+    const date = ($("cm-date") || {}).value || "";
+    const start = ($("cm-start") || {}).value || "";
+    const end = ($("cm-end") || {}).value || "";
+    const boardId = parseInt(($("cm-board") || {}).value) || null;
+    const committeeId = parseInt(($("cm-committee") || {}).value) || null;
+
+    if (!title) { showToast(l === "ar" ? "الرجاء إدخال عنوان الاجتماع" : "Please enter a meeting title", "error"); this.goStep(1); return; }
+    if (!boardId && !committeeId) { showToast(l === "ar" ? "الرجاء اختيار مجلس أو لجنة" : "Please select a board or committee", "error"); this.goStep(1); return; }
+    if (!type) { showToast(l === "ar" ? "الرجاء اختيار نوع الاجتماع" : "Please select a meeting type", "error"); this.goStep(1); return; }
+    if (!date) { showToast(l === "ar" ? "الرجاء تحديد التاريخ" : "Please set the date", "error"); this.goStep(1); return; }
+    if (!start) { showToast(l === "ar" ? "الرجاء تحديد وقت البدء" : "Please set the start time", "error"); this.goStep(1); return; }
+
+    const durationMins = end ? this._computeDuration(start, end) : 60;
+    const platVal = ($("cm-plat") || {}).value || "physical";
+    const platformLabel = { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet" }[platVal] || "قاعة الاجتماعات";
+    const organizerId = parseInt(($("cm-organizer") || {}).value) || null;
+    const prevMeetingId = parseInt(($("cm-prev") || {}).value) || null;
+    const decisions = this.state.decisions.slice();
+    const actions = this.state.actions.slice();
+    const agendaItems = this.state.agenda.filter((a) => (a.title_ar || "").trim() || (a.title_en || "").trim());
+    const attendeesRaw = (($("cm-attendees") || {}).value || "").trim();
+
+    const btn = $(isDraft ? "cm-draft-btn" : "cm-submit-btn");
+    const originalHtml = btn ? btn.innerHTML : "";
+    if (btn) btn.disabled = true;
+
+    try {
+      const meetingPayload = Object.assign({
+        title_ar: title,
+        title_en: title,
+        meeting_type: type,
+        board_id: boardId,
+        committee_id: committeeId,
+        prev_meeting_id: prevMeetingId,
+        meeting_date: `${date} ${start}:00`,
+        platform: platformLabel,
+        organizer_id: organizerId,
+        purpose_ar: (($("cm-purpose-ar") || {}).value || ""),
+        purpose_en: (($("cm-purpose-en") || {}).value || ""),
+        expected_decisions: decisions,
+        expected_actions: actions,
+      }, SeriesUI.resolvePayload("cm"));
+
+      const meeting = await api("/api/meetings", { method: "POST", body: JSON.stringify(meetingPayload) });
+
+      if (agendaItems.length) {
+        await api(`/api/meetings/${meeting.id}/agenda`, { method: "POST", body: JSON.stringify({ agenda: agendaItems }) });
+      }
+
+      const fileInput = $("cm-attachments");
+      if (fileInput && fileInput.files && fileInput.files.length) {
+        for (const file of Array.from(fileInput.files)) {
+          try {
+            const fd = new FormData();
+            fd.append("file", file, file.name);
+            await fetch(`/api/meetings/${meeting.id}/upload`, { method: "POST", credentials: "include", body: fd });
+          } catch (_) { /* one failed attachment shouldn't abort meeting creation */ }
+        }
+      }
+
+      if (!isDraft) {
+        // Reuse the series_id the meeting create call already resolved
+        // (rather than SeriesUI.resolvePayload('cm') again) so a "new series"
+        // choice doesn't create two separate meeting_series rows.
+        await this._submitSchedule({
+          title_ar: title,
+          title_en: title,
+          meeting_date: date,
+          meeting_time: start,
+          duration_mins: durationMins,
+          platform: platformLabel,
+          attendees: attendeesRaw,
+          agenda_ar: agendaItems.map((a) => a.title_ar).filter(Boolean).join("\n"),
+          agenda_en: agendaItems.map((a) => a.title_en).filter(Boolean).join("\n"),
+          meeting_type: type,
+          board_id: boardId,
+          committee_id: committeeId,
+          prev_meeting_id: prevMeetingId,
+          series_id: meeting.series_id || null,
+          recurrence: ($("cm-recurrence") || {}).value || "none",
+          reminder_channel: ($("cm-channel") || {}).value || "email",
+          meeting_provider: platVal,
+          meeting_join_url: (($("cm-join-url") || {}).value || "").trim(),
+          source_meeting_id: meeting.id,
+        }, false);
+
+        if (attendeesRaw) {
+          const attendees = attendeesRaw.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
+          if (attendees.length) {
+            await api(`/api/meetings/${meeting.id}/attendees`, { method: "POST", body: JSON.stringify({ attendees }) });
+          }
+        }
+      }
+
+      showToast(isDraft
+        ? (l === "ar" ? "✓ تم حفظ الاجتماع كمسودة" : "✓ Meeting saved as draft")
+        : (l === "ar" ? "✓ تم إنشاء الاجتماع وجدولته" : "✓ Meeting created and scheduled"));
+      await Panels.load("scheduled");
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر إنشاء الاجتماع: " : "Could not create meeting: ") + e.message, "error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+    }
+  },
+};
+
+// ══ Generic row action menu (⋮) — minimal popover toggle used by the new
+// Scheduled / Live Meetings list rows. There's no pre-existing dropdown-menu
+// pattern in the codebase to reuse (NotificationCenter's dropdown is a single
+// fixed element, not a per-row popover), so this is deliberately small and
+// shared rather than duplicated per panel.
+const RowMenu = {
+  _open: null,
+  _outsideHandler: null,
+  toggle(id, ev) {
+    if (ev) ev.stopPropagation();
+    const el = $(id);
+    if (!el) return;
+    if (this._open === id) { this.closeAll(); return; }
+    this.closeAll();
+    el.classList.add("open");
+    this._open = id;
+    this._outsideHandler = () => this.closeAll();
+    setTimeout(() => document.addEventListener("click", this._outsideHandler), 0);
+  },
+  closeAll() {
+    document.querySelectorAll(".row-menu.open").forEach((el) => el.classList.remove("open"));
+    this._open = null;
+    if (this._outsideHandler) { document.removeEventListener("click", this._outsideHandler); this._outsideHandler = null; }
+  },
+};
+
+// Bridges into the still-record-panel-shaped Live Meeting UI until a later
+// phase builds the real Live Meeting detail screen (see PROMPT Phase 1 scope).
+// Shared by ScheduledPanel.startMeeting() and LiveMeetingsPanel's Open/Join
+// button so the rough bridge exists in exactly one place.
+async function enterLiveMeeting(meetingId) {
+  await Panels.load("record");
+  Rec.currentMeetingId = meetingId;
+  // TODO(phase2): panel-record's controls (#mtg-title/#mtg-type, the
+  // waveform/timer, live-transcript & extraction cards, Rec.start()'s
+  // "create a brand-new meeting" flow) are all still built around starting a
+  // fresh recording from this form, not resuming a meeting that is already
+  // `recording` server-side. This only relabels the header so the user isn't
+  // confused about which meeting they landed on — a later phase should
+  // properly bind panel-record's controls to the meeting Rec.currentMeetingId
+  // now points at (resume/stop, live transcript, elapsed timer, etc.).
+  try {
+    const m = await api(`/api/meetings/${meetingId}`);
+    const l = App.lang;
+    const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
+    const titleInp = $("mtg-title");
+    if (titleInp) titleInp.value = title || "";
+    const ptitle = document.querySelector("#panel-record .ptitle");
+    if (ptitle) ptitle.textContent = title || (l === "ar" ? "اجتماع مباشر" : "Live Meeting");
+  } catch (_) {}
+}
+
+// ══ Scheduled Meetings list (Phase 1 redesign) ═════════════════════════════
+// Replaces "Record Meeting" as a sidebar landing point: shows /api/schedule
+// rows that haven't progressed past created/invited/scheduled on their linked
+// meeting (if any), with a computed readiness score and a "Start Meeting"
+// action that transitions the linked meeting into `recording` and hands off
+// to the (rough, phase-2-polished) Live Meeting bridge.
+const ScheduledPanel = {
+  _all: [],
+  _filtered: [],
+  _meetingsById: {},
+
+  async refresh() {
+    const list = $("sp-list");
+    if (list) list.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const [schedule, meetings] = await Promise.all([api("/api/schedule"), api("/api/meetings")]);
+      this._meetingsById = {};
+      meetings.forEach((m) => { this._meetingsById[m.id] = m; });
+      this._all = schedule.filter((s) => s.status !== "cancelled");
+      this.applyFilters();
+    } catch (e) {
+      if (list) list.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+
+  applyFilters() {
+    const l = App.lang;
+    const q = (($("sp-search") || {}).value || "").trim().toLowerCase();
+    const type = ($("sp-type-filter") || {}).value || "";
+    this._filtered = this._all.filter((s) => {
+      if (type && s.meeting_type !== type) return false;
+      if (q) {
+        const title = ((l === "ar" ? s.title_ar : s.title_en || s.title_ar) || "").toLowerCase();
+        if (!title.includes(q)) return false;
+      }
+      return true;
+    });
+    this.render();
+  },
+
+  render() {
+    const l = App.lang;
+    const box = $("sp-list");
+    if (!box) return;
+    const eligibleStages = new Set(["created", "invited", "scheduled"]);
+    const rows = this._filtered.map((s) => this._rowHtml(s, l, eligibleStages)).filter(Boolean);
+    if (!rows.length) {
+      box.innerHTML = emptyStateCard({
+        icon: "🗓",
+        titleAr: "لا توجد اجتماعات مجدولة", titleEn: "No scheduled meetings",
+        descAr: "ابدأ بإنشاء أول اجتماع", descEn: "Start by creating your first meeting",
+        primary: { ar: "+ إنشاء اجتماع", en: "+ Create Meeting", onclick: "Panels.load('create-meeting')" },
+      });
+      return;
+    }
+    box.innerHTML = rows.join("");
+  },
+
+  _rowHtml(s, l, eligibleStages) {
+    const linked = s.source_meeting_id ? this._meetingsById[s.source_meeting_id] : null;
+    const stage = linked ? linked.lifecycle_stage : null;
+    const isLive = stage === "recording";
+    const isPastLive = stage && LIFECYCLE_STAGE_ORDER.indexOf(stage) > LIFECYCLE_STAGE_ORDER.indexOf("recording");
+    if (isPastLive) return ""; // completed elsewhere — Meeting History is the home for it now
+    const eligible = !linked || eligibleStages.has(stage);
+    const title = l === "ar" ? s.title_ar : s.title_en || s.title_ar;
+    const date = (s.meeting_date || "").substring(0, 10);
+    const time = (s.meeting_time || "").substring(0, 5);
+    const typeColor = calTypeColor(s.meeting_type);
+    const typeLabel = mtLabel(s.meeting_type, l) || (l === "ar" ? "غير محدد" : "Unspecified");
+    const boardOrCommittee = (l === "ar" ? (s.board_name_ar || s.committee_name_ar) : (s.board_name_en || s.board_name_ar || s.committee_name_en || s.committee_name_ar)) || "";
+    const organizer = (l === "ar" ? s.creator_ar : s.creator_en || s.creator_ar) || "";
+    const attendeeCount = (s.attendees || "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean).length;
+    const readiness = ((s.agenda_ar || s.agenda_en) ? 25 : 0) + (s.attendees ? 25 : 0) + (s.doc_count > 0 ? 25 : 0) + (s.status === "confirmed" ? 25 : 0);
+    const packOk = s.doc_count > 0;
+    const statusPill = isLive
+      ? `<span class="tag tr">🔴 ${l === "ar" ? "مباشر الآن" : "Live Now"}</span>`
+      : s.status === "confirmed"
+      ? `<span class="tag tg">✓ ${l === "ar" ? "مؤكَّد" : "Confirmed"}</span>`
+      : `<span class="tag ta">◌ ${l === "ar" ? "مسودة" : "Draft"}</span>`;
+    const menuId = `sp-menu-${s.id}`;
+
+    return `<div class="card" style="margin-bottom:10px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
+            <span style="font-weight:700;color:var(--text);font-size:13.5px">${esc(title)}</span>
+            <span class="tag" style="background:${typeColor}22;color:${typeColor};border:.5px solid ${typeColor}55">${esc(typeLabel)}</span>
+            ${statusPill}
+          </div>
+          <div style="font-size:11.5px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap">
+            <span>📅 ${date} ${time}</span>
+            ${boardOrCommittee ? `<span>🏛 ${esc(boardOrCommittee)}</span>` : ""}
+            ${organizer ? `<span>👤 ${esc(organizer)}</span>` : ""}
+            <span>👥 ${attendeeCount}</span>
+            <span>${packOk ? "✓" : "⏳"} ${l === "ar" ? "حزمة المجلس" : "Board Pack"}: ${packOk ? (l === "ar" ? "جاهزة" : "Ready") : (l === "ar" ? "معلّقة" : "Pending")}</span>
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+            <div style="flex:1;max-width:160px;height:6px;background:var(--navy4);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${readiness}%;background:${readiness === 100 ? "var(--green)" : "var(--gold)"};border-radius:4px"></div>
+            </div>
+            <span style="font-size:10.5px;color:var(--text3);font-weight:700">${readiness}% ${l === "ar" ? "جاهزية" : "ready"}</span>
+          </div>
+        </div>
+        <div style="position:relative;flex-shrink:0">
+          <button class="btn-ghost btn-sm" onclick="RowMenu.toggle('${menuId}', event)">⋮</button>
+          <div class="row-menu" id="${menuId}">
+            ${eligible ? `<button onclick="RowMenu.closeAll();ScheduledPanel.startMeeting(${s.id})">▶ ${l === "ar" ? "بدء الاجتماع" : "Start Meeting"}</button>` : ""}
+            ${s.source_meeting_id ? `<button onclick="RowMenu.closeAll();ScheduledPanel.openWorkspace(${s.source_meeting_id})">🗃 ${l === "ar" ? "فتح مساحة العمل" : "Open Workspace"}</button>` : ""}
+            <button onclick="RowMenu.closeAll();ScheduledPanel.delete(${s.id})">✕ ${l === "ar" ? "حذف" : "Delete"}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  openWorkspace(meetingId) {
+    // TODO(phase2): route directly into the generalized Meeting Workspace once
+    // it exists — Meeting History is the closest existing detail view for now.
+    Panels.load("history").then(() => MeetingHistory.select(meetingId));
+  },
+
+  async startMeeting(scheduleId) {
+    const l = App.lang;
+    const s = this._all.find((x) => x.id === scheduleId);
+    if (!s) return;
+    try {
+      let meetingId = s.source_meeting_id;
+      if (!meetingId) {
+        const meeting = await api("/api/meetings", {
+          method: "POST",
+          body: JSON.stringify({
+            title_ar: s.title_ar,
+            title_en: s.title_en || s.title_ar,
+            meeting_type: s.meeting_type || "",
+            board_id: s.board_id || null,
+            committee_id: s.committee_id || null,
+            platform: s.platform || "",
+          }),
+        });
+        meetingId = meeting.id;
+        await api(`/api/schedule/${scheduleId}`, { method: "PATCH", body: JSON.stringify({ source_meeting_id: meetingId }) });
+        s.source_meeting_id = meetingId;
+      }
+      await api(`/api/meetings/${meetingId}/recording/start`, {
+        method: "POST",
+        body: JSON.stringify({ capture_type: "browser_microphone", scope: "local_microphone_only" }),
+      });
+      await enterLiveMeeting(meetingId);
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر بدء الاجتماع: " : "Could not start meeting: ") + e.message, "error");
+    }
+  },
+
+  async delete(id) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "حذف هذا الاجتماع من الجدول؟" : "Remove this meeting from the schedule?")) return;
+    try {
+      await api(`/api/schedule/${id}`, { method: "DELETE" });
+      await this.refresh();
+      showToast(l === "ar" ? "✓ تم الحذف" : "✓ Deleted");
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر الحذف: " : "Could not delete: ") + e.message, "error");
+    }
+  },
+};
+
+// ══ Live Meetings (Phase 1 redesign) ════════════════════════════════════════
+// Shows every meeting currently in lifecycle_stage 'recording' as a prominent
+// card with a live elapsed timer, plus a discoverable way to start an ad-hoc
+// (unscheduled) meeting now that "Record Meeting" is no longer in the sidebar.
+const LiveMeetingsPanel = {
+  _timer: null,
+  _meetings: [],
+
+  async refresh() {
+    const box = $("lm-list");
+    if (box) box.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const meetings = await api("/api/meetings");
+      this._meetings = meetings.filter((m) => m.lifecycle_stage === "recording");
+      this.render();
+      this._startTimer();
+    } catch (e) {
+      if (box) box.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+
+  _startTimer() {
+    this.stopTimer();
+    if (!this._meetings.length) return;
+    this._timer = setInterval(() => this._tickElapsed(), 1000);
+  },
+  // Mirrors how Rec clears its own timerInt on stop() — called by Panels.load
+  // whenever the user navigates away from 'live' so the interval doesn't keep
+  // ticking (and touching detached DOM) in the background.
+  stopTimer() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+  },
+
+  _elapsed(startedAt) {
+    if (!startedAt) return "00:00";
+    const iso = startedAt.includes("T") ? startedAt : startedAt.replace(" ", "T") + "Z";
+    const start = new Date(iso).getTime();
+    let secs = Math.max(0, Math.floor((Date.now() - start) / 1000));
+    const hh = Math.floor(secs / 3600); secs %= 3600;
+    const mm = Math.floor(secs / 60); const ss = secs % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return hh > 0 ? `${pad(hh)}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`;
+  },
+  _tickElapsed() {
+    this._meetings.forEach((m) => {
+      const el = $(`lm-elapsed-${m.id}`);
+      if (el) el.textContent = this._elapsed(m.recording_started_at);
+    });
+  },
+
+  render() {
+    const l = App.lang;
+    const box = $("lm-list");
+    if (!box) return;
+    if (!this._meetings.length) {
+      box.innerHTML = emptyStateCard({
+        icon: "🔴",
+        titleAr: "لا توجد اجتماعات مباشرة حالياً", titleEn: "No meetings are live right now",
+        descAr: "ابدأ اجتماعاً فورياً، أو افتح الاجتماعات المجدولة لبدء اجتماع مجدول", descEn: "Start an ad-hoc meeting, or open Scheduled to start a planned one",
+        primary: { ar: "🎙 اجتماع فوري", en: "🎙 Start Ad-hoc Meeting", onclick: "Panels.load('record')" },
+        secondary: { ar: "الاجتماعات المجدولة", en: "Scheduled", onclick: "Panels.load('scheduled')" },
+      });
+      return;
+    }
+    box.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">` +
+      this._meetings.map((m) => this._cardHtml(m, l)).join("") + `</div>`;
+  },
+
+  _cardHtml(m, l) {
+    const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
+    const boardOrCommittee = (l === "ar" ? (m.board_name_ar || m.committee_name_ar) : (m.board_name_en || m.board_name_ar || m.committee_name_en || m.committee_name_ar)) || "";
+    const organizer = (l === "ar" ? m.recorder_ar : m.recorder_en || m.recorder_ar) || "";
+    return `<div class="card card-gold" style="padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="live-badge-pulse"></span>
+        <span style="font-size:11px;font-weight:800;color:var(--red);letter-spacing:.05em">${l === "ar" ? "مباشر" : "LIVE"}</span>
+        <span style="margin-inline-start:auto;font-variant-numeric:tabular-nums;font-weight:700;color:var(--text)" id="lm-elapsed-${m.id}">${this._elapsed(m.recording_started_at)}</span>
+      </div>
+      <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px">${esc(title)}</div>
+      <div style="font-size:11.5px;color:var(--text3);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        ${boardOrCommittee ? `<span>🏛 ${esc(boardOrCommittee)}</span>` : ""}
+        ${organizer ? `<span>👤 ${esc(organizer)}</span>` : ""}
+      </div>
+      <button class="btn-gold" style="width:100%;justify-content:center" onclick="enterLiveMeeting(${m.id})">▶ ${l === "ar" ? "انضمام" : "Open / Join"}</button>
+    </div>`;
+  },
+};
+
 // ══ Master Calendar (Phase T) — month grid over the Schedule panel, color-
 // coded by meeting type + Executive Actions due, click any item to jump to
 // its correct workspace (Meeting Workspace / Governance / Executive Actions).
@@ -9232,7 +9916,7 @@ async function renderOverview() {
     // ── Quick Actions — the fastest path into the four most common
     // executive workflows, one click from the command center.
     const quickActionsHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <button class="btn-gold btn-sm" onclick="Panels.load('record')">🎙 ${lbl("تسجيل اجتماع", "Record Meeting")}</button>
+      <button class="btn-gold btn-sm" onclick="Panels.load('create-meeting')">➕ ${lbl("إنشاء اجتماع", "Create Meeting")}</button>
       <button class="btn-ghost btn-sm" onclick="Panels.load('tasks').then(()=>Modals.addTask())">➕ ${lbl("إجراء تنفيذي جديد", "New Executive Action")}</button>
       <button class="btn-ghost btn-sm" onclick="Panels.load('ask')">✦ ${lbl("اسأل أمين", "Ask Ameen")}</button>
       <button class="btn-ghost btn-sm" onclick="Panels.load('documents')">📄 ${lbl("توليد تقرير", "Generate Report")}</button>

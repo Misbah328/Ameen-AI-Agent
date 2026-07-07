@@ -96,14 +96,26 @@
 <nav class="sidebar" id="sidebar">
   <button class="nb active" data-p="overview">
     <span class="nb-icon">🏠</span>
-    <span class="nb-label" data-ar="الرئيسية" data-en="Home">الرئيسية</span>
+    <span class="nb-label" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</span>
   </button>
 
   <div class="nsec" data-ar="الاجتماعات" data-en="Meetings">الاجتماعات</div>
-  <button class="nb" data-p="record">
-    <span class="nb-icon">🎙</span>
-    <span class="nb-label" data-ar="تسجيل اجتماع" data-en="Record Meeting">تسجيل اجتماع</span>
+  <button class="nb" data-p="create-meeting">
+    <span class="nb-icon">➕</span>
+    <span class="nb-label" data-ar="إنشاء اجتماع" data-en="Create Meeting">إنشاء اجتماع</span>
+  </button>
+  <button class="nb" data-p="scheduled">
+    <span class="nb-icon">🗓</span>
+    <span class="nb-label" data-ar="الاجتماعات المجدولة" data-en="Scheduled">الاجتماعات المجدولة</span>
+  </button>
+  <button class="nb" data-p="live">
+    <span class="nb-icon">🔴</span>
+    <span class="nb-label" data-ar="الاجتماعات المباشرة" data-en="Live Meetings">الاجتماعات المباشرة</span>
     <span class="nbg" id="b-rec" style="display:none">●</span>
+  </button>
+  <button class="nb" data-p="workspace">
+    <span class="nb-icon">🗃</span>
+    <span class="nb-label" data-ar="مساحة عمل الاجتماع" data-en="Meeting Workspace">مساحة عمل الاجتماع</span>
   </button>
   <button class="nb" data-p="transcripts">
     <span class="nb-icon">📝</span>
@@ -133,7 +145,7 @@
   <div class="nsec" data-ar="التقويم" data-en="Calendar">التقويم</div>
   <button class="nb" data-p="schedule">
     <span class="nb-icon">📅</span>
-    <span class="nb-label" data-ar="جدول الاجتماعات" data-en="Meeting Calendar">جدول الاجتماعات</span>
+    <span class="nb-label" data-ar="التقويم" data-en="Calendar">التقويم</span>
     <span class="nbg nbg-gold" id="b-sc">—</span>
   </button>
 
@@ -427,6 +439,299 @@
         </div>
       </div>
       <div id="ai-res-body"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CREATE MEETING WIZARD ══════════════════════════════════════ -->
+<section class="panel" id="panel-create-meeting">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="إنشاء اجتماع" data-en="Create Meeting">إنشاء اجتماع</div>
+        <div class="ptitle-sub" data-ar="التفاصيل ← جدول الأعمال ← المشاركون ← المراجعة" data-en="Details → Agenda & Planning → Attendees → Review">التفاصيل ← جدول الأعمال ← المشاركون ← المراجعة</div>
+      </div>
+    </div>
+  </div>
+  <div class="pbody">
+    <div class="card" id="cm-form-card">
+      <div class="wiz-header" id="cm-wiz-header">
+        <div class="wiz-step active" id="cm-wiz-dot-1" data-step="1">
+          <div class="wiz-step-dot">1</div>
+          <div class="wiz-step-label" data-ar="التفاصيل" data-en="Details">التفاصيل</div>
+        </div>
+        <div class="wiz-connector" id="cm-wiz-conn-1"></div>
+        <div class="wiz-step" id="cm-wiz-dot-2" data-step="2">
+          <div class="wiz-step-dot">2</div>
+          <div class="wiz-step-label" data-ar="جدول الأعمال" data-en="Agenda">جدول الأعمال</div>
+        </div>
+        <div class="wiz-connector" id="cm-wiz-conn-2"></div>
+        <div class="wiz-step" id="cm-wiz-dot-3" data-step="3">
+          <div class="wiz-step-dot">3</div>
+          <div class="wiz-step-label" data-ar="المشاركون" data-en="Attendees">المشاركون</div>
+        </div>
+        <div class="wiz-connector" id="cm-wiz-conn-3"></div>
+        <div class="wiz-step" id="cm-wiz-dot-4" data-step="4">
+          <div class="wiz-step-dot">4</div>
+          <div class="wiz-step-label" data-ar="مراجعة" data-en="Review">مراجعة</div>
+        </div>
+      </div>
+
+      <div class="fs">
+        <!-- Step 1 — Details -->
+        <div class="wiz-panel active" id="cm-wiz-panel-1">
+          <div class="frow">
+            <div class="fl" data-ar="عنوان الاجتماع" data-en="Meeting Title">عنوان الاجتماع</div>
+            <input class="fi" id="cm-title" data-ph-ar="اجتماع مجلس الإدارة — Board Meeting" data-ph-en="Board Meeting — اجتماع مجلس الإدارة" placeholder="عنوان الاجتماع"/>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="نوع الاجتماع" data-en="Meeting Type">نوع الاجتماع</div>
+              <select class="fi" id="cm-type">
+                <option value="">— <span data-ar="اختر النوع" data-en="Select Type">اختر النوع</span> —</option>
+                <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
+                <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
+                <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+                <option value="General Meeting">الاجتماع العام / General Meeting</option>
+                <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+                <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+              </select>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="المنظِّم" data-en="Organizer">المنظِّم</div>
+              <select class="fi" id="cm-organizer"><option value="">— <span data-ar="اختر" data-en="Select">اختر</span> —</option></select>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="التاريخ" data-en="Date">التاريخ</div>
+              <input class="fi" type="date" id="cm-date"/>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="وقت البدء" data-en="Start Time">وقت البدء</div>
+              <input class="fi" type="time" id="cm-start" value="09:00"/>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="وقت الانتهاء" data-en="End Time">وقت الانتهاء</div>
+              <input class="fi" type="time" id="cm-end" value="10:00"/>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="المجلس" data-en="Board">المجلس</div>
+              <select class="fi" id="cm-board" onchange="CreateMeetingWizard.onBoardChange()">
+                <option value="">— <span data-ar="بدون مجلس" data-en="No board">بدون مجلس</span> —</option>
+              </select>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="اللجنة" data-en="Committee">اللجنة</div>
+              <select class="fi" id="cm-committee">
+                <option value="">— <span data-ar="بدون لجنة" data-en="No committee">بدون لجنة</span> —</option>
+              </select>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="مزود الاجتماع" data-en="Meeting Provider">مزود الاجتماع</div>
+              <select class="fi" id="cm-plat" onchange="CreateMeetingWizard.onProviderChange()">
+                <option value="physical" data-ar="اجتماع حضوري" data-en="Physical Meeting">🏛 Physical Meeting / اجتماع حضوري</option>
+                <option value="zoom" data-ar="Zoom" data-en="Zoom">🎥 Zoom</option>
+                <option value="teams" data-ar="Microsoft Teams" data-en="Microsoft Teams">💼 Microsoft Teams</option>
+                <option value="google_meet" data-ar="Google Meet" data-en="Google Meet">🎦 Google Meet</option>
+              </select>
+            </div>
+            <div class="frow" id="cm-join-row" style="display:none">
+              <div class="fl" data-ar="رابط الانضمام" data-en="Join URL">رابط الانضمام</div>
+              <input class="fi" id="cm-join-url" type="url" dir="ltr" placeholder="https://zoom.us/j/..." style="text-align:left"/>
+            </div>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="اجتماع مرجعي سابق" data-en="Related Previous Meeting">اجتماع مرجعي سابق</div>
+            <select class="fi" id="cm-prev">
+              <option value="">— <span data-ar="لا يوجد" data-en="None">لا يوجد</span> —</option>
+            </select>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="علاقة الاجتماع" data-en="Meeting Relationship">علاقة الاجتماع</div>
+            <div>
+              <div class="imp-seg" id="cm-series-seg" style="margin-bottom:8px">
+                <button type="button" class="imp-seg-btn active" data-val="standalone" onclick="SeriesUI.setMode('cm','standalone')"><span data-ar="اجتماع مستقل" data-en="Standalone">اجتماع مستقل</span></button>
+                <button type="button" class="imp-seg-btn" data-val="new" onclick="SeriesUI.setMode('cm','new')"><span data-ar="سلسلة جديدة" data-en="New Series">سلسلة جديدة</span></button>
+                <button type="button" class="imp-seg-btn" data-val="continue" onclick="SeriesUI.setMode('cm','continue')"><span data-ar="متابعة سلسلة" data-en="Continue Series">متابعة سلسلة</span></button>
+              </div>
+              <div id="cm-series-new" style="display:none">
+                <input class="fi" id="cm-series-name-ar" style="margin-bottom:8px" data-ph-ar="اسم السلسلة (عربي)" data-ph-en="Series Name (Arabic)" placeholder="اسم السلسلة (عربي)"/>
+                <input class="fi" id="cm-series-name-en" style="margin-bottom:8px" dir="ltr" placeholder="Series Name (English)"/>
+                <input class="fi" id="cm-series-category" style="margin-bottom:8px" data-ph-ar="الفئة" data-ph-en="Category" placeholder="الفئة / Category"/>
+                <select class="fi" id="cm-series-owner"><option value="">— مالك السلسلة (اختياري) / Series Owner (optional) —</option></select>
+              </div>
+              <div id="cm-series-continue" style="display:none">
+                <select class="fi" id="cm-series-existing"><option value="">— جارٍ التحميل / Loading —</option></select>
+              </div>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="قناة التذكير" data-en="Reminder Channel">قناة التذكير</div>
+              <select class="fi" id="cm-channel">
+                <option value="email" data-ar="بريد إلكتروني" data-en="Email">بريد إلكتروني / Email</option>
+                <option value="whatsapp" data-ar="واتساب" data-en="WhatsApp">واتساب / WhatsApp</option>
+                <option value="both" data-ar="بريد + واتساب" data-en="Email + WhatsApp">بريد + واتساب / Both</option>
+              </select>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="التكرار" data-en="Recurrence">التكرار</div>
+              <select class="fi" id="cm-recurrence">
+                <option value="none" data-ar="مرة واحدة (بدون تكرار)" data-en="None (one-time)">بدون تكرار / None</option>
+                <option value="weekly" data-ar="أسبوعياً" data-en="Weekly">أسبوعياً / Weekly</option>
+                <option value="biweekly" data-ar="كل أسبوعين" data-en="Bi-weekly">كل أسبوعين / Bi-weekly</option>
+                <option value="monthly" data-ar="شهرياً" data-en="Monthly">شهرياً / Monthly</option>
+                <option value="quarterly" data-ar="ربع سنوي" data-en="Quarterly">ربع سنوي / Quarterly</option>
+              </select>
+            </div>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="غرض الاجتماع (عربي)" data-en="Meeting Purpose (Arabic)">غرض الاجتماع (عربي)</div>
+            <textarea class="fi" id="cm-purpose-ar" rows="2" placeholder="الغرض من عقد هذا الاجتماع..."></textarea>
+          </div>
+          <div class="frow">
+            <div class="fl">Meeting Purpose (English)</div>
+            <textarea class="fi" id="cm-purpose-en" rows="2" dir="ltr" style="text-align:left" placeholder="Purpose of this meeting..."></textarea>
+          </div>
+          <div class="fa" style="justify-content:flex-end">
+            <button class="btn-gold" onclick="CreateMeetingWizard.goStep(2)"><span data-ar="التالي: جدول الأعمال" data-en="Next: Agenda">Next: Agenda</span> →</button>
+          </div>
+        </div>
+
+        <!-- Step 2 — Agenda & Planning -->
+        <div class="wiz-panel" id="cm-wiz-panel-2">
+          <div class="imp-section">
+            <div class="imp-label" data-ar="بنود جدول الأعمال" data-en="Agenda Items">بنود جدول الأعمال</div>
+            <div id="cm-agenda-list"></div>
+            <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addAgendaItem()">+ <span data-ar="إضافة بند" data-en="Add Agenda Item">Add Agenda Item</span></button>
+          </div>
+          <div class="imp-section">
+            <div class="imp-label" data-ar="القرارات المتوقعة" data-en="Expected Decisions">القرارات المتوقعة</div>
+            <div class="chip-list" id="cm-decisions-chips"></div>
+            <div class="fa">
+              <input class="fi" id="cm-decision-input" style="flex:1" data-ph-ar="أضف قراراً متوقعاً..." data-ph-en="Add an expected decision..." placeholder="أضف قراراً متوقعاً..." onkeydown="if(event.key==='Enter'){event.preventDefault();CreateMeetingWizard.addExpected('decisions')}"/>
+              <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addExpected('decisions')">+ <span data-ar="إضافة" data-en="Add">Add</span></button>
+            </div>
+          </div>
+          <div class="imp-section">
+            <div class="imp-label" data-ar="الإجراءات التنفيذية المتوقعة" data-en="Expected Executive Actions">الإجراءات التنفيذية المتوقعة</div>
+            <div class="chip-list" id="cm-actions-chips"></div>
+            <div class="fa">
+              <input class="fi" id="cm-action-input" style="flex:1" data-ph-ar="أضف إجراءً تنفيذياً متوقعاً..." data-ph-en="Add an expected executive action..." placeholder="أضف إجراءً تنفيذياً متوقعاً..." onkeydown="if(event.key==='Enter'){event.preventDefault();CreateMeetingWizard.addExpected('actions')}"/>
+              <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addExpected('actions')">+ <span data-ar="إضافة" data-en="Add">Add</span></button>
+            </div>
+          </div>
+          <div class="frow">
+            <div class="fl" data-ar="مرفقات / حزمة المجلس" data-en="Attachments / Board Pack">مرفقات / حزمة المجلس</div>
+            <input class="fi" type="file" id="cm-attachments" multiple/>
+          </div>
+          <div class="fa" style="justify-content:space-between">
+            <button class="btn-ghost" onclick="CreateMeetingWizard.goStep(1)">← <span data-ar="السابق" data-en="Back">Back</span></button>
+            <button class="btn-gold" onclick="CreateMeetingWizard.goStep(3)"><span data-ar="التالي: المشاركون" data-en="Next: Attendees">Next: Attendees</span> →</button>
+          </div>
+        </div>
+
+        <!-- Step 3 — Attendees -->
+        <div class="wiz-panel" id="cm-wiz-panel-3">
+          <div class="frow">
+            <div class="fl" data-ar="المشاركون (أسماء أو إيميلات أو أرقام جوال)" data-en="Attendees (names, emails or phone numbers)">المشاركون</div>
+            <textarea class="fi" id="cm-attendees" rows="5" data-ph-ar="م. أحمد، sara@x.com، ‎+9665...&#10;— اسم واحد أو بريد أو رقم في كل سطر أو مفصول بفاصلة" data-ph-en="Ahmed, sara@x.com, +9665...&#10;— one name/email/phone per line or comma-separated" placeholder="Ahmed, sara@x.com, +9665..."></textarea>
+          </div>
+          <div class="fa" style="justify-content:space-between">
+            <button class="btn-ghost" onclick="CreateMeetingWizard.goStep(2)">← <span data-ar="السابق" data-en="Back">Back</span></button>
+            <button class="btn-gold" onclick="CreateMeetingWizard.goStep(4)"><span data-ar="التالي: مراجعة" data-en="Next: Review">Next: Review</span> →</button>
+          </div>
+        </div>
+
+        <!-- Step 4 — Review -->
+        <div class="wiz-panel" id="cm-wiz-panel-4">
+          <div id="cm-review"></div>
+          <div id="cm-no-calendar-note" style="display:none;font-size:12px;color:var(--amber);background:var(--amber2);border:1px solid var(--amber);border-radius:var(--rs);padding:8px 12px;margin-top:10px" data-ar="ليس لديك صلاحية لإضافة الاجتماعات إلى التقويم المشترك — يمكنك حفظه كمسودة فقط" data-en="You don't have permission to add meetings to the shared calendar — you can only save this as a draft"></div>
+          <div class="fa" style="flex-wrap:wrap;gap:8px;justify-content:space-between">
+            <button class="btn-ghost" onclick="CreateMeetingWizard.goStep(3)">← <span data-ar="السابق" data-en="Back">Back</span></button>
+            <div class="fa" style="flex-wrap:wrap;gap:8px">
+              <button class="btn-ghost" id="cm-draft-btn" onclick="CreateMeetingWizard.submit(true)" data-ar="حفظ كمسودة" data-en="Save as Draft">حفظ كمسودة</button>
+              <button class="btn-gold" id="cm-submit-btn" onclick="CreateMeetingWizard.submit(false)">✓ <span data-ar="إنشاء الاجتماع" data-en="Create Meeting">إنشاء الاجتماع</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SCHEDULED MEETINGS ══════════════════════════════════════════ -->
+<section class="panel" id="panel-scheduled">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="الاجتماعات المجدولة" data-en="Scheduled">الاجتماعات المجدولة</div>
+        <div class="ptitle-sub" data-ar="الاجتماعات القادمة وجاهزيتها للانعقاد" data-en="Upcoming meetings and their readiness to convene">الاجتماعات القادمة وجاهزيتها للانعقاد</div>
+      </div>
+      <button class="btn-gold" onclick="Panels.load('create-meeting')">+ <span data-ar="إنشاء اجتماع" data-en="Create Meeting">إنشاء اجتماع</span></button>
+    </div>
+  </div>
+  <div class="pbody">
+    <div class="card">
+      <div class="fa" style="margin-bottom:14px">
+        <input class="fi" id="sp-search" style="flex:1;min-width:180px" data-ph-ar="بحث بعنوان الاجتماع..." data-ph-en="Search by meeting title..." placeholder="Search..." oninput="ScheduledPanel.applyFilters()"/>
+        <select class="fi" id="sp-type-filter" style="max-width:220px" onchange="ScheduledPanel.applyFilters()">
+          <option value="">— <span data-ar="كل الأنواع" data-en="All Types">All Types</span> —</option>
+          <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
+          <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
+          <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+          <option value="General Meeting">الاجتماع العام / General Meeting</option>
+          <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+          <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+        </select>
+        <button class="btn-ghost btn-sm" onclick="ScheduledPanel.refresh()">↺</button>
+      </div>
+      <div id="sp-list"><div class="es"><div class="loading"></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ LIVE MEETINGS ═══════════════════════════════════════════════ -->
+<section class="panel" id="panel-live">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="الاجتماعات المباشرة" data-en="Live Meetings">الاجتماعات المباشرة</div>
+        <div class="ptitle-sub" data-ar="الاجتماعات الجارية الآن" data-en="Meetings currently in progress">الاجتماعات الجارية الآن</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="LiveMeetingsPanel.refresh()">↺</button>
+        <button class="btn-ghost" onclick="Panels.load('record')">🎙 <span data-ar="اجتماع فوري (بدون جدولة)" data-en="Start Ad-hoc Meeting">Start Ad-hoc Meeting</span></button>
+      </div>
+    </div>
+  </div>
+  <div class="pbody">
+    <div id="lm-list"><div class="es"><div class="loading"></div></div></div>
+  </div>
+</section>
+
+<!-- ══ MEETING WORKSPACE (stub — generalized in a later phase) ═════ -->
+<section class="panel" id="panel-workspace">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="مساحة عمل الاجتماع" data-en="Meeting Workspace">مساحة عمل الاجتماع</div>
+        <div class="ptitle-sub" data-ar="مركز موحّد لكل ما يخص الاجتماع" data-en="A unified hub for everything about a meeting">مركز موحّد لكل ما يخص الاجتماع</div>
+      </div>
+    </div>
+  </div>
+  <div class="pbody">
+    <div class="card">
+      <div class="es">
+        <div class="es-icon">🗃</div>
+        <div class="es-title" data-ar="اختر اجتماعاً لعرض مساحة عمله" data-en="Select a meeting to open its workspace">Select a meeting to open its workspace</div>
+        <div class="es-sub" data-ar="افتح مساحة العمل من الاجتماعات المجدولة، المباشرة، أو سجل الاجتماعات" data-en="Open a workspace from Scheduled, Live, or Meeting History">Open a workspace from Scheduled, Live, or Meeting History</div>
+      </div>
     </div>
   </div>
 </section>

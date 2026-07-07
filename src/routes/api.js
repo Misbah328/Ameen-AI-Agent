@@ -1533,7 +1533,7 @@ router.get('/schedule', auth, (req, res) => {
       b.name_ar as board_name_ar, b.name_en as board_name_en,
       c.name_ar as committee_name_ar, c.name_en as committee_name_en,
       ms.name_ar as series_name_ar, ms.name_en as series_name_en,
-      (SELECT COUNT(*) FROM meeting_documents WHERE schedule_id=s.id) as doc_count
+      (SELECT COUNT(*) FROM meeting_documents WHERE schedule_id=s.id OR (s.source_meeting_id IS NOT NULL AND meeting_id=s.source_meeting_id)) as doc_count
     FROM schedule s
     LEFT JOIN users u ON s.created_by=u.id
     LEFT JOIN boards b ON s.board_id=b.id
@@ -2317,7 +2317,13 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
 // Replace the agenda for a meeting — used by the Create Meeting wizard's Agenda
 // step and by the Meeting Workspace's Agenda tab. Mirrors the bulk-replace
 // pattern used by /attendees above.
-router.post('/meetings/:id/agenda', auth, requirePermission('meetings.edit'), (req, res) => {
+// Setting the agenda is treated as part of creating/planning a meeting (like
+// /attendees below), not a later edit — a role with meetings.create but not
+// meetings.edit (e.g. Employee) must still be able to set the agenda for a
+// meeting it just created.
+router.post('/meetings/:id/agenda', auth, (req, res) => {
+  const canTouch = ['meetings.create', 'meetings.edit'].some((k) => rbacService.hasPermission(db, req.user.id, k));
+  if (!canTouch) return res.status(403).json({ error: 'Not permitted to set the agenda' });
   const meetingId = req.params.id;
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(meetingId);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
