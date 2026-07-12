@@ -1639,9 +1639,51 @@ const Rec = {
       if (bound.meeting_type) typeInp.value = bound.meeting_type;
       typeInp.disabled = true;
     }
+    // Keep both the visible text AND the data-ar/data-en attributes in sync
+    // with the bound meeting's real title — App.applyLang() (called on every
+    // panel load and every language toggle) re-renders every [data-ar]
+    // element's textContent from those attributes, so setting textContent
+    // alone here would get silently reverted to the static "Record Meeting"
+    // label the next time applyLang runs (e.g. the coordinator switches
+    // AR/EN mid-meeting).
+    const boundTitleAr = bound.title_ar || "اجتماع مباشر";
+    const boundTitleEn = bound.title_en || bound.title_ar || "Live Meeting";
     const ptitle = document.querySelector("#panel-record .ptitle");
-    if (ptitle) ptitle.textContent = (l === "ar" ? bound.title_ar : bound.title_en || bound.title_ar) || (l === "ar" ? "اجتماع مباشر" : "Live Meeting");
+    if (ptitle) {
+      ptitle.setAttribute("data-ar", boundTitleAr);
+      ptitle.setAttribute("data-en", boundTitleEn);
+      ptitle.textContent = l === "ar" ? boundTitleAr : boundTitleEn;
+    }
+
+    // A meeting reached via Start Meeting / Join is already live — the
+    // "Import Meeting Content" chooser (existing/new meeting target, then
+    // Live/Upload/Paste/File content type) has nothing to offer here and is
+    // exactly the legacy screen this flow must never show. Force content
+    // type to live, hide the chooser rows, and re-brand the card as the
+    // actual Live Meeting surface instead of "Import Meeting Content".
+    ImportFlow.setContentType("live");
+    const targetSection = $("imp-target-section");
+    if (targetSection) targetSection.style.display = "none";
+    const contentTypeSection = $("imp-content-type-section");
+    if (contentTypeSection) contentTypeSection.style.display = "none";
+    const cardTitleAr = "اجتماع مباشر", cardTitleEn = "Live Meeting";
+    const cardSubAr = "التسجيل والنسخ الفوري يعملان الآن", cardSubEn = "Recording and live transcription are running";
+    const cardTitle = $("import-card-title");
+    if (cardTitle) {
+      cardTitle.setAttribute("data-ar", cardTitleAr); cardTitle.setAttribute("data-en", cardTitleEn);
+      cardTitle.textContent = l === "ar" ? cardTitleAr : cardTitleEn;
+    }
+    const cardSub = $("import-card-sub");
+    if (cardSub) {
+      cardSub.setAttribute("data-ar", cardSubAr); cardSub.setAttribute("data-en", cardSubEn);
+      cardSub.textContent = l === "ar" ? cardSubAr : cardSubEn;
+    }
+
+    const endBtn = $("rec-end-meeting-btn");
+    if (endBtn) endBtn.style.display = "";
+
     QuickCapture.show(bound.id);
+    AttendanceQuorum.show(bound.id);
   },
 
   _unbindTitleInputs() {
@@ -1651,8 +1693,30 @@ const Rec = {
     if (typeInp) { typeInp.disabled = false; typeInp.value = ""; }
     const ptitle = document.querySelector("#panel-record .ptitle");
     if (ptitle) ptitle.setAttribute("data-ar", "تسجيل اجتماع") || ptitle.setAttribute("data-en", "Record Meeting");
+
+    const targetSection = $("imp-target-section");
+    if (targetSection) targetSection.style.display = "";
+    const contentTypeSection = $("imp-content-type-section");
+    if (contentTypeSection) contentTypeSection.style.display = "";
+    const cardTitle = $("import-card-title");
+    if (cardTitle) { cardTitle.setAttribute("data-ar", "استيراد محتوى الاجتماع"); cardTitle.setAttribute("data-en", "Import Meeting Content"); }
+    const cardSub = $("import-card-sub");
+    if (cardSub) { cardSub.setAttribute("data-ar", "سجّل مباشرة، ارفع تسجيلاً، أو الصق محضراً — أمين يتولى الباقي"); cardSub.setAttribute("data-en", "Record live, upload a recording, or paste minutes — Ameen handles the rest"); }
+
+    const endBtn = $("rec-end-meeting-btn");
+    if (endBtn) endBtn.style.display = "none";
+
     App.applyLang(App.lang);
     QuickCapture.hide();
+    AttendanceQuorum.hide();
+  },
+
+  // Explicit "End Meeting" action for a bound live meeting — same underlying
+  // stop sequence as the recording ring toggle (stop capture, persist final
+  // transcript, run AI extraction, hand off to the meeting workspace), just
+  // reachable as its own labeled control per the Live Meeting spec.
+  async endMeeting() {
+    if (this.isRecording) await this.stop();
   },
 
   // Pause/Resume — a lighter-weight suspend than stop(): keeps the meeting
@@ -2513,6 +2577,107 @@ const Rec = {
 // each persist via a real endpoint; Poll is a lightweight, in-session-only
 // straw-poll widget (no realtime multi-user infra exists to back a persisted
 // poll, so this is deliberately local to the facilitator's browser).
+// Attendance & Quorum — shown alongside the live recording controls once a
+// Live Meeting is bound to a real meeting (see Rec._bindTitleInputs). Reuses
+// the existing governance attendance/quorum endpoints rather than a new model.
+const AttendanceQuorum = {
+  meetingId: null,
+  attendees: [],
+  quorum: null,
+
+  async show(meetingId) {
+    this.meetingId = meetingId;
+    const card = $("live-attendance-card");
+    if (card) card.style.display = "";
+    await this.load();
+  },
+  hide() {
+    this.meetingId = null;
+    const card = $("live-attendance-card");
+    if (card) card.style.display = "none";
+  },
+
+  async load() {
+    if (!this.meetingId) return;
+    try {
+      const [attendees, quorum] = await Promise.all([
+        api(`/api/gov/attendance?meetingId=${this.meetingId}`),
+        api(`/api/gov/quorum?meetingId=${this.meetingId}`),
+      ]);
+      this.attendees = Array.isArray(attendees) ? attendees : [];
+      this.quorum = quorum;
+      this.render();
+    } catch (e) {
+      // Non-fatal — the live meeting itself keeps working without this card.
+    }
+  },
+
+  render() {
+    const l = App.lang;
+    const list = $("live-attendance-list");
+    if (list) {
+      if (!this.attendees.length) {
+        list.innerHTML = `<div style="font-size:11.5px;color:var(--text3);font-style:italic">${l === "ar" ? "لا يوجد حضور مسجّل بعد" : "No attendees recorded yet"}</div>`;
+      } else {
+        list.innerHTML = this.attendees.map((a) => {
+          const present = a.attendance_status === "present";
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2)">
+            <div style="min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(a.name)}</div>
+              ${a.role ? `<div style="font-size:10.5px;color:var(--text3)">${esc(a.role)}</div>` : ""}
+            </div>
+            <button class="btn-ghost btn-sm" onclick="AttendanceQuorum.toggle(${a.id})">${present ? "✓ " + (l === "ar" ? "حاضر" : "Present") : (l === "ar" ? "وضع الحضور" : "Mark Present")}</button>
+          </div>`;
+        }).join("");
+      }
+    }
+    const presentCount = this.attendees.filter((a) => a.attendance_status === "present").length;
+    const reqInp = $("live-quorum-required");
+    if (reqInp && document.activeElement !== reqInp) reqInp.value = this.quorum ? this.quorum.required_members : "";
+    const sub = $("live-quorum-sub");
+    if (sub) {
+      const required = this.quorum ? this.quorum.required_members : 0;
+      const achieved = this.quorum && this.quorum.quorum_achieved;
+      const text = required
+        ? (l === "ar" ? `${presentCount} من ${required} حاضرون — ${achieved ? "تحقق النصاب ✓" : "لم يتحقق النصاب بعد"}` : `${presentCount} of ${required} present — ${achieved ? "Quorum met ✓" : "Quorum not yet met"}`)
+        : (l === "ar" ? `${presentCount} حاضرون` : `${presentCount} present`);
+      sub.textContent = text;
+    }
+  },
+
+  async toggle(attendeeId) {
+    const a = this.attendees.find((x) => x.id === attendeeId);
+    if (!a) return;
+    const next = a.attendance_status === "present" ? "pending" : "present";
+    try {
+      await api(`/api/gov/attendance/${attendeeId}`, { method: "PATCH", body: JSON.stringify({ attendance_status: next }) });
+      a.attendance_status = next;
+      await this.saveQuorum(true);
+      this.render();
+    } catch (e) {
+      showToast((App.lang === "ar" ? "تعذّر التحديث: " : "Could not update: ") + e.message, "error");
+    }
+  },
+
+  // silent=true when called after a per-attendee toggle (auto-recompute present
+  // count); false when the coordinator edits "required" directly.
+  async saveQuorum(silent) {
+    if (!this.meetingId) return;
+    const reqInp = $("live-quorum-required");
+    const required = reqInp ? parseInt(reqInp.value, 10) || 0 : (this.quorum ? this.quorum.required_members : 0);
+    const present = this.attendees.filter((a) => a.attendance_status === "present").length;
+    try {
+      this.quorum = await api("/api/gov/quorum", {
+        method: "PUT",
+        body: JSON.stringify({ meeting_id: this.meetingId, required_members: required, present_members: present }),
+      });
+      this.render();
+    } catch (e) {
+      if (!silent) showToast((App.lang === "ar" ? "تعذّر حفظ النصاب: " : "Could not save quorum: ") + e.message, "error");
+    }
+  },
+};
+
 const QuickCapture = {
   meetingId: null,
   type: "note",
@@ -7193,7 +7358,7 @@ const StructuredReports = {
     box.innerHTML = `<div class="es" style="padding:16px"><div class="loading"></div></div>`;
     try {
       const data = await api(`/api/reports/${type}/data`);
-      const cellText = (v) => (v && typeof v === "object" ? (l === "ar" ? v.ar || v.en : v.en || v.ar) : v ?? "");
+      const cellText = (v) => (v && typeof v === "object" ? (l === "ar" ? v.ar || v.en : v.en || v.ar) : (v !== null && v !== undefined ? v : ""));
       const head = data.columns.map((c) => `<th style="text-align:${l === "ar" ? "right" : "left"};padding:6px 8px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border2)">${esc(l === "ar" ? c.ar : c.en)}</th>`).join("");
       const rows = data.rows.slice(0, 100).map((row) => `<tr>${data.columns.map((c) => `<td style="padding:6px 8px;font-size:12px;color:var(--text);border-bottom:1px solid var(--border3)">${esc(String(cellText(row[c.key])))}</td>`).join("")}</tr>`).join("");
       box.innerHTML = data.rows.length
@@ -7791,7 +7956,8 @@ const Schedule = {
         ${rowsHtml}
       </div>`;
 
-    const seriesMode = ($("nm-series-seg") && $("nm-series-seg").querySelector(".imp-seg-btn.active")?.dataset.val) || "standalone";
+    const nmSeriesActiveBtn = $("nm-series-seg") && $("nm-series-seg").querySelector(".imp-seg-btn.active");
+    const seriesMode = (nmSeriesActiveBtn && nmSeriesActiveBtn.dataset.val) || "standalone";
     const seriesLabel = seriesMode === "new"
       ? (l === "ar" ? "سلسلة جديدة: " : "New series: ") + (val("nm-series-name-ar") || val("nm-series-name-en") || empty)
       : seriesMode === "continue"
@@ -8461,7 +8627,8 @@ const CreateMeetingWizard = {
         <div class="wiz-review-group-title">${l === "ar" ? titleAr : titleEn}</div>
         ${rowsHtml}
       </div>`;
-    const seriesMode = ($("cm-series-seg") && $("cm-series-seg").querySelector(".imp-seg-btn.active")?.dataset.val) || "standalone";
+    const cmSeriesActiveBtn = $("cm-series-seg") && $("cm-series-seg").querySelector(".imp-seg-btn.active");
+    const seriesMode = (cmSeriesActiveBtn && cmSeriesActiveBtn.dataset.val) || "standalone";
     const seriesLabel = seriesMode === "new"
       ? (l === "ar" ? "سلسلة جديدة: " : "New series: ") + (val("cm-series-name-ar") || val("cm-series-name-en") || empty)
       : seriesMode === "continue"
@@ -8681,6 +8848,12 @@ const RowMenu = {
 // ScheduledPanel.startMeeting() and LiveMeetingsPanel's Open/Join button.
 async function enterLiveMeeting(meetingId) {
   await Panels.load("record");
+  // panel-record has no sidebar nav button of its own (removed when "Record
+  // Meeting" stopped being a direct destination) — Panels.load() just cleared
+  // every .nb's active state, so without this the sidebar highlight goes
+  // blank the moment a real (non-ad-hoc) live meeting starts. "Live Meetings"
+  // is the closest conceptual tab for a meeting that is actually in progress.
+  document.querySelectorAll(".nb").forEach((b) => b.classList.toggle("active", b.dataset.p === "live"));
   try {
     const m = await api(`/api/meetings/${meetingId}`);
     Rec.pendingMeeting = m;
@@ -10464,7 +10637,7 @@ async function renderOverview() {
           ${pctBar(d.pct, d.overdue > 0 ? "var(--red)" : "var(--gold)")}
         </div>`).join("") || `<div class="es" style="padding:16px;font-size:12px">${lbl("لا توجد بيانات أقسام بعد", "No department data yet")}</div>`;
 
-      const deadlineRows = (dashIntel.upcoming_deadlines?.tasks || []).slice(0, 5).map((t) => `
+      const deadlineRows = ((dashIntel.upcoming_deadlines && dashIntel.upcoming_deadlines.tasks) || []).slice(0, 5).map((t) => `
         <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
           <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
           <span style="color:var(--text3);flex-shrink:0">${esc(t.due_date)}</span>
@@ -11473,7 +11646,7 @@ async function renderTeamPerformance(l, lbl) {
       labels: dept.map((d) => d.department),
       datasets: [{ label: lbl("نسبة الإنجاز %", "Completion %"), data: dept.map((d) => d.pct), backgroundColor: dept.map((d) => (d.overdue > 0 ? "#DC3232bb" : "#2ECC8Abb")), borderColor: dept.map((d) => (d.overdue > 0 ? "#DC3232" : "#2ECC8A")), borderWidth: 1.5, borderRadius: 4 }],
     },
-    options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...base.scales?.y, min: 0, max: 100 } } },
+    options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...(base.scales && base.scales.y), min: 0, max: 100 } } },
   });
 
   const trend = data.overdue_trend || [];

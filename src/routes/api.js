@@ -247,6 +247,15 @@ function attachSeriesContinuity(meetings) {
 
 // ── File upload setup (multer + extractors) ──────────────────────────────────
 const multer = require('multer');
+
+// multer/busboy decode multipart field values (including the filename) as
+// latin1 by default. A browser sending a UTF-8 filename (e.g. Arabic) is
+// still transmitted as UTF-8 bytes, so those bytes come out of multer
+// mis-decoded as latin1 — this reverses that mis-decode. Safe no-op for
+// pure-ASCII names, since latin1 and UTF-8 agree on that range.
+function fixUploadedFilename(name) {
+  return Buffer.from(name, 'latin1').toString('utf8');
+}
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
@@ -801,6 +810,7 @@ router.delete('/meetings/:id', auth, requirePermission('meetings.delete'), (req,
 // POST /api/meetings/:id/recording — upload audio/video file to platform
 router.post('/meetings/:id/recording', auth, requirePermission('meetings.create', 'meetings.edit'), uploadRec.single('recording'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (webm, mp4, mp3, wav, ogg, m4a, aac)' });
+  req.file.originalname = fixUploadedFilename(req.file.originalname);
   const meeting = db.prepare('SELECT id, audio_recording_url FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) {
     try { fs.unlinkSync(req.file.path); } catch {}
@@ -947,6 +957,7 @@ router.post('/meetings/:id/recording/stop', auth, requirePermission('meetings.cr
 router.post('/meetings/:id/upload', auth, requirePermission('documents.upload'), upload.single('file'), async (req, res) => {
  try {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (PDF, DOCX, XLSX, PPTX, TXT only)' });
+  req.file.originalname = fixUploadedFilename(req.file.originalname);
   const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) {
     try { fs.unlinkSync(req.file.path); } catch {}
@@ -1411,6 +1422,7 @@ router.post('/tasks/:id/attachments', auth, upload.single('file'), (req, res) =>
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported format (PDF, DOCX, XLSX, PPTX, TXT only)' });
+  req.file.originalname = fixUploadedFilename(req.file.originalname);
   const uploaderName = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
   const kind = ['completion', 'evidence'].includes(req.body.kind) ? 'completion' : 'attachment';
   const row = db.prepare(`
