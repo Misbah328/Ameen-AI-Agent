@@ -5850,8 +5850,13 @@ async function renderTasks() {
       waitingoninput: tasks.filter((t) => App.user && t.owner_id === App.user.id && !["done", "cancelled"].includes(t.status) && (t.needs_review || t.status === "waiting")).length,
       favorites: tasks.filter((t) => TaskFavorites.has(t.id)).length,
     };
+    // Pending Review is the Secretary/reviewer queue for AI-drafted tasks
+    // that haven't been vetted yet — an ordinary owner (actions.update only)
+    // must not see their own not-yet-approved draft here, since it isn't a
+    // real assignment yet and the backend silently strips any review_status
+    // change they'd try to make anyway.
     const quickChips = [
-      ...(pendingReviewTasks.length ? [{ key: "review", icon: "⏳", ar: "بانتظار المراجعة", en: "Pending Review", alert: true }] : []),
+      ...(pendingReviewTasks.length && canFullyManage ? [{ key: "review", icon: "⏳", ar: "بانتظار المراجعة", en: "Pending Review", alert: true }] : []),
       { key: "my", icon: "👤", ar: "مهامي", en: "My Actions" },
       { key: "duetoday", icon: "📅", ar: "مستحقة اليوم", en: "My Due Today" },
       { key: "waitingoninput", icon: "✋", ar: "بانتظار ردي", en: "Waiting for My Input" },
@@ -6142,7 +6147,7 @@ async function renderTasks() {
       </div>`;
     })();
 
-    const showReviewQueue = f.quick === "review" && pendingReviewTasks.length > 0;
+    const showReviewQueue = f.quick === "review" && pendingReviewTasks.length > 0 && canFullyManage;
     const viewBodyHtml = view === "manager" ? managerBodyHtml : view === "list" ? listBodyHtml : view === "calendar" ? calendarBodyHtml : boardBodyHtml;
 
     body.innerHTML = showReviewQueue

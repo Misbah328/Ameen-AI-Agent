@@ -1373,9 +1373,19 @@ router.patch('/tasks/:id', auth, async (req, res) => {
       updated_at=CURRENT_TIMESTAMP WHERE id=?`)
     .run(newStatus, notes, due_date, priority, text_ar, text_en, progress, review_status, oId, oNameAr, oNameEn, ownerChanged ? sqlNow() : null, req.params.id);
   const updated = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
-  // Only notify when the owner actually changed to a new, real assignee —
-  // not on every unrelated field edit (status/notes/etc. don't re-notify).
+  // Notify when the owner actually changed to a new, real assignee — not on
+  // every unrelated field edit (status/notes/etc. don't re-notify). Also
+  // notify on Secretary approval of an AI-extracted task even though its
+  // owner_id doesn't "change" here: processMeeting() already matched an
+  // owner from the transcript at extraction time, before any human review,
+  // specifically so the task isn't a real Executive Action yet — the
+  // recipient must not be notified (or see it as assigned) until the
+  // Secretary approves it. Without this branch, approval would silently
+  // never notify anyone, since ownerChanged only fires on a reassignment.
+  const approvedJustNow = review_status === 'approved' && task.review_status === 'pending';
   if (ownerChanged) {
+    await notifyTaskAssigned(updated, req.user.id);
+  } else if (approvedJustNow && updated.owner_id) {
     await notifyTaskAssigned(updated, req.user.id);
   }
   res.json(updated);
