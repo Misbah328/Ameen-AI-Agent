@@ -318,6 +318,49 @@ router.delete('/committees/:id', auth, requirePermission('governance.committees'
   res.json({ success: true });
 });
 
+// ── Board / Committee real membership ─────────────────────────────────────────
+// Assigns a real user account (with a role: Chair, Secretary, Meeting
+// Coordinator, or Board/Committee Member) to a board or committee — this is
+// what content-visibility filtering in GET /api/meetings and GET /api/schedule
+// actually checks, unlike the legacy free-text `members` list.
+function memberRows(table, idCol, id) {
+  return db.prepare(`
+    SELECT m.id, m.${idCol}, m.user_id, m.role, m.created_at, u.name_ar, u.name_en, u.email, u.system_role
+    FROM ${table} m JOIN users u ON u.id = m.user_id
+    WHERE m.${idCol}=? ORDER BY m.id
+  `).all(id);
+}
+
+router.get('/boards/:id/members', auth, requirePermission('governance.boards'), (req, res) => {
+  res.json(memberRows('board_members', 'board_id', req.params.id));
+});
+router.post('/boards/:id/members', auth, requirePermission('governance.boards'), (req, res) => {
+  const { user_id, role } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  if (!db.prepare('SELECT id FROM users WHERE id=?').get(user_id)) return res.status(404).json({ error: 'User not found' });
+  db.prepare('INSERT OR REPLACE INTO board_members (board_id, user_id, role) VALUES (?,?,?)').run(req.params.id, user_id, role || 'Board Member');
+  res.json(memberRows('board_members', 'board_id', req.params.id));
+});
+router.delete('/boards/:id/members/:userId', auth, requirePermission('governance.boards'), (req, res) => {
+  db.prepare('DELETE FROM board_members WHERE board_id=? AND user_id=?').run(req.params.id, req.params.userId);
+  res.json({ success: true });
+});
+
+router.get('/committees/:id/members', auth, requirePermission('governance.committees'), (req, res) => {
+  res.json(memberRows('committee_members', 'committee_id', req.params.id));
+});
+router.post('/committees/:id/members', auth, requirePermission('governance.committees'), (req, res) => {
+  const { user_id, role } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  if (!db.prepare('SELECT id FROM users WHERE id=?').get(user_id)) return res.status(404).json({ error: 'User not found' });
+  db.prepare('INSERT OR REPLACE INTO committee_members (committee_id, user_id, role) VALUES (?,?,?)').run(req.params.id, user_id, role || 'Committee Member');
+  res.json(memberRows('committee_members', 'committee_id', req.params.id));
+});
+router.delete('/committees/:id/members/:userId', auth, requirePermission('governance.committees'), (req, res) => {
+  db.prepare('DELETE FROM committee_members WHERE committee_id=? AND user_id=?').run(req.params.id, req.params.userId);
+  res.json({ success: true });
+});
+
 // ── Combined dropdown feed (boards + all their committees) ────────────────────
 router.get('/boards-and-committees', auth, (req, res) => {
   const boards = db.prepare('SELECT id,name_ar,name_en,chairperson,default_quorum FROM boards ORDER BY id').all();

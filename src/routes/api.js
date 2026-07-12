@@ -512,6 +512,35 @@ router.delete('/members/:id', auth, requirePermission('admin.users'), (req, res)
 });
 
 // ── Meetings ─────────────────────────────────────────────────────────────────
+// Board Member / Committee Member / Committee Chair / Guest must not see
+// governance content outside their own board/committee — everyone else
+// (Admin, CEO, Board Secretary, Auditor, Executive, Manager, Employee, Super/
+// Organization Admin) keeps the existing organization-wide view, since the
+// requirement is specifically "a committee member must not see unrelated
+// board content", not a general per-user visibility overhaul. A meeting with
+// no board_id/committee_id (most day-to-day meetings) is never governance
+// content, so it stays visible to everyone regardless of role.
+const GOVERNANCE_SCOPED_ROLES = ['Board Member', 'Committee Member', 'Committee Chair', 'Guest'];
+function filterByGovernanceScope(rows, userId, systemRole) {
+  if (!GOVERNANCE_SCOPED_ROLES.includes(systemRole)) return rows;
+  const boardIds = new Set(db.prepare('SELECT board_id FROM board_members WHERE user_id=?').all(userId).map((r) => r.board_id));
+  const committeeIds = new Set(db.prepare('SELECT committee_id FROM committee_members WHERE user_id=?').all(userId).map((r) => r.committee_id));
+  const userRow = db.prepare('SELECT email FROM users WHERE id=?').get(userId);
+  const userEmail = userRow && userRow.email;
+  return rows.filter((r) => {
+    if (!r.board_id && !r.committee_id) return true;
+    if (r.board_id && boardIds.has(r.board_id)) return true;
+    if (r.committee_id && committeeIds.has(r.committee_id)) return true;
+    if (r.organizer_id === userId || r.recorded_by === userId || r.created_by === userId) return true;
+    if (userEmail) {
+      const meetingId = r.source_meeting_id || r.id;
+      const attendee = db.prepare('SELECT 1 FROM meeting_attendees WHERE meeting_id=? AND email=?').get(meetingId, userEmail);
+      if (attendee) return true;
+    }
+    return false;
+  });
+}
+
 router.get('/meetings', auth, (req, res) => {
   const meetings = db.prepare(`
     SELECT m.*, u.name_ar as recorder_ar, u.name_en as recorder_en,
@@ -527,7 +556,8 @@ router.get('/meetings', auth, (req, res) => {
     LEFT JOIN meeting_series ms ON m.series_id = ms.id
     ORDER BY m.meeting_date DESC
   `).all();
-  res.json(attachSeriesContinuity(meetings));
+  const scoped = filterByGovernanceScope(meetings, req.user.id, req.user.system_role);
+  res.json(attachSeriesContinuity(scoped));
 });
 
 router.get('/meetings/:id', auth, (req, res) => {
@@ -1556,7 +1586,7 @@ router.delete('/decisions/:id', auth, requirePermission('actions.assign'), (req,
 
 // ── Schedule ─────────────────────────────────────────────────────────────────
 router.get('/schedule', auth, (req, res) => {
-  res.json(db.prepare(`
+  const rows = db.prepare(`
     SELECT s.*, u.name_ar as creator_ar, u.name_en as creator_en,
       b.name_ar as board_name_ar, b.name_en as board_name_en,
       c.name_ar as committee_name_ar, c.name_en as committee_name_en,
@@ -1568,7 +1598,8 @@ router.get('/schedule', auth, (req, res) => {
     LEFT JOIN committees c ON s.committee_id=c.id
     LEFT JOIN meeting_series ms ON s.series_id=ms.id
     ORDER BY meeting_date ASC, meeting_time ASC
-  `).all());
+  `).all();
+  res.json(filterByGovernanceScope(rows, req.user.id, req.user.system_role));
 });
 
 function conflictPayload(conflicts) {

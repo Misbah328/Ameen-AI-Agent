@@ -649,6 +649,36 @@ ensureColumn('meetings', 'meeting_format', "TEXT DEFAULT 'in_person'");
 ensureColumn('meetings', 'physical_location', "TEXT DEFAULT ''");
 ensureColumn('meeting_attendees', 'attendance_mode', "TEXT DEFAULT 'virtual'");
 
+// ── Board / Committee real membership (Phase 7) ───────────────────────────────
+// boards.members / committees.members were always just a free-text JSON array
+// of name strings ("Sara Al-Zahrani — Chairperson") — never linked to a real
+// user account, so there was no way to know "does user X belong to board Y",
+// and therefore no way to enforce "a Committee Member must not see unrelated
+// Board content". These tables are the real, queryable membership; the old
+// free-text field is left alone for display back-compat on existing rows.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS board_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'Board Member',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(board_id, user_id),
+    FOREIGN KEY(board_id) REFERENCES boards(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS committee_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    committee_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'Committee Member',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(committee_id, user_id),
+    FOREIGN KEY(committee_id) REFERENCES committees(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
 // ── Minutes Modification Requests (Phase 5) ───────────────────────────────────
 // An attendee's request to change a specific piece of the circulated minutes
 // (a whole section, one agenda item, one decision, or one task) — distinct
