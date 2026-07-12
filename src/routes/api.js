@@ -1597,8 +1597,10 @@ router.post('/decisions', auth, (req, res) => {
 });
 
 router.patch('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {
-  db.prepare('UPDATE decisions SET status=? WHERE id=?').run(req.body.status, req.params.id);
-  res.json({ success: true });
+  const { status, review_status, text_ar, text_en } = req.body;
+  db.prepare('UPDATE decisions SET status=COALESCE(?,status), review_status=COALESCE(?,review_status), text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en) WHERE id=?')
+    .run(status, review_status, text_ar, text_en, req.params.id);
+  res.json(db.prepare('SELECT * FROM decisions WHERE id=?').get(req.params.id));
 });
 
 router.delete('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {

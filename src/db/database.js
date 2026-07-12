@@ -648,6 +648,14 @@ ensureColumn('meetings', 'timezone', "TEXT DEFAULT 'Asia/Riyadh'");
 ensureColumn('meetings', 'meeting_format', "TEXT DEFAULT 'in_person'");
 ensureColumn('meetings', 'physical_location', "TEXT DEFAULT ''");
 ensureColumn('meeting_attendees', 'attendance_mode', "TEXT DEFAULT 'virtual'");
+// Decisions had no approval gate at all — AI-extracted decisions went
+// straight into the table as if already final, with no accept/reject step
+// (tasks already had this via tasks.review_status). Existing rows and
+// manually-recorded decisions (e.g. Quick Capture during a live meeting, a
+// human chair calling it on the spot) default to 'approved' so nothing that
+// already worked changes; processMeeting() explicitly sets 'pending' for
+// AI-extracted ones.
+ensureColumn('decisions', 'review_status', "TEXT DEFAULT 'approved'");
 
 // ── Board / Committee real membership (Phase 7) ───────────────────────────────
 // boards.members / committees.members were always just a free-text JSON array

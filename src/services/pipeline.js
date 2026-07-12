@@ -529,7 +529,10 @@ async function processMeeting({ meetingId, userId = null }) {
   // ── Decisions ─────────────────────────────────────────────────────────────
   const decisions = Array.isArray(result.decisions) ? result.decisions : [];
   if (decisions.length) {
-    const insertDecision = db.prepare(`INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en) VALUES (?, ?, ?, ?, ?)`);
+    // AI-extracted decisions need the same Secretary accept/reject gate as
+    // AI-extracted tasks — 'pending' until reviewed, not treated as already
+    // decided just because the model heard it discussed.
+    const insertDecision = db.prepare(`INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en, review_status) VALUES (?, ?, ?, ?, ?, 'pending')`);
     decisions.forEach(d => insertDecision.run(d.text_ar, d.text_en || d.text_ar, meeting.id, finalTitleAr, finalTitleEn));
   }
 

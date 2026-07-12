@@ -2831,18 +2831,20 @@ const ExecutiveActions = {
     if (!containerEl) return;
     const l = App.lang;
     try {
-      const [tasks, members] = await Promise.all([
+      const [tasks, members, decisions] = await Promise.all([
         api(`/api/tasks?meeting_id=${meetingId}`),
         api("/api/members"),
+        api(`/api/decisions?meeting_id=${meetingId}`).catch(() => []),
       ]);
       App._members = members;
-      if (!tasks.length) {
-        containerEl.innerHTML = `<div class="hist-empty-row">${l === "ar" ? "لم يتم استخراج أي مهام من هذا الاجتماع" : "No tasks were extracted from this meeting"}</div>`;
-        return;
-      }
       this._meetingId = meetingId;
       this._containerEl = containerEl;
       this._members = members;
+      this._decisions = decisions;
+      if (!tasks.length && !decisions.filter((d) => d.review_status === "pending").length) {
+        containerEl.innerHTML = `<div class="hist-empty-row">${l === "ar" ? "لم يتم استخراج أي مهام أو قرارات من هذا الاجتماع" : "No tasks or decisions were extracted from this meeting"}</div>`;
+        return;
+      }
       this._render(tasks, members, l);
     } catch (e) {
       containerEl.innerHTML = `<div class="hist-empty-row" style="color:var(--red)">${esc(e.message)}</div>`;
@@ -2852,8 +2854,45 @@ const ExecutiveActions = {
   async _refresh() {
     if (!this._containerEl || !this._meetingId) return;
     try {
-      const tasks = await api(`/api/tasks?meeting_id=${this._meetingId}`);
+      const [tasks, decisions] = await Promise.all([
+        api(`/api/tasks?meeting_id=${this._meetingId}`),
+        api(`/api/decisions?meeting_id=${this._meetingId}`).catch(() => []),
+      ]);
+      this._decisions = decisions;
       this._render(tasks, this._members, App.lang);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  _decisionsReviewHtml(pendingDecisions, l) {
+    if (!pendingDecisions.length) return "";
+    return `<div class="exec-review-heading">⚖️ ${l === "ar" ? "مراجعة قرارات الذكاء الاصطناعي" : "AI Decision Review"} <span class="tag" style="background:var(--navy4)">${pendingDecisions.length}</span></div>
+      <div class="exec-review-list">
+        ${pendingDecisions.map((d) => `<div class="exec-review-card" id="dec-review-${d.id}">
+          <div class="exec-review-text">${esc(l === "ar" ? d.text_ar || d.text_en : d.text_en || d.text_ar)}</div>
+          <div class="exec-review-actions">
+            <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ExecutiveActions.rejectDecision(${d.id})">✕ ${l === "ar" ? "رفض" : "Reject"}</button>
+            <button class="btn-gold btn-sm" onclick="ExecutiveActions.approveDecision(${d.id})">✓ ${l === "ar" ? "اعتماد" : "Approve"}</button>
+          </div>
+        </div>`).join("")}
+      </div>
+      <div class="exec-section-divider"></div>`;
+  },
+  async approveDecision(id) {
+    try {
+      await api(`/api/decisions/${id}`, { method: "PATCH", body: JSON.stringify({ review_status: "approved" }) });
+      await this._refresh();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+  async rejectDecision(id) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "رفض هذا القرار المقترح من الذكاء الاصطناعي؟" : "Reject this AI-suggested decision?")) return;
+    try {
+      await api(`/api/decisions/${id}`, { method: "PATCH", body: JSON.stringify({ review_status: "rejected" }) });
+      await this._refresh();
     } catch (e) {
       showToast(e.message, "error");
     }
@@ -2863,10 +2902,13 @@ const ExecutiveActions = {
     const pending = tasks.filter((t) => t.review_status === "pending");
     const approved = tasks.filter((t) => t.review_status !== "pending" && t.review_status !== "rejected");
     const reviewHtml = pending.length ? this._reviewHtml(pending, l) : "";
+    const pendingDecisions = (this._decisions || []).filter((d) => d.review_status === "pending");
+    const decisionsReviewHtml = this._decisionsReviewHtml(pendingDecisions, l);
     const tableHtml = approved.length
       ? this._tableHtml(approved, members, l)
       : `<div class="hist-empty-row">${l === "ar" ? "لا توجد إجراءات معتمدة بعد — اعتمد المهام أعلاه أولاً" : "No approved actions yet — approve the tasks above first"}</div>`;
     this._containerEl.innerHTML =
+      decisionsReviewHtml +
       (pending.length
         ? `<div class="exec-review-heading">🔍 ${l === "ar" ? "مراجعة مهام الذكاء الاصطناعي" : "AI Task Review"} <span class="tag" style="background:var(--navy4)">${pending.length}</span></div>${reviewHtml}<div class="exec-section-divider"></div>`
         : "") +
@@ -5663,7 +5705,7 @@ async function renderTasks() {
   const body = $("tasks-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const [tasksRaw, decisions, members] = await Promise.all([
+    const [tasksRaw, decisionsRaw, members] = await Promise.all([
       api("/api/tasks"),
       api("/api/decisions"),
       api("/api/members"),
@@ -5678,6 +5720,10 @@ async function renderTasks() {
     // may just be the AI's best guess). They only appear in the dedicated
     // "Pending Review" quick filter below, until approved or rejected.
     const pendingReviewTasks = tasksRaw.filter((t) => t.review_status === "pending");
+    // Same gate for AI-extracted decisions (review_status, added alongside
+    // tasks') — an unreviewed decision must not show up as if it were already
+    // official just because the model heard it discussed.
+    const decisions = decisionsRaw.filter((d) => d.review_status !== "pending" && d.review_status !== "rejected");
     const tasks = tasksRaw.filter((t) => t.review_status !== "pending" && t.review_status !== "rejected");
 
     const canFullyManage = App.can("actions.assign");
