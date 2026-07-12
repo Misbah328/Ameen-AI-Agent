@@ -649,6 +649,36 @@ ensureColumn('meetings', 'meeting_format', "TEXT DEFAULT 'in_person'");
 ensureColumn('meetings', 'physical_location', "TEXT DEFAULT ''");
 ensureColumn('meeting_attendees', 'attendance_mode', "TEXT DEFAULT 'virtual'");
 
+// ── Minutes Modification Requests (Phase 5) ───────────────────────────────────
+// An attendee's request to change a specific piece of the circulated minutes
+// (a whole section, one agenda item, one decision, or one task) — distinct
+// from the Secretary's own free-form edits, which just update the target row
+// directly. Every request preserves original vs proposed wording and the
+// Secretary's accept/reject decision, so there's a real revision history
+// instead of silent overwrites.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS minutes_modification_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    requester_id INTEGER,
+    requester_name TEXT,
+    section_type TEXT DEFAULT 'general',
+    section_ref_id INTEGER,
+    section_label TEXT DEFAULT '',
+    original_value TEXT DEFAULT '',
+    proposed_value TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    secretary_id INTEGER,
+    secretary_name TEXT,
+    secretary_note TEXT DEFAULT '',
+    decided_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(meeting_id) REFERENCES meetings(id),
+    FOREIGN KEY(requester_id) REFERENCES users(id),
+    FOREIGN KEY(secretary_id) REFERENCES users(id)
+  )
+`);
+
 // ── Enterprise RBAC (Phase 4) ─────────────────────────────────────────────────
 // `roles` is the admin-configurable catalog of assignable roles (built-in
 // roles are seeded once below; Admins can also create custom roles at

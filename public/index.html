@@ -1699,6 +1699,25 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-modification-requests">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title"><span data-ar="طلبات تعديل المحضر" data-en="Minutes Modification Requests">طلبات تعديل المحضر</span></div>
+    <div id="mr-list" style="max-height:320px;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="border-top:1px solid var(--border2);padding-top:12px">
+      <div class="imp-label" data-ar="تقديم طلب تعديل جديد" data-en="Submit a new modification request">تقديم طلب تعديل جديد</div>
+      <div class="fs">
+        <input class="fi" id="mr-section-label" data-ph-ar="القسم — مثال: قرار الميزانية، بند رقم 2..." data-ph-en="Section — e.g. Budget decision, Agenda item 2..." placeholder="Section label"/>
+        <textarea class="fi" id="mr-original" rows="2" data-ph-ar="النص الحالي (اختياري)" data-ph-en="Current wording (optional)" placeholder="Current wording (optional)"></textarea>
+        <textarea class="fi" id="mr-proposed" rows="2" data-ph-ar="النص المقترح" data-ph-en="Proposed wording" placeholder="Proposed wording"></textarea>
+      </div>
+    </div>
+    <div class="fa" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn-ghost" onclick="ModificationRequests.close()"><span data-ar="إغلاق" data-en="Close">Close</span></button>
+      <button class="btn-gold" onclick="ModificationRequests.submit()"><span data-ar="تقديم الطلب" data-en="Submit Request">Submit Request</span></button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
     <div class="modal-title"><span id="modal-title-txt" data-ar="إضافة مهمة جديدة" data-en="Add New Task">إضافة مهمة جديدة</span></div>

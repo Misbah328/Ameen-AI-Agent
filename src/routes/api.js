@@ -3162,6 +3162,22 @@ router.post('/meeting-series/:id/report', auth, requirePermission('reports.gener
 
 // ── Minutes Approval Workflow ────────────────────────────────────────────────
 
+// Notifies every attendee (matched by email to a real account, same pattern
+// used for schedule invites) plus the meeting's recorder, for a minutes
+// lifecycle event — circulate/approve/final-approve/etc. all need "every
+// participant" notified, not just whoever happens to be recorded_by.
+function notifyMeetingAttendees(meeting, notif, excludeUserId) {
+  const attendees = db.prepare('SELECT email FROM meeting_attendees WHERE meeting_id=? AND email!=\'\'').all(meeting.id);
+  const emails = attendees.map((a) => a.email);
+  let userIds = [];
+  if (emails.length) {
+    const placeholders = emails.map(() => '?').join(',');
+    userIds = db.prepare(`SELECT id FROM users WHERE email IN (${placeholders})`).all(...emails).map((u) => u.id);
+  }
+  if (meeting.recorded_by) userIds.push(meeting.recorded_by);
+  if (userIds.length) notifyUsers(db, userIds, notif, excludeUserId);
+}
+
 function logApprovalAction(meeting_id, action, user, comments, version) {
   const actor = user ? resolveActor(user.id) : { name: null, role: null };
   db.prepare(
@@ -3189,6 +3205,13 @@ router.post('/meetings/:id/circulate', auth, requirePermission('minutes.publish'
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'circulated', req.user, comments, version);
   transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Minutes circulated for review');
+  notifyMeetingAttendees(meeting, {
+    type: 'minutes_circulated',
+    titleAr: 'تم تعميم محضر الاجتماع', titleEn: 'Meeting minutes circulated',
+    bodyAr: `عُمِّم محضر "${meeting.title_ar}" للمراجعة`,
+    bodyEn: `Minutes for "${meeting.title_en || meeting.title_ar}" were circulated for review`,
+    sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+  }, req.user && req.user.id);
   res.json({ success: true, minutes_status: 'circulated' });
 });
 
@@ -3203,17 +3226,14 @@ router.post('/meetings/:id/approve', auth, requirePermission('minutes.approve'),
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'approved', req.user, comments, version);
   transitionMeeting(meeting.id, 'chairman_approval', req.user && req.user.id, 'Minutes approved by chairman');
-  if (meeting.recorded_by && meeting.recorded_by !== req.user.id) {
-    createNotification(db, {
-      userId: meeting.recorded_by,
-      type: 'minutes_approved',
-      titleAr: 'تمت الموافقة على محضر الاجتماع',
-      titleEn: 'Meeting minutes approved',
-      bodyAr: `اعتمد الرئيس محضر "${meeting.title_ar}"`,
-      bodyEn: `The chairman approved the minutes for "${meeting.title_en || meeting.title_ar}"`,
-      sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
-    });
-  }
+  notifyMeetingAttendees(meeting, {
+    type: 'minutes_approved',
+    titleAr: 'تمت الموافقة على محضر الاجتماع',
+    titleEn: 'Meeting minutes approved',
+    bodyAr: `اعتمد الرئيس محضر "${meeting.title_ar}"`,
+    bodyEn: `The chairman approved the minutes for "${meeting.title_en || meeting.title_ar}"`,
+    sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+  }, req.user && req.user.id);
   res.json({ success: true, minutes_status: 'approved' });
 });
 
@@ -3228,6 +3248,17 @@ router.post('/meetings/:id/request-revision', auth, requirePermission('minutes.a
   ).run(version + 1, comments, meeting.id);
   logApprovalAction(meeting.id, 'revision_requested', req.user, comments, version);
   transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Revision requested — back to secretary review');
+  if (meeting.recorded_by && meeting.recorded_by !== req.user.id) {
+    createNotification(db, {
+      userId: meeting.recorded_by,
+      type: 'minutes_revision_requested',
+      titleAr: 'طُلب تعديل على محضر الاجتماع',
+      titleEn: 'Revision requested on meeting minutes',
+      bodyAr: `طُلب تعديل محضر "${meeting.title_ar}"${comments ? `: ${comments}` : ''}`,
+      bodyEn: `A revision was requested for "${meeting.title_en || meeting.title_ar}"${comments ? `: ${comments}` : ''}`,
+      sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+    });
+  }
   res.json({ success: true, minutes_status: 'revision_requested', new_version: version + 1 });
 });
 
@@ -3242,18 +3273,76 @@ router.post('/meetings/:id/final-approve', auth, requirePermission('minutes.appr
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'final_approved', req.user, comments, version);
   transitionMeeting(meeting.id, 'board_approval', req.user && req.user.id, 'Minutes given final board approval');
+  notifyMeetingAttendees(meeting, {
+    type: 'minutes_approved',
+    titleAr: 'اعتماد نهائي لمحضر الاجتماع',
+    titleEn: 'Meeting minutes given final approval',
+    bodyAr: `حصل محضر "${meeting.title_ar}" على الاعتماد النهائي من المجلس`,
+    bodyEn: `"${meeting.title_en || meeting.title_ar}" received final board approval`,
+    sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+  }, req.user && req.user.id);
+  res.json({ success: true, minutes_status: 'final_approved' });
+});
+
+// ── Minutes Modification Requests ─────────────────────────────────────────────
+// An attendee's request to change a specific piece of circulated minutes.
+// Distinct from the Secretary directly editing a task/decision/agenda item —
+// this preserves the original vs proposed wording and the Secretary's
+// decision as its own auditable record, per attendee, per section.
+const MOD_REQUEST_SECTION_TYPES = ['general', 'agenda_item', 'decision', 'task'];
+
+router.get('/meetings/:id/modification-requests', auth, requirePermission('minutes.view'), (req, res) => {
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  res.json(db.prepare('SELECT * FROM minutes_modification_requests WHERE meeting_id=? ORDER BY created_at DESC').all(meeting.id));
+});
+
+router.post('/meetings/:id/modification-requests', auth, (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const { section_type, section_ref_id, section_label, original_value, proposed_value } = req.body;
+  if (!proposed_value || !proposed_value.trim()) return res.status(400).json({ error: 'proposed_value is required' });
+  const sectionType = MOD_REQUEST_SECTION_TYPES.includes(section_type) ? section_type : 'general';
+  const actor = resolveActor(req.user.id);
+  const row = db.prepare(`
+    INSERT INTO minutes_modification_requests (meeting_id, requester_id, requester_name, section_type, section_ref_id, section_label, original_value, proposed_value)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(meeting.id, req.user.id, actor.name, sectionType, section_ref_id || null, (section_label || '').slice(0, 200), (original_value || '').slice(0, 4000), proposed_value.trim().slice(0, 4000));
   if (meeting.recorded_by && meeting.recorded_by !== req.user.id) {
     createNotification(db, {
       userId: meeting.recorded_by,
-      type: 'minutes_approved',
-      titleAr: 'اعتماد نهائي لمحضر الاجتماع',
-      titleEn: 'Meeting minutes given final approval',
-      bodyAr: `حصل محضر "${meeting.title_ar}" على الاعتماد النهائي من المجلس`,
-      bodyEn: `"${meeting.title_en || meeting.title_ar}" received final board approval`,
+      type: 'minutes_modification_requested',
+      titleAr: 'طلب تعديل جديد على المحضر',
+      titleEn: 'New minutes modification request',
+      bodyAr: `${actor.name} طلب تعديلاً على محضر "${meeting.title_ar}"`,
+      bodyEn: `${actor.name} requested a change to the minutes for "${meeting.title_en || meeting.title_ar}"`,
       sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
     });
   }
-  res.json({ success: true, minutes_status: 'final_approved' });
+  res.json(db.prepare('SELECT * FROM minutes_modification_requests WHERE id=?').get(row.lastInsertRowid));
+});
+
+router.patch('/meetings/:id/modification-requests/:reqId', auth, requirePermission('minutes.approve'), (req, res) => {
+  const reqRow = db.prepare('SELECT * FROM minutes_modification_requests WHERE id=? AND meeting_id=?').get(req.params.reqId, req.params.id);
+  if (!reqRow) return res.status(404).json({ error: 'NOT_FOUND' });
+  const { status, secretary_note } = req.body;
+  if (!['accepted', 'rejected'].includes(status)) return res.status(400).json({ error: "status must be 'accepted' or 'rejected'" });
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  const actor = resolveActor(req.user.id);
+  db.prepare(`UPDATE minutes_modification_requests SET status=?, secretary_id=?, secretary_name=?, secretary_note=?, decided_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(status, req.user.id, actor.name, (secretary_note || '').slice(0, 2000), reqRow.id);
+  if (reqRow.requester_id && reqRow.requester_id !== req.user.id) {
+    createNotification(db, {
+      userId: reqRow.requester_id,
+      type: status === 'accepted' ? 'minutes_modification_accepted' : 'minutes_modification_rejected',
+      titleAr: status === 'accepted' ? 'تم قبول طلب التعديل' : 'تم رفض طلب التعديل',
+      titleEn: status === 'accepted' ? 'Modification request accepted' : 'Modification request rejected',
+      bodyAr: `قرار الأمين بشأن طلبك على محضر "${meeting.title_ar}"${secretary_note ? `: ${secretary_note}` : ''}`,
+      bodyEn: `The Secretary's decision on your request for "${meeting.title_en || meeting.title_ar}"${secretary_note ? `: ${secretary_note}` : ''}`,
+      sourceType: 'meeting', sourceId: meeting.id, deepLink: 'transcripts',
+    });
+  }
+  res.json(db.prepare('SELECT * FROM minutes_modification_requests WHERE id=?').get(reqRow.id));
 });
 
 // POST /api/meetings/:id/archive — final step of the lifecycle, only reachable

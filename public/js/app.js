@@ -3863,6 +3863,7 @@ async function renderTranscripts() {
             }
             if (mStatus !== 'draft') {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:11px">📋 ${l==='ar'?'سجل الاعتماد':'Approval Log'}</button>`);
+              btns.push(`<button class="btn-ghost btn-sm" onclick="ModificationRequests.open(${m.id})" style="font-size:11px">💬 ${l==='ar'?'طلبات التعديل':'Modification Requests'}</button>`);
             }
             if (lcStage === 'board_approval') {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'archive')" style="color:var(--text3);border-color:var(--text3)">🗄️ ${l==='ar'?'أرشفة':'Archive'}</button>`);
@@ -4530,6 +4531,7 @@ const MeetingHistory = {
       }
       if (mStatus !== "draft") {
         btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:11px">📋 ${l === "ar" ? "سجل الاعتماد" : "Approval Log"}</button>`);
+        btns.push(`<button class="btn-ghost btn-sm" onclick="ModificationRequests.open(${m.id})" style="font-size:11px">💬 ${l === "ar" ? "طلبات التعديل" : "Modification Requests"}</button>`);
       }
       if (lcStage === "board_approval") {
         btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'archive')" style="color:var(--text3);border-color:var(--text3)">🗄️ ${l === "ar" ? "أرشفة" : "Archive"}</button>`);
@@ -5126,6 +5128,104 @@ async function showLifecycleLog(meetingId) {
     alert(l === 'ar' ? 'خطأ في تحميل سجل المراحل' : 'Error loading lifecycle log');
   }
 }
+
+// ══ Minutes Modification Requests (Phase 5) ═══════════════════════════════════
+// An attendee's request to change a specific piece of the circulated minutes —
+// preserved as its own record (original vs proposed wording, requester,
+// Secretary's decision) rather than the Secretary silently overwriting text.
+const ModificationRequests = {
+  meetingId: null,
+  async open(meetingId) {
+    this.meetingId = meetingId;
+    $("mr-section-label").value = "";
+    $("mr-original").value = "";
+    $("mr-proposed").value = "";
+    $("modal-modification-requests").classList.add("open");
+    await this.refresh();
+  },
+  close() {
+    $("modal-modification-requests").classList.remove("open");
+    this.meetingId = null;
+  },
+  async refresh() {
+    const l = App.lang;
+    const box = $("mr-list");
+    if (!box || !this.meetingId) return;
+    box.innerHTML = `<div class="es"><div class="loading"></div></div>`;
+    try {
+      const list = await api(`/api/meetings/${this.meetingId}/modification-requests`);
+      if (!list.length) {
+        box.innerHTML = `<div style="font-size:11.5px;color:var(--text3);font-style:italic">${l === "ar" ? "لا توجد طلبات تعديل بعد" : "No modification requests yet"}</div>`;
+        return;
+      }
+      const canDecide = App.can("minutes.approve");
+      const statusMeta = {
+        pending: { ar: "قيد الانتظار", en: "Pending", c: "var(--gold)" },
+        accepted: { ar: "مقبول", en: "Accepted", c: "var(--green)" },
+        rejected: { ar: "مرفوض", en: "Rejected", c: "var(--red)" },
+      };
+      box.innerHTML = list.map((r) => {
+        const sm = statusMeta[r.status] || statusMeta.pending;
+        return `<div class="card" style="margin-bottom:8px;padding:10px 12px">
+          <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <span style="font-weight:700;font-size:12.5px;color:var(--text)">${esc(r.section_label || (l === "ar" ? "عام" : "General"))}</span>
+            <span class="tag" style="background:${sm.c}22;color:${sm.c}">${l === "ar" ? sm.ar : sm.en}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">👤 ${esc(r.requester_name || "—")} · ${(r.created_at || "").substring(0, 16)}</div>
+          ${r.original_value ? `<div style="font-size:11.5px;color:var(--text3);text-decoration:line-through;margin-bottom:2px">${esc(r.original_value)}</div>` : ""}
+          <div style="font-size:12.5px;color:var(--text);margin-bottom:6px">${esc(r.proposed_value)}</div>
+          ${r.secretary_note ? `<div style="font-size:11px;color:var(--text3);font-style:italic">💬 ${esc(r.secretary_note)}</div>` : ""}
+          ${(canDecide && r.status === "pending") ? `
+            <div class="fa" style="gap:6px;margin-top:8px">
+              <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ModificationRequests.decide(${r.id},'rejected')">✕ ${l === "ar" ? "رفض" : "Reject"}</button>
+              <button class="btn-gold btn-sm" onclick="ModificationRequests.decide(${r.id},'accepted')">✓ ${l === "ar" ? "قبول" : "Accept"}</button>
+            </div>` : ""}
+        </div>`;
+      }).join("");
+    } catch (e) {
+      box.innerHTML = `<div style="color:var(--red);font-size:12px">${esc(e.message)}</div>`;
+    }
+  },
+  async submit() {
+    const l = App.lang;
+    const proposed = ($("mr-proposed").value || "").trim();
+    if (!proposed) { showToast(l === "ar" ? "الرجاء إدخال النص المقترح" : "Please enter the proposed wording", "error"); return; }
+    try {
+      await api(`/api/meetings/${this.meetingId}/modification-requests`, {
+        method: "POST",
+        body: JSON.stringify({
+          section_type: "general",
+          section_label: ($("mr-section-label").value || "").trim(),
+          original_value: ($("mr-original").value || "").trim(),
+          proposed_value: proposed,
+        }),
+      });
+      $("mr-section-label").value = "";
+      $("mr-original").value = "";
+      $("mr-proposed").value = "";
+      showToast(l === "ar" ? "✓ تم تقديم طلب التعديل" : "✓ Modification request submitted");
+      await this.refresh();
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر التقديم: " : "Could not submit: ") + e.message, "error");
+    }
+  },
+  async decide(reqId, status) {
+    const l = App.lang;
+    const note = prompt(l === "ar" ? "ملاحظة (اختياري):" : "Note (optional):") || "";
+    try {
+      await api(`/api/meetings/${this.meetingId}/modification-requests/${reqId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, secretary_note: note }),
+      });
+      await this.refresh();
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر الحفظ: " : "Could not save: ") + e.message, "error");
+    }
+  },
+};
+$("modal-modification-requests") && $("modal-modification-requests").addEventListener("click", (e) => {
+  if (e.target === $("modal-modification-requests")) ModificationRequests.close();
+});
 
 // ══ Transcript Notes Modal ═════════════════════════════════════════════════
 const TranscriptModal = {
