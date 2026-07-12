@@ -677,7 +677,7 @@
           </div>
           <div class="frow">
             <div class="fl" data-ar="اجتماع مرجعي سابق" data-en="Related Previous Meeting">اجتماع مرجعي سابق</div>
-            <select class="fi" id="cm-prev">
+            <select class="fi" id="cm-prev" onchange="CreateMeetingWizard.onPrevMeetingChange()">
               <option value="">— <span data-ar="لا يوجد" data-en="None">لا يوجد</span> —</option>
             </select>
           </div>
@@ -735,6 +735,11 @@
 
         <!-- Step 2 — Agenda & Planning -->
         <div class="wiz-panel" id="cm-wiz-panel-2">
+          <div class="imp-section" id="cm-suggested-agenda-section" style="display:none">
+            <div class="imp-label" data-ar="مقترحات من الاجتماع السابق" data-en="Suggested from Previous Meeting">مقترحات من الاجتماع السابق</div>
+            <div class="ctsub" style="margin-bottom:8px" data-ar="مهام مفتوحة وقرارات مؤجلة من الاجتماع المرتبط — أضِفها كبنود متابعة" data-en="Open tasks and deferred decisions from the linked meeting — add them as follow-up agenda items">Open tasks and deferred decisions from the linked meeting</div>
+            <div id="cm-suggested-agenda-list"></div>
+          </div>
           <div class="imp-section">
             <div class="imp-label" data-ar="جدول الأعمال والوقت المخصص" data-en="Agenda &amp; Allocated Time">جدول الأعمال والوقت المخصص</div>
             <div id="cm-agenda-list"></div>

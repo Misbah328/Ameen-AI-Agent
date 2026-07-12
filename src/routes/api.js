@@ -652,6 +652,19 @@ router.get('/meetings/:id/full', auth, (req, res) => {
   res.json({ meeting, attendees, agenda, tasks, decisions, documents, lifecycle, effective_prev_meeting_id: effectivePrevId, next_meeting_id: nextMeetingId, series_timeline: seriesTimeline, series_stats: seriesStats, previous_review });
 });
 
+// Meeting continuity is a simple chain (prev_meeting_id), not a tree — if two
+// different meetings both claimed the same predecessor, "Previous Meeting" /
+// "Next Meeting" navigation and the carried-forward open-items review would
+// silently pick whichever one happened to sort first, hiding the other's
+// continuity entirely. Reject the second link instead of allowing that.
+function checkPrevMeetingConflict(prevMeetingId, excludeMeetingId) {
+  if (!prevMeetingId) return null;
+  if (prevMeetingId === excludeMeetingId) return 'A meeting cannot be linked as its own previous meeting';
+  const clash = db.prepare('SELECT id FROM meetings WHERE prev_meeting_id=? AND id != ?').get(prevMeetingId, excludeMeetingId || -1);
+  if (clash) return `Meeting #${prevMeetingId} is already linked as the previous meeting of #${clash.id} — each meeting can only have one direct follow-up`;
+  return null;
+}
+
 router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) => {
   const {
     title_ar, title_en, transcript, duration, meeting_type,
@@ -659,6 +672,8 @@ router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) 
     platform, organizer_id, purpose_ar, purpose_en, expected_decisions, expected_actions,
     timezone, meeting_format, physical_location,
   } = req.body;
+  const prevConflict = checkPrevMeetingConflict(prev_meeting_id || null, null);
+  if (prevConflict) return res.status(409).json({ error: prevConflict });
   const resolvedSeriesId = (series_id || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
   // Format is validated once, authoritatively, at schedule creation/reschedule
   // time (POST/PATCH /schedule) — meetings.platform is a free-text display
@@ -693,6 +708,10 @@ router.patch('/meetings/:id', auth, requirePermission('meetings.edit'), (req, re
   } = req.body;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'Not found' });
+  if (prev_meeting_id !== undefined) {
+    const prevConflict = checkPrevMeetingConflict(prev_meeting_id || null, meeting.id);
+    if (prevConflict) return res.status(409).json({ error: prevConflict });
+  }
 
   const newTitleAr = title_ar !== undefined ? title_ar : meeting.title_ar;
   const newTitleEn = title_en !== undefined ? (title_en || title_ar || meeting.title_en) : meeting.title_en;
@@ -1554,6 +1573,9 @@ router.post('/tasks/:id/escalate', auth, async (req, res) => {
 
 // ── Decisions ─────────────────────────────────────────────────────────────────
 router.get('/decisions', auth, (req, res) => {
+  if (req.query.meeting_id) {
+    return res.json(db.prepare('SELECT * FROM decisions WHERE meeting_id=? ORDER BY created_at DESC').all(req.query.meeting_id));
+  }
   res.json(db.prepare('SELECT * FROM decisions ORDER BY created_at DESC').all());
 });
 

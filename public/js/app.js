@@ -8602,6 +8602,9 @@ const CreateMeetingWizard = {
 
   init() {
     this.state = { step: 1, agenda: [], decisions: [], actions: [], participants: [], format: "in_person" };
+    this._suggestedAgenda = [];
+    const suggestSection = $("cm-suggested-agenda-section");
+    if (suggestSection) suggestSection.style.display = "none";
     this._resetFields();
     this._populateBoardSelects();
     this._populateOrganizerSelect();
@@ -8713,6 +8716,58 @@ const CreateMeetingWizard = {
           return `<option value="${m.id}">${esc(title)}${date ? " · " + date : ""}</option>`;
         }).join("");
     } catch (_) {}
+  },
+
+  // Meeting continuity: linking a previous meeting should actively help build
+  // the follow-up agenda, not just record the relationship — offer its still-
+  // open tasks and not-yet-implemented decisions as one-click agenda items.
+  _suggestedAgenda: [],
+  async onPrevMeetingChange() {
+    const prevId = parseInt(($("cm-prev") || {}).value) || null;
+    const section = $("cm-suggested-agenda-section");
+    if (!prevId) {
+      this._suggestedAgenda = [];
+      if (section) section.style.display = "none";
+      return;
+    }
+    try {
+      const [tasks, decisions] = await Promise.all([
+        api(`/api/tasks?meeting_id=${prevId}`),
+        api(`/api/decisions?meeting_id=${prevId}`),
+      ]);
+      const openTasks = tasks.filter((t) => !["done", "cancelled"].includes(t.status) && t.review_status !== "pending" && t.review_status !== "rejected");
+      const openDecisions = decisions.filter((d) => d.status !== "implemented");
+      this._suggestedAgenda = [
+        ...openTasks.map((t) => ({ kind: "task", title_ar: t.text_ar, title_en: t.text_en, presenter: (App.lang === "ar" ? t.owner_name_ar : t.owner_name_en) || "" })),
+        ...openDecisions.map((d) => ({ kind: "decision", title_ar: d.text_ar, title_en: d.text_en, presenter: "" })),
+      ];
+      this._renderSuggestedAgenda();
+      if (section) section.style.display = this._suggestedAgenda.length ? "" : "none";
+    } catch (e) {
+      this._suggestedAgenda = [];
+      if (section) section.style.display = "none";
+    }
+  },
+  _renderSuggestedAgenda() {
+    const box = $("cm-suggested-agenda-list");
+    if (!box) return;
+    const l = App.lang;
+    box.innerHTML = this._suggestedAgenda.map((item, i) => {
+      const label = l === "ar" ? item.title_ar || item.title_en : item.title_en || item.title_ar;
+      const kindIcon = item.kind === "task" ? "✅" : "⚖️";
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2)">
+        <span style="font-size:12px;color:var(--text);flex:1">${kindIcon} ${esc(label)}${item.presenter ? ` — ${esc(item.presenter)}` : ""}</span>
+        <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addSuggestedAgendaItem(${i})">+ ${l === "ar" ? "إضافة" : "Add"}</button>
+      </div>`;
+    }).join("");
+  },
+  addSuggestedAgendaItem(i) {
+    const item = this._suggestedAgenda[i];
+    if (!item) return;
+    this.state.agenda.push({ title_ar: item.title_ar || "", title_en: item.title_en || "", presenter: item.presenter || "", duration_mins: 15 });
+    this._suggestedAgenda.splice(i, 1);
+    this._renderSuggestedAgenda();
+    this.renderAgenda();
   },
 
   goStep(step) {
