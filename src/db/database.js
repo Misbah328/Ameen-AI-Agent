@@ -196,6 +196,7 @@ ensureColumn('meetings', 'approval_comments', 'TEXT');
 // ── Meeting provider / cloud integration architecture columns ─────────────────
 ensureColumn('schedule', 'meeting_provider',    "TEXT DEFAULT 'physical'");
 ensureColumn('schedule', 'meeting_join_url',    "TEXT DEFAULT ''");
+ensureColumn('schedule', 'meeting_location',    "TEXT DEFAULT ''");
 ensureColumn('schedule', 'meeting_id_external', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'recording_status',    "TEXT DEFAULT 'not_started'");
 ensureColumn('schedule', 'recording_provider',  "TEXT DEFAULT ''");
@@ -203,6 +204,7 @@ ensureColumn('schedule', 'recording_url',       "TEXT DEFAULT ''");
 ensureColumn('schedule', 'transcript_provider', "TEXT DEFAULT ''");
 
 // ── Recording storage and approval columns ────────────────────────────────────
+ensureColumn('meetings', 'meeting_location',           "TEXT DEFAULT ''");
 ensureColumn('meetings', 'audio_recording_url',       "TEXT DEFAULT ''");
 ensureColumn('meetings', 'video_recording_url',       "TEXT DEFAULT ''");
 ensureColumn('meetings', 'recording_file_name',       "TEXT DEFAULT ''");

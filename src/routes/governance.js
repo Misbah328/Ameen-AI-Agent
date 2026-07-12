@@ -5,6 +5,26 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { requirePermission } = auth;
 const { createNotification } = require('../services/notifications');
+const notify = require('../utils/notify');
+
+// ── Ensure policies table exists ──────────────────────────────────────────────
+db.prepare(`CREATE TABLE IF NOT EXISTS policies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title_ar TEXT NOT NULL,
+  title_en TEXT NOT NULL,
+  description_ar TEXT DEFAULT '',
+  description_en TEXT DEFAULT '',
+  category TEXT DEFAULT 'governance',
+  status TEXT DEFAULT 'draft',
+  version TEXT DEFAULT '1.0',
+  effective_date TEXT,
+  owner TEXT DEFAULT '',
+  owner_email TEXT DEFAULT '',
+  approved_by TEXT DEFAULT '',
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`).run();
 
 // ── Agenda Items ──────────────────────────────────────────────────────────────
 
@@ -147,9 +167,22 @@ function withFollowups(r) {
 router.get('/resolutions', auth, requirePermission('governance.resolutions'), (req, res) => {
   const { meetingId, scheduleId } = req.query;
   let rows = [];
-  if (meetingId) rows = db.prepare('SELECT * FROM resolutions WHERE meeting_id=? ORDER BY id').all(meetingId);
-  else if (scheduleId) rows = db.prepare('SELECT * FROM resolutions WHERE schedule_id=? ORDER BY id').all(scheduleId);
-  else return res.status(400).json({ error: 'meetingId or scheduleId required' });
+  if (meetingId) rows = db.prepare(`
+    SELECT r.*, m.title_ar as meeting_title_ar, m.title_en as meeting_title_en
+    FROM resolutions r LEFT JOIN meetings m ON m.id=r.meeting_id
+    WHERE r.meeting_id=? ORDER BY r.id`).all(meetingId);
+  else if (scheduleId) rows = db.prepare(`
+    SELECT r.*, s.title_ar as meeting_title_ar, s.title_en as meeting_title_en
+    FROM resolutions r LEFT JOIN schedule s ON s.id=r.schedule_id
+    WHERE r.schedule_id=? ORDER BY r.id`).all(scheduleId);
+  else rows = db.prepare(`
+    SELECT r.*,
+      m.title_ar as meeting_title_ar, m.title_en as meeting_title_en,
+      s.title_ar as sched_title_ar, s.title_en as sched_title_en
+    FROM resolutions r
+    LEFT JOIN meetings m ON m.id=r.meeting_id
+    LEFT JOIN schedule s ON s.id=r.schedule_id
+    ORDER BY r.id DESC`).all();
   res.json(rows.map(withFollowups));
 });
 
@@ -851,6 +884,85 @@ router.patch('/general-assemblies/:id/minutes', auth, requirePermission('governa
         draft_by=COALESCE(excluded.draft_by,draft_by),notes=COALESCE(excluded.notes,notes)`)
       .run(req.params.id,status||null,draft_date||null,circulated_date||null,approved_date||null,final_date||null,draft_by||null,notes||null);
     res.json(db.prepare('SELECT * FROM ga_minutes WHERE ga_schedule_id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Policies ──────────────────────────────────────────────────────────────────
+
+router.get('/policies', auth, (req, res) => {
+  try {
+    const { status, category } = req.query;
+    let sql = 'SELECT * FROM policies WHERE 1=1';
+    const params = [];
+    if (status) { sql += ' AND status=?'; params.push(status); }
+    if (category) { sql += ' AND category=?'; params.push(category); }
+    sql += ' ORDER BY created_at DESC';
+    res.json(db.prepare(sql).all(...params));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/policies', auth, (req, res) => {
+  try {
+    const { title_ar, title_en, description_ar, description_en, category, status, version, effective_date, owner, owner_email, approved_by } = req.body;
+    if (!title_ar || !title_en) return res.status(400).json({ error: 'title_ar and title_en are required' });
+    const row = db.prepare(`INSERT INTO policies (title_ar,title_en,description_ar,description_en,category,status,version,effective_date,owner,owner_email,approved_by,created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(title_ar, title_en, description_ar||'', description_en||'', category||'governance', status||'draft', version||'1.0', effective_date||null, owner||'', owner_email||'', approved_by||'', req.user.id);
+    res.json(db.prepare('SELECT * FROM policies WHERE id=?').get(row.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch('/policies/:id', auth, (req, res) => {
+  try {
+    if (!db.prepare('SELECT id FROM policies WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
+    const { title_ar, title_en, description_ar, description_en, category, status, version, effective_date, owner, owner_email, approved_by } = req.body;
+    db.prepare(`UPDATE policies SET
+      title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
+      description_ar=COALESCE(?,description_ar), description_en=COALESCE(?,description_en),
+      category=COALESCE(?,category), status=COALESCE(?,status),
+      version=COALESCE(?,version), effective_date=COALESCE(?,effective_date),
+      owner=COALESCE(?,owner), owner_email=COALESCE(?,owner_email),
+      approved_by=COALESCE(?,approved_by), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .run(title_ar,title_en,description_ar,description_en,category,status,version,effective_date,owner,owner_email,approved_by,req.params.id);
+    res.json(db.prepare('SELECT * FROM policies WHERE id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/policies/:id', auth, (req, res) => {
+  try {
+    if (!db.prepare('SELECT id FROM policies WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
+    db.prepare('DELETE FROM policies WHERE id=?').run(req.params.id);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Board Member Invitation ───────────────────────────────────────────────────
+
+router.post('/boards/:id/invite', auth, requirePermission('governance.boards'), async (req, res) => {
+  try {
+    const board = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    const { email, name, role, message } = req.body;
+    if (!email) return res.status(400).json({ error: 'email required' });
+    const inviterRow = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+    const inviterName = inviterRow?.name_en || inviterRow?.name_ar || 'The Board Secretary';
+    const boardName = board.name_en || board.name_ar;
+    const memberName = name || email;
+    const roleLabel = role || 'Board Member';
+    const html = `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;background:#0f0f1a;color:#e8e8f0;border-radius:12px">
+        <div style="color:#C9A84C;font-size:22px;font-weight:800;margin-bottom:8px">أمين / Ameen Secretary</div>
+        <h2 style="font-size:17px;font-weight:700;margin:0 0 16px">You've been invited to join ${boardName}</h2>
+        <p style="color:#aaa;font-size:14px;line-height:1.7;margin:0 0 12px">
+          <strong style="color:#e8e8f0">${inviterName}</strong> has invited you to join
+          <strong style="color:#C9A84C">${boardName}</strong> as <strong style="color:#e8e8f0">${roleLabel}</strong>.
+        </p>
+        ${message ? `<p style="background:rgba(201,168,76,.1);border-left:3px solid #C9A84C;padding:10px 14px;border-radius:4px;color:#e8e8f0;font-size:13px;margin:0 0 16px">${message}</p>` : ''}
+        <p style="color:#888;font-size:12px;margin:16px 0 0">This invitation was sent via Ameen Secretary. Contact ${inviterName} for access details.</p>
+      </div>`;
+    const text = `You've been invited to join ${boardName} as ${roleLabel} by ${inviterName}. ${message || ''}`;
+    await notify.sendEmail({ to: email, subject: `Invitation: Join ${boardName} on Ameen Secretary`, text, html });
+    res.json({ success: true, email, boardName });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

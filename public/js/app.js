@@ -235,7 +235,8 @@ const ROLE_ACCESS = {
     "team",
     "overview",
     "analytics", "activity",
-    "governance",
+    "governance", "boards",
+    "integrations",
     "admin",
   ]),
   CEO: new Set([
@@ -251,7 +252,7 @@ const ROLE_ACCESS = {
     "team",
     "overview",
     "analytics", "activity",
-    "governance",
+    "governance", "boards",
   ]),
   "Board Member": new Set([
     "transcripts",
@@ -264,7 +265,7 @@ const ROLE_ACCESS = {
     "series",
     "overview",
     "analytics", "activity",
-    "governance",
+    "governance", "boards",
   ]),
   "Committee Member": new Set([
     "transcripts",
@@ -274,7 +275,7 @@ const ROLE_ACCESS = {
     "schedule",
     "series",
     "overview",
-    "governance",
+    "governance", "boards",
   ]),
   Executive: new Set([
     "create-meeting", "scheduled", "live", "workspace",
@@ -308,24 +309,30 @@ const ROLE_ACCESS = {
   "Super Admin": new Set([
     "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
-    "governance", "admin",
+    "governance", "boards", "integrations", "admin",
   ]),
   "Organization Admin": new Set([
     "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
-    "governance", "admin",
+    "governance", "boards", "integrations", "admin",
   ]),
   "Board Secretary": new Set([
     "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
-    "documents", "schedule", "series", "overview", "analytics", "activity", "governance",
+    "documents", "schedule", "series", "overview", "analytics", "activity", "governance", "boards",
   ]),
   "Committee Chair": new Set([
     "transcripts", "history", "tasks", "ask", "documents", "schedule",
-    "series", "overview", "governance",
+    "series", "overview", "governance", "boards",
   ]),
   Auditor: new Set(["transcripts", "history", "lastmeeting", "tasks", "overview", "analytics", "activity"]),
   Guest: new Set(["overview", "transcripts", "history", "lastmeeting"]),
 };
+// Policies & Resolutions live in the Governance sidebar section — mirror the
+// "documents" visibility so every role that can browse documents can also
+// browse policies/resolutions (backend permissions remain the real gate).
+Object.values(ROLE_ACCESS).forEach((set) => {
+  if (set.has("documents")) { set.add("policies"); set.add("resolutions"); }
+});
 
 // ══ Executive Action taxonomy ══════════════════════════════════════════════
 // Single source of truth for task status/priority labels + badge colors,
@@ -491,6 +498,19 @@ function applySidebarRoles() {
   if (adminNav) adminNav.style.display = allowed.has("admin") ? "" : "none";
   if (adminSec) adminSec.style.display = allowed.has("admin") ? "" : "none";
 
+  // Hide developer/admin-only UI elements from end users
+  const adminRoles = new Set(["Admin", "Super Admin", "Organization Admin"]);
+  const isAdminRole = adminRoles.has(role);
+  const planBtn = $("plan-btn");
+  const apiKeyBtn = $("api-key-btn");
+  if (planBtn) planBtn.style.display = isAdminRole ? "" : "none";
+  if (apiKeyBtn) apiKeyBtn.style.display = isAdminRole ? "" : "none";
+
+  // Sync bottom-nav active state whenever sidebar roles are applied
+  document.querySelectorAll(".bnav-btn[data-p]").forEach(b => {
+    b.style.display = allowed.has(b.dataset.p) ? "" : "none";
+  });
+
   document.querySelectorAll(".nsec").forEach((sec) => {
     if (sec.id === "nsec-admin") return;
     let next = sec.nextElementSibling;
@@ -538,8 +558,9 @@ const App = {
       this.systemRole = me.system_role || "Admin";
     } catch (e) {
       if (
-        e.message &&
-        (e.message.includes("401") || e.message.includes("UNAUTHORIZED"))
+        e.status === 401 ||
+        (e.message &&
+          (e.message.includes("401") || e.message.includes("UNAUTHORIZED")))
       ) {
         window.location.replace("/login.html");
         return;
@@ -559,7 +580,14 @@ const App = {
     // Home (the executive command center) is the natural landing page for
     // every role that can see it — falls back to whatever else the role has
     // access to, same as before, for the handful of roles that can't.
-    const firstPanel = allowed.has("overview") ? "overview" : ([...allowed][0] || "scheduled");
+    let firstPanel = allowed.has("overview") ? "overview" : ([...allowed][0] || "scheduled");
+    try {
+      const bootPanel = sessionStorage.getItem("ameen_boot_panel");
+      if (bootPanel) {
+        sessionStorage.removeItem("ameen_boot_panel");
+        if (allowed.has(bootPanel)) firstPanel = bootPanel;
+      }
+    } catch (_) {}
     Panels.load(firstPanel);
   },
 
@@ -775,8 +803,22 @@ const App = {
 };
 
 // ══ API ════════════════════════════════════════════════════════════════════════
+// Auth fallback headers for raw fetch() calls that bypass api() — e.g. file
+// uploads with FormData bodies. Same mechanism as api(): cookie is primary,
+// Authorization header covers cookie-blocked contexts. Pass extra headers in.
+function authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  const fbToken = sessionStorage.getItem("ameen_token_fb");
+  if (fbToken) h["Authorization"] = "Bearer " + fbToken;
+  return h;
+}
 async function api(path, opts = {}) {
   const headers = { "Content-Type": "application/json" };
+  // Cookie is the primary auth mechanism; the Authorization header is a
+  // fallback for browsers that refuse to store/send the cookie (strict
+  // third-party-cookie settings, embedded preview iframes). Set by login.html.
+  const fbToken = sessionStorage.getItem("ameen_token_fb");
+  if (fbToken) headers["Authorization"] = "Bearer " + fbToken;
   const r = await fetch(path, {
     ...opts,
     credentials: "include",
@@ -790,7 +832,13 @@ async function api(path, opts = {}) {
   // `error` first meant a double-booking attempt surfaced the raw literal
   // string "CONFLICT" to the user instead of "This time overlaps a
   // confirmed meeting."
-  if (!r.ok) throw new Error(data.message || data.error || `HTTP ${r.status}`);
+  if (!r.ok) {
+    const err = new Error(data.message || data.error || `HTTP ${r.status}`);
+    // Expose the HTTP status so callers can detect auth failures reliably —
+    // matching on message text alone misses bodies like "Not logged in".
+    err.status = r.status;
+    throw err;
+  }
   return data;
 }
 
@@ -798,6 +846,7 @@ async function logoutUser() {
   try {
     await api("/auth/logout", { method: "POST" });
   } catch (_) {}
+  sessionStorage.removeItem("ameen_token_fb");
   window.location.replace("/login.html");
 }
 
@@ -861,9 +910,21 @@ const Panels = {
       .forEach((p) => p.classList.remove("active"));
     const panel = $(`panel-${name}`);
     if (panel) panel.classList.add("active");
+    // Meeting sub-features no longer have their own sidebar entries — keep the
+    // "Meetings" nav item highlighted while the user is inside any of them.
+    const navAlias = {
+      "create-meeting": "scheduled", record: "scheduled", live: "scheduled",
+      workspace: "scheduled", transcripts: "scheduled", history: "scheduled",
+      series: "scheduled", lastmeeting: "scheduled", schedule: "scheduled",
+      team: "integrations", activity: "overview",
+    };
+    const navName = document.querySelector(`.nb[data-p="${name}"]`) ? name : navAlias[name] || name;
     document
       .querySelectorAll(".nb")
-      .forEach((b) => b.classList.toggle("active", b.dataset.p === name));
+      .forEach((b) => b.classList.toggle("active", b.dataset.p === navName));
+    // Sync mobile bottom-nav active state
+    document.querySelectorAll(".bnav-btn[data-p]")
+      .forEach(b => b.classList.toggle("active", b.dataset.p === navName));
     App.applyLang(App.lang);
 
     switch (name) {
@@ -912,6 +973,9 @@ const Panels = {
       case "governance":
         await Gov.init();
         break;
+      case "boards":
+        await BC.init();
+        break;
       case "admin":
         await renderAdminPanel();
         break;
@@ -922,10 +986,20 @@ const Panels = {
         renderIntegrations();
         break;
       case "create-meeting":
+        // Legacy entry point — the Create Meeting experience now lives inside
+        // the Meetings module (new design). Redirect there.
+        if (window.MT) { MT.openCreate(); return; }
         CreateMeetingWizard.init();
         break;
       case "scheduled":
+        if (window.MT) MT.onPanelShow();
         await ScheduledPanel.refresh();
+        break;
+      case "policies":
+        if (window.MT) await MT.renderPolicies();
+        break;
+      case "resolutions":
+        if (window.MT) await MT.renderResolutions();
         break;
       case "live":
         await LiveMeetingsPanel.refresh();
@@ -1073,15 +1147,23 @@ const DocPins = {
 // ══ Document Library (File Uploads) ═══════════════════════════════════════════
 const DocLib = {
   _searchTimer: null,
+  _typeFilter: "",
+  _dateFilter: "",
   search(q) {
     clearTimeout(this._searchTimer);
     this._searchTimer = setTimeout(() => {
       const el = $("doc-library-section");
-      if (el) {
-        el._search = q;
-      }
+      if (el) el._search = q;
       this.renderLibrary("doc-library-section");
     }, 350);
+  },
+  setTypeFilter(v) {
+    this._typeFilter = v;
+    this.renderLibrary("doc-library-section");
+  },
+  setDateFilter(v) {
+    this._dateFilter = v;
+    this.renderLibrary("doc-library-section");
   },
   async upload(meetingId) {
     const input = document.createElement("input");
@@ -1102,6 +1184,7 @@ const DocLib = {
         const res = await fetch(`/api/meetings/${meetingId}/upload`, {
           method: "POST",
           credentials: "include",
+          headers: authHeaders(),
           body: formData,
         });
         const data = await res.json();
@@ -1193,13 +1276,38 @@ const DocLib = {
     if (!container) return;
     const l = App.lang;
     const q = container._search || "";
-    container.innerHTML = `<div class="es" style="padding:20px 0"><div class="loading"></div></div>`;
+    const typeF = this._typeFilter || "";
+    const dateF = this._dateFilter || "";
+    const docTypes = [
+      { v: "", ar: "جميع الأنواع", en: "All Types" },
+      { v: "agenda", ar: "جدول الأعمال", en: "Agenda" },
+      { v: "minutes", ar: "محضر", en: "Minutes" },
+      { v: "report", ar: "تقرير", en: "Report" },
+      { v: "presentation", ar: "عرض تقديمي", en: "Presentation" },
+      { v: "contract", ar: "عقد", en: "Contract" },
+      { v: "policy", ar: "سياسة", en: "Policy" },
+      { v: "other", ar: "أخرى", en: "Other" },
+    ];
+    const filterBar = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:.5px solid var(--border2)">
+      <select class="fi" style="height:30px;font-size:12px;padding:0 8px;min-width:130px" onchange="DocLib.setTypeFilter(this.value)">
+        ${docTypes.map((t) => `<option value="${t.v}" ${t.v === typeF ? "selected" : ""}>${l === "ar" ? t.ar : t.en}</option>`).join("")}
+      </select>
+      <input class="fi" type="date" style="height:30px;font-size:12px;padding:0 8px" title="${l === "ar" ? "فلتر بالتاريخ" : "Filter by date"}" value="${dateF}" onchange="DocLib.setDateFilter(this.value)">
+      ${(typeF || dateF) ? `<button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;color:var(--text3)" onclick="DocLib._typeFilter='';DocLib._dateFilter='';DocLib.renderLibrary('doc-library-section')">${l === "ar" ? "✕ مسح الفلتر" : "✕ Clear"}</button>` : ""}
+    </div>`;
+    container.innerHTML = filterBar + `<div class="es" style="padding:20px 0"><div class="loading"></div></div>`;
     try {
-      const docs = await api(
-        `/api/documents/library${q ? "?q=" + encodeURIComponent(q) : ""}`,
-      );
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (typeF) params.set("type", typeF);
+      const qs = params.toString();
+      let docs = await api(`/api/documents/library${qs ? "?" + qs : ""}`);
+      if (dateF) {
+        docs = docs.filter((d) => (d.upload_date || d.meeting_date || "").substring(0, 10) >= dateF);
+      }
+      const grid = document.createElement("div");
       if (!docs.length) {
-        container.innerHTML = emptyStateCard({
+        grid.innerHTML = emptyStateCard({
           icon: "📎",
           titleAr: "لا توجد مستندات بعد",
           titleEn: "No documents yet",
@@ -1207,13 +1315,15 @@ const DocLib = {
           descEn: 'Use the "📎 Attach" button on any meeting to upload PDF, DOCX, or TXT files.',
           primary: { ar: "📝 فتح المحاضر", en: "📝 Open Transcripts", onclick: "Panels.load('transcripts')" },
         });
+        container.innerHTML = filterBar;
+        container.appendChild(grid);
         return;
       }
       const sorted = [...docs].sort((a, b) => (DocPins.has(b.id) ? 1 : 0) - (DocPins.has(a.id) ? 1 : 0));
-      container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
-        ${sorted
-          .map(
-            (d) => `<div class="card" style="padding:12px;position:relative${DocPins.has(d.id) ? ";border-color:var(--gold-border)" : ""}">
+      grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px";
+      grid.innerHTML = sorted
+        .map(
+          (d) => `<div class="card" style="padding:12px;position:relative${DocPins.has(d.id) ? ";border-color:var(--gold-border)" : ""}">
           <button onclick="DocPins.toggle(${d.id})" style="position:absolute;top:8px;inset-inline-end:8px;background:none;border:none;cursor:pointer;font-size:13px;color:${DocPins.has(d.id) ? "var(--gold)" : "var(--text3)"}" title="${l === "ar" ? "تثبيت" : "Pin"}" aria-label="${l === "ar" ? "تثبيت المستند" : "Pin document"}">${DocPins.has(d.id) ? "📌" : "📍"}</button>
           <div style="display:flex;align-items:flex-start;gap:9px">
             <div style="font-size:26px;flex-shrink:0">${this.icon(d.doc_type)}</div>
@@ -1228,11 +1338,12 @@ const DocLib = {
             </div>
           </div>
         </div>`,
-          )
-          .join("")}
-      </div>`;
+        )
+        .join("");
+      container.innerHTML = filterBar;
+      container.appendChild(grid);
     } catch (err) {
-      container.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px 0">${err.message}</div>`;
+      container.innerHTML = filterBar + `<div style="color:var(--red);font-size:12px;padding:10px 0">${err.message}</div>`;
     }
   },
   // ── Quick access — pinned documents + recently downloaded, plus this
@@ -1301,21 +1412,49 @@ const DocRecent = {
 
 // Six accent colours cycling through meeting attendees in the speaker bar.
 const MEETING_TYPES = {
-  "Board Meeting": { ar: "مجلس الإدارة", en: "Board Meeting" },
+  "Board Meeting": { ar: "اجتماع مجلس الإدارة", en: "Board Meeting" },
   "Committee Meeting": { ar: "اجتماع اللجنة", en: "Committee Meeting" },
+  "Executive Committee Meeting": { ar: "اجتماع اللجنة التنفيذية", en: "Executive Committee Meeting" },
+  "General Assembly": { ar: "الجمعية العمومية", en: "General Assembly" },
+  "Annual General Meeting": { ar: "الاجتماع العام السنوي", en: "Annual General Meeting" },
+  "Extraordinary General Meeting": { ar: "الاجتماع العام غير العادي", en: "Extraordinary General Meeting" },
+  "Strategy Meeting": { ar: "اجتماع الاستراتيجية", en: "Strategy Meeting" },
+  "Audit Committee Meeting": { ar: "اجتماع لجنة المراجعة", en: "Audit Committee Meeting" },
+  "Risk Committee Meeting": { ar: "اجتماع لجنة المخاطر", en: "Risk Committee Meeting" },
+  "Nomination & Remuneration Committee Meeting": { ar: "لجنة الترشيح والمكافآت", en: "Nomination & Remuneration Committee" },
+  "Management Meeting": { ar: "اجتماع الإدارة", en: "Management Meeting" },
+  "Department Meeting": { ar: "اجتماع القسم", en: "Department Meeting" },
+  "Project Meeting": { ar: "اجتماع المشروع", en: "Project Meeting" },
+  "Follow-up Meeting": { ar: "اجتماع المتابعة", en: "Follow-up Meeting" },
+  "Emergency Meeting": { ar: "اجتماع طارئ", en: "Emergency Meeting" },
+  "Circular Resolution": { ar: "قرار تداولي", en: "Circular Resolution" },
+  "Other": { ar: "أخرى", en: "Other" },
+  // Legacy keys kept for backward compat
   "Executive Meeting": { ar: "الاجتماع التنفيذي", en: "Executive Meeting" },
   "General Meeting": { ar: "الاجتماع العام", en: "General Meeting" },
-  "Strategy Meeting": { ar: "اجتماع الاستراتيجية", en: "Strategy Meeting" },
-  "Follow-up Meeting": { ar: "اجتماع المتابعة", en: "Follow-up Meeting" },
   general_assembly: { ar: "الجمعية العمومية", en: "General Assembly" },
 };
 const CAL_TYPE_COLORS = {
   "Board Meeting": "#5B9BD6",
   "Committee Meeting": "#2ECC8A",
+  "Executive Committee Meeting": "#1A7FBD",
+  "General Assembly": "#E05A5A",
+  "Annual General Meeting": "#D94F4F",
+  "Extraordinary General Meeting": "#C0392B",
+  "Strategy Meeting": "#9B72DB",
+  "Audit Committee Meeting": "#E67E22",
+  "Risk Committee Meeting": "#E74C3C",
+  "Nomination & Remuneration Committee Meeting": "#8E44AD",
+  "Management Meeting": "#2980B9",
+  "Department Meeting": "#27AE60",
+  "Project Meeting": "#16A085",
+  "Follow-up Meeting": "#EFA827",
+  "Emergency Meeting": "#C0392B",
+  "Circular Resolution": "#7F8C8D",
+  "Other": "#95A5A6",
+  // Legacy
   "Executive Meeting": "#D4A017",
   "General Meeting": "#9AA0A6",
-  "Strategy Meeting": "#9B72DB",
-  "Follow-up Meeting": "#EFA827",
   general_assembly: "#E05A5A",
 };
 function calTypeColor(type) {
@@ -1325,6 +1464,22 @@ function mtLabel(type, lang) {
   const t = MEETING_TYPES[type];
   if (!t || !type) return type || "";
   return lang === "ar" ? t.ar : t.en;
+}
+
+const PLATFORM_LABELS = {
+  physical:     { ar: "حضوري",        en: "In-Person"         },
+  zoom:         { ar: "زووم",          en: "Zoom"              },
+  teams:        { ar: "تيمز",          en: "Microsoft Teams"   },
+  google_meet:  { ar: "جوجل ميت",     en: "Google Meet"       },
+  hybrid:       { ar: "هجين",          en: "Hybrid"            },
+  virtual:      { ar: "افتراضي",      en: "Virtual"           },
+  webex:        { ar: "ويبكس",         en: "Webex"             },
+  other:        { ar: "أخرى",          en: "Other"             },
+};
+function platLabel(platform, lang) {
+  const t = PLATFORM_LABELS[platform];
+  if (t) return lang === "ar" ? t.ar : t.en;
+  return platform || "";
 }
 
 const SPEAKER_PALETTE = [
@@ -1426,7 +1581,8 @@ const Rec = {
     this.isPaused = false;
     $("rec-ring").classList.add("recording");
     $("rec-ic").textContent = "⏹";
-    $("b-rec").style.display = "flex";
+    const brOn = $("b-rec");
+    if (brOn) brOn.style.display = "flex";
     const pauseBtn0 = $("rec-pause-btn");
     if (pauseBtn0) { pauseBtn0.style.display = ""; pauseBtn0.innerHTML = `⏸ <span data-ar="إيقاف مؤقت" data-en="Pause">${App.lang === "ar" ? "إيقاف مؤقت" : "Pause"}</span>`; }
     $("live-tr-card").style.display = "";
@@ -1545,7 +1701,8 @@ const Rec = {
     clearInterval(this.timerInt);
     $("rec-ring").classList.remove("recording");
     $("rec-ic").textContent = "🎙";
-    $("b-rec").style.display = "none";
+    const brOff = $("b-rec");
+    if (brOff) brOff.style.display = "none";
     const pauseBtn1 = $("rec-pause-btn");
     if (pauseBtn1) pauseBtn1.style.display = "none";
     this.stopWaveform();
@@ -1613,14 +1770,18 @@ const Rec = {
     }
 
     // A meeting entered through the Create Meeting → Scheduled → Start Meeting
-    // flow (or Live Meetings' Join) has a real workspace waiting for it —
+    // flow (or Live Meetings' Join) has a real meeting page waiting for it —
     // land there instead of leaving the coordinator on this raw capture screen.
     // Ad-hoc recordings (never bound to a pre-existing meeting) keep the
-    // existing in-place results view, since there's no richer workspace
+    // existing in-place results view, since there's no richer meeting-page
     // context (agenda/attendees/series) to show for those.
-    if (wasBound && finishedMeetingId) {
-      showToast(App.lang === "ar" ? "✓ تم إيقاف التسجيل — جارٍ فتح مساحة عمل الاجتماع" : "✓ Recording stopped — opening the meeting workspace");
-      WorkspacePanel.open(finishedMeetingId);
+    // Only redirect if the user is still on the capture screen — this stop
+    // chain (final save + AI processing) can take a while, and yanking them
+    // away from wherever they navigated to in the meantime is hostile.
+    if (wasBound && finishedMeetingId && (Panels.current === "record" || Panels.current === "live")) {
+      showToast(App.lang === "ar" ? "✓ تم إيقاف التسجيل — جارٍ فتح صفحة الاجتماع" : "✓ Recording stopped — opening the meeting page");
+      if (window.MT) MT.openDetail(finishedMeetingId);
+      else WorkspacePanel.open(finishedMeetingId);
     }
   },
 
@@ -4365,10 +4526,12 @@ const MeetingHistory = {
         "نظرة عامة",
         "Overview",
         `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
-          <div>${l === "ar" ? "نوع الاجتماع" : "Meeting Type"}: <strong>${esc(m.meeting_type || (l === "ar" ? "غير محدد" : "Not set"))}</strong></div>
+          <div>${l === "ar" ? "نوع الاجتماع" : "Meeting Type"}: <strong>${esc(mtLabel(m.meeting_type, l) || (l === "ar" ? "غير محدد" : "Not set"))}</strong></div>
           <div>${l === "ar" ? "المسجّل" : "Recorded By"}: <strong>${esc((l === "ar" ? m.recorder_ar : m.recorder_en) || "—")}</strong></div>
           ${m.board_name_ar ? `<div>${l === "ar" ? "المجلس" : "Board"}: <strong>${esc(l === "ar" ? m.board_name_ar : m.board_name_en)}</strong></div>` : ""}
           ${m.committee_name_ar ? `<div>${l === "ar" ? "اللجنة" : "Committee"}: <strong>${esc(l === "ar" ? m.committee_name_ar : m.committee_name_en)}</strong></div>` : ""}
+          ${m.platform ? `<div>📡 ${l === "ar" ? "التنسيق" : "Format"}: <strong>${esc(platLabel(m.platform, l))}</strong></div>` : ""}
+          ${m.meeting_location ? `<div>📍 ${l === "ar" ? "الموقع" : "Location"}: <strong>${esc(m.meeting_location)}</strong></div>` : ""}
           <div>${l === "ar" ? "الحالة العاطفية" : "Sentiment"}: <strong>${esc(m.ai_sentiment || "—")}</strong></div>
         </div>`,
       )}
@@ -4399,13 +4562,24 @@ const MeetingHistory = {
         "جدول الأعمال",
         "Agenda",
         full.agenda.length
-          ? `<ol style="margin:0;padding-inline-start:18px;display:flex;flex-direction:column;gap:6px">
+          ? `<div style="display:flex;flex-direction:column;gap:0">
           ${full.agenda
             .map(
-              (a) => `<li>${esc(a.title)}${a.presenter ? ` — <span style="color:var(--text3)">${esc(a.presenter)}</span>` : ""}${a.description ? `<div style="font-size:11.5px;color:var(--text3);margin-top:2px">${esc(a.description)}</div>` : ""}</li>`,
+              (a, i) => `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2)">
+                ${App.can("meetings.edit") ? `<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;margin-top:1px">
+                  <button class="btn-ghost btn-sm" style="padding:1px 6px;font-size:10px;line-height:1.4;min-width:0" ${i === 0 ? "disabled" : ""} onclick="reorderAgendaItem(${m.id},${a.id},'up')" title="${l === "ar" ? "للأعلى" : "Move up"}">▲</button>
+                  <button class="btn-ghost btn-sm" style="padding:1px 6px;font-size:10px;line-height:1.4;min-width:0" ${i === full.agenda.length - 1 ? "disabled" : ""} onclick="reorderAgendaItem(${m.id},${a.id},'down')" title="${l === "ar" ? "للأسفل" : "Move down"}">▼</button>
+                </div>` : ""}
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12.5px;font-weight:600">${i + 1}. ${esc(l === "ar" ? a.title_ar || a.title_en || a.title : a.title_en || a.title_ar || a.title)}</div>
+                  ${a.presenter ? `<div style="font-size:11px;color:var(--text3)">${esc(a.presenter)}</div>` : ""}
+                  ${(a.description_ar || a.description_en || a.description) ? `<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${esc(l === "ar" ? a.description_ar || a.description_en || a.description : a.description_en || a.description_ar || a.description)}</div>` : ""}
+                </div>
+                ${a.duration_mins ? `<span style="font-size:10px;color:var(--text3);flex-shrink:0;white-space:nowrap">${a.duration_mins}${l === "ar" ? " د" : " m"}</span>` : ""}
+              </div>`
             )
             .join("")}
-        </ol>`
+        </div>`
           : emptyRow("لا يوجد جدول أعمال مسجّل لهذا الاجتماع", "No agenda recorded for this meeting"),
       )}
     `;
@@ -4456,7 +4630,7 @@ const MeetingHistory = {
           : summary
           ? `<div class="minutes-doc"><div class="minutes-exec-summary" style="border:none;padding-bottom:0;margin-bottom:0">${esc(summary)}</div></div>`
           : emptyRow("لم تتم معالجة هذا الاجتماع بعد بواسطة الذكاء الاصطناعي", "This meeting has not been AI-processed yet")) +
-          (mApprovalBtns ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${mStatusBadge}${mApprovalBtns}</div>` : mStatusBadge ? `<div style="margin-top:10px">${mStatusBadge}</div>` : ""),
+          (mApprovalBtns ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${mStatusBadge}${mApprovalBtns}<button class="btn-ghost btn-sm" onclick="printMeetingMinutes(${m.id})" style="font-size:11px">🖨 ${l === "ar" ? "طباعة" : "Print"}</button></div>` : mStatusBadge ? `<div style="margin-top:10px">${mStatusBadge}<button class="btn-ghost btn-sm" onclick="printMeetingMinutes(${m.id})" style="font-size:11px;margin-inline-start:6px">🖨 ${l === "ar" ? "طباعة" : "Print"}</button></div>` : `<div style="margin-top:10px"><button class="btn-ghost btn-sm" onclick="printMeetingMinutes(${m.id})" style="font-size:11px">🖨 ${l === "ar" ? "طباعة المحضر" : "Print Minutes"}</button></div>`),
       )}
       ${sec(
         "⚖️",
@@ -5248,31 +5422,79 @@ async function renderLastMeeting() {
   }
 }
 
-async function pushLastMeetingWhatsApp(id) {
+function pushLastMeetingWhatsApp(id) {
   const l = App.lang;
-  const phones = prompt(
-    l === "ar"
-      ? "أرقام الجوال للإرسال عبر واتساب (افصل بينها بفاصلة):"
-      : "WhatsApp phone number(s), comma-separated:",
-    "",
-  );
-  if (phones === null) return;
-  if (!phones.trim()) {
-    alert(l === "ar" ? "يرجى إدخال رقم جوال" : "Please enter a phone number");
+  const existing = document.getElementById("wa-summary-modal");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "wa-summary-modal";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center";
+  overlay.innerHTML = `
+    <div class="card" style="width:420px;max-width:92vw;padding:24px;position:relative">
+      <button onclick="document.getElementById('wa-summary-modal').remove()" style="position:absolute;top:12px;inset-inline-end:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">📲 ${l === "ar" ? "إرسال ملخص الاجتماع عبر واتساب" : "Send Meeting Summary via WhatsApp"}</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px">${l === "ar" ? "أدخل أرقام الجوال (بصيغة E.164 مثل: +966501234567)، يمكن إدخال أكثر من رقم بفاصلة" : "Enter phone numbers in E.164 format (e.g. +966501234567), comma-separated for multiple"}</div>
+      <textarea id="wa-phones-input" class="fi" rows="3" placeholder="${l === "ar" ? "+966501234567, +966509876543" : "+966501234567, +966509876543"}" style="width:100%;resize:vertical;font-family:monospace;font-size:13px"></textarea>
+      <div id="wa-modal-err" style="color:var(--red);font-size:12px;margin-top:6px;display:none"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('wa-summary-modal').remove()">${l === "ar" ? "إلغاء" : "Cancel"}</button>
+        <button class="btn-gold btn-sm" id="wa-send-btn" onclick="_doSendWhatsApp(${id})">${l === "ar" ? "إرسال" : "Send"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => { const inp = document.getElementById("wa-phones-input"); if (inp) inp.focus(); }, 80);
+}
+
+async function _doSendWhatsApp(id) {
+  const l = App.lang;
+  const inp = document.getElementById("wa-phones-input");
+  const errEl = document.getElementById("wa-modal-err");
+  const btn = document.getElementById("wa-send-btn");
+  if (!inp) return;
+  const phones = inp.value.trim();
+  if (!phones) {
+    if (errEl) { errEl.textContent = l === "ar" ? "يرجى إدخال رقم جوال واحد على الأقل" : "Please enter at least one phone number"; errEl.style.display = "block"; }
     return;
   }
+  if (btn) { btn.disabled = true; btn.textContent = l === "ar" ? "جاري الإرسال…" : "Sending…"; }
+  if (errEl) errEl.style.display = "none";
   try {
     const r = await api("/api/meetings/" + id + "/whatsapp-summary", {
       method: "POST",
-      body: JSON.stringify({ phones: phones.trim() }),
+      body: JSON.stringify({ phones }),
     });
-    alert(
-      l === "ar"
-        ? `✓ تم الإرسال إلى ${r.sent} رقم`
-        : `✓ Sent to ${r.sent} number(s)`,
-    );
+    document.getElementById("wa-summary-modal")?.remove();
+    showToast(l === "ar" ? `✓ تم الإرسال إلى ${r.sent} رقم` : `✓ Sent to ${r.sent} number(s)`, "success");
   } catch (e) {
-    alert((l === "ar" ? "تعذّر الإرسال: " : "Could not send: ") + e.message);
+    if (errEl) { errEl.textContent = (l === "ar" ? "تعذّر الإرسال: " : "Could not send: ") + e.message; errEl.style.display = "block"; }
+    if (btn) { btn.disabled = false; btn.textContent = l === "ar" ? "إرسال" : "Send"; }
+  }
+}
+
+async function reorderAgendaItem(meetingId, itemId, direction) {
+  try {
+    await api(`/api/meetings/${meetingId}/agenda/${itemId}/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({ direction }),
+    });
+    MT.openDetail(meetingId, "agenda");
+  } catch (e) {
+    showToast((App.lang === "ar" ? "تعذّر إعادة الترتيب: " : "Reorder failed: ") + e.message, "error");
+  }
+}
+
+async function printMeetingMinutes(id) {
+  const l = App.lang;
+  try {
+    const full = await api(`/api/meetings/${id}/full`);
+    const m = full.meeting || full;
+    const title = l === "ar" ? (m.title_ar || m.title_en || "") : (m.title_en || m.title_ar || "");
+    const minutesRaw = m.minutes_text || m.minutes_md || m.minutes_html || m.ai_minutes || null;
+    const summary = l === "ar" ? (m.ai_summary_ar || m.ai_summary_en || "") : (m.ai_summary_en || m.ai_summary_ar || "");
+    const content = minutesRaw || summary || (l === "ar" ? "لا يوجد محضر" : "No minutes available");
+    _openPrintWindow(content, title, l);
+  } catch (e) {
+    showToast((l === "ar" ? "تعذّر تحميل المحضر: " : "Could not load minutes: ") + e.message, "error");
   }
 }
 
@@ -5378,6 +5600,38 @@ const TaskView = {
   },
 };
 
+// ══ Tasks page state (tab / search / filters / page) ══════════════════════════
+const TK = {
+  tab: "my",      // "my" | "others" | "all"
+  q: "",
+  status: "",
+  priority: "",
+  dueBefore: "",
+  meeting: "",
+  page: 1,
+  _searchTimer: null,
+  setTab(v) { this.tab = v; this.page = 1; renderTasks(); },
+  onSearch(v) {
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => { this.q = (v || "").toLowerCase().trim(); this.page = 1; renderTasks(); }, 280);
+  },
+  setFilter(k, v) { this[k] = v; this.page = 1; renderTasks(); },
+  setPage(v) { this.page = v; renderTasks(); },
+  reset() { this.q = ""; this.status = ""; this.priority = ""; this.dueBefore = ""; this.meeting = ""; this.page = 1; renderTasks(); },
+  isActive() { return !!(this.q || this.status || this.priority || this.dueBefore || this.meeting); },
+  closeMenus() {
+    document.querySelectorAll(".tk-rm-drop.open").forEach(m => m.classList.remove("open"));
+  },
+  toggleMenu(id, btn) {
+    this.closeMenus();
+    const m = document.getElementById(`tk-rm-${id}`);
+    if (!m) return;
+    m.classList.add("open");
+    const close = (e) => { if (btn && !btn.contains(e.target) && !m.contains(e.target)) { m.classList.remove("open"); document.removeEventListener("click", close, true); } };
+    setTimeout(() => document.addEventListener("click", close, true), 0);
+  },
+};
+
 async function renderTasks() {
   const body = $("tasks-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
@@ -5390,593 +5644,492 @@ async function renderTasks() {
     App.tasksCache = tasksRaw;
     App._members = members;
     const l = App.lang;
-    const f = TaskFilters;
+    const ar = (a, e) => l === "ar" ? a : e;
 
-    // ── AI-extracted tasks awaiting human review never mix into the regular
-    // board/list/calendar — they haven't been vetted yet (owner/due/priority
-    // may just be the AI's best guess). They only appear in the dedicated
-    // "Pending Review" quick filter below, until approved or rejected.
-    const pendingReviewTasks = tasksRaw.filter((t) => t.review_status === "pending");
-    const tasks = tasksRaw.filter((t) => t.review_status !== "pending" && t.review_status !== "rejected");
+    const pendingReviewTasks = tasksRaw.filter(t => t.review_status === "pending");
+    const tasks = tasksRaw.filter(t => t.review_status !== "pending" && t.review_status !== "rejected");
 
     const canFullyManage = App.can("actions.assign");
     const ownerDept = {};
-    members.forEach((m) => { ownerDept[m.id] = m.department || ""; });
-    const meetingTitles = [...new Set(tasks.map((t) => (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)).filter(Boolean))];
-    const departments = [...new Set(members.map((m) => m.department).filter(Boolean))];
-
-    // Manager View (Team/Department Overview, Bottlenecks, Workload) needs its
-    // own aggregated fetch — only load it when that view is actually active,
-    // and only for roles that can see it, so this never fires for everyone
-    // else's normal List/Board/Calendar render.
-    let managerOverview = null;
-    if (TaskView.get() === "manager" && canFullyManage) {
-      try { managerOverview = await api("/api/tasks/manager-overview"); }
-      catch (e) { managerOverview = { error: e.message }; }
-    }
-
-    const matchesFilters = (t) => {
-      if (f.mine && App.user && t.owner_id !== App.user.id) return false;
-      if (f.owner && String(t.owner_id) !== f.owner) return false;
-      if (f.status && taskStatusKey(t.status) !== f.status) return false;
-      if (f.priority && taskPriorityKey(t.priority) !== f.priority) return false;
-      if (f.meeting) {
-        const mtg = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
-        if (mtg !== f.meeting) return false;
-      }
-      if (f.department && ownerDept[t.owner_id] !== f.department) return false;
-      if (f.dueBefore && (!t.due_date || t.due_date > f.dueBefore)) return false;
-      if (f.q) {
-        const hay = [t.text_ar, t.text_en, t.owner_name_ar, t.owner_name_en].filter(Boolean).join(" ").toLowerCase();
-        if (!hay.includes(f.q)) return false;
-      }
-      return true;
-    };
-    const myDept = App.user ? ownerDept[App.user.id] || "" : "";
-    const matchesQuick = (t) => {
-      switch (f.quick) {
-        case "my": return !!(App.user && t.owner_id === App.user.id);
-        case "team": return !!(App.user && t.owner_id && t.owner_id !== App.user.id);
-        case "dept": return !!(myDept && ownerDept[t.owner_id] === myDept);
-        case "duetoday": return !!(App.user && t.owner_id === App.user.id && t.due_date === new Date().toISOString().substring(0, 10) && !["done", "cancelled"].includes(t.status));
-        case "waitingoninput": return !!(App.user && t.owner_id === App.user.id && !["done", "cancelled"].includes(t.status) && (t.needs_review || t.status === "waiting"));
-        case "recentlyassigned": {
-          const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
-          return !!(App.user && t.owner_id === App.user.id && t.assigned_at && t.assigned_at.substring(0, 10) >= cutoff);
-        }
-        case "overdue": return t.status === "overdue";
-        case "high": return ["high", "critical"].includes(taskPriorityKey(t.priority));
-        case "blocked": return taskStatusKey(t.status) === "blocked";
-        case "completed": return t.status === "done";
-        case "favorites": return TaskFavorites.has(t.id);
-        default: return true;
-      }
-    };
-    const filtered = tasks.filter((t) => matchesFilters(t) && matchesQuick(t));
-    const filtersActive = f.isActive();
+    members.forEach(m => { ownerDept[m.id] = m.department || ""; });
 
     const today = new Date().toISOString().substring(0, 10);
-    const overdue    = tasks.filter(t => t.status === "overdue");
-    const inprog     = tasks.filter(t => ["inprogress", "new", "open", "waiting", "blocked"].includes(t.status));
-    const done       = tasks.filter(t => t.status === "done");
-    const escalated  = tasks.filter(t => t.escalated_at);
-    const decPending = decisions.filter(d => d.status !== "implemented");
-    const decImpl    = decisions.filter(d => d.status === "implemented");
+    const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+
+    // ── KPI counts ───────────────────────────────────────────────────────────
+    const allCount = tasks.length;
+    const overdueCount = tasks.filter(t => t.status === "overdue").length;
+    const dueWeekCount = tasks.filter(t =>
+      t.due_date && t.due_date >= today && t.due_date <= weekEnd &&
+      !["done","cancelled"].includes(t.status)
+    ).length;
+    const completedCount = tasks.filter(t => t.status === "done").length;
+    const inProgressCount = tasks.filter(t =>
+      ["inprogress","assigned","open","waiting","blocked"].includes(taskStatusKey(t.status))
+    ).length;
+
+    // ── tab filter ───────────────────────────────────────────────────────────
+    const tab = TK.tab || "my";
+    const tabTasks = tab === "my"
+      ? tasks.filter(t => App.user && t.owner_id === App.user.id)
+      : tab === "others"
+        ? tasks.filter(t => !App.user || t.owner_id !== App.user.id)
+        : tasks;
+
+    // ── meeting titles for filter dropdown ───────────────────────────────────
+    const meetingTitles = [...new Set(tasks.map(t =>
+      (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)
+    ).filter(Boolean))];
+
+    // ── search & filters ─────────────────────────────────────────────────────
+    const filtered = tabTasks.filter(t => {
+      if (TK.status && taskStatusKey(t.status) !== TK.status) return false;
+      if (TK.priority && taskPriorityKey(t.priority) !== TK.priority) return false;
+      if (TK.dueBefore && (!t.due_date || t.due_date > TK.dueBefore)) return false;
+      if (TK.meeting) {
+        const mtg = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
+        if (mtg !== TK.meeting) return false;
+      }
+      if (TK.q) {
+        const hay = [t.text_ar, t.text_en, t.owner_name_ar, t.owner_name_en, t.source_meeting_title_ar, t.source_meeting_title_en].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(TK.q)) return false;
+      }
+      return true;
+    });
+
+    // ── sort: overdue first, then due_date asc, then id desc ─────────────────
+    const sorted = [...filtered].sort((a, b) => {
+      const ao = a.status === "overdue" ? 0 : 1, bo = b.status === "overdue" ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      if (a.due_date && b.due_date) return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0;
+      if (a.due_date) return -1; if (b.due_date) return 1;
+      return b.id - a.id;
+    });
+
+    // ── pagination ────────────────────────────────────────────────────────────
+    const PAGE_SIZE = 10;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    const page = Math.min(Math.max(1, TK.page || 1), totalPages);
+    const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+    const tkStatusMeta = (status) => {
+      const key = taskStatusKey(status);
+      const m = {
+        open:       { ar: "لم تبدأ",     en: "Not Started", cls: "tk-st-gray"  },
+        assigned:   { ar: "مُسندة",      en: "Assigned",    cls: "tk-st-gray"  },
+        inprogress: { ar: "قيد التنفيذ", en: "In Progress", cls: "tk-st-blue"  },
+        waiting:    { ar: "بانتظار",     en: "Pending",     cls: "tk-st-amber" },
+        blocked:    { ar: "معلّقة",      en: "Pending",     cls: "tk-st-amber" },
+        done:       { ar: "مكتملة",      en: "Completed",   cls: "tk-st-green" },
+        cancelled:  { ar: "ملغاة",       en: "Cancelled",   cls: "tk-st-gray"  },
+        overdue:    { ar: "متأخرة",      en: "Overdue",     cls: "tk-st-red"   },
+      };
+      return m[key] || m.open;
+    };
+    const tkPriMeta = (priority) => {
+      const key = taskPriorityKey(priority);
+      const m = {
+        low:      { ar: "منخفض", en: "Low",      cls: "tk-pri-gray"  },
+        medium:   { ar: "متوسط", en: "Medium",   cls: "tk-pri-blue"  },
+        high:     { ar: "عالٍ",  en: "High",     cls: "tk-pri-amber" },
+        critical: { ar: "حرج",   en: "Critical", cls: "tk-pri-red"   },
+      };
+      return m[key] || m.medium;
+    };
+    const initials = (name) => (name || "").trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]||"").join("").toUpperCase() || "?";
+    const fmtDate = (ds) => {
+      if (!ds) return "";
+      const d = new Date(ds + "T00:00:00");
+      return isNaN(d) ? ds : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day:"numeric", month:"short", year:"numeric" });
+    };
+    const fmtDateShort = (ds) => {
+      if (!ds) return "";
+      const d = new Date(ds + "T00:00:00");
+      return isNaN(d) ? ds : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day:"numeric", month:"short" });
+    };
+    const avatarColors = ["#4A6FA5","#6B7C93","#8B6BA8","#5B9BD5","#4CAF7D","#E08A3C","#C0785A"];
+    const ownerColor = (id) => avatarColors[(id || 0) % avatarColors.length];
 
     // ── KPI cards ─────────────────────────────────────────────────────────────
-    const _kpi = (icon, val, labelAr, labelEn, valColor) => `
-      <div style="padding:14px 16px;background:var(--navy3);border-radius:12px;border:.5px solid var(--border2);text-align:center">
-        <div style="font-size:15px;margin-bottom:5px">${icon}</div>
-        <div style="font-size:26px;font-weight:800;color:${valColor};margin-bottom:4px;line-height:1">${val}</div>
-        <div style="font-size:11.5px;color:var(--text3);line-height:1.35">${l==="ar"?labelAr:labelEn}</div>
+    const kpiCard = (icon, label_ar, label_en, val, sub_ar, sub_en, accent) => `
+      <div class="tk-kpi">
+        <div class="tk-kpi-icon" style="color:${accent}">${icon}</div>
+        <div class="tk-kpi-val" style="color:${accent}">${val}</div>
+        <div class="tk-kpi-label">${ar(label_ar, label_en)}</div>
+        <a class="tk-kpi-link" href="javascript:void(0)" onclick="void(0)">${ar(sub_ar, sub_en)} →</a>
       </div>`;
 
-    const kpiHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-bottom:20px">
-      ${_kpi("📂", inprog.length + overdue.length, "مهام مفتوحة",       "Open Actions",            "var(--text)")}
-      ${_kpi("⚠️", overdue.length,                  "متأخرة",            "Overdue",                 overdue.length   > 0 ? "var(--red)"   : "var(--green)")}
-      ${_kpi("✅", done.length,                      "مكتملة",            "Completed",               "var(--green)")}
-      ${_kpi("↑",  escalated.length,                "مُصعَّدة",          "Escalated",               escalated.length > 0 ? "#9B72DB"      : "var(--text3)")}
-      ${_kpi("⚖️", decPending.length,               "قرارات معلقة",      "Decisions Pending",       decPending.length> 0 ? "var(--amber)" : "var(--text3)")}
-      ${_kpi("🏆", decImpl.length,                  "قرارات منفذة",      "Decisions Implemented",   "var(--green)")}
+    const kpiHtml = `<div class="tk-kpi-row">
+      ${kpiCard("📋", "كل المهام",       "All Tasks",       allCount,        "عرض كل المهام",       "View all tasks",    "var(--text)")}
+      ${kpiCard("⚠️", "متأخرة",          "Overdue",         overdueCount,    "عرض المتأخرة",        "View overdue",      overdueCount > 0 ? "var(--red)" : "var(--text)")}
+      ${kpiCard("📅", "مستحقة هذا الأسبوع","Due This Week",   dueWeekCount,    "عرض هذا الأسبوع",     "View this week",    "var(--blue)")}
+      ${kpiCard("✅", "مكتملة",           "Completed",       completedCount,  "عرض المكتملة",        "View completed",    "var(--green)")}
+      ${kpiCard("🔄", "قيد التنفيذ",      "In Progress",     inProgressCount, "عرض الجارية",         "View in progress",  "var(--amber)")}
     </div>`;
 
-    // ── Improved task card ─────────────────────────────────────────────────────
-    const renderTask = (t) => {
-      const text  = l === "ar" ? t.text_ar : t.text_en || t.text_ar;
-      const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
-      const ownerInitials = (owner || "")
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w) => w[0] || "")
-        .join("")
-        .toUpperCase();
-      const mtg   = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
+    // ── table tabs ────────────────────────────────────────────────────────────
+    const myCount  = tasks.filter(t => App.user && t.owner_id === App.user.id).length;
+    const othCount = tasks.filter(t => !App.user || t.owner_id !== App.user.id).length;
+    const tabHtml = `<div class="tk-tabs">
+      <button class="tk-tab${tab==="my"?" active":""}"    onclick="TK.setTab('my')">${ar("مهامي","My Tasks")} <span class="tk-tab-n">${myCount}</span></button>
+      <button class="tk-tab${tab==="others"?" active":""}" onclick="TK.setTab('others')">${ar("مُسندة للآخرين","Assigned to Others")} <span class="tk-tab-n">${othCount}</span></button>
+      <button class="tk-tab${tab==="all"?" active":""}"    onclick="TK.setTab('all')">${ar("كل المهام","All Tasks")} <span class="tk-tab-n">${tasks.length}</span></button>
+      ${pendingReviewTasks.length ? `<button class="tk-tab${tab==="review"?" active":""}" onclick="TK.setTab('review')" style="color:var(--amber)">⏳ ${ar("بانتظار المراجعة","Pending Review")} <span class="tk-tab-n" style="background:rgba(212,160,23,.25);color:var(--amber)">${pendingReviewTasks.length}</span></button>` : ""}
+    </div>`;
+
+    // ── filter bar ────────────────────────────────────────────────────────────
+    const _opt = (val, lbl, sel) => `<option value="${esc(val)}"${sel?" selected":""}>${esc(lbl)}</option>`;
+    const filterBar = `<div class="tk-filters">
+      <div class="tk-search-wrap">
+        <span class="tk-search-ico">🔍</span>
+        <input class="tk-search-inp" type="search" placeholder="${ar("بحث في المهام...","Search tasks...")}"
+          value="${esc(TK.q)}" oninput="TK.onSearch(this.value)"/>
+      </div>
+      <select class="tk-fil-sel" onchange="TK.setFilter('status',this.value)">
+        ${_opt("", ar("الحالة","Status"), !TK.status)}
+        ${TASK_ASSIGNABLE_STATUSES.concat(["overdue"]).map(k =>
+          _opt(k, l==="ar" ? TASK_STATUS_META[k].ar : TASK_STATUS_META[k].en, TK.status===k)
+        ).join("")}
+      </select>
+      <select class="tk-fil-sel" onchange="TK.setFilter('priority',this.value)">
+        ${_opt("", ar("الأولوية","Priority"), !TK.priority)}
+        ${TASK_ASSIGNABLE_PRIORITIES.map(k =>
+          _opt(k, l==="ar" ? TASK_PRIORITY_META[k].ar : TASK_PRIORITY_META[k].en, TK.priority===k)
+        ).join("")}
+      </select>
+      <input class="tk-fil-sel" type="date" title="${ar("مستحق قبل أو في","Due on or before")}"
+        value="${esc(TK.dueBefore)}" onchange="TK.setFilter('dueBefore',this.value)"
+        style="color:${TK.dueBefore ? "var(--text)" : "var(--text3)"}"/>
+      <select class="tk-fil-sel" onchange="TK.setFilter('meeting',this.value)">
+        ${_opt("", ar("الاجتماع","Meeting"), !TK.meeting)}
+        ${meetingTitles.map(mt => _opt(mt, mt.length>32?mt.substring(0,32)+"…":mt, TK.meeting===mt)).join("")}
+      </select>
+      ${TK.isActive() ? `<button class="tk-fil-reset" onclick="TK.reset()">✕ ${ar("إعادة تعيين","Reset")}</button>` : ""}
+    </div>`;
+
+    // ── task row renderer ─────────────────────────────────────────────────────
+    const taskRow = (t) => {
+      const text  = (l === "ar" ? t.text_ar : t.text_en || t.text_ar) || "";
+      const owner = (l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar) || "";
+      const mtg   = (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
+      const sm = tkStatusMeta(t.status);
+      const pm = tkPriMeta(t.priority);
       const isOverdue = t.status === "overdue";
-      const isDone    = t.status === "done";
-      const priKey    = taskPriorityKey(t.priority);
-      const isCritical = priKey === "critical";
-      const isHigh    = priKey === "high";
-
-      const daysLeft = t.due_date ? Math.round((new Date(t.due_date) - new Date(today)) / 86400000) : null;
-      const daysTag  = daysLeft !== null && !isDone ? (() => {
-        if (daysLeft < 0)   return `<span class="days-badge days-late">⚠ ${Math.abs(daysLeft)}${l==="ar"?"ي تأخر":"d overdue"}</span>`;
-        if (daysLeft === 0) return `<span class="days-badge days-warn">⏰ ${l==="ar"?"اليوم":"Today"}</span>`;
-        if (daysLeft <= 3)  return `<span class="days-badge days-warn">⏳ ${daysLeft}${l==="ar"?"ي":"d"} ${l==="ar"?"متبقية":"left"}</span>`;
-        return `<span class="days-badge days-ok">📅 ${daysLeft}${l==="ar"?"ي":"d"}</span>`;
-      })() : "";
-
-      const stMeta = taskStatusMeta(t.status);
-      const statusSelect = `<select class="st-select" onchange="Tasks.updateStatus(${t.id}, this.value)" title="${l==="ar"?"تحديث الحالة":"Update status"}">
-        ${TASK_ASSIGNABLE_STATUSES.map(k => `<option value="${k}" ${taskStatusKey(t.status)===k?"selected":""}>${l==="ar"?TASK_STATUS_META[k].ar:TASK_STATUS_META[k].en}</option>`).join("")}
-        ${t.status === "overdue" ? `<option value="overdue" selected>${l==="ar"?TASK_STATUS_META.overdue.ar:TASK_STATUS_META.overdue.en}</option>` : ""}
-      </select>`;
-
-      const pri = taskPriorityMeta(t.priority);
-      const dept = ownerDept[t.owner_id];
-      const progress = Number(t.progress || 0);
-
-      const accentColor = isOverdue ? "var(--red)" : isCritical ? "var(--red)" : isHigh ? "var(--amber)" : "var(--border2)";
-      const canManageThis = canFullyManage;
-
-      // Controls (status dropdown + favorite/edit/delete) live in their own
-      // header row, ABOVE the title — not inline beside it. Board view packs
-      // three cards per row into much narrower columns than the List view; an
-      // inline flex row with fixed-width controls and no wrapping used to
-      // squeeze the title's flex:1 column down to a sliver, forcing it onto
-      // one word per line. Stacking guarantees the title always gets the
-      // card's full width, in both views.
-      return `<div class="trow" id="tr-${t.id}" style="border-inline-start:3px solid ${accentColor};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0;${isOverdue?"background:rgba(220,60,60,.04)":""}">
-        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px">
-          ${statusSelect}
-          <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
-            <button onclick="TaskFavorites.toggle(${t.id})" style="background:${TaskFavorites.has(t.id) ? "rgba(212,160,23,.14)" : "var(--navy3)"};border:1px solid ${TaskFavorites.has(t.id) ? "var(--gold)" : "var(--border2)"};color:${TaskFavorites.has(t.id) ? "var(--gold)" : "var(--text3)"};cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" title="${l==="ar"?"مفضّلة":"Favorite"}" aria-label="${l==="ar"?"إجراء مفضّل":"Favorite action"}">${TaskFavorites.has(t.id) ? "★" : "☆"}</button>
-            <button onclick="Tasks.edit(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1;font-weight:500" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'" title="${l==="ar"?"تعديل":"Edit"}">✏️</button>
-            ${canManageThis ? `<button onclick="Tasks.delete(${t.id})" style="background:var(--navy3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:8px;transition:.15s;line-height:1" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" title="${l==="ar"?"حذف":"Delete"}">✕</button>` : ""}
-          </div>
-        </div>
-        <div style="width:100%">
-          <div style="font-size:14px;color:${isDone?"var(--text3)":"var(--text)"};font-weight:${isDone?"400":"600"};${isDone?"text-decoration:line-through;opacity:.55":""};line-height:1.45;margin-bottom:8px">${esc(text)}</div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
-            ${owner ? `<span class="tag tgold owner-chip" style="font-size:11px"><span class="owner-av">${esc(ownerInitials)}</span>${esc(owner)}</span>` : ""}
-            ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
-            <span class="tag" style="font-size:11.5px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l==="ar"?pri.ar:pri.en}</span>
-            ${daysTag}
-            ${t.needs_review ? `<span class="tag" style="background:rgba(124,94,16,.18);color:#ffd969;border:.5px solid rgba(255,217,105,.25);font-size:11.5px">⚑ ${l==="ar"?"مراجعة":"Review"}</span>` : ""}
-            ${t.escalated_at ? `<span class="tag" style="background:rgba(155,114,219,.15);color:#9B72DB;border:.5px solid rgba(155,114,219,.3);font-size:11.5px">↑ ${l==="ar"?"مُصعَّدة":"Escalated"}</span>` : ""}
-          </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-            ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"var(--red)":"var(--text3)"}">📅 ${l==="ar"?"الاستحقاق:":"Due:"} <strong style="color:${isOverdue?"var(--red)":"var(--text2)"}">${esc(t.due_date)}</strong></span>` : ""}
-            ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>42?mtg.substring(0,42)+"…":mtg)}</span>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div style="flex:1;height:5px;background:var(--navy4);border-radius:4px;overflow:hidden;max-width:160px">
-              <div style="height:100%;border-radius:4px;background:${progress===100?"var(--green)":"var(--gold)"};width:${progress}%;transition:width .3s"></div>
+      return `<tr class="tk-tr${isOverdue?" tk-tr-overdue":""}" id="tr-${t.id}">
+        <td class="tk-td" style="width:32px;padding:8px">
+          <input type="checkbox" class="tk-row-chk" data-id="${t.id}" style="width:14px;height:14px;cursor:pointer;accent-color:var(--gold)" onchange="BulkTasks.onCheck()">
+        </td>
+        <td class="tk-td tk-td-task">
+          <div class="tk-task-t">${esc(text)}</div>
+          ${t.due_date && isOverdue ? `<div class="tk-task-s" style="color:var(--red)">⚠ ${ar("تأخرت","Overdue")} · ${fmtDate(t.due_date)}</div>` : ""}
+        </td>
+        <td class="tk-td tk-td-rel">
+          ${mtg ? `<a class="tk-mtg-link" href="javascript:void(0)"
+            onclick="${t.source_meeting_id ? `MT.openDetail(${t.source_meeting_id},'actions')` : "void(0)"}"
+            title="${esc(mtg)}">${esc(mtg.length>28?mtg.substring(0,28)+"…":mtg)}</a>` : `<span class="tk-empty-cell">—</span>`}
+        </td>
+        <td class="tk-td tk-td-owner">
+          ${owner
+            ? `<div class="tk-owner-wrap"><span class="tk-av" style="background:${ownerColor(t.owner_id)}">${esc(initials(owner))}</span><span class="tk-owner-n">${esc(owner)}</span></div>`
+            : `<span class="tk-empty-cell">—</span>`}
+        </td>
+        <td class="tk-td tk-td-date" style="color:${isOverdue?"var(--red)":"var(--text2)"}">
+          ${t.due_date ? fmtDate(t.due_date) : `<span class="tk-empty-cell">—</span>`}
+        </td>
+        <td class="tk-td"><span class="tk-pri ${pm.cls}">${ar(pm.ar, pm.en)}</span></td>
+        <td class="tk-td">
+          <select class="tk-st-sel ${sm.cls}" onchange="Tasks.updateStatus(${t.id},this.value)" title="${ar("تحديث الحالة","Update status")}">
+            ${TASK_ASSIGNABLE_STATUSES.map(k =>
+              `<option value="${k}"${taskStatusKey(t.status)===k?" selected":""}>${l==="ar"?TASK_STATUS_META[k].ar:TASK_STATUS_META[k].en}</option>`
+            ).join("")}
+            ${t.status==="overdue" ? `<option value="overdue" selected>${l==="ar"?TASK_STATUS_META.overdue.ar:TASK_STATUS_META.overdue.en}</option>` : ""}
+          </select>
+        </td>
+        <td class="tk-td tk-td-actions">
+          <div class="tk-rm-wrap">
+            <button class="tk-rm-btn" onclick="TK.toggleMenu(${t.id},this)" aria-label="${ar("إجراءات","Actions")}">⋮</button>
+            <div class="tk-rm-drop" id="tk-rm-${t.id}">
+              <button onclick="TK.closeMenus();Tasks.edit(${t.id})">✏️ ${ar("تعديل","Edit")}</button>
+              ${canFullyManage ? `<button onclick="TK.closeMenus();Tasks.delete(${t.id})" style="color:var(--red)">🗑 ${ar("حذف","Delete")}</button>` : ""}
             </div>
-            <select class="st-select" style="font-size:10.5px;padding:2px 6px" onchange="Tasks.updateProgress(${t.id}, this.value)" title="${l==="ar"?"نسبة التقدم":"Progress"}">
-              ${PROGRESS_STEPS.map(p => `<option value="${p}" ${progress===p?"selected":""}>${p}%</option>`).join("")}
-            </select>
           </div>
-          <div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border:.5px solid var(--border2);font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <span style="line-height:1.4">${
-              t.update_count
-                ? `💬 ${esc((t.latest_update_text || "").length > 90 ? t.latest_update_text.substring(0,90)+"…" : (t.latest_update_text||""))}${t.latest_update_author ? ` — ${esc(t.latest_update_author)}` : ""}${t.update_count > 1 ? ` (${t.update_count} ${l==="ar"?"تحديثات":"updates"})` : ""}`
-                : (l==="ar"?"لا توجد تحديثات تقدم بعد — أضف تحديثاً لإبقاء الإدارة على اطلاع.":"No progress updates yet. Add an update to keep management informed.")
-            }</span>
-            <button onclick="Tasks.edit(${t.id})" style="font-size:11px;background:rgba(212,160,23,.12);color:var(--gold);border:.5px solid rgba(212,160,23,.3);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ ${l==="ar"?"إضافة تحديث":"Add Update"}</button>
-          </div>
-        </div>
-      </div>`;
+        </td>
+      </tr>`;
     };
 
-    // ── Improved decision card ─────────────────────────────────────────────────
-    const renderDecision = (d) => {
-      const text      = l === "ar" ? d.text_ar : d.text_en || d.text_ar;
-      const mtg       = l === "ar" ? d.meeting_title_ar : d.meeting_title_en || d.meeting_title_ar;
-      const isImpl    = d.status === "implemented";
-      const decDate   = d.created_at ? d.created_at.substring(0,10) : "";
-      const decidedBy = d.decided_by || "";
-      const notes     = d.notes || "";
-      return `<div class="trow" style="border-inline-start:3px solid ${isImpl?"var(--green)":"var(--amber)"};padding-inline-start:10px;margin-bottom:10px;border-radius:0 8px 8px 0">
-        <div style="display:flex;gap:8px;align-items:flex-start">
-          <input type="checkbox" class="tck" ${isImpl?"checked":""} onchange="Tasks.updateDecisionStatus(${d.id}, this.checked?'implemented':'active')" style="margin-top:4px;flex-shrink:0"/>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13.5px;color:var(--text);font-weight:600;${isImpl?"text-decoration:line-through;color:var(--text3)":""};margin-bottom:8px;line-height:1.45">${esc(text)}</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
-              ${isImpl
-                ? `<span class="tag tg" style="font-size:11px">✓ ${l==="ar"?"مُنفَّذ":"Implemented"}</span>`
-                : `<span class="tag" style="font-size:11px;background:rgba(255,160,0,.15);color:#f0a000;border:.5px solid rgba(255,160,0,.3)">⏳ ${l==="ar"?"معلق — قيد التنفيذ":"Pending Implementation"}</span>`}
-              ${decDate   ? `<span class="tag" style="background:var(--navy4);font-size:11.5px">📅 ${esc(decDate)}</span>` : ""}
-              ${decidedBy ? `<span class="tag tgold" style="font-size:11.5px">👤 ${esc(decidedBy)}</span>` : ""}
-              ${mtg       ? `<span class="tag" style="background:var(--navy3);color:var(--text3);font-size:11px;border:.5px solid var(--border2)">📝 ${esc(mtg.length>38?mtg.substring(0,38)+"…":mtg)}</span>` : ""}
-            </div>
-            ${notes
-              ? `<div style="padding:6px 10px;background:var(--navy3);border-radius:8px;border-inline-start:2px solid var(--gold);font-size:11px;color:var(--text3);line-height:1.5">
-                  <span style="font-size:11px;font-weight:700;color:var(--gold);display:block;margin-bottom:2px">${l==="ar"?"الإجراء التالي / ملاحظات:":"Next Action / Notes:"}</span>${esc(notes)}</div>`
-              : `<div style="font-size:11.5px;color:var(--text3);font-style:italic;padding:3px 0;line-height:1.45">${l==="ar"?"لا توجد ملاحظات أو إجراءات محددة لهذا القرار بعد.":"No notes or next actions defined for this decision yet."}</div>`}
-          </div>
-          <button onclick="Tasks.deleteDecision(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0">✕</button>
+    // ── main task table ───────────────────────────────────────────────────────
+    const tableHtml = sorted.length === 0
+      ? `<div class="tk-empty"><div style="font-size:32px;margin-bottom:10px">📋</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text2);margin-bottom:4px">${ar("لا توجد مهام مطابقة","No matching tasks")}</div>
+          <div style="font-size:12px;color:var(--text3)">${ar("جرّب تعديل الفلاتر أو إنشاء مهمة جديدة","Try adjusting filters or creating a new task")}</div>
+          ${TK.isActive() ? `<button class="btn-ghost btn-sm" style="margin-top:12px" onclick="TK.reset()">✕ ${ar("إعادة تعيين","Reset filters")}</button>` : ""}</div>`
+      : `<div id="tk-bulk-bar" style="display:none;align-items:center;gap:8px;padding:8px 14px;background:rgba(168,132,44,.08);border-bottom:1px solid rgba(168,132,44,.2)">
+          <span id="tk-bulk-count" style="font-size:12px;font-weight:700;color:var(--gold)"></span>
+          <button class="btn-ghost btn-sm" onclick="BulkTasks.markAll('done')" style="font-size:11px">✓ ${ar("اعتماد","Mark Done")}</button>
+          <button class="btn-ghost btn-sm" onclick="BulkTasks.markAll('inprogress')" style="font-size:11px">🔄 ${ar("قيد التنفيذ","In Progress")}</button>
+          <button class="btn-ghost btn-sm" onclick="BulkTasks.markAll('open')" style="font-size:11px">📥 ${ar("مفتوحة","Open")}</button>
+          <button class="btn-ghost btn-sm" onclick="BulkTasks.deselect()" style="font-size:11px;margin-inline-start:auto">✕ ${ar("إلغاء","Clear")}</button>
         </div>
-      </div>`;
-    };
-
-    // ── Section header helper ──────────────────────────────────────────────────
-    const _secHdrT = (icon, ar, en) => `<div style="display:flex;align-items:center;gap:8px;margin:0 0 14px;padding-bottom:8px;border-bottom:1.5px solid var(--border2)">
-      <span style="font-size:16px">${icon}</span>
-      <div style="font-size:13px;font-weight:800;color:var(--text);letter-spacing:.02em">${l==="ar"?ar:en}</div>
-    </div>`;
-
-    // ── Filter bar: owner / status / priority / meeting / department / My Tasks ──
-    const _opt = (val, label, selected) => `<option value="${esc(val)}" ${selected ? "selected" : ""}>${esc(label)}</option>`;
-    const _filterBar = `<div class="tf-bar">
-      <input type="search" class="fi" id="tf-search" value="${esc(f.q)}" oninput="TaskFilters.onSearch(this.value)"
-        data-ph-ar="ابحث في المهام أو المسؤول..." data-ph-en="Search tasks or owner..." placeholder="${l==="ar"?"ابحث في المهام أو المسؤول...":"Search tasks or owner..."}"/>
-      <select class="fi" id="tf-owner" onchange="TaskFilters.apply()">
-        ${_opt("", l==="ar"?"كل المسؤولين":"All Owners", !f.owner)}
-        ${members.map(m => _opt(m.id, l==="ar"?m.name_ar:(m.name_en||m.name_ar), String(f.owner)===String(m.id))).join("")}
-      </select>
-      <select class="fi" id="tf-status" onchange="TaskFilters.apply()">
-        ${_opt("", l==="ar"?"كل الحالات":"All Statuses", !f.status)}
-        ${TASK_ASSIGNABLE_STATUSES.concat(["overdue"]).map(k => _opt(k, l==="ar"?TASK_STATUS_META[k].ar:TASK_STATUS_META[k].en, f.status===k)).join("")}
-      </select>
-      <select class="fi" id="tf-priority" onchange="TaskFilters.apply()">
-        ${_opt("", l==="ar"?"كل الأولويات":"All Priorities", !f.priority)}
-        ${TASK_ASSIGNABLE_PRIORITIES.map(k => _opt(k, l==="ar"?TASK_PRIORITY_META[k].ar:TASK_PRIORITY_META[k].en, f.priority===k)).join("")}
-      </select>
-      <select class="fi" id="tf-meeting" onchange="TaskFilters.apply()">
-        ${_opt("", l==="ar"?"كل الاجتماعات":"All Meetings", !f.meeting)}
-        ${meetingTitles.map(mt => _opt(mt, mt.length>30?mt.substring(0,30)+"…":mt, f.meeting===mt)).join("")}
-      </select>
-      ${departments.length ? `<select class="fi" id="tf-department" onchange="TaskFilters.apply()">
-        ${_opt("", l==="ar"?"كل الأقسام":"All Departments", !f.department)}
-        ${departments.map(d => _opt(d, d, f.department===d)).join("")}
-      </select>` : ""}
-      <input type="date" class="fi" id="tf-due" value="${esc(f.dueBefore)}" onchange="TaskFilters.apply()" title="${l==="ar"?"مستحقة قبل أو في":"Due on or before"}"/>
-      <label class="tf-mine${f.mine?" active":""}" onclick="TaskFilters.toggleMine()">
-        <input type="checkbox" ${f.mine?"checked":""} onclick="event.stopPropagation();TaskFilters.toggleMine()"/> ${l==="ar"?"مهامي فقط":"My Tasks"}
-      </label>
-      ${filtersActive ? `<button class="btn-ghost btn-sm" onclick="TaskFilters.reset()">✕ ${l==="ar"?"إعادة تعيين":"Reset"}</button>` : ""}
-    </div>`;
-
-    const filteredOpen = filtered.filter(t => t.status !== "done" && t.status !== "cancelled");
-    const filteredDone = filtered.filter(t => t.status === "done" || t.status === "cancelled");
-
-    // ── View switcher — Board (default, unchanged) / List / Calendar ──────────
-    const view = TaskView.get();
-    const viewSwitcherHtml = `<div class="imp-seg" style="margin-bottom:16px;max-width:${canFullyManage ? 560 : 420}px">
-      <button class="imp-seg-btn ${view === "list" ? "active" : ""}" onclick="TaskView.set('list')">📋 ${l === "ar" ? "قائمة" : "List"}</button>
-      <button class="imp-seg-btn ${view === "board" ? "active" : ""}" onclick="TaskView.set('board')">🗂 ${l === "ar" ? "لوحة" : "Board"}</button>
-      <button class="imp-seg-btn ${view === "calendar" ? "active" : ""}" onclick="TaskView.set('calendar')">📅 ${l === "ar" ? "تقويم" : "Calendar"}</button>
-      ${canFullyManage ? `<button class="imp-seg-btn ${view === "manager" ? "active" : ""}" onclick="TaskView.set('manager')">📊 ${l === "ar" ? "عرض الإدارة" : "Manager View"}</button>` : ""}
-    </div>`;
-
-    // ── Quick filters — one-click executive shortcuts layered on top of the
-    // detailed dropdown filters above; counts are computed over ALL tasks so
-    // they stay meaningful regardless of what's currently selected.
-    const todayStr = new Date().toISOString().substring(0, 10);
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
-    const quickCounts = {
-      my: tasks.filter((t) => App.user && t.owner_id === App.user.id).length,
-      team: tasks.filter((t) => App.user && t.owner_id && t.owner_id !== App.user.id).length,
-      dept: myDept ? tasks.filter((t) => ownerDept[t.owner_id] === myDept).length : 0,
-      duetoday: tasks.filter((t) => App.user && t.owner_id === App.user.id && t.due_date === todayStr && !["done", "cancelled"].includes(t.status)).length,
-      overdue: tasks.filter((t) => t.status === "overdue").length,
-      high: tasks.filter((t) => ["high", "critical"].includes(taskPriorityKey(t.priority))).length,
-      blocked: tasks.filter((t) => taskStatusKey(t.status) === "blocked").length,
-      completed: tasks.filter((t) => t.status === "done").length,
-      recentlyassigned: tasks.filter((t) => App.user && t.owner_id === App.user.id && t.assigned_at && t.assigned_at.substring(0, 10) >= sevenDaysAgo).length,
-      waitingoninput: tasks.filter((t) => App.user && t.owner_id === App.user.id && !["done", "cancelled"].includes(t.status) && (t.needs_review || t.status === "waiting")).length,
-      favorites: tasks.filter((t) => TaskFavorites.has(t.id)).length,
-    };
-    const quickChips = [
-      ...(pendingReviewTasks.length ? [{ key: "review", icon: "⏳", ar: "بانتظار المراجعة", en: "Pending Review", alert: true }] : []),
-      { key: "my", icon: "👤", ar: "مهامي", en: "My Actions" },
-      { key: "duetoday", icon: "📅", ar: "مستحقة اليوم", en: "My Due Today" },
-      { key: "waitingoninput", icon: "✋", ar: "بانتظار ردي", en: "Waiting for My Input" },
-      { key: "recentlyassigned", icon: "🆕", ar: "أُسندت لي مؤخراً", en: "Recently Assigned" },
-      { key: "team", icon: "👥", ar: "إجراءات الفريق", en: "Team Actions" },
-      ...(myDept ? [{ key: "dept", icon: "🏢", ar: "إجراءات القسم", en: "Department Actions" }] : []),
-      { key: "overdue", icon: "⚠️", ar: "متأخرة", en: "Overdue" },
-      { key: "high", icon: "⚡", ar: "أولوية عالية", en: "High Priority" },
-      { key: "blocked", icon: "⛔", ar: "معطّلة", en: "Blocked" },
-      { key: "completed", icon: "✅", ar: "مكتملة", en: "Completed" },
-      { key: "recent", icon: "🕐", ar: "الأحدث", en: "Recent" },
-      { key: "favorites", icon: "★", ar: "المفضلة", en: "Favorites" },
-    ];
-    const quickFilterBarHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-      ${quickChips
-        .map((c) => {
-          const count = c.key === "recent" ? "" : c.key === "review" ? pendingReviewTasks.length : quickCounts[c.key] || 0;
-          const active = f.quick === c.key;
-          return `<button class="qf-chip ${active ? "active" : ""}${c.alert ? " qf-chip-alert" : ""}" onclick="TaskFilters.setQuick('${c.key}')">${c.icon} ${l === "ar" ? c.ar : c.en}${count !== "" ? ` <span class="qf-count">${count}</span>` : ""}</button>`;
-        })
-        .join("")}
-    </div>`;
-
-    const boardBodyHtml = filtersActive
-      ? `<div class="grid-2" style="align-items:start">
-        <div class="card">
-          <div class="ch" style="margin-bottom:6px">
-            <div><div class="ct">${l==="ar"?"نتائج البحث — مفتوحة":"Filtered — Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?`${filtered.length} نتيجة مطابقة`:`${filtered.length} matching result(s)`}</div></div>
-            <span class="tag tr">${filteredOpen.length}</span>
-          </div>
-          ${filteredOpen.length === 0
-            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">🔍</div><div style="font-size:12.5px;color:var(--text3)">${l==="ar"?"لا نتائج مطابقة":"No matching results"}</div></div>`
-            : filteredOpen.map(renderTask).join("")}
+        <div class="tk-tbl-wrap">
+          <table class="tk-tbl">
+            <thead>
+              <tr>
+                <th class="tk-th" style="width:32px;padding:8px"><input type="checkbox" id="tk-chk-all" style="width:14px;height:14px;cursor:pointer;accent-color:var(--gold)" onchange="BulkTasks.toggleAll(this.checked)"></th>
+                <th class="tk-th">${ar("المهمة","Task")}</th>
+                <th class="tk-th">${ar("مرتبط بـ","Related To")}</th>
+                <th class="tk-th">${ar("المسؤول","Owner")}</th>
+                <th class="tk-th">${ar("تاريخ الاستحقاق","Due Date")}</th>
+                <th class="tk-th">${ar("الأولوية","Priority")}</th>
+                <th class="tk-th">${ar("الحالة","Status")}</th>
+                <th class="tk-th"></th>
+              </tr>
+            </thead>
+            <tbody>${paginated.map(taskRow).join("")}</tbody>
+          </table>
         </div>
-        <div class="card">
-          <div class="ch" style="margin-bottom:6px">
-            <div><div class="ct">✓ ${l==="ar"?"نتائج البحث — مكتملة":"Filtered — Completed"}</div></div>
-            <span class="tag tg">${filteredDone.length}</span>
-          </div>
-          ${filteredDone.length === 0
-            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">📋</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا نتائج مطابقة":"No matching results"}</div></div>`
-            : filteredDone.map(renderTask).join("")}
-        </div>
-      </div>`
-      : `<div class="grid-3" style="align-items:start">
-        <div class="card">
-          <div class="ch" style="margin-bottom:6px">
-            <div><div class="ct">${l==="ar"?"⚠ متأخرة / مفتوحة":"⚠ Overdue / Open"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"تحتاج انتباهاً فورياً":"Require immediate attention"}</div></div>
-            <span class="tag tr">${overdue.length + inprog.length}</span>
-          </div>
-          ${overdue.length + inprog.length === 0
-            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">✅</div><div style="font-size:12.5px;font-weight:600;color:var(--green)">${l==="ar"?"لا مهام متأخرة":"No overdue tasks"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px">${l==="ar"?"أداء ممتاز — كل المهام في الوقت المحدد":"Excellent — all tasks on schedule"}</div></div>`
-            : [...overdue, ...inprog].map(renderTask).join("")}
-        </div>
-        <div class="card">
-          <div class="ch" style="margin-bottom:6px">
-            <div><div class="ct">✓ ${l==="ar"?"مكتملة":"Done"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"مغلقة وموثقة بالسجل":"Closed and logged in the record"}</div></div>
-            <span class="tag tg">${done.length}</span>
-          </div>
-          ${done.length === 0
-            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">📋</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا مهام مكتملة بعد":"No completed tasks yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"حدّث حالة المهام عند إنجازها":"Mark tasks done as you complete them"}</div></div>`
-            : done.map(renderTask).join("")}
-        </div>
-        <div class="card">
-          <div class="ch" style="margin-bottom:6px">
-            <div><div class="ct">⚖️ ${l==="ar"?"القرارات":"Decisions"}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${l==="ar"?"مستخرجة آلياً من محاضر الاجتماعات":"Auto-extracted from meeting minutes"}</div></div>
-            <span class="tag" style="background:var(--navy4)">${decisions.length}</span>
-          </div>
-          ${decisions.length === 0
-            ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:30px;margin-bottom:8px">⚖️</div><div style="font-size:12px;color:var(--text3)">${l==="ar"?"لا قرارات مسجلة بعد":"No decisions recorded yet"}</div><div style="font-size:11px;color:var(--text3);margin-top:4px;opacity:.7">${l==="ar"?"القرارات تُستخرج تلقائياً عند تسجيل الاجتماعات":"Decisions auto-appear after meetings are recorded"}</div></div>`
-            : decisions.map(renderDecision).join("")}
-        </div>
-      </div>`;
-
-    // ── List view — every matching task in one sorted list (overdue first,
-    // then soonest due date), reusing the same task-card renderer as Board.
-    const listSource = filtersActive ? filtered : tasks;
-    const isRecentView = f.quick === "recent";
-    const listSorted = [...listSource].sort((a, b) => {
-      if (isRecentView) {
-        return (b.created_at || "").localeCompare(a.created_at || "");
-      }
-      const aOv = a.status === "overdue" ? 0 : 1;
-      const bOv = b.status === "overdue" ? 0 : 1;
-      if (aOv !== bOv) return aOv - bOv;
-      if (a.due_date && b.due_date) return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0;
-      if (a.due_date) return -1;
-      if (b.due_date) return 1;
-      return 0;
-    });
-    const listBodyHtml = `<div class="card">
-      <div class="ch" style="margin-bottom:6px">
-        <div><div class="ct">${isRecentView ? (l==="ar"?"أحدث الإجراءات":"Most Recent Actions") : (l==="ar"?"كل الإجراءات التنفيذية":"All Executive Actions")}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${isRecentView ? (l==="ar"?`${listSorted.length} إجراء — الأحدث أولاً`:`${listSorted.length} action(s) — newest first`) : (l==="ar"?`${listSorted.length} إجراء — مرتبة حسب الأولوية والاستحقاق`:`${listSorted.length} action(s) — sorted by urgency and due date`)}</div></div>
-      </div>
-      ${listSorted.length === 0
-        ? emptyStateCard({
-            icon: "📋",
-            titleAr: "لا توجد إجراءات مطابقة",
-            titleEn: "No matching actions",
-            descAr: "جرّب تغيير المرشح السريع أو إعادة تعيين البحث.",
-            descEn: "Try changing the quick filter or resetting the search.",
-            secondary: { ar: "✕ إعادة تعيين", en: "✕ Reset", onclick: "TaskFilters.reset()" },
-          })
-        : listSorted.map(renderTask).join("")}
-    </div>`;
-
-    // ── Calendar view — month grid bucketed by due_date; click a day to see
-    // its actions below using the same task-card renderer.
-    const calBase = new Date();
-    calBase.setDate(1);
-    calBase.setMonth(calBase.getMonth() + TaskView._calOffset);
-    const calYear = calBase.getFullYear();
-    const calMonthIdx = calBase.getMonth();
-    const startWeekday = new Date(calYear, calMonthIdx, 1).getDay();
-    const daysInMonth = new Date(calYear, calMonthIdx + 1, 0).getDate();
-    const monthLabel = calBase.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
-    const weekDayNames = l === "ar" ? ["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"] : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    const calSource = filtersActive ? filtered : tasks;
-    const tasksByDate = {};
-    calSource.forEach((t) => { if (t.due_date) (tasksByDate[t.due_date] = tasksByDate[t.due_date] || []).push(t); });
-    const priColor = (t) => t.status === "overdue" ? "var(--red)" : taskPriorityKey(t.priority) === "critical" ? "var(--red)" : taskPriorityKey(t.priority) === "high" ? "var(--amber)" : "var(--gold)";
-
-    let calCells = "";
-    for (let i = 0; i < startWeekday; i++) calCells += `<div class="cal-cell cal-empty"></div>`;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${calYear}-${String(calMonthIdx + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const dayTasks = tasksByDate[dateStr] || [];
-      const isToday = dateStr === today;
-      const isSelected = TaskView._selectedDay === dateStr;
-      calCells += `<div class="cal-cell ${isToday ? "cal-today" : ""} ${isSelected ? "cal-selected" : ""}" onclick="TaskView.selectDay('${dateStr}')" tabindex="0" role="button" aria-label="${dateStr}${dayTasks.length ? ", " + dayTasks.length + " " + (l === "ar" ? "إجراء" : "action(s)") : ""}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();TaskView.selectDay('${dateStr}')}">
-        <div class="cal-daynum">${d}</div>
-        ${dayTasks.length ? `<div class="cal-dots">
-          ${dayTasks.slice(0, 4).map((t) => `<div class="cal-dot" style="background:${priColor(t)}" title="${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}"></div>`).join("")}
-          ${dayTasks.length > 4 ? `<div class="cal-more">+${dayTasks.length - 4}</div>` : ""}
-        </div>` : ""}
-      </div>`;
-    }
-    const selectedDayTasks = TaskView._selectedDay ? (tasksByDate[TaskView._selectedDay] || []) : [];
-    const calendarBodyHtml = `
-      <div class="card" style="margin-bottom:14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <button class="btn-ghost btn-sm" onclick="TaskView.calNav(-1)">◀ ${l === "ar" ? "الشهر السابق" : "Previous"}</button>
-          <div style="font-weight:700;font-size:14px">${esc(monthLabel)}</div>
-          <button class="btn-ghost btn-sm" onclick="TaskView.calNav(1)">${l === "ar" ? "الشهر التالي" : "Next"} ▶</button>
-        </div>
-        <div class="cal-grid cal-grid-head">${weekDayNames.map((w) => `<div class="cal-headcell">${w}</div>`).join("")}</div>
-        <div class="cal-grid">${calCells}</div>
-      </div>
-      ${TaskView._selectedDay ? `<div class="card">
-        <div class="ch" style="margin-bottom:6px">
-          <div class="ct">📌 ${esc(TaskView._selectedDay)}</div>
-          <span class="tag" style="background:var(--navy4)">${selectedDayTasks.length}</span>
-        </div>
-        ${selectedDayTasks.length ? selectedDayTasks.map(renderTask).join("") : `<div style="text-align:center;padding:20px"><div style="font-size:12.5px;color:var(--text3)">${l === "ar" ? "لا إجراءات مستحقة هذا اليوم" : "No actions due this day"}</div></div>`}
-      </div>` : ""}
-    `;
-
-    // ── Pending Review queue — dedicated card list for AI-extracted tasks that
-    // haven't been approved/rejected yet. Shown instead of the normal board/
-    // list/calendar view whenever the "Pending Review" quick chip is active.
-    const pendingReviewBodyHtml = `
-      <div class="card" style="margin-bottom:14px;background:rgba(212,160,23,.06);border:.5px solid rgba(212,160,23,.25)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="rv-select-all" onchange="ReviewQueue.toggleAll(this.checked)" style="width:16px;height:16px;cursor:pointer"/>
-            <label for="rv-select-all" style="font-size:12.5px;color:var(--text2);cursor:pointer">${l === "ar" ? "تحديد الكل" : "Select all"}</label>
-            <span id="rv-selected-count" class="tag" style="background:var(--navy4);font-size:11px">0 ${l === "ar" ? "محدد" : "selected"}</span>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button id="rv-bulk-approve" class="btn-gold btn-sm" disabled onclick="ReviewQueue.bulkApprove()">✓ ${l === "ar" ? "اعتماد المحدد" : "Approve Selected"}</button>
-            <button id="rv-bulk-assign" class="btn-ghost btn-sm" disabled onclick="ReviewQueue.bulkAssign()">👤 ${l === "ar" ? "إسناد المحدد" : "Assign Selected"}</button>
-            <button id="rv-bulk-reject" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" disabled onclick="ReviewQueue.bulkReject()">✕ ${l === "ar" ? "رفض المحدد" : "Reject Selected"}</button>
-            <button id="rv-bulk-delete" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" disabled onclick="ReviewQueue.bulkDelete()">🗑 ${l === "ar" ? "حذف المحدد" : "Delete Selected"}</button>
-          </div>
-        </div>
-        <div id="rv-assign-bar" style="display:none;margin-top:10px;padding-top:10px;border-top:.5px solid var(--border2)">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="font-size:12.5px;color:var(--text2)">${l === "ar" ? "إسناد إلى:" : "Assign to:"}</span>
-            <select id="rv-assign-owner" class="fi" style="width:auto;min-width:180px">
-              <option value="">${l === "ar" ? "-- اختر عضواً --" : "-- Choose member --"}</option>
-              ${members.map((m) => `<option value="${m.id}">${esc(l === "ar" ? m.name_ar : m.name_en || m.name_ar)}</option>`).join("")}
-            </select>
-            <button class="btn-gold btn-sm" onclick="ReviewQueue.confirmBulkAssign()">${l === "ar" ? "تأكيد الإسناد" : "Confirm Assign"}</button>
-            <button class="btn-ghost btn-sm" onclick="ReviewQueue.cancelBulkAssign()">${l === "ar" ? "إلغاء" : "Cancel"}</button>
-          </div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px">
-        ${pendingReviewTasks
-          .map((t) => {
-            const text = l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar;
-            const owner = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
-            const dept = ownerDept[t.owner_id];
-            const mtg = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
-            const pri = taskPriorityMeta(t.priority);
-            return `<div class="card" id="rv-card-${t.id}" style="border-inline-start:3px solid var(--gold)">
-              <div style="display:flex;gap:10px;align-items:flex-start">
-                <input type="checkbox" class="rv-chk" data-id="${t.id}" onchange="ReviewQueue.updateCount()" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0"/>
-                <div style="flex:1;min-width:0">
-                  <div id="rv-text-${t.id}" style="font-size:13.5px;font-weight:600;color:var(--text);line-height:1.45;margin-bottom:8px">${esc(text)}</div>
-                  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-                    ${ExecutiveActions._confidenceBadge(t.ai_confidence, l)}
-                    <span class="tag" style="font-size:11px;background:${pri.bg};color:${pri.c};border:.5px solid ${pri.bd}">${l === "ar" ? pri.ar : pri.en}</span>
-                    ${owner ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(owner)}</span>` : `<span class="tag" style="background:var(--navy4);font-size:11px;color:var(--text3)">👤 ${l === "ar" ? "غير مسند" : "Unassigned"}</span>`}
-                    ${dept ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(dept)}</span>` : ""}
-                    ${t.due_date ? `<span class="tag" style="background:var(--navy4);font-size:11px">📅 ${esc(t.due_date)}</span>` : ""}
-                  </div>
-                  ${mtg ? `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">📝 ${esc(mtg)}</div>` : ""}
-                  <div style="display:flex;gap:6px;flex-wrap:wrap">
-                    <button class="btn-ghost btn-sm" onclick="Tasks.edit(${t.id})">✏️ ${l === "ar" ? "تعديل" : "Edit"}</button>
-                    <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ReviewQueue.reject(${t.id})">✕ ${l === "ar" ? "رفض" : "Reject"}</button>
-                    <button class="btn-gold btn-sm" onclick="ReviewQueue.approve(${t.id})">✓ ${l === "ar" ? "اعتماد" : "Approve"}</button>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-          })
-          .join("")}
-      </div>
-    `;
-
-    // ── Manager View — Team Overview, Department Overview, Bottlenecks,
-    // Workload Distribution, all from /api/tasks/manager-overview (the same
-    // tasks table every other view reads, just aggregated by person/dept).
-    const managerBodyHtml = (() => {
-      if (!managerOverview) return "";
-      if (managerOverview.error) return `<div class="es" style="color:var(--red)">${esc(managerOverview.error)}</div>`;
-      const { byPerson, byDepartment, bottlenecks } = managerOverview;
-      const nameOf = (p) => esc(l === "ar" ? p.name_ar : p.name_en || p.name_ar);
-      const barRow = (label, pct, sub, accent) => `
-        <div style="margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
-            <span style="font-size:12px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
-            <span style="font-size:11px;color:var(--text3);flex-shrink:0">${sub}</span>
-          </div>
-          <div style="height:6px;background:var(--navy4);border-radius:4px;overflow:hidden">
-            <div style="height:100%;border-radius:4px;background:${accent};width:${pct}%"></div>
+        <div class="tk-tbl-foot">
+          <span class="tk-count">${ar(`عرض ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} من ${sorted.length} مهمة`, `Showing ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} of ${sorted.length} task${sorted.length!==1?"s":""}`)}</span>
+          <div class="tk-pages">
+            <button class="tk-pg-btn" ${page<=1?"disabled":""} onclick="TK.setPage(${page-1})">◀</button>
+            ${Array.from({length:Math.min(totalPages,7)}, (_,i)=>{
+              let p;
+              if (totalPages<=7) p=i+1;
+              else if (page<=4) p=i+1;
+              else if (page>=totalPages-3) p=totalPages-6+i;
+              else p=page-3+i;
+              return `<button class="tk-pg-btn${p===page?" active":""}" onclick="TK.setPage(${p})">${p}</button>`;
+            }).join("")}
+            ${totalPages>7 ? `<span style="color:var(--text3);padding:0 4px">…</span><button class="tk-pg-btn${page===totalPages?" active":""}" onclick="TK.setPage(${totalPages})">${totalPages}</button>` : ""}
+            <button class="tk-pg-btn" ${page>=totalPages?"disabled":""} onclick="TK.setPage(${page+1})">▶</button>
           </div>
         </div>`;
-      const peopleSection = byPerson.length
-        ? byPerson.map((p) => barRow(
-            nameOf(p) + (p.department ? ` <span style="color:var(--text3);font-weight:400">· ${esc(p.department)}</span>` : ""),
-            p.pct,
-            `${p.done}/${p.total} ${l === "ar" ? "منجزة" : "done"} · ${p.open} ${l === "ar" ? "مفتوحة" : "open"}${p.overdue ? ` · ${p.overdue} ${l === "ar" ? "متأخرة" : "overdue"}` : ""}${p.blocked ? ` · ${p.blocked} ${l === "ar" ? "معطّلة" : "blocked"}` : ""}`,
-            p.overdue > 0 ? "var(--red)" : p.blocked > 0 ? "#e0a030" : "var(--gold)"
-          )).join("")
-        : `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">${l === "ar" ? "لا توجد بيانات بعد" : "No data yet"}</div>`;
-      const deptSection = byDepartment.length
-        ? byDepartment.map((d) => barRow(
-            `${esc(d.department)} <span style="color:var(--text3);font-weight:400">· ${d.people} ${l === "ar" ? "أعضاء" : "member(s)"}</span>`,
-            d.pct,
-            `${d.done}/${d.total} ${l === "ar" ? "منجزة" : "done"} · ${d.open} ${l === "ar" ? "مفتوحة" : "open"}${d.overdue ? ` · ${d.overdue} ${l === "ar" ? "متأخرة" : "overdue"}` : ""}`,
-            d.overdue > 0 ? "var(--red)" : "#5B9BD6"
-          )).join("")
-        : `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">${l === "ar" ? "لا توجد بيانات قسم بعد" : "No department data yet"}</div>`;
-      const workload = [...byPerson].sort((a, b) => b.open - a.open).slice(0, 10);
-      const workloadSection = workload.length
-        ? workload.map((p) => barRow(nameOf(p), Math.min(100, p.open * 12), `${p.open} ${l === "ar" ? "إجراء مفتوح" : "open action(s)"}`, p.open > 5 ? "var(--red)" : "var(--gold)")).join("")
-        : `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">${l === "ar" ? "لا يوجد عبء عمل مفتوح" : "No open workload"}</div>`;
-      const bottleneckRows = bottlenecks.length
-        ? bottlenecks.map((b) => `
-          <div class="trow" style="border-inline-start:3px solid ${b.status === "blocked" ? "#e0a030" : "var(--red)"};padding-inline-start:10px;margin-bottom:8px;border-radius:0 8px 8px 0">
-            <div style="font-size:12.5px;color:var(--text);font-weight:600;margin-bottom:5px">${esc(l === "ar" ? b.text_ar : b.text_en || b.text_ar)}</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-              ${b.owner_name_ar ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(l === "ar" ? b.owner_name_ar : b.owner_name_en || b.owner_name_ar)}</span>` : ""}
-              ${b.department ? `<span class="tag" style="background:var(--navy4);font-size:11px">🏢 ${esc(b.department)}</span>` : ""}
-              <span class="tag" style="font-size:11px;${b.status === "blocked" ? "background:rgba(224,160,48,.15);color:#e0a030" : "background:rgba(220,50,50,.15);color:var(--red)"}">${b.status === "blocked" ? (l === "ar" ? "⛔ معطّلة" : "⛔ Blocked") : `⚠️ ${b.days_late}${l === "ar" ? "ي متأخرة" : "d overdue"}`}</span>
+
+    // ── right sidebar ─────────────────────────────────────────────────────────
+    // Tasks by status donut chart
+    const stCounts = {
+      inprogress: tasks.filter(t => ["inprogress"].includes(taskStatusKey(t.status))).length,
+      pending:    tasks.filter(t => ["waiting","blocked","assigned"].includes(taskStatusKey(t.status))).length,
+      notstarted: tasks.filter(t => taskStatusKey(t.status) === "open").length,
+      done:       tasks.filter(t => t.status === "done").length,
+    };
+    const stTotal = tasks.length || 1;
+    const stColors = { inprogress: "#4A90D9", pending: "#E08A3C", notstarted: "#9CA3AF", done: "#4CAF7D" };
+    const stLabels = {
+      inprogress: ar("قيد التنفيذ","In Progress"),
+      pending:    ar("بانتظار","Pending"),
+      notstarted: ar("لم تبدأ","Not Started"),
+      done:       ar("مكتملة","Completed"),
+    };
+    let cumDeg = 0;
+    const donutSegs = Object.entries(stCounts).map(([k, cnt]) => {
+      const pct = cnt / stTotal;
+      const deg = pct * 360;
+      const seg = `<div style="position:absolute;inset:0;border-radius:50%;background:conic-gradient(transparent ${cumDeg}deg, ${stColors[k]} ${cumDeg}deg ${cumDeg+deg}deg, transparent ${cumDeg+deg}deg)"></div>`;
+      cumDeg += deg;
+      return seg;
+    }).join("");
+    const donutChart = `<div class="tk-donut-wrap">
+      <div class="tk-donut" style="position:relative">
+        ${donutSegs}
+        <div class="tk-donut-hole">
+          <div class="tk-donut-n">${tasks.length}</div>
+          <div class="tk-donut-l">${ar("الإجمالي","Total")}</div>
+        </div>
+      </div>
+      <div class="tk-donut-legend">
+        ${Object.entries(stCounts).map(([k,cnt]) => `
+          <div class="tk-legend-row">
+            <span class="tk-legend-dot" style="background:${stColors[k]}"></span>
+            <span class="tk-legend-lbl">${stLabels[k]}</span>
+            <span class="tk-legend-cnt">${cnt} <span class="tk-legend-pct">(${Math.round(cnt/stTotal*100)}%)</span></span>
+          </div>`).join("")}
+      </div>
+    </div>`;
+
+    // Upcoming deadlines (next 5, not done, has due_date)
+    const upcoming = tasks
+      .filter(t => t.due_date && t.due_date >= today && !["done","cancelled"].includes(t.status))
+      .sort((a,b) => a.due_date < b.due_date ? -1 : 1)
+      .slice(0, 5);
+    const upcomingHtml = upcoming.length === 0
+      ? `<div class="tk-side-empty">${ar("لا مواعيد قادمة","No upcoming deadlines")}</div>`
+      : upcoming.map(t => {
+          const d = new Date(t.due_date + "T00:00:00");
+          const pm2 = tkPriMeta(t.priority);
+          const dayNum = isNaN(d) ? "" : d.getDate();
+          const mon = isNaN(d) ? "" : d.toLocaleDateString(l==="ar"?"ar-EG":"en-US",{month:"short"}).toUpperCase();
+          const text = (l==="ar" ? t.text_ar : t.text_en || t.text_ar) || "";
+          const mtg  = (l==="ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
+          return `<div class="tk-dead-row">
+            <div class="tk-dead-date">
+              <div class="tk-dead-day">${dayNum}</div>
+              <div class="tk-dead-mon">${mon}</div>
             </div>
-          </div>`).join("")
-        : `<div style="text-align:center;padding:24px"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا توجد اختناقات حالياً" : "No bottlenecks right now"}</div></div>`;
-      return `<div class="grid-2" style="align-items:start;gap:14px">
-        <div class="card">
-          <div class="ch"><div class="ct">👥 ${l === "ar" ? "نظرة عامة على الفريق" : "Team Overview"}</div></div>
-          ${peopleSection}
+            <div class="tk-dead-info">
+              <div class="tk-dead-t">${esc(text.length>42?text.substring(0,42)+"…":text)}</div>
+              ${mtg ? `<div class="tk-dead-s">${esc(mtg.length>30?mtg.substring(0,30)+"…":mtg)}</div>` : ""}
+            </div>
+            <span class="tk-pri ${pm2.cls}" style="flex-shrink:0">${ar(pm2.ar,pm2.en)}</span>
+          </div>`;
+        }).join("");
+
+    // Recent completed
+    const recentDone = tasks
+      .filter(t => t.status === "done")
+      .sort((a,b) => (b.updated_at||b.created_at||"").localeCompare(a.updated_at||a.created_at||""))
+      .slice(0, 4);
+    const recentDoneHtml = recentDone.length === 0
+      ? `<div class="tk-side-empty">${ar("لا مهام مكتملة بعد","No completed tasks yet")}</div>`
+      : recentDone.map(t => {
+          const text = (l==="ar" ? t.text_ar : t.text_en || t.text_ar) || "";
+          const mtg  = (l==="ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
+          const doneDate = fmtDate((t.updated_at||t.created_at||"").substring(0,10));
+          return `<div class="tk-done-row">
+            <span class="tk-done-ico">✓</span>
+            <div class="tk-done-info">
+              <div class="tk-done-t">${esc(text.length>40?text.substring(0,40)+"…":text)}</div>
+              <div class="tk-done-s">${esc(mtg.length>28?mtg.substring(0,28)+"…":mtg)||"—"} · ${doneDate}</div>
+            </div>
+          </div>`;
+        }).join("");
+
+    const sidebarHtml = `<div class="tk-sidebar">
+      <div class="tk-side-card">
+        <div class="tk-side-title">${ar("المهام حسب الحالة","Tasks by Status")}</div>
+        ${donutChart}
+      </div>
+      <div class="tk-side-card">
+        <div class="tk-side-title">${ar("المواعيد القادمة","Upcoming Deadlines")}</div>
+        ${upcomingHtml}
+        ${upcoming.length >= 3 ? `<a class="tk-side-link" href="javascript:void(0)" onclick="TK.setFilter('status','')">
+          ${ar("عرض كل المواعيد","View All Deadlines")} →</a>` : ""}
+      </div>
+      <div class="tk-side-card">
+        <div class="tk-side-title">${ar("المكتملة مؤخراً","Recent Completed Tasks")}</div>
+        ${recentDoneHtml}
+        ${recentDone.length >= 3 ? `<a class="tk-side-link" href="javascript:void(0)" onclick="TK.setTab('all');TK.setFilter('status','done')">
+          ${ar("عرض كل المكتملة","View All Completed")} →</a>` : ""}
+      </div>
+    </div>`;
+
+    // ── Pending Review section ────────────────────────────────────────────────
+    const pendingReviewBodyHtml = pendingReviewTasks.length === 0
+      ? `<div class="tk-empty"><div style="font-size:28px;margin-bottom:8px">✅</div><div style="font-size:13px;color:var(--text2)">${ar("لا مهام بانتظار المراجعة","No tasks pending review")}</div></div>`
+      : `<div class="tk-rv-grid">
+        ${pendingReviewTasks.map(t => {
+          const text  = (l==="ar" ? t.text_ar||t.text_en : t.text_en||t.text_ar) || "";
+          const owner = (l==="ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar) || "";
+          const pm2   = tkPriMeta(t.priority);
+          const mtg   = (l==="ar" ? t.source_meeting_title_ar : t.source_meeting_title_en||t.source_meeting_title_ar)||"";
+          return `<div class="tk-side-card" style="border-inline-start:3px solid var(--gold)">
+            <div class="tk-task-t" style="margin-bottom:8px">${esc(text)}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+              <span class="tk-pri ${pm2.cls}">${ar(pm2.ar,pm2.en)}</span>
+              ${owner ? `<span style="font-size:11px;color:var(--text3)">👤 ${esc(owner)}</span>` : ""}
+              ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>30?mtg.substring(0,30)+"…":mtg)}</span>` : ""}
+              ${t.due_date ? `<span style="font-size:11px;color:var(--text3)">📅 ${esc(t.due_date)}</span>` : ""}
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-ghost btn-sm" onclick="Tasks.edit(${t.id})">✏️ ${ar("تعديل","Edit")}</button>
+              <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ReviewQueue.reject(${t.id})">✕ ${ar("رفض","Reject")}</button>
+              <button class="btn-gold btn-sm" onclick="ReviewQueue.approve(${t.id})">✓ ${ar("اعتماد","Approve")}</button>
+            </div>
+          </div>`;
+        }).join("")}
+        </div>`;
+
+    // ── Smart Suggestions ─────────────────────────────────────────────────────
+    const suggestions = [];
+    if (overdueCount > 0)
+      suggestions.push({ ico: "📅", ar: `${overdueCount} مهام تجاوزت الموعد`, en: `${overdueCount} task${overdueCount!==1?"s":""} ${overdueCount===1?"has":"have"} passed their deadline`,
+        sub_ar: "راجع مهامك المتأخرة", sub_en: "Review your overdue tasks",
+        btn_ar: "عرض المتأخرة", btn_en: "View Tasks", onclick: `TK.setTab('all');TK.setFilter('status','overdue')` });
+    if (pendingReviewTasks.length > 0)
+      suggestions.push({ ico: "⏳", ar: `${pendingReviewTasks.length} مهام بانتظار مراجعتك`, en: `${pendingReviewTasks.length} task${pendingReviewTasks.length!==1?"s":""} waiting for your review`,
+        sub_ar: "قدّم ملاحظاتك للمضي قدماً", sub_en: "Provide feedback to move forward",
+        btn_ar: "مراجعة الآن", btn_en: "Review Now", onclick: `TK.setTab('review')` });
+    if (dueWeekCount > 0)
+      suggestions.push({ ico: "📄", ar: `${dueWeekCount} مهام مستحقة هذا الأسبوع`, en: `${dueWeekCount} task${dueWeekCount!==1?"s":""} due this week`,
+        sub_ar: "تابع المهام المستحقة قريباً", sub_en: "Follow up on tasks due soon",
+        btn_ar: "عرض المهام", btn_en: "View Tasks", onclick: `TK.setFilter('dueBefore','${weekEnd}')` });
+
+    const suggestionsHtml = suggestions.length === 0 ? "" : `
+      <div class="tk-suggestions">
+        <div class="tk-sug-header">
+          <span>⚡</span>
+          <span class="tk-sug-title">${ar("اقتراحات ذكية من أمين","Smart Suggestions from Ameen")}</span>
+          <button class="tk-sug-close" onclick="this.closest('.tk-suggestions').style.display='none'">✕</button>
         </div>
-        <div class="card">
-          <div class="ch"><div class="ct">🏢 ${l === "ar" ? "نظرة عامة على الأقسام" : "Department Overview"}</div></div>
-          ${deptSection}
-        </div>
-        <div class="card">
-          <div class="ch"><div class="ct">📊 ${l === "ar" ? "توزيع عبء العمل" : "Workload Distribution"}</div><div class="ctsub">${l === "ar" ? "أعلى 10 حسب الإجراءات المفتوحة" : "Top 10 by open actions"}</div></div>
-          ${workloadSection}
-        </div>
-        <div class="card">
-          <div class="ch"><div class="ct">🚧 ${l === "ar" ? "الاختناقات" : "Bottlenecks"}</div><div class="ctsub">${l === "ar" ? "معطّلة أو متأخرة بشكل ملحوظ" : "Blocked or significantly overdue"}</div></div>
-          ${bottleneckRows}
+        <div class="tk-sug-cards">
+          ${suggestions.map(s => `
+            <div class="tk-sug-card">
+              <div class="tk-sug-ico">${s.ico}</div>
+              <div class="tk-sug-body">
+                <div class="tk-sug-t">${ar(s.ar,s.en)}</div>
+                <div class="tk-sug-s">${ar(s.sub_ar,s.sub_en)}</div>
+              </div>
+              <a class="tk-sug-btn" href="javascript:void(0)" onclick="${s.onclick}">${ar(s.btn_ar,s.btn_en)} →</a>
+            </div>`).join("")}
         </div>
       </div>`;
-    })();
 
-    const showReviewQueue = f.quick === "review" && pendingReviewTasks.length > 0;
-    const viewBodyHtml = view === "manager" ? managerBodyHtml : view === "list" ? listBodyHtml : view === "calendar" ? calendarBodyHtml : boardBodyHtml;
+    // ── view switcher ─────────────────────────────────────────────────────────
+    const currentView = TaskView.get();
+    const viewSwitcherHtml = `<div class="tk-view-bar">
+      <button class="tk-view-btn${currentView==='list'?' active':''}" onclick="TaskView.set('list')">☰ ${ar("قائمة","List")}</button>
+      <button class="tk-view-btn${currentView==='board'?' active':''}" onclick="TaskView.set('board')">⬛ ${ar("لوحة","Board")}</button>
+    </div>`;
 
-    body.innerHTML = showReviewQueue
-      ? quickFilterBarHtml +
-        _secHdrT("⏳", "مراجعة إجراءات الذكاء الاصطناعي التنفيذية", "AI Executive Action Review") +
-        pendingReviewBodyHtml
-      : quickFilterBarHtml +
-        _filterBar +
-        kpiHtml +
-        viewSwitcherHtml +
-        _secHdrT("⚡", "الجدول الزمني لحوكمة الإجراءات", "Action Governance Timeline") +
-        viewBodyHtml;
-    if (showReviewQueue) ReviewQueue.updateCount();
+    // ── kanban board ──────────────────────────────────────────────────────────
+    const boardCols = [
+      { keys: ["open","assigned"], icon: "📥", ar: "لم تبدأ", en: "Not Started", color: "#697386" },
+      { keys: ["inprogress"],      icon: "🔄", ar: "قيد التنفيذ", en: "In Progress", color: "#2E6FD8" },
+      { keys: ["waiting","blocked","overdue"], icon: "⏳", ar: "معلّقة / متأخرة", en: "Pending / Overdue", color: "#B87018" },
+      { keys: ["done"],            icon: "✅", ar: "مكتملة", en: "Done", color: "#12905C" },
+    ];
+    const boardCard = (t) => {
+      const text  = (l==="ar" ? t.text_ar : t.text_en||t.text_ar)||"";
+      const owner = (l==="ar" ? t.owner_name_ar : t.owner_name_en||t.owner_name_ar)||"";
+      const pm2   = tkPriMeta(t.priority);
+      const isOD  = t.status==="overdue";
+      return `<div class="tk-board-card${isOD?" tk-board-overdue":""}" onclick="Tasks.edit(${t.id})">
+        <div class="tk-board-t">${esc(text)}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:7px;flex-wrap:wrap">
+          <span class="tk-pri ${pm2.cls}" style="font-size:10px;padding:1px 5px">${ar(pm2.ar,pm2.en)}</span>
+          ${owner?`<span style="font-size:10px;color:var(--text3)">👤 ${esc(owner)}</span>`:""}
+          ${t.due_date?`<span style="font-size:10px;color:${isOD?"var(--red)":"var(--text3)"}">📅 ${fmtDateShort(t.due_date)}</span>`:""}
+        </div>
+      </div>`;
+    };
+    const boardHtml = `<div class="tk-board">
+      ${boardCols.map(col=>{
+        const colTasks = filtered.filter(t=>col.keys.includes(taskStatusKey(t.status)));
+        return `<div class="tk-board-col">
+          <div class="tk-board-col-h" style="color:${col.color}">${col.icon} ${ar(col.ar,col.en)} <span class="tk-tab-n">${colTasks.length}</span></div>
+          <div class="tk-board-col-body">${colTasks.length
+            ? colTasks.map(boardCard).join("")
+            : `<div style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">${ar("لا توجد مهام","No tasks")}</div>`}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+    // ── final assembly ────────────────────────────────────────────────────────
+    const mainContent = tab === "review"
+      ? `<div class="tk-main">${tabHtml}${pendingReviewBodyHtml}</div>`
+      : `<div class="tk-main">${tabHtml}${viewSwitcherHtml}${filterBar}${currentView==="board" ? boardHtml : tableHtml}</div>`;
+
+    body.innerHTML = `
+      ${kpiHtml}
+      <div class="tk-layout">
+        ${mainContent}
+        ${sidebarHtml}
+      </div>
+      ${suggestionsHtml}`;
+
   } catch (e) {
-    body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
+    body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
   }
 }
 
@@ -6062,6 +6215,7 @@ const Tasks = {
     }
     $("modal-task").classList.add("open");
     TaskTimeline.load(id, t);
+    TaskAttachments.load(id);
   },
   async delete(id) {
     if (!confirm(App.lang === "ar" ? "حذف هذه المهمة؟" : "Delete this task?"))
@@ -6069,6 +6223,7 @@ const Tasks = {
     try {
       await api(`/api/tasks/${id}`, { method: "DELETE" });
     } catch (e) {
+
       showToast(
         (App.lang === "ar" ? "تعذّر حذف المهمة: " : "Could not delete task: ") +
           e.message,
@@ -6239,6 +6394,8 @@ const Modals = {
     if (restrictedNote) restrictedNote.style.display = "none";
     const statusRow = $("nt-status-row");
     if (statusRow) statusRow.style.display = "none";
+    const attSec = $("nt-attachments-section");
+    if (attSec) attSec.style.display = "none";
     $("modal-task").classList.add("open");
   },
   close() {
@@ -6619,10 +6776,20 @@ const NotificationCenter = {
     try { await api(`/api/notifications/${id}/read`, { method: "PATCH" }); } catch (e) {}
     this.close();
     this.refreshBadge();
-    const goto = { task: "tasks", meeting: "transcripts", schedule: "schedule", resolution: "governance", document: "documents" }[sourceType];
+    const panelMap = { task: "tasks", meeting: "transcripts", schedule: "scheduled", resolution: "governance", document: "documents", policy: "governance", vote: "governance" };
+    const goto = panelMap[sourceType];
     if (goto) {
       await Panels.load(goto);
-      if (sourceType === "task" && sourceId) Tasks.edit(sourceId);
+      // Deep-link into specific items when possible
+      if (sourceType === "task" && sourceId) {
+        setTimeout(() => { try { Tasks.edit(sourceId); } catch(e){} }, 200);
+      } else if (sourceType === "meeting" && sourceId) {
+        setTimeout(() => { try { WorkspacePanel.open(sourceId); } catch(e){} }, 200);
+      } else if (sourceType === "schedule" && sourceId) {
+        setTimeout(() => { try { ScheduledPanel.openWorkspace(sourceId); } catch(e){} }, 300);
+      } else if (sourceType === "resolution") {
+        setTimeout(() => { try { if(typeof MT !== 'undefined') MT.renderResolutions(); } catch(e){} }, 200);
+      }
     }
   },
 
@@ -7193,7 +7360,7 @@ const StructuredReports = {
     box.innerHTML = `<div class="es" style="padding:16px"><div class="loading"></div></div>`;
     try {
       const data = await api(`/api/reports/${type}/data`);
-      const cellText = (v) => (v && typeof v === "object" ? (l === "ar" ? v.ar || v.en : v.en || v.ar) : v ?? "");
+      const cellText = (v) => (v && typeof v === "object" ? (l === "ar" ? v.ar || v.en : v.en || v.ar) : (v !== null && v !== undefined ? v : ""));
       const head = data.columns.map((c) => `<th style="text-align:${l === "ar" ? "right" : "left"};padding:6px 8px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border2)">${esc(l === "ar" ? c.ar : c.en)}</th>`).join("");
       const rows = data.rows.slice(0, 100).map((row) => `<tr>${data.columns.map((c) => `<td style="padding:6px 8px;font-size:12px;color:var(--text);border-bottom:1px solid var(--border3)">${esc(String(cellText(row[c.key])))}</td>`).join("")}</tr>`).join("");
       box.innerHTML = data.rows.length
@@ -7742,13 +7909,17 @@ const Schedule = {
   },
   onProviderChange() {
     const v = ($("nm-plat") && $("nm-plat").value) || "physical";
+    const isVirtual = v !== "physical";
+    const isHybrid = v === "hybrid";
     const row = $("nm-join-row");
-    if (row) row.style.display = v === "physical" ? "none" : "";
+    if (row) row.style.display = isVirtual ? "" : "none";
+    const locRow = $("nm-location-row");
+    if (locRow) locRow.style.display = (v === "physical" || isHybrid) ? "" : "none";
     const note = $("nm-provider-note");
-    if (note) note.style.display = v === "physical" ? "none" : "";
+    if (note) note.style.display = (isVirtual && !isHybrid) ? "" : "none";
     const inp = $("nm-join-url");
     if (inp) {
-      inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
+      inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : v === "hybrid" ? "https://zoom.us/j/... (رابط المشاركة عن بُعد)" : "";
     }
   },
   // ── Guided wizard (create-flow only — edit mode uses .wiz-flat to show
@@ -7791,7 +7962,8 @@ const Schedule = {
         ${rowsHtml}
       </div>`;
 
-    const seriesMode = ($("nm-series-seg") && $("nm-series-seg").querySelector(".imp-seg-btn.active")?.dataset.val) || "standalone";
+    const nmSeriesBtn = $("nm-series-seg") && $("nm-series-seg").querySelector(".imp-seg-btn.active");
+    const seriesMode = (nmSeriesBtn && nmSeriesBtn.dataset.val) || "standalone";
     const seriesLabel = seriesMode === "new"
       ? (l === "ar" ? "سلسلة جديدة: " : "New series: ") + (val("nm-series-name-ar") || val("nm-series-name-en") || empty)
       : seriesMode === "continue"
@@ -7805,7 +7977,9 @@ const Schedule = {
         row("النوع", "Type", selText("nm-type")) +
         row("التاريخ والوقت", "Date & time", [val("nm-date"), val("nm-time")].filter(Boolean).join(" · ")) +
         row("المدة", "Duration", val("nm-dur") ? `${val("nm-dur")} ${l === "ar" ? "دقيقة" : "min"}` : "") +
-        row("المنصة", "Platform", selText("nm-plat"))
+        row("المنصة / النوع", "Format", selText("nm-plat")) +
+        row("الموقع الفعلي", "Location", val("nm-location")) +
+        row("رابط الانضمام", "Join URL", val("nm-join-url"))
       ) +
       group(
         "المشاركون", "Participants",
@@ -7832,6 +8006,7 @@ const Schedule = {
     if ($("nm-recurrence")) $("nm-recurrence").value = "none";
     if ($("nm-template")) $("nm-template").value = "";
     if ($("nm-join-url")) $("nm-join-url").value = "";
+    if ($("nm-location")) $("nm-location").value = "";
     if ($("nm-channel")) $("nm-channel").value = "email";
     if ($("nm-dur")) $("nm-dur").value = "60";
     if ($("nm-plat")) { $("nm-plat").value = "physical"; Schedule.onProviderChange(); }
@@ -7881,6 +8056,7 @@ const Schedule = {
       if ($("nm-dur")) $("nm-dur").value = s.duration_mins || 60;
       if ($("nm-plat")) { $("nm-plat").value = s.meeting_provider || "physical"; Schedule.onProviderChange(); }
       if ($("nm-join-url")) $("nm-join-url").value = s.meeting_join_url || "";
+      if ($("nm-location")) $("nm-location").value = s.meeting_location || "";
       if ($("nm-att")) $("nm-att").value = s.attendees || "";
       if ($("nm-board")) { $("nm-board").value = s.board_id || ""; Schedule.onBoardChange(); }
       if ($("nm-committee")) $("nm-committee").value = s.committee_id || "";
@@ -7906,7 +8082,8 @@ const Schedule = {
       duration_mins: $("nm-dur").value,
       meeting_provider: $("nm-plat").value,
       meeting_join_url: ($("nm-join-url") && $("nm-join-url").value.trim()) || "",
-      platform: { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet" }[$("nm-plat").value] || "قاعة الاجتماعات",
+      meeting_location: ($("nm-location") && $("nm-location").value.trim()) || "",
+      platform: { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet", hybrid: "Hybrid", virtual: "Virtual" }[$("nm-plat").value] || "قاعة اجتماعات",
       attendees: $("nm-att").value,
       agenda_ar: $("nm-agenda-ar").value,
       agenda_en: $("nm-agenda-en").value,
@@ -8294,10 +8471,22 @@ const Schedule = {
 // exact board/committee/prev-meeting population + scheduling-conflict UX
 // already proven out by the Schedule object — see _submitSchedule() below.
 const CreateMeetingWizard = {
-  state: { step: 1, agenda: [], decisions: [], actions: [] },
+  state: { step: 1, agenda: [], decisions: [], actions: [], roles: [] },
+  _ROLES: [
+    { val: "chair",           ar: "رئيس الجلسة",       en: "Chair"                },
+    { val: "organizer",       ar: "منظِّم",              en: "Organizer"            },
+    { val: "coordinator",     ar: "منسّق الاجتماع",     en: "Meeting Coordinator"  },
+    { val: "board_member",    ar: "عضو مجلس",           en: "Board Member"         },
+    { val: "committee_member",ar: "عضو لجنة",           en: "Committee Member"     },
+    { val: "secretary",       ar: "أمين السر",          en: "Secretary"            },
+    { val: "presenter",       ar: "مقدِّم",              en: "Presenter"            },
+    { val: "observer",        ar: "مراقب",               en: "Observer"             },
+    { val: "guest",           ar: "ضيف",                en: "Guest"                },
+    { val: "external",        ar: "مشارك خارجي",        en: "External Participant" },
+  ],
 
   init() {
-    this.state = { step: 1, agenda: [], decisions: [], actions: [] };
+    this.state = { step: 1, agenda: [], decisions: [], actions: [], roles: [] };
     this._resetFields();
     this._populateBoardSelects();
     this._populateOrganizerSelect();
@@ -8308,7 +8497,59 @@ const CreateMeetingWizard = {
     this.renderAgenda();
     this.renderChips("decisions");
     this.renderChips("actions");
+    this.renderAttachmentNames();
+    this._applySchedulePermission();
     this.goStep(1);
+    // App._boards/_members are filled by loadSelectLists() after login — if
+    // the user opens Create Meeting before that finishes, the selects would
+    // stay empty. Fetch the reference data directly in that case.
+    this._ensureRefData();
+  },
+
+  async _ensureRefData() {
+    let changed = false;
+    if (!(App._boards || []).length && !(App._committees || []).length) {
+      try {
+        const bc = await api("/api/gov/boards-and-committees");
+        App._boards = bc.boards || [];
+        App._committees = bc.committees || [];
+        changed = true;
+      } catch (_) {}
+    }
+    if (!(App._members || []).length) {
+      try {
+        App._members = await api("/api/members");
+        changed = true;
+      } catch (_) {}
+    }
+    if (!App.permissions.size) {
+      try {
+        const myPerms = await api("/api/rbac/my-permissions");
+        App.permissions = new Set(myPerms.permissions || []);
+        this._applySchedulePermission();
+      } catch (_) {}
+    }
+    if (changed) {
+      const prevBoard = ($("cm-board") || {}).value || "";
+      const prevOrganizer = ($("cm-organizer") || {}).value || "";
+      this._populateBoardSelects();
+      this._populateOrganizerSelect();
+      if (prevBoard && $("cm-board")) $("cm-board").value = prevBoard;
+      if (prevOrganizer && $("cm-organizer")) $("cm-organizer").value = prevOrganizer;
+    }
+  },
+
+  // Hide "Create Meeting" (schedule) actions for roles without calendar.manage
+  // — they can still save drafts. Applies to both the sticky header buttons
+  // and the step-4 submit button.
+  _applySchedulePermission() {
+    const canSchedule = App.can("calendar.manage");
+    ["cm-submit-top", "cm-submit-btn"].forEach((id) => {
+      const el = $(id);
+      if (el) el.style.display = canSchedule ? "" : "none";
+    });
+    const note = $("cm-no-calendar-note");
+    if (note) note.style.display = canSchedule ? "none" : "";
   },
 
   _resetFields() {
@@ -8316,6 +8557,9 @@ const CreateMeetingWizard = {
       const el = $(id);
       if (el) el.value = "";
     });
+    this.state.roles = [];
+    const rolesList = $("cm-roles-list");
+    if (rolesList) rolesList.innerHTML = "";
     if ($("cm-type")) $("cm-type").value = "";
     if ($("cm-date")) $("cm-date").value = "";
     if ($("cm-start")) $("cm-start").value = "09:00";
@@ -8350,10 +8594,14 @@ const CreateMeetingWizard = {
   },
   onProviderChange() {
     const v = ($("cm-plat") && $("cm-plat").value) || "physical";
+    const isVirtual = v !== "physical";
+    const isHybrid = v === "hybrid";
     const row = $("cm-join-row");
-    if (row) row.style.display = v === "physical" ? "none" : "";
+    if (row) row.style.display = isVirtual ? "" : "none";
+    const locRow = $("cm-location-row");
+    if (locRow) locRow.style.display = (v === "physical" || isHybrid) ? "" : "none";
     const inp = $("cm-join-url");
-    if (inp) inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
+    if (inp) inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : v === "hybrid" ? "https://zoom.us/j/... (رابط المشاركة عن بُعد)" : "";
   },
   _populateOrganizerSelect() {
     const sel = $("cm-organizer");
@@ -8395,6 +8643,29 @@ const CreateMeetingWizard = {
     if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
   },
 
+  addRoleRow() {
+    const l = App.lang;
+    const box = $("cm-roles-list");
+    if (!box) return;
+    const idx = this.state.roles.length;
+    this.state.roles.push({ name: "", role: "" });
+    const roleOpts = this._ROLES.map(r => `<option value="${r.val}">${l === "ar" ? r.ar : r.en}</option>`).join("");
+    const row = document.createElement("div");
+    row.className = "fa";
+    row.style.cssText = "gap:6px;align-items:center";
+    row.innerHTML = `
+      <input class="fi" style="flex:2" placeholder="${l === "ar" ? "الاسم أو البريد" : "Name or email"}" oninput="CreateMeetingWizard.updateRole(${idx},'name',this.value)" />
+      <select class="fi" style="flex:1" onchange="CreateMeetingWizard.updateRole(${idx},'role',this.value)">
+        <option value="">${l === "ar" ? "— الدور —" : "— Role —"}</option>
+        ${roleOpts}
+      </select>
+      <button type="button" class="btn-ghost btn-sm" style="flex-shrink:0;color:var(--red)" onclick="this.parentElement.remove();CreateMeetingWizard.state.roles.splice(${idx},1)">✕</button>`;
+    box.appendChild(row);
+  },
+  updateRole(idx, field, val) {
+    if (this.state.roles[idx]) this.state.roles[idx][field] = val;
+  },
+
   addAgendaItem() {
     this.state.agenda.push({ title_ar: "", title_en: "", presenter: "", duration_mins: 15 });
     this.renderAgenda();
@@ -8411,17 +8682,41 @@ const CreateMeetingWizard = {
     if (!box) return;
     const l = App.lang;
     if (!this.state.agenda.length) {
-      box.innerHTML = `<div style="font-size:11.5px;color:var(--text3);font-style:italic;margin-bottom:8px">${l === "ar" ? "لا توجد بنود بعد" : "No agenda items yet"}</div>`;
-      return;
-    }
-    box.innerHTML = this.state.agenda.map((item, i) => `
-      <div class="imp-grid" style="margin-bottom:8px;padding:10px;background:var(--navy3);border-radius:var(--rm);border:1px solid var(--border2)">
-        <input class="fi" placeholder="${l === "ar" ? "عنوان البند (عربي)" : "Item title (Arabic)"}" value="${esc(item.title_ar || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_ar',this.value)"/>
-        <input class="fi" dir="ltr" style="text-align:left" placeholder="Item title (English)" value="${esc(item.title_en || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_en',this.value)"/>
-        <input class="fi" placeholder="${l === "ar" ? "مقدّم البند" : "Presenter"}" value="${esc(item.presenter || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'presenter',this.value)"/>
-        <input class="fi" type="number" min="5" step="5" placeholder="${l === "ar" ? "المدة (دقيقة)" : "Duration (min)"}" value="${item.duration_mins || 15}" oninput="CreateMeetingWizard.updateAgendaField(${i},'duration_mins',parseInt(this.value)||15)"/>
-        <button type="button" class="btn-ghost btn-sm" style="grid-column:1/-1;justify-self:start" onclick="CreateMeetingWizard.removeAgendaItem(${i})">✕ ${l === "ar" ? "إزالة" : "Remove"}</button>
+      box.innerHTML = `<div class="cw-agenda-empty">${l === "ar" ? "لا توجد بنود بعد — أضف أول بند لجدول الأعمال" : "No agenda items yet — add your first agenda item"}</div>`;
+    } else {
+      box.innerHTML = this.state.agenda.map((item, i) => `
+      <div class="cw-agenda-item">
+        <span class="cw-agenda-num">${i + 1}.</span>
+        <div class="cw-agenda-fields">
+          <input class="fi" placeholder="${l === "ar" ? "عنوان البند (عربي)" : "Item title (Arabic)"}" value="${esc(item.title_ar || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_ar',this.value)"/>
+          <input class="fi" dir="ltr" style="text-align:left" placeholder="Item title (English)" value="${esc(item.title_en || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_en',this.value)"/>
+          <div class="cw-agenda-sub">
+            <input class="fi" placeholder="${l === "ar" ? "مقدّم البند" : "Presenter"}" value="${esc(item.presenter || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'presenter',this.value)"/>
+            <input class="fi cw-agenda-mins" type="number" min="5" step="5" placeholder="${l === "ar" ? "الدقائق" : "min"}" value="${item.duration_mins || 15}" oninput="CreateMeetingWizard.updateAgendaField(${i},'duration_mins',parseInt(this.value)||15);CreateMeetingWizard.renderAgendaTotal()"/>
+            <span class="cw-agenda-min-lbl">${l === "ar" ? "دقيقة" : "min"}</span>
+          </div>
+        </div>
+        <button type="button" class="cw-agenda-x" title="${l === "ar" ? "إزالة" : "Remove"}" onclick="CreateMeetingWizard.removeAgendaItem(${i})">✕</button>
       </div>`).join("");
+    }
+    this.renderAgendaTotal();
+  },
+  renderAgendaTotal() {
+    const el = $("cm-agenda-total");
+    if (!el) return;
+    const l = App.lang;
+    const total = this.state.agenda.reduce((sum, a) => sum + (parseInt(a.duration_mins) || 0), 0);
+    if (!total) { el.textContent = ""; return; }
+    const h = Math.floor(total / 60), m = total % 60;
+    const dur = h ? `${h}${l === "ar" ? " س " : "h "}${m ? m + (l === "ar" ? " د" : "m") : ""}`.trim() : `${m}${l === "ar" ? " دقيقة" : "m"}`;
+    el.textContent = (l === "ar" ? "المدة الإجمالية: " : "Total Duration: ") + dur;
+  },
+  renderAttachmentNames() {
+    const box = $("cm-file-names");
+    const inp = $("cm-attachments");
+    if (!box || !inp) return;
+    const files = Array.from(inp.files || []);
+    box.innerHTML = files.map((f) => `<span class="cw-file-chip">📄 ${esc(f.name)} <span class="cw-file-size">${(f.size / 1048576).toFixed(1)} MB</span></span>`).join("");
   },
 
   addExpected(kind) {
@@ -8461,7 +8756,8 @@ const CreateMeetingWizard = {
         <div class="wiz-review-group-title">${l === "ar" ? titleAr : titleEn}</div>
         ${rowsHtml}
       </div>`;
-    const seriesMode = ($("cm-series-seg") && $("cm-series-seg").querySelector(".imp-seg-btn.active")?.dataset.val) || "standalone";
+    const cmSeriesBtn = $("cm-series-seg") && $("cm-series-seg").querySelector(".imp-seg-btn.active");
+    const seriesMode = (cmSeriesBtn && cmSeriesBtn.dataset.val) || "standalone";
     const seriesLabel = seriesMode === "new"
       ? (l === "ar" ? "سلسلة جديدة: " : "New series: ") + (val("cm-series-name-ar") || val("cm-series-name-en") || empty)
       : seriesMode === "continue"
@@ -8475,7 +8771,9 @@ const CreateMeetingWizard = {
         row("العنوان", "Title", val("cm-title")) +
         row("النوع", "Type", selText("cm-type")) +
         row("التاريخ والوقت", "Date & time", [val("cm-date"), (val("cm-start") && val("cm-end")) ? `${val("cm-start")}–${val("cm-end")}` : val("cm-start")].filter(Boolean).join(" · ")) +
-        row("المنصة", "Platform", selText("cm-plat")) +
+        row("المنصة / النوع", "Format", selText("cm-plat")) +
+        row("الموقع الفعلي", "Location", val("cm-location")) +
+        row("رابط الانضمام", "Join URL", val("cm-join-url")) +
         row("المنظِّم", "Organizer", selText("cm-organizer")) +
         row("المجلس", "Board", selText("cm-board")) +
         row("اللجنة", "Committee", selText("cm-committee"))
@@ -8488,18 +8786,21 @@ const CreateMeetingWizard = {
         row("المرفقات", "Attachments", fileCount ? String(fileCount) : "")
       ) +
       group("المشاركون", "Attendees",
-        row("المشاركون", "Attendees", val("cm-attendees"))
+        row("المشاركون", "Attendees", val("cm-attendees")) +
+        (this.state.roles.filter(r => r.name || r.role).length
+          ? row("الأدوار", "Roles", this.state.roles.filter(r => r.name).map(r => {
+              const roleMeta = this._ROLES.find(x => x.val === r.role);
+              const roleLabel = roleMeta ? (l === "ar" ? roleMeta.ar : roleMeta.en) : r.role;
+              return `${esc(r.name)}${roleLabel ? ` (${esc(roleLabel)})` : ""}`;
+            }).join(" · "))
+          : "")
       );
 
     // Creating the shared calendar/reminder entry (POST /schedule) requires
     // calendar.manage — a role that can create meetings but not manage the
     // calendar (e.g. Employee) can still save a draft, just not the full
     // scheduled flow, so don't offer a button that would 403 partway through.
-    const canSchedule = App.can("calendar.manage");
-    const submitBtn = $("cm-submit-btn");
-    const note = $("cm-no-calendar-note");
-    if (submitBtn) submitBtn.style.display = canSchedule ? "" : "none";
-    if (note) note.style.display = canSchedule ? "none" : "";
+    this._applySchedulePermission();
   },
 
   _computeDuration(start, end) {
@@ -8519,7 +8820,7 @@ const CreateMeetingWizard = {
     const res = await fetch("/api/schedule", {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(force ? { ...data, force: true } : data),
     });
     const resData = await res.json().catch(() => ({}));
@@ -8555,13 +8856,16 @@ const CreateMeetingWizard = {
 
     const durationMins = end ? this._computeDuration(start, end) : 60;
     const platVal = ($("cm-plat") || {}).value || "physical";
-    const platformLabel = { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet" }[platVal] || "قاعة الاجتماعات";
+    const platformLabel = { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet", hybrid: "Hybrid / هجين", virtual: "Virtual / افتراضي" }[platVal] || "In-Person / حضوري";
     const organizerId = parseInt(($("cm-organizer") || {}).value) || null;
     const prevMeetingId = parseInt(($("cm-prev") || {}).value) || null;
     const decisions = this.state.decisions.slice();
     const actions = this.state.actions.slice();
     const agendaItems = this.state.agenda.filter((a) => (a.title_ar || "").trim() || (a.title_en || "").trim());
     const attendeesRaw = (($("cm-attendees") || {}).value || "").trim();
+    const locationVal = (($("cm-location") || {}).value || "").trim();
+    const joinUrlVal = (($("cm-join-url") || {}).value || "").trim();
+    const rolesPayload = this.state.roles.filter(r => r.name || r.role);
 
     const btn = $(isDraft ? "cm-draft-btn" : "cm-submit-btn");
     const originalHtml = btn ? btn.innerHTML : "";
@@ -8576,12 +8880,14 @@ const CreateMeetingWizard = {
         committee_id: committeeId,
         prev_meeting_id: prevMeetingId,
         meeting_date: `${date} ${start}:00`,
-        platform: platformLabel,
+        platform: platVal,
         organizer_id: organizerId,
         purpose_ar: (($("cm-purpose-ar") || {}).value || ""),
         purpose_en: (($("cm-purpose-en") || {}).value || ""),
         expected_decisions: decisions,
         expected_actions: actions,
+        meeting_location: locationVal,
+        meeting_join_url: joinUrlVal,
       }, SeriesUI.resolvePayload("cm"));
 
       const meeting = await api("/api/meetings", { method: "POST", body: JSON.stringify(meetingPayload) });
@@ -8596,7 +8902,7 @@ const CreateMeetingWizard = {
           try {
             const fd = new FormData();
             fd.append("file", file, file.name);
-            await fetch(`/api/meetings/${meeting.id}/upload`, { method: "POST", credentials: "include", body: fd });
+            await fetch(`/api/meetings/${meeting.id}/upload`, { method: "POST", credentials: "include", headers: authHeaders(), body: fd });
           } catch (_) { /* one failed attachment shouldn't abort meeting creation */ }
         }
       }
@@ -8624,14 +8930,22 @@ const CreateMeetingWizard = {
           reminder_channel: ($("cm-channel") || {}).value || "email",
           meeting_provider: platVal,
           meeting_join_url: (($("cm-join-url") || {}).value || "").trim(),
+          meeting_location: (($("cm-location") || {}).value || "").trim(),
           source_meeting_id: meeting.id,
         }, false);
 
+        const allAttendees = [];
         if (attendeesRaw) {
-          const attendees = attendeesRaw.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
-          if (attendees.length) {
-            await api(`/api/meetings/${meeting.id}/attendees`, { method: "POST", body: JSON.stringify({ attendees }) });
-          }
+          attendeesRaw.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).forEach(name => allAttendees.push({ name }));
+        }
+        rolesPayload.forEach(r => {
+          if (!r.name) return;
+          const existing = allAttendees.find(a => a.name.trim().toLowerCase() === r.name.trim().toLowerCase());
+          if (existing) { existing.role = r.role; }
+          else { allAttendees.push({ name: r.name, role: r.role }); }
+        });
+        if (allAttendees.length) {
+          await api(`/api/meetings/${meeting.id}/attendees`, { method: "POST", body: JSON.stringify({ attendees: allAttendees }) });
         }
       }
 
@@ -8680,19 +8994,13 @@ const RowMenu = {
 // duplicate meeting the way ad-hoc recording does. Shared by
 // ScheduledPanel.startMeeting() and LiveMeetingsPanel's Open/Join button.
 async function enterLiveMeeting(meetingId) {
-  await Panels.load("record");
+  // Navigate to the Live Meetings panel — NEVER the legacy Record screen
+  await Panels.load("live");
   try {
-    const m = await api(`/api/meetings/${meetingId}`);
-    Rec.pendingMeeting = m;
-    Rec._bindTitleInputs(m);
-    // Already `recording` server-side (started by ScheduledPanel/LiveMeetingsPanel
-    // just before this call) — reflect that immediately instead of showing the
-    // idle "Tap to start" state, even before this browser's mic capture begins.
-    const stEl = $("rec-st");
-    if (stEl && m.recording_status === "recording") {
-      stEl.textContent = App.lang === "ar"
-        ? "الاجتماع مباشر — اضغط لبدء النسخ الصوتي في هذا المتصفح"
-        : "Meeting is live — tap to start transcribing in this browser";
+    await LiveMeetingsPanel.refresh();
+    // Open the meeting workspace in the 'live' tab after a brief render delay
+    if (window.MT && meetingId) {
+      setTimeout(() => MT.openDetail(meetingId, "live"), 300);
     }
   } catch (e) {
     showToast((App.lang === "ar" ? "تعذّر تحميل الاجتماع: " : "Could not load the meeting: ") + e.message, "error");
@@ -8707,8 +9015,11 @@ async function enterLiveMeeting(meetingId) {
 // to the (rough, phase-2-polished) Live Meeting bridge.
 const ScheduledPanel = {
   _all: [],
-  _filtered: [],
   _meetingsById: {},
+  _tab: "all",
+  _selKind: null,
+  _selId: null,
+  _groups: { upcoming: [], inprog: [], completed: [] },
 
   async refresh() {
     const list = $("sp-list");
@@ -8724,99 +9035,495 @@ const ScheduledPanel = {
     }
   },
 
+  _linked(s) {
+    return s.source_meeting_id ? this._meetingsById[s.source_meeting_id] : null;
+  },
+  _isLive(s) {
+    const m = this._linked(s);
+    return !!m && m.lifecycle_stage === "recording";
+  },
+  _isPastLive(s) {
+    const m = this._linked(s);
+    return !!m && !!m.lifecycle_stage && LIFECYCLE_STAGE_ORDER.indexOf(m.lifecycle_stage) > LIFECYCLE_STAGE_ORDER.indexOf("recording");
+  },
+
+  setTab(t) {
+    this._tab = t;
+    this.applyFilters();
+  },
+
   applyFilters() {
     const l = App.lang;
     const q = (($("sp-search") || {}).value || "").trim().toLowerCase();
     const type = ($("sp-type-filter") || {}).value || "";
-    this._filtered = this._all.filter((s) => {
-      if (type && s.meeting_type !== type) return false;
+    const sort = ($("sp-sort-filter") || {}).value || "meeting_date";
+    const match = (titleAr, titleEn, mType) => {
+      if (type && mType !== type) return false;
       if (q) {
-        const title = ((l === "ar" ? s.title_ar : s.title_en || s.title_ar) || "").toLowerCase();
-        if (!title.includes(q)) return false;
+        const t1 = ((l === "ar" ? titleAr : titleEn || titleAr) || "").toLowerCase();
+        const t2 = ((l === "ar" ? titleEn : titleAr) || "").toLowerCase();
+        if (!t1.includes(q) && !t2.includes(q)) return false;
       }
       return true;
+    };
+    const sortFn = (a, b) => {
+      if (sort === "created_desc") return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+      if (sort === "created_asc") return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      if (sort === "updated_desc") return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
+      // meeting_date and upcoming: sort by date+time ascending
+      return ((a.meeting_date || "") + (a.meeting_time || "")).localeCompare((b.meeting_date || "") + (b.meeting_time || ""));
+    };
+    const upcoming = [];
+    const inprog = [];
+    this._all.forEach((s) => {
+      if (this._isPastLive(s)) return;
+      if (!match(s.title_ar, s.title_en, s.meeting_type)) return;
+      (this._isLive(s) ? inprog : upcoming).push(s);
     });
+    upcoming.sort(sortFn);
+    const doneStages = new Set(["processing", "minutes", "approval", "closed", "completed"]);
+    const completed = Object.values(this._meetingsById)
+      .filter((m) => {
+        const st = m.lifecycle_stage || "";
+        const isDone = (st && LIFECYCLE_STAGE_ORDER.indexOf(st) > LIFECYCLE_STAGE_ORDER.indexOf("recording")) || doneStages.has(st) || m.status === "completed";
+        return isDone && match(m.title_ar, m.title_en, m.meeting_type);
+      })
+      .sort((a, b) => {
+        if (sort === "created_asc") return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+        if (sort === "updated_desc") return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
+        return String(b.meeting_date || b.created_at || "").localeCompare(String(a.meeting_date || a.created_at || ""));
+      });
+    this._groups = { upcoming, inprog, completed };
+
+    // keep selection if still visible, else select the first visible item
+    const visible = this._visibleItems();
+    const stillThere = visible.some((it) => it.kind === this._selKind && it.id === this._selId);
+    if (!stillThere) {
+      this._selKind = visible.length ? visible[0].kind : null;
+      this._selId = visible.length ? visible[0].id : null;
+    }
+    this.renderTabs();
     this.render();
+    this.renderDetail();
+  },
+
+  _visibleItems() {
+    const g = this._groups;
+    const items = [];
+    if (this._tab === "all" || this._tab === "inprog") g.inprog.forEach((s) => items.push({ kind: "sched", id: s.id }));
+    if (this._tab === "all" || this._tab === "upcoming") g.upcoming.forEach((s) => items.push({ kind: "sched", id: s.id }));
+    if (this._tab === "all" || this._tab === "completed") g.completed.forEach((m) => items.push({ kind: "meeting", id: m.id }));
+    return items;
+  },
+
+  renderTabs() {
+    const box = $("sp-tabs");
+    if (!box) return;
+    const l = App.lang;
+    const g = this._groups;
+    const tab = (key, ar, en, count) => `<button class="mt2-tab ${this._tab === key ? "active" : ""}" onclick="ScheduledPanel.setTab('${key}')">
+      ${l === "ar" ? ar : en}${count !== null ? ` <span class="mt2-tab-n">${count}</span>` : ""}</button>`;
+    box.innerHTML =
+      tab("all", "كل الاجتماعات", "All Meetings", null) +
+      tab("upcoming", "القادمة", "Upcoming", g.upcoming.length) +
+      tab("inprog", "الجارية", "In Progress", g.inprog.length) +
+      tab("completed", "المكتملة", "Completed", g.completed.length);
+  },
+
+  select(kind, id) {
+    this._selKind = kind;
+    this._selId = id;
+    this.render();
+    this.renderDetail();
+    if (window.matchMedia && window.matchMedia("(max-width: 980px)").matches) {
+      const d = $("sp-detail");
+      if (d) d.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  },
+
+  _dateTile(ds, l) {
+    const M_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const M_AR = ["ينا", "فبر", "مار", "أبر", "ماي", "يون", "يول", "أغس", "سبت", "أكت", "نوف", "ديس"];
+    const W_EN = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const W_AR = ["أحد", "اثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
+    const d = new Date(String(ds || "").substring(0, 10) + "T00:00:00");
+    if (isNaN(d)) return `<div class="mt2-date"><span class="d">—</span></div>`;
+    const mo = (l === "ar" ? M_AR : M_EN)[d.getMonth()];
+    const wd = (l === "ar" ? W_AR : W_EN)[d.getDay()];
+    return `<div class="mt2-date"><span class="m">${mo}</span><span class="d">${d.getDate()}</span><span class="w">${wd}</span></div>`;
+  },
+
+  _fmtTime(hm, l) {
+    if (!hm) return "";
+    const p = String(hm).split(":");
+    let h = parseInt(p[0], 10) || 0;
+    const m = (p[1] || "00").substring(0, 2);
+    const am = h < 12;
+    h = h % 12 || 12;
+    return h + ":" + m + " " + (am ? (l === "ar" ? "ص" : "AM") : (l === "ar" ? "م" : "PM"));
+  },
+
+  _endTime(hm, dur, l) {
+    if (!hm) return "";
+    const p = String(hm).split(":");
+    const t = ((parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0) + (parseInt(dur, 10) || 60)) % 1440;
+    const h = Math.floor(t / 60);
+    const m2 = t % 60;
+    return this._fmtTime((h < 10 ? "0" + h : h) + ":" + (m2 < 10 ? "0" + m2 : m2), l);
   },
 
   render() {
     const l = App.lang;
     const box = $("sp-list");
     if (!box) return;
-    const eligibleStages = new Set(["created", "invited", "scheduled"]);
-    const rows = this._filtered.map((s) => this._rowHtml(s, l, eligibleStages)).filter(Boolean);
-    if (!rows.length) {
+    const g = this._groups;
+    const sec = (ar, en) => `<div class="mt2-group">${l === "ar" ? ar : en}</div>`;
+    const pillLive = `<span class="mt2-pill mt2-p-amber">● ${l === "ar" ? "مباشر" : "Live"}</span>`;
+    const pillSched = (s) => s.status === "confirmed"
+      ? `<span class="mt2-pill mt2-p-blue">${l === "ar" ? "مجدول" : "Scheduled"}</span>`
+      : `<span class="mt2-pill mt2-p-gray">${l === "ar" ? "مسودة" : "Draft"}</span>`;
+    const pillDone = `<span class="mt2-pill mt2-p-green">✓ ${l === "ar" ? "مكتمل" : "Completed"}</span>`;
+    const lcPill = (m) => {
+      const stage = m.lifecycle_stage || "created";
+      const ms = m.minutes_status || "draft";
+      if (stage === "archived") return `<span class="mt2-pill" style="background:rgba(130,130,130,.15);color:#888">🗄 ${l==="ar"?"مؤرشف":"Archived"}</span>`;
+      if (stage === "board_approval" || ms === "final_approved" || ms === "approved")
+        return `<span class="mt2-pill" style="background:rgba(40,120,220,.15);color:#2878dc">✅ ${l==="ar"?"معتمد":"Approved"}</span>`;
+      if (["ai_minutes_generated","secretary_review","chairman_approval"].includes(stage) || ms === "circulated")
+        return `<span class="mt2-pill mt2-p-amber">📝 ${l==="ar"?"المحضر قيد المراجعة":"Minutes In Review"}</span>`;
+      if (["transcript_generated","uploaded"].includes(stage))
+        return `<span class="mt2-pill mt2-p-blue">⚙️ ${l==="ar"?"قيد التحضير":"In Preparation"}</span>`;
+      return pillDone;
+    };
+    const chev = l === "ar" ? "‹" : "›";
+
+    const schedRow = (s, pill) => {
+      const sel = this._selKind === "sched" && this._selId === s.id;
+      const title = (l === "ar" ? s.title_ar : s.title_en || s.title_ar) || "";
+      const sub = (l === "ar" ? s.title_en : s.title_ar) || "";
+      const meta = [this._fmtTime((s.meeting_time || "").substring(0, 5), l), s.platform ? platLabel(s.platform, l) : ""].filter(Boolean);
+      const linked = this._linked(s);
+      const chevBtn = linked
+        ? `<button class="mt2-chev mt2-chev-open" title="${l === "ar" ? "فتح صفحة الاجتماع" : "Open meeting page"}" onclick="event.stopPropagation();MT.openDetail(${linked.id})">${chev}</button>`
+        : `<span class="mt2-chev">${chev}</span>`;
+      return `<div class="mt2-row ${sel ? "sel" : ""}" role="button" tabindex="0" onclick="ScheduledPanel.select('sched',${s.id})" ondblclick="${linked ? `MT.openDetail(${linked.id})` : ""}" onkeydown="if(event.key==='Enter')ScheduledPanel.select('sched',${s.id})">
+        ${this._dateTile(s.meeting_date, l)}
+        <div class="mt2-row-main">
+          <div class="mt2-row-t">${esc(title)}</div>
+          ${sub && sub !== title ? `<div class="mt2-row-s">${esc(sub)}</div>` : ""}
+          <div class="mt2-row-meta">${meta.map((x) => `<span>${esc(x)}</span>`).join("")}</div>
+        </div>
+        <div class="mt2-row-side">${pill}${chevBtn}</div>
+      </div>`;
+    };
+    const meetRow = (m) => {
+      const sel = this._selKind === "meeting" && this._selId === m.id;
+      const title = (l === "ar" ? m.title_ar : m.title_en || m.title_ar) || "";
+      const sub = (l === "ar" ? m.title_en : m.title_ar) || "";
+      const ds = (m.meeting_date || m.created_at || "").substring(0, 10);
+      return `<div class="mt2-row ${sel ? "sel" : ""}" role="button" tabindex="0" onclick="ScheduledPanel.select('meeting',${m.id})" ondblclick="MT.openDetail(${m.id})" onkeydown="if(event.key==='Enter')ScheduledPanel.select('meeting',${m.id})">
+        ${this._dateTile(ds, l)}
+        <div class="mt2-row-main">
+          <div class="mt2-row-t">${esc(title)}</div>
+          ${sub && sub !== title ? `<div class="mt2-row-s">${esc(sub)}</div>` : ""}
+          <div class="mt2-row-meta"><span>${mtLabel(m.meeting_type, l) || ""}</span></div>
+        </div>
+        <div class="mt2-row-side">${lcPill(m)}<button class="mt2-chev mt2-chev-open" title="${l === "ar" ? "فتح صفحة الاجتماع" : "Open meeting page"}" onclick="event.stopPropagation();MT.openDetail(${m.id})">${chev}</button></div>
+      </div>`;
+    };
+
+    let html = "";
+    if ((this._tab === "all" || this._tab === "inprog") && g.inprog.length)
+      html += sec("جارية الآن", "In Progress") + g.inprog.map((s) => schedRow(s, pillLive)).join("");
+    if ((this._tab === "all" || this._tab === "upcoming") && g.upcoming.length)
+      html += sec("القادمة", "Upcoming") + g.upcoming.map((s) => schedRow(s, pillSched(s))).join("");
+    if ((this._tab === "all" || this._tab === "completed") && g.completed.length)
+      html += sec("المكتملة", "Completed") + g.completed.slice(0, 25).map(meetRow).join("");
+
+    if (!html) {
       box.innerHTML = emptyStateCard({
         icon: "🗓",
-        titleAr: "لا توجد اجتماعات مجدولة", titleEn: "No scheduled meetings",
+        titleAr: "لا توجد اجتماعات", titleEn: "No meetings",
         descAr: "ابدأ بإنشاء أول اجتماع", descEn: "Start by creating your first meeting",
         primary: { ar: "+ إنشاء اجتماع", en: "+ Create Meeting", onclick: "Panels.load('create-meeting')" },
       });
       return;
     }
-    box.innerHTML = rows.join("");
+    box.innerHTML = html;
   },
 
-  _rowHtml(s, l, eligibleStages) {
-    const linked = s.source_meeting_id ? this._meetingsById[s.source_meeting_id] : null;
-    const stage = linked ? linked.lifecycle_stage : null;
-    const isLive = stage === "recording";
-    const isPastLive = stage && LIFECYCLE_STAGE_ORDER.indexOf(stage) > LIFECYCLE_STAGE_ORDER.indexOf("recording");
-    if (isPastLive) return ""; // completed elsewhere — Meeting History is the home for it now
-    const eligible = !linked || eligibleStages.has(stage);
-    const title = l === "ar" ? s.title_ar : s.title_en || s.title_ar;
-    const date = (s.meeting_date || "").substring(0, 10);
-    const time = (s.meeting_time || "").substring(0, 5);
-    const typeColor = calTypeColor(s.meeting_type);
-    const typeLabel = mtLabel(s.meeting_type, l) || (l === "ar" ? "غير محدد" : "Unspecified");
-    const boardOrCommittee = (l === "ar" ? (s.board_name_ar || s.committee_name_ar) : (s.board_name_en || s.board_name_ar || s.committee_name_en || s.committee_name_ar)) || "";
+  renderDetail() {
+    const box = $("sp-detail");
+    if (!box) return;
+    const l = App.lang;
+    if (!this._selKind) {
+      box.innerHTML = "";
+      return;
+    }
+    if (this._selKind === "meeting") {
+      box.innerHTML = this._meetingDetailHtml(this._meetingsById[this._selId], l);
+      return;
+    }
+    const s = this._all.find((x) => x.id === this._selId);
+    box.innerHTML = s ? this._schedDetailHtml(s, l) : "";
+  },
+
+  _fmtLongDate(ds, l) {
+    const d = new Date(String(ds || "").substring(0, 10) + "T00:00:00");
+    if (isNaN(d)) return esc(String(ds || "—"));
+    return d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
+  },
+
+  _schedDetailHtml(s, l) {
+    const t = (ar, en) => (l === "ar" ? ar : en);
+    const linked = this._linked(s);
+    const live = this._isLive(s);
+    const eligible = !linked || new Set(["created", "invited", "scheduled"]).has(linked.lifecycle_stage);
+    const title = (l === "ar" ? s.title_ar : s.title_en || s.title_ar) || "";
+    const sub = (l === "ar" ? s.title_en : s.title_ar) || "";
+    const typeLabel = mtLabel(s.meeting_type, l) || t("اجتماع", "Meeting");
     const organizer = (l === "ar" ? s.creator_ar : s.creator_en || s.creator_ar) || "";
+    const boardOrCommittee = (l === "ar" ? (s.board_name_ar || s.committee_name_ar) : (s.board_name_en || s.board_name_ar || s.committee_name_en || s.committee_name_ar)) || "";
+    const series = (l === "ar" ? s.series_name_ar : s.series_name_en || s.series_name_ar) || "";
     const attendeeCount = (s.attendees || "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean).length;
-    const readiness = ((s.agenda_ar || s.agenda_en) ? 25 : 0) + (s.attendees ? 25 : 0) + (s.doc_count > 0 ? 25 : 0) + (s.status === "confirmed" ? 25 : 0);
-    const packOk = s.doc_count > 0;
-    const statusPill = isLive
-      ? `<span class="tag tr">🔴 ${l === "ar" ? "مباشر الآن" : "Live Now"}</span>`
+    const durH = Math.floor((parseInt(s.duration_mins, 10) || 60) / 60);
+    const durM = (parseInt(s.duration_mins, 10) || 60) % 60;
+    const durTxt = (durH ? durH + t("س", "h") : "") + (durM ? " " + durM + t("د", "m") : "") || t("ساعة", "1h");
+    const statusPill = live
+      ? `<span class="mt2-pill mt2-p-amber">● ${t("جارٍ الآن", "In Progress")}</span>`
       : s.status === "confirmed"
-      ? `<span class="tag tg">✓ ${l === "ar" ? "مؤكَّد" : "Confirmed"}</span>`
-      : `<span class="tag ta">◌ ${l === "ar" ? "مسودة" : "Draft"}</span>`;
+        ? `<span class="mt2-pill mt2-p-blue">${t("مجدول", "Scheduled")}</span>`
+        : `<span class="mt2-pill mt2-p-gray">${t("مسودة", "Draft")}</span>`;
     const menuId = `sp-menu-${s.id}`;
 
-    return `<div class="card" style="margin-bottom:10px;padding:14px 16px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
-        <div style="min-width:0;flex:1">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
-            <span style="font-weight:700;color:var(--text);font-size:13.5px">${esc(title)}</span>
-            <span class="tag" style="background:${typeColor}22;color:${typeColor};border:.5px solid ${typeColor}55">${esc(typeLabel)}</span>
-            ${statusPill}
-          </div>
-          <div style="font-size:11.5px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap">
-            <span>📅 ${date} ${time}</span>
-            ${boardOrCommittee ? `<span>🏛 ${esc(boardOrCommittee)}</span>` : ""}
-            ${organizer ? `<span>👤 ${esc(organizer)}</span>` : ""}
-            <span>👥 ${attendeeCount}</span>
-            <span>${packOk ? "✓" : "⏳"} ${l === "ar" ? "حزمة المجلس" : "Board Pack"}: ${packOk ? (l === "ar" ? "جاهزة" : "Ready") : (l === "ar" ? "معلّقة" : "Pending")}</span>
-          </div>
-          <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
-            <div style="flex:1;max-width:160px;height:6px;background:var(--navy4);border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${readiness}%;background:${readiness === 100 ? "var(--green)" : "var(--gold)"};border-radius:4px"></div>
+    // tabs → open the full meeting page on the requested tab (only when a
+    // meeting record exists to back it)
+    const wsTab = (key, ico, ar, en, count) => linked
+      ? `<button class="mt2-dtab" onclick="MT.openDetail(${linked.id},'${key}')">${ico} ${t(ar, en)}${count ? ` <span class="mt2-tab-n">${count}</span>` : ""}</button>`
+      : "";
+    const tabs = `<div class="mt2-dtabs">
+      <button class="mt2-dtab active">☰ ${t("نظرة عامة", "Overview")}</button>
+      ${wsTab("agenda", "🗒", "جدول الأعمال", "Agenda", 0)}
+      ${wsTab("documents", "📄", "المستندات", "Documents", parseInt(s.doc_count, 10) || 0)}
+      ${wsTab("actions", "🎯", "الإجراءات", "Actions", 0)}
+      ${wsTab("decisions", "⚖️", "القرارات", "Decisions", 0)}
+      ${wsTab("minutes", "📝", "المحضر", "Minutes", 0)}
+      ${wsTab("timeline", "🕘", "الجدول الزمني", "Timeline", 0)}
+    </div>`;
+
+    // progress stepper (real, data-derived states)
+    const hasAgenda = !!(s.agenda_ar || s.agenda_en);
+    const minutesStarted = !!(linked && linked.minutes_status && linked.minutes_status !== "draft");
+    const closed = !!(linked && (linked.minutes_status === "approved" || linked.minutes_status === "final_approved"));
+    const steps = [
+      { ar: "مجدول", en: "Scheduled", state: "done", sub: (s.created_at || "").substring(0, 10) },
+      { ar: "جدول الأعمال", en: "Agenda", state: hasAgenda ? "done" : "pending", sub: hasAgenda ? t("منشور", "Published") : t("معلّق", "Pending") },
+      { ar: "الانعقاد", en: "In Progress", state: live ? "active" : "pending", sub: live ? t("مباشر الآن", "Live Now") : t("معلّق", "Pending") },
+      { ar: "المحضر", en: "Minutes", state: minutesStarted ? "done" : "pending", sub: minutesStarted ? t("قيد الإعداد", "Drafted") : t("معلّق", "Pending") },
+      { ar: "الإغلاق", en: "Closed", state: closed ? "done" : "pending", sub: closed ? t("معتمد", "Approved") : t("معلّق", "Pending") },
+    ];
+    const stepper = `<div class="mt2-card"><div class="mt2-card-t">${t("تقدم الاجتماع", "Meeting Progress")}</div>
+      <div class="mt2-steps">${steps
+        .map(
+          (st, i) => `<div class="mt2-step ${st.state}">
+          <span class="mt2-step-dot">${st.state === "done" ? "✓" : i + 1}</span>
+          <span class="mt2-step-l">${t(st.ar, st.en)}</span>
+          <span class="mt2-step-s">${st.sub || ""}</span>
+        </div>${i < steps.length - 1 ? '<span class="mt2-step-bar"></span>' : ""}`,
+        )
+        .join("")}</div></div>`;
+
+    const aboutRow = (ar, en, val) => (val ? `<div class="mt2-ab-row"><span class="mt2-ab-k">${t(ar, en)}</span><span class="mt2-ab-v">${esc(val)}</span></div>` : "");
+    const agendaTxt = ((l === "ar" ? s.agenda_ar : s.agenda_en || s.agenda_ar) || "").substring(0, 160);
+    const about = `<div class="mt2-card"><div class="mt2-card-t">${t("عن هذا الاجتماع", "About This Meeting")}</div>
+      ${aboutRow("نوع الاجتماع", "Meeting Type", typeLabel)}
+      ${aboutRow("السلسلة", "Meeting Series", series)}
+      ${aboutRow("المجلس / اللجنة", "Board / Committee", boardOrCommittee)}
+      ${aboutRow("الغرض", "Purpose", agendaTxt)}
+      ${aboutRow("المشاركون", "Participants", attendeeCount ? attendeeCount + " " + t("عضو", "members") : "")}
+      ${aboutRow("المنظّم", "Organizer", organizer)}
+      ${aboutRow("التنسيق", "Format", s.platform ? platLabel(s.platform, l) : "")}
+      ${aboutRow("الموقع", "Location", s.meeting_location || "")}
+    </div>`;
+
+    const qa = [];
+    if (linked) qa.push({ ico: "📦", ar: "فتح صفحة الاجتماع", en: "Open Meeting Page", on: `MT.openDetail(${linked.id})` });
+    if (s.meeting_join_url) qa.push({ ico: "🎥", ar: "الانضمام للاجتماع", en: "Join Meeting", on: `ScheduledPanel.openJoinUrl(${s.id})` });
+    if (eligible && !live) qa.push({ ico: "🔴", ar: "بدء الاجتماع والتسجيل", en: "Start & Record Meeting", on: `ScheduledPanel.startMeeting(${s.id})` });
+    if (live && linked) qa.push({ ico: "▶", ar: "متابعة الاجتماع المباشر", en: "Rejoin Live Meeting", on: `MT.openDetail(${linked.id},'live')` });
+    qa.push({ ico: "📆", ar: "إعادة جدولة", en: "Reschedule", on: `ScheduledPanel.reschedule(${s.id})` });
+    if (linked) qa.push({ ico: "📄", ar: "المستندات", en: "Documents", on: `MT.openDetail(${linked.id},'documents')` });
+    qa.push({ ico: "📅", ar: "عرض في التقويم", en: "View in Calendar", on: `Panels.load('schedule')` });
+    const quick = `<div class="mt2-card"><div class="mt2-card-t">${t("إجراءات سريعة", "Quick Actions")}</div>
+      <div class="mt2-qa">${qa
+        .map((a) => `<button class="mt2-qa-btn" onclick="${a.on}"><span>${a.ico} ${t(a.ar, a.en)}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>`)
+        .join("")}</div></div>`;
+
+    return `<div class="mt2-dhead">
+      <div class="mt2-dhead-top">
+        <span class="mt2-chip-type">📋 ${esc(typeLabel)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${statusPill}
+          <div style="position:relative">
+            <button class="btn-ghost btn-sm" onclick="RowMenu.toggle('${menuId}', event)">⋮</button>
+            <div class="row-menu" id="${menuId}">
+              ${eligible && !live ? `<button onclick="RowMenu.closeAll();ScheduledPanel.startMeeting(${s.id})">▶ ${t("بدء الاجتماع", "Start Meeting")}</button>` : ""}
+              <button onclick="RowMenu.closeAll();ScheduledPanel.reschedule(${s.id})">📆 ${t("إعادة جدولة", "Reschedule")}</button>
+              ${linked ? `<button onclick="RowMenu.closeAll();ScheduledPanel.openWorkspace(${linked.id})">🗃 ${t("فتح مساحة العمل", "Open Workspace")}</button>` : ""}
+              <button onclick="RowMenu.closeAll();ScheduledPanel.delete(${s.id})">✕ ${t("حذف", "Delete")}</button>
             </div>
-            <span style="font-size:10.5px;color:var(--text3);font-weight:700">${readiness}% ${l === "ar" ? "جاهزية" : "ready"}</span>
-          </div>
-        </div>
-        <div style="position:relative;flex-shrink:0">
-          <button class="btn-ghost btn-sm" onclick="RowMenu.toggle('${menuId}', event)">⋮</button>
-          <div class="row-menu" id="${menuId}">
-            ${eligible ? `<button onclick="RowMenu.closeAll();ScheduledPanel.startMeeting(${s.id})">▶ ${l === "ar" ? "بدء الاجتماع" : "Start Meeting"}</button>` : ""}
-            ${s.source_meeting_id ? `<button onclick="RowMenu.closeAll();ScheduledPanel.openWorkspace(${s.source_meeting_id})">🗃 ${l === "ar" ? "فتح مساحة العمل" : "Open Workspace"}</button>` : ""}
-            <button onclick="RowMenu.closeAll();ScheduledPanel.delete(${s.id})">✕ ${l === "ar" ? "حذف" : "Delete"}</button>
           </div>
         </div>
       </div>
-    </div>`;
+      <div class="mt2-dtitle">${esc(title)}</div>
+      ${sub && sub !== title ? `<div class="mt2-dsub">${esc(sub)}</div>` : ""}
+      <div class="mt2-dmeta">
+        <span>📅 ${this._fmtLongDate(s.meeting_date, l)}</span>
+        <span>🕐 ${this._fmtTime((s.meeting_time || "").substring(0, 5), l)}${s.meeting_time ? " – " + this._endTime(s.meeting_time, s.duration_mins, l) : ""} · ${durTxt}</span>
+        ${s.platform ? `<span>📡 ${esc(platLabel(s.platform, l))}</span>` : ""}
+        ${s.meeting_location ? `<span>📍 ${esc(s.meeting_location)}</span>` : ""}
+        ${organizer ? `<span>👤 ${esc(organizer)}</span>` : ""}
+      </div>
+      ${tabs}
+    </div>
+    ${stepper}
+    <div class="mt2-2col">${about}${quick}</div>`;
+  },
+
+  _meetingDetailHtml(m, l) {
+    if (!m) return "";
+    const t = (ar, en) => (l === "ar" ? ar : en);
+    const title = (l === "ar" ? m.title_ar : m.title_en || m.title_ar) || "";
+    const sub = (l === "ar" ? m.title_en : m.title_ar) || "";
+    const typeLabel = mtLabel(m.meeting_type, l) || t("اجتماع", "Meeting");
+    const ds = (m.meeting_date || m.created_at || "").substring(0, 10);
+    const minutesChip =
+      m.minutes_status === "approved" || m.minutes_status === "final_approved"
+        ? `<span class="mt2-pill mt2-p-gold">${t("المحضر موقّع", "Minutes Signed")}</span>`
+        : m.minutes_status === "circulated"
+          ? `<span class="mt2-pill mt2-p-amber">${t("المحضر قيد الاعتماد", "Minutes in Approval")}</span>`
+          : `<span class="mt2-pill mt2-p-gray">${t("المحضر مسودة", "Minutes Draft")}</span>`;
+    const summary = ((l === "ar" ? m.ai_summary_ar : m.ai_summary_en || m.ai_summary_ar) || "").substring(0, 300);
+    const pj = (x) => { try { const a = JSON.parse(x || "[]"); return Array.isArray(a) ? a.length : 0; } catch { return 0; } };
+    const decN = pj(m.ai_decisions);
+    const taskN = pj(m.ai_tasks);
+    return `<div class="mt2-dhead">
+      <div class="mt2-dhead-top">
+        <span class="mt2-chip-type">📋 ${esc(typeLabel)}</span>
+        ${(() => {
+          const stage = m.lifecycle_stage || "created";
+          const ms = m.minutes_status || "draft";
+          if (stage === "archived") return `<span class="mt2-pill" style="background:rgba(130,130,130,.15);color:#888">🗄 ${t("مؤرشف","Archived")}</span>`;
+          if (stage === "board_approval" || ms === "final_approved" || ms === "approved") return `<span class="mt2-pill" style="background:rgba(40,120,220,.15);color:#2878dc">✅ ${t("معتمد","Approved")}</span>`;
+          if (["ai_minutes_generated","secretary_review","chairman_approval"].includes(stage) || ms === "circulated") return `<span class="mt2-pill mt2-p-amber">📝 ${t("المحضر قيد المراجعة","Minutes In Review")}</span>`;
+          if (["transcript_generated","uploaded"].includes(stage)) return `<span class="mt2-pill mt2-p-blue">⚙️ ${t("قيد التحضير","In Preparation")}</span>`;
+          if (stage === "recording") return `<span class="mt2-pill mt2-p-amber">● ${t("مباشر","Live")}</span>`;
+          return `<span class="mt2-pill mt2-p-green">✓ ${t("مكتمل","Completed")}</span>`;
+        })()}
+      </div>
+      <div class="mt2-dtitle">${esc(title)}</div>
+      ${sub && sub !== title ? `<div class="mt2-dsub">${esc(sub)}</div>` : ""}
+      <div class="mt2-dmeta"><span>📅 ${this._fmtLongDate(ds, l)}</span>${minutesChip}</div>
+    </div>
+    ${summary ? `<div class="mt2-card"><div class="mt2-card-t">${t("الملخص", "Summary")}</div><div class="mt2-sum">${esc(summary)}${summary.length >= 300 ? "…" : ""}</div></div>` : ""}
+    <div class="mt2-card">
+      <div class="dx2-stats">
+        <div class="dx2-stat"><div class="dx2-stat-v">${decN}</div><div class="dx2-stat-l">${t("قرارات", "Decisions")}</div></div>
+        <div class="dx2-stat"><div class="dx2-stat-v">${taskN}</div><div class="dx2-stat-l">${t("مهام", "Tasks")}</div></div>
+        <div class="dx2-stat"><div class="dx2-stat-v">${m.duration ? Math.round((parseInt(m.duration, 10) || 0) / 60) + t(" د", "m") : "—"}</div><div class="dx2-stat-l">${t("المدة", "Duration")}</div></div>
+      </div>
+    </div>
+    <div class="mt2-card"><div class="mt2-card-t">${t("إجراءات سريعة", "Quick Actions")}</div>
+      <div class="mt2-qa">
+        <button class="mt2-qa-btn" onclick="MT.openDetail(${m.id})"><span>📋 ${t("فتح صفحة الاجتماع", "Open Meeting Page")}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>
+        <button class="mt2-qa-btn" onclick="MT.openDetail(${m.id},'minutes')"><span>📝 ${t("عرض المحضر", "View Minutes")}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>
+        <button class="mt2-qa-btn" onclick="MT.openDetail(${m.id},'decisions')"><span>⚖️ ${t("القرارات", "Decisions")}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>
+      </div></div>`;
   },
 
   openWorkspace(meetingId) {
-    WorkspacePanel.open(meetingId);
+    MT.openDetail(meetingId);
+  },
+
+  openJoinUrl(scheduleId) {
+    const s = this._all.find((x) => x.id === scheduleId);
+    const url = s && String(s.meeting_join_url || "").trim();
+    if (!url) return;
+    // Only allow real web links — never javascript:/data: etc from stored data.
+    if (!/^https?:\/\//i.test(url)) {
+      showToast(App.lang === "ar" ? "رابط الانضمام غير صالح" : "Invalid join link", "error");
+      return;
+    }
+    window.open(url, "_blank", "noopener");
+  },
+
+  reschedule(scheduleId) {
+    const l = App.lang;
+    const s = this._all.find((x) => x.id === scheduleId);
+    if (!s) return;
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const existing = document.getElementById("reschedule-modal");
+    if (existing) existing.remove();
+    const modal = document.createElement("div");
+    modal.id = "reschedule-modal";
+    modal.className = "modal-overlay";
+    modal.innerHTML = `
+      <div class="modal-box" style="max-width:420px">
+        <div class="modal-header">
+          <span>📆 ${t("إعادة جدولة الاجتماع", "Reschedule Meeting")}</span>
+          <button class="modal-close" onclick="document.getElementById('reschedule-modal').remove()">✕</button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;color:var(--text3)">${esc((l === "ar" ? s.title_ar : s.title_en || s.title_ar) || "")}</div>
+          <div class="frow">
+            <label class="fl">${t("التاريخ الجديد", "New Date")}</label>
+            <input class="fi" id="rs-date" type="date" value="${s.meeting_date || ""}" />
+          </div>
+          <div class="frow">
+            <label class="fl">${t("الوقت الجديد", "New Time")}</label>
+            <input class="fi" id="rs-time" type="time" value="${(s.meeting_time || "").substring(0,5)}" />
+          </div>
+          <div class="frow">
+            <label class="fl">${t("ملاحظة", "Note")}</label>
+            <input class="fi" id="rs-note" type="text" placeholder="${t("سبب إعادة الجدولة...", "Reason for rescheduling...")}" />
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn-ghost" onclick="document.getElementById('reschedule-modal').remove()">${t("إلغاء", "Cancel")}</button>
+          <button class="btn-gold" id="rs-confirm-btn" onclick="ScheduledPanel._confirmReschedule(${scheduleId})">${t("تأكيد إعادة الجدولة", "Confirm Reschedule")}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  },
+
+  async _confirmReschedule(scheduleId) {
+    const l = App.lang;
+    const s = this._all.find((x) => x.id === scheduleId);
+    if (!s) return;
+    const newDate = (document.getElementById("rs-date") || {}).value || "";
+    const newTime = (document.getElementById("rs-time") || {}).value || "";
+    const note = (document.getElementById("rs-note") || {}).value || "";
+    if (!newDate) { showToast(l === "ar" ? "يرجى تحديد التاريخ الجديد" : "Please set the new date", "error"); return; }
+    const btn = document.getElementById("rs-confirm-btn");
+    if (btn) { btn.disabled = true; btn.textContent = l === "ar" ? "جارٍ الحفظ…" : "Saving…"; }
+    try {
+      await api(`/api/schedule/${scheduleId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ meeting_date: newDate, meeting_time: newTime || s.meeting_time, note }),
+      });
+      if (s.source_meeting_id) {
+        await api(`/api/meetings/${s.source_meeting_id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ meeting_date: newDate }),
+        });
+      }
+      showToast(l === "ar" ? "تمت إعادة الجدولة بنجاح" : "Meeting rescheduled successfully", "success");
+      document.getElementById("reschedule-modal")?.remove();
+      await this.refresh();
+    } catch (e) {
+      showToast(e.message || (l === "ar" ? "فشل في إعادة الجدولة" : "Reschedule failed"), "error");
+      if (btn) { btn.disabled = false; btn.textContent = l === "ar" ? "تأكيد إعادة الجدولة" : "Confirm Reschedule"; }
+    }
   },
 
   async startMeeting(scheduleId) {
@@ -8936,6 +9643,19 @@ const LiveMeetingsPanel = {
     const title = l === "ar" ? m.title_ar : m.title_en || m.title_ar;
     const boardOrCommittee = (l === "ar" ? (m.board_name_ar || m.committee_name_ar) : (m.board_name_en || m.board_name_ar || m.committee_name_en || m.committee_name_ar)) || "";
     const organizer = (l === "ar" ? m.recorder_ar : m.recorder_en || m.recorder_ar) || "";
+    const qKey = `lm-quorum-${m.id}`;
+    // Fetch quorum data for this meeting (non-blocking)
+    api(`/api/gov/quorum?meetingId=${m.id}`).then(q => {
+      const el = $(qKey);
+      if (!el || !q) return;
+      const present = q.present_members || 0;
+      const required = q.required_members || 0;
+      const achieved = q.quorum_achieved || present >= required;
+      const color = achieved ? "#10B981" : present >= Math.ceil(required * 0.7) ? "#F59E0B" : "#EF4444";
+      el.innerHTML = `<span style="color:${color};font-weight:700">${present}/${required}</span>
+        <span style="font-size:10px;color:${color}">${achieved ? (l==="ar"?"✓ اكتمل النصاب":"✓ Quorum Met") : (l==="ar"?"✗ النصاب غير مكتمل":"✗ No Quorum")}</span>
+        <button onclick="LiveMeetingsPanel.updateQuorum(${m.id},${present},${required})" style="font-size:10px;background:none;border:1px solid ${color}44;color:${color};border-radius:4px;padding:1px 6px;cursor:pointer;margin-inline-start:4px">${l==="ar"?"تحديث":"Update"}</button>`;
+    }).catch(() => {});
     return `<div class="card card-gold" style="padding:16px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span class="live-badge-pulse"></span>
@@ -8943,12 +9663,31 @@ const LiveMeetingsPanel = {
         <span style="margin-inline-start:auto;font-variant-numeric:tabular-nums;font-weight:700;color:var(--text)" id="lm-elapsed-${m.id}">${this._elapsed(m.recording_started_at)}</span>
       </div>
       <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px">${esc(title)}</div>
-      <div style="font-size:11.5px;color:var(--text3);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:11.5px;color:var(--text3);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         ${boardOrCommittee ? `<span>🏛 ${esc(boardOrCommittee)}</span>` : ""}
         ${organizer ? `<span>👤 ${esc(organizer)}</span>` : ""}
       </div>
+      <div id="${qKey}" style="display:flex;align-items:center;gap:6px;font-size:12px;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:10px;min-height:28px">
+        <span style="color:var(--text3);font-size:11px">${l === "ar" ? "النصاب القانوني:" : "Quorum:"}</span>
+        <span style="color:var(--text3);font-size:11px">${l === "ar" ? "جارٍ التحقق..." : "Checking..."}</span>
+      </div>
       <button class="btn-gold" style="width:100%;justify-content:center" onclick="enterLiveMeeting(${m.id})">▶ ${l === "ar" ? "انضمام" : "Open / Join"}</button>
     </div>`;
+  },
+
+  async updateQuorum(meetingId, currentPresent, required) {
+    const l = App.lang;
+    const newPresent = parseInt(prompt(l === "ar" ? `عدد الحاضرين (النصاب المطلوب: ${required}):` : `Number of members present (required: ${required}):`, String(currentPresent)), 10);
+    if (isNaN(newPresent) || newPresent < 0) return;
+    try {
+      await api("/api/gov/quorum", { method: "PUT", body: JSON.stringify({
+        meeting_id: meetingId,
+        present_members: newPresent,
+        required_members: required || newPresent,
+        quorum_achieved: newPresent >= (required || newPresent) ? 1 : 0,
+      })});
+      await this.refresh();
+    } catch (e) { showToast(e.message, "error"); }
   },
 };
 
@@ -9255,7 +9994,7 @@ async function renderSchedule() {
               ${(s.meeting_provider && s.meeting_provider !== "physical") ? (() => { const _pc = {zoom:{c:"#2D8CFF",b:"rgba(45,140,255,.13)",i:"🎥",n:"Zoom"},teams:{c:"#6264A7",b:"rgba(98,100,167,.13)",i:"💼",n:"Teams"},google_meet:{c:"#00897B",b:"rgba(0,137,123,.13)",i:"🎦",n:"Meet"}}[s.meeting_provider]||{}; return `<span class="tag" style="background:${_pc.b};color:${_pc.c};font-size:11px;border:.5px solid ${_pc.c}33">${_pc.i} ${_pc.n}</span>`; })() : ""}
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">
-              📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ""} · ${s.duration_mins || 60} ${l === "ar" ? "د" : "min"} · ${esc(s.platform || "")}
+              📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? `🕐 ${esc(s.meeting_time)}` : ""} · ${s.duration_mins || 60} ${l === "ar" ? "د" : "min"} · ${s.platform ? esc(platLabel(s.platform, l)) : ""}${s.meeting_location ? ` · 📍 ${esc(s.meeting_location)}` : ""}
             </div>
             ${s.attendees ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">👥 ${esc(s.attendees)}</div>` : ""}
             ${agenda ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">📋 ${esc(agenda.substring(0, 80))}${agenda.length > 80 ? "…" : ""}</div>` : ""}
@@ -9269,6 +10008,7 @@ async function renderSchedule() {
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           ${isDraft ? `<button class="btn-sm" onclick="Schedule.confirm(${s.id})" style="font-size:11px;background:#d4a017;color:#1a1a1a;border:none;border-radius:6px;padding:5px 10px;font-weight:600;cursor:pointer">✔ ${l === "ar" ? "تأكيد الموعد" : "Confirm Meeting"}</button>` : ""}
           <button class="btn-ghost btn-sm" onclick="${reminderCall}" style="font-size:11px">📧 ${l === "ar" ? "إرسال تذكير" : "Send Reminder"}</button>
+          <a class="btn-ghost btn-sm" href="/api/schedule/${s.id}/ics" download style="font-size:11px;text-decoration:none;display:inline-flex;align-items:center">📅 ${l === "ar" ? "إضافة للتقويم" : "Add to Calendar"}</a>
           <button class="btn-ghost btn-sm" onclick="Schedule.edit(${s.id})" style="font-size:11px">✏️ ${l === "ar" ? "تعديل" : "Edit"}</button>
           ${isRecurring ? `<button class="btn-ghost btn-sm" onclick="Schedule.deleteSeries(${s.id})" style="font-size:11px;color:var(--red)">🔁 ${l === "ar" ? "حذف السلسلة" : "Delete Series"}</button>` : ""}
           <button class="btn-ghost btn-sm" onclick="Schedule.delete(${s.id})" style="font-size:11px;color:var(--red)">✕ ${l === "ar" ? "حذف" : "Delete"}</button>
@@ -9792,886 +10532,375 @@ async function renderOverview() {
   const body = $("overview-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    // Each call degrades independently on failure (most commonly a 403 for a
-    // role that lacks one specific permission, e.g. Observer/Guest lacking
-    // actions.view) instead of Promise.all rejecting as a whole — a single
-    // permission gap used to blank the entire dashboard (stats, meetings,
-    // schedule, etc. that the role *does* have access to) behind a raw error
-    // message instead of just omitting the one section it can't see.
-    const [stats, tasks, meetings, schedule, members, decisions, analytics, govSummary, dashIntel] =
-      await Promise.all([
-        api("/api/stats").catch(() => ({})),
-        api("/api/tasks").catch(() => []),
-        api("/api/meetings").catch(() => []),
-        api("/api/schedule").catch(() => []),
-        api("/api/members").catch(() => []),
-        api("/api/decisions").catch(() => []),
-        api("/api/analytics").catch(() => ({})),
-        api("/api/gov/summary").catch(() => null),
-        App.can("reports.view") ? api("/api/dashboard/intelligence").catch(() => null) : Promise.resolve(null),
-      ]);
+    // Each call degrades independently on failure (e.g. a 403 for a role
+    // lacking one permission) instead of blanking the whole dashboard.
+    const [tasks, meetings, schedule, decisions, activityResp] = await Promise.all([
+      api("/api/tasks").catch(() => []),
+      api("/api/meetings").catch(() => []),
+      api("/api/schedule").catch(() => []),
+      api("/api/decisions").catch(() => []),
+      api("/api/activity").catch(() => ({ activity: [] })),
+    ]);
     const l = App.lang;
-    const lbl = (ar, en) => (l === "ar" ? ar : en);
-    const today = new Date().toISOString().substring(0, 10);
-    const upcoming = schedule.filter((s) => s.meeting_date >= today);
-    const todaysMeetings = schedule.filter((s) => s.meeting_date === today);
-
-    // ── Executive greeting — the command center opens with the person, not
-    // a metrics wall.
-    const hour = new Date().getHours();
-    const greetText =
-      hour < 12
-        ? lbl("صباح الخير", "Good Morning")
-        : hour < 18
-          ? lbl("مساء الخير", "Good Afternoon")
-          : lbl("مساء الخير", "Good Evening");
-    const userName = App.user
-      ? l === "ar"
-        ? App.user.name_ar
-        : App.user.name_en || App.user.name_ar
-      : "";
-    const todayLabel = new Date().toLocaleDateString(
-      l === "ar" ? "ar-SA" : "en-US",
-      { weekday: "long", year: "numeric", month: "long", day: "numeric" },
-    );
-    const greetingHtml = `<div style="margin-bottom:22px">
-      <div style="font-size:26px;font-weight:800;color:var(--text);letter-spacing:-.02em;line-height:1.2">${greetText}${userName ? ", " + esc(userName) : ""}</div>
-      <div style="font-size:13px;color:var(--text3);margin-top:6px">${esc(todayLabel)} · ${
-        todaysMeetings.length
-          ? todaysMeetings.length +
-            " " +
-            lbl(
-              "اجتماع اليوم",
-              todaysMeetings.length === 1 ? "meeting today" : "meetings today",
-            )
-          : lbl("لا اجتماعات اليوم", "no meetings today")
-      }</div>
-    </div>`;
-
-    const role = App.systemRole || "Admin";
-    const allStatCards = [
-      {
-        key: "meetings",
-        icon: "🎙",
-        val: stats.meetings,
-        label: lbl("اجتماع مسجل", "Recorded Meetings"),
-        color: "var(--gold)",
-        go: "transcripts",
-      },
-      {
-        key: "tasks_open",
-        icon: "📋",
-        val: stats.tasks_open,
-        label: lbl("مهمة مفتوحة", "Open Tasks"),
-        color: stats.tasks_overdue > 0 ? "var(--red)" : "var(--amber)",
-        go: "tasks",
-      },
-      {
-        key: "tasks_overdue",
-        icon: "⚠️",
-        val: stats.tasks_overdue,
-        label: lbl("مهمة متأخرة", "Overdue Tasks"),
-        color: "var(--red)",
-        go: "tasks",
-      },
-      {
-        key: "tasks_done",
-        icon: "✓",
-        val: stats.tasks_done,
-        label: lbl("مهمة مكتملة", "Completed Tasks"),
-        color: "var(--green)",
-        go: "tasks",
-      },
-      {
-        key: "decisions",
-        icon: "⚖️",
-        val: stats.decisions,
-        label: lbl("قرار مسجل", "Decisions"),
-        color: "var(--blue)",
-        go: "transcripts",
-      },
-      {
-        key: "schedule",
-        icon: "📅",
-        val: stats.schedule,
-        label: lbl("اجتماع مجدول", "Scheduled"),
-        color: "var(--gold)",
-        go: "schedule",
-      },
-      {
-        key: "users",
-        icon: "👥",
-        val: stats.users,
-        label: lbl("عضو فريق", "Team Members"),
-        color: "var(--text)",
-        go: "team",
-      },
-      {
-        key: "completion",
-        icon: "🎯",
-        val: stats.completion + "%",
-        label: lbl("نسبة الإنجاز", "Completion Rate"),
-        color:
-          stats.completion > 70
-            ? "var(--green)"
-            : stats.completion > 40
-              ? "var(--amber)"
-              : "var(--red)",
-        go: "tasks",
-      },
-      {
-        key: "tasks_blocked",
-        icon: "⛔",
-        val: stats.tasks_blocked || 0,
-        label: lbl("إجراء معلّق", "Blocked Actions"),
-        color: (stats.tasks_blocked || 0) > 0 ? "var(--red)" : "var(--text3)",
-        go: "tasks",
-      },
-      {
-        key: "tasks_high",
-        icon: "⚡",
-        val: stats.tasks_high || 0,
-        label: lbl("أولوية عالية", "High Priority"),
-        color: "var(--amber)",
-        go: "tasks",
-      },
-      {
-        key: "tasks_critical",
-        icon: "🔥",
-        val: stats.tasks_critical || 0,
-        label: lbl("أولوية حرجة", "Critical Priority"),
-        color: (stats.tasks_critical || 0) > 0 ? "var(--red)" : "var(--text3)",
-        go: "tasks",
-      },
-    ];
-
-    const ROLE_STAT_KEYS = {
-      Admin: [
-        "meetings",
-        "tasks_open",
-        "tasks_overdue",
-        "tasks_done",
-        "decisions",
-        "schedule",
-        "users",
-        "completion",
-        "tasks_blocked",
-        "tasks_high",
-        "tasks_critical",
-      ],
-      CEO: [
-        "meetings",
-        "tasks_open",
-        "tasks_overdue",
-        "tasks_done",
-        "decisions",
-        "schedule",
-        "users",
-        "completion",
-        "tasks_blocked",
-        "tasks_high",
-        "tasks_critical",
-      ],
-      "Board Member": ["meetings", "decisions", "schedule", "completion"],
-      "Committee Member": [
-        "tasks_open",
-        "tasks_overdue",
-        "tasks_done",
-        "decisions",
-      ],
-      Executive: [
-        "meetings",
-        "tasks_open",
-        "tasks_overdue",
-        "tasks_done",
-        "decisions",
-        "schedule",
-        "completion",
-      ],
-      Manager: [
-        "meetings",
-        "tasks_open",
-        "tasks_overdue",
-        "tasks_done",
-        "users",
-        "completion",
-      ],
-      Employee: ["tasks_open", "tasks_overdue", "tasks_done"],
-      Observer: ["meetings", "decisions", "schedule"],
-      "Super Admin": [
-        "meetings", "tasks_open", "tasks_overdue", "tasks_done", "decisions",
-        "schedule", "users", "completion", "tasks_blocked", "tasks_high", "tasks_critical",
-      ],
-      "Organization Admin": [
-        "meetings", "tasks_open", "tasks_overdue", "tasks_done", "decisions",
-        "schedule", "users", "completion", "tasks_blocked", "tasks_high", "tasks_critical",
-      ],
-      "Board Secretary": ["meetings", "decisions", "schedule", "completion", "tasks_open", "tasks_overdue"],
-      "Committee Chair": ["tasks_open", "tasks_overdue", "tasks_done", "decisions"],
-      Auditor: ["meetings", "decisions", "schedule", "tasks_open", "tasks_overdue", "tasks_done", "completion"],
-      Guest: ["meetings", "schedule"],
+    const rtl = l === "ar";
+    const lbl = (ar, en) => (rtl ? ar : en);
+    const num = (v) => {
+      const n = typeof v === "number" ? v : parseInt(v, 10);
+      return isFinite(n) ? n : 0;
     };
-    const allowedKeys = new Set(
-      ROLE_STAT_KEYS[role] || ROLE_STAT_KEYS["Admin"],
-    );
-    const statCards = allStatCards.filter((c) => allowedKeys.has(c.key));
+    const btxt = (ar, en) => esc((rtl ? ar || en : en || ar) || "");
+    const today = new Date().toISOString().substring(0, 10);
+    const now = new Date();
 
-    const roleColor = ROLE_COLORS[role] || "var(--gold)";
-    const roleHeader =
-      role !== "Admin" && role !== "CEO"
-        ? `
-      <div style="background:${roleColor}0d;border:1px solid ${roleColor}33;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:18px">👤</span>
-        <div>
-          <span style="color:${roleColor};font-weight:700;font-size:13px">${esc(role)}</span>
-          <span style="color:var(--text3);font-size:12px"> · ${l === "ar" ? "لوحة التحكم مخصصة لدورك" : "Dashboard customised for your role"}</span>
+    // ── Today's meetings + live/upcoming split ──────────────────────────────
+    const todays = schedule
+      .filter((s) => s.meeting_date === today && s.status !== "cancelled")
+      .sort((a, b) => (a.meeting_time || "").localeCompare(b.meeting_time || ""));
+    const toMins = (hm) => {
+      const p = String(hm || "").split(":");
+      return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+    };
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const stateOf = (s) => {
+      if (!s.meeting_time) return "upcoming";
+      const st = toMins(s.meeting_time);
+      const dur = num(s.duration_mins) || 60;
+      if (nowMins >= st && nowMins < st + dur) return "live";
+      return nowMins < st ? "upcoming" : "ended";
+    };
+    const liveCount = todays.filter((s) => stateOf(s) === "live").length;
+    const upCount = todays.filter((s) => stateOf(s) === "upcoming").length;
+    const fmtT = (hm) => {
+      if (!hm) return "—";
+      const p = String(hm).split(":");
+      let h = parseInt(p[0], 10) || 0;
+      const m = (p[1] || "00").substring(0, 2);
+      const am = h < 12;
+      h = h % 12 || 12;
+      return h + ":" + m + " " + (am ? lbl("ص", "AM") : lbl("م", "PM"));
+    };
+
+    // ── Derived data (all guarded — never "undefined") ─────────────────────
+    const openTasks = tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
+    const isOverdue = (t) => t.status === "overdue" || (t.due_date && t.due_date < today);
+    const overdueTasks = openTasks.filter(isOverdue);
+    const pendingTasks = openTasks.filter((t) => !isOverdue(t));
+    const followDecisions = decisions.filter((d) => d.status !== "implemented");
+    const pendingApprovals =
+      meetings.filter((m) => (m.minutes_status || "") === "circulated").length +
+      tasks.filter((t) => (t.review_status || "") === "pending").length;
+    const userName = App.user ? (rtl ? App.user.name_ar || App.user.name_en : App.user.name_en || App.user.name_ar) || "" : "";
+    const firstName = String(userName || "").split(" ")[0];
+
+    const fmtD = (ds) => {
+      if (!ds) return "—";
+      const d = new Date(String(ds).substring(0, 10) + "T00:00:00");
+      if (isNaN(d)) return esc(String(ds));
+      return d.toLocaleDateString(rtl ? "ar-EG" : "en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    };
+    const endT = (hm, dur) => {
+      if (!hm) return "";
+      const t = toMins(hm) + (num(dur) || 60);
+      const h = Math.floor(t / 60) % 24;
+      const m2 = t % 60;
+      return fmtT((h < 10 ? "0" + h : "" + h) + ":" + (m2 < 10 ? "0" + m2 : "" + m2));
+    };
+
+    // ── Next Meeting hero ───────────────────────────────────────────────────
+    const upcoming = schedule
+      .filter((s) => s.status !== "cancelled" && s.meeting_date && (s.meeting_date > today || (s.meeting_date === today && stateOf(s) !== "ended")))
+      .sort((a, b) => ((a.meeting_date || "") + (a.meeting_time || "")).localeCompare((b.meeting_date || "") + (b.meeting_time || "")));
+    const nm = upcoming[0] || null;
+    let heroCard = "";
+    if (nm) {
+      const checks = [nm.meeting_time, nm.platform, nm.attendees, nm.agenda_ar || nm.agenda_en, num(nm.doc_count) > 0];
+      const ready = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+      const C = 2 * Math.PI * 30;
+      const dash = (ready / 100) * C;
+      const docsNote =
+        num(nm.doc_count) > 0
+          ? num(nm.doc_count) + " " + lbl("مستند مرفق", (num(nm.doc_count) === 1 ? "document" : "documents") + " attached")
+          : lbl("لا مستندات مرفقة بعد", "No documents attached yet");
+      const heroSub = rtl ? nm.title_en : nm.title_ar;
+      const openPkg = nm.source_meeting_id
+        ? `ScheduledPanel.openWorkspace(${num(nm.source_meeting_id)})`
+        : `Panels.load('scheduled')`;
+      heroCard = `<div class="dx2-hero">
+        <div class="dx2-hero-main">
+          <span class="dx2-chip-type">📋 ${nm.meeting_type ? esc(mtLabel(nm.meeting_type, l)) : lbl("اجتماع", "Meeting")}</span>
+          <div class="dx2-hero-title">${btxt(nm.title_ar, nm.title_en)}</div>
+          ${heroSub && heroSub !== (rtl ? nm.title_ar : nm.title_en) ? `<div class="dx2-hero-sub">${esc(heroSub)}</div>` : ""}
+          <div class="dx2-hero-meta">
+            <div class="dx2-hm-row">📅 <span>${fmtD(nm.meeting_date)}</span></div>
+            <div class="dx2-hm-row">🕐 <span>${fmtT(nm.meeting_time)}${nm.meeting_time ? " – " + endT(nm.meeting_time, nm.duration_mins) : ""}</span></div>
+            ${nm.platform ? `<div class="dx2-hm-row">📡 <span>${esc(platLabel(nm.platform, l))}</span></div>` : ""}
+            ${nm.meeting_location ? `<div class="dx2-hm-row">📍 <span>${esc(nm.meeting_location)}</span></div>` : ""}
+          </div>
+          <div class="dx2-hero-btns">
+            <button class="btn-amber" onclick="${openPkg}">📦 ${lbl("فتح حزمة الاجتماع", "Open Meeting Package")}</button>
+            <button class="btn-hero-ghost" onclick="Panels.load('scheduled')">${lbl("عرض التفاصيل", "View Details")}</button>
+          </div>
         </div>
-      </div>`
-        : "";
-
-    // Trend & sub-description per metric
-    const statTrendData = (s) => ({
-      meetings:      { trend:'neu', tl: lbl('كل الاجتماعات','All sessions'), sub: lbl('انقر لعرض المحاضر','Click to view transcripts') },
-      tasks_open:    { trend: s.val > 0 ? 'warn' : 'neu', tl: s.val > 0 ? lbl(`${stats.tasks_overdue} متأخرة`,''+stats.tasks_overdue+' overdue') : lbl('لا مهام مفتوحة','No open tasks'), sub: lbl('المهام الجارية والجديدة','In-progress & new tasks') },
-      tasks_overdue: { trend: s.val > 0 ? 'down' : 'neu', tl: s.val > 0 ? lbl('تحتاج انتباهاً فورياً','Requires immediate action') : lbl('لا متأخرة ✓','None overdue ✓'), sub: lbl('المهام المتجاوزة للموعد','Past due date') },
-      tasks_done:    { trend:'up',  tl: stats.completion + '% ' + lbl('نسبة إنجاز','completion'), sub: lbl('مكتملة هذا الأسبوع','Completed tasks') },
-      decisions:     { trend:'neu', tl: lbl('قيد التنفيذ','Tracked decisions'), sub: lbl('من كل الاجتماعات','Across all meetings') },
-      schedule:      { trend:'neu', tl: lbl('الـ 30 يوم القادمة','Next 30 days'), sub: lbl('اجتماعات مجدولة','Scheduled meetings') },
-      users:         { trend:'neu', tl: lbl('أعضاء الفريق','Team members'), sub: lbl('لديهم صلاحية الوصول','With system access') },
-      completion:    { trend: s.val >= 70 ? 'up' : s.val >= 40 ? 'warn' : 'down', tl: s.val >= 70 ? lbl('أداء ممتاز','Excellent performance') : s.val >= 40 ? lbl('أداء متوسط','Moderate performance') : lbl('يحتاج متابعة','Needs attention'), sub: lbl('نسبة إنجاز المهام','Overall task completion') },
-    }[s.key] || { trend:'neu', tl: '', sub: '' });
-
-    // Executive hierarchy: the first few metrics (meetings + task pipeline)
-    // read as large "hero" KPIs; the rest are compact pills below them — per
-    // "large KPIs... not dozens of equal-sized boxes" rather than one flat
-    // grid of identical cards.
-    const heroCards = statCards.slice(0, 4);
-    const secondaryCards = statCards.slice(4);
-
-    const statsHtml = `<div class="stat-hero-grid" style="margin-bottom:${secondaryCards.length ? '12px' : '16px'}">
-        ${heroCards.map((s) => {
-          const td = statTrendData(s);
-          const trendClass = { up:'trend-up', down:'trend-down', neu:'trend-neu', warn:'trend-warn' }[td.trend];
-          const trendIcon  = { up:'↑', down:'↓', neu:'●', warn:'⚠' }[td.trend];
-          return `<div class="card stat-clickable" style="text-align:center;padding:24px 16px 20px;cursor:pointer;position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${s.color};opacity:.9;border-radius:14px 14px 0 0"></div>
-          <div style="font-size:32px;margin-bottom:10px;line-height:1">${s.icon}</div>
-          <div class="stat-hero-val" style="font-weight:800;color:${s.color};letter-spacing:-.04em;line-height:1">${s.val}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.3">${s.label}</div>
-          <div class="stat-trend ${trendClass}">${trendIcon} ${td.tl}</div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.4">${td.sub}</div>
-          <div class="stat-click-hint">${l === 'ar' ? '← اضغط للعرض' : 'click to view →'}</div>
-        </div>`;
-        }).join("")}
-      </div>
-      ${secondaryCards.length ? `<div class="stat-mini-row" style="margin-bottom:16px">
-        ${secondaryCards.map((s) => `<div class="stat-mini" onclick="Panels.load('${s.go}')" title="${esc(s.label)}">
-          <span class="stat-mini-icon">${s.icon}</span>
-          <div>
-            <div class="stat-mini-val" style="color:${s.color}">${s.val}</div>
-            <div class="stat-mini-lbl">${s.label}</div>
-          </div>
-        </div>`).join("")}
-      </div>` : ""}`;
-
-    const hasCharts = !!window.Chart;
-    const dashCfg = Dash.get();
-    const chartsGridHtml = hasCharts
-      ? `
-      <div class="grid-2" style="margin-bottom:14px">
-        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">📊 ${lbl("مسار المهام — 8 أسابيع", "Task Trend — 8 Weeks")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-tasks"></canvas></div></div>
-        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">🎙 ${lbl("نشاط الاجتماعات — 6 أشهر", "Meeting Activity — 6 Months")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-meetings"></canvas></div></div>
-        ${dashCfg.team !== false ? `<div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">👥 ${lbl("أداء الفريق", "Team Performance")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-team"></canvas></div></div>` : ""}
-        <div class="card"><div class="ct" style="margin-bottom:8px;font-size:12px">⚖️ ${lbl("حالة القرارات", "Decision Status")}</div><div style="position:relative;height:155px"><canvas id="cht-ov-decisions"></canvas></div></div>
-      </div>`
-      : "";
-
-    const upcomingHtml = `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')" title="${lbl("فتح الجدول", "Open schedule")}">
-          <div class="ct" style="margin-bottom:12px">📅 ${lbl("الاجتماعات القادمة", "Upcoming Meetings")}</div>
-          ${
-            upcoming.length
-              ? upcoming
-                  .slice(0, 5)
-                  .map(
-                    (s) => `
-            <div style="padding:8px 0;border-bottom:.5px solid var(--border2)">
-              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
-                ${s.meeting_type ? `<span class="tag tgold" style="font-size:11px;padding:2px 6px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
-              </div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? "🕐 " + esc(s.meeting_time) : ""} · ${esc(s.platform || "")}</div>
-            </div>`,
-                  )
-                  .join("")
-              : `<div style="font-size:12px;color:var(--text3)">${lbl("لا اجتماعات قادمة", "No upcoming meetings")}</div>`
-          }
-        </div>`;
-
-    // ── Today's Meetings — meetings dated today, distinct from the 30-day
-    // "Upcoming Meetings" preview.
-    const todaysMeetingsHtml = todaysMeetings.length
-      ? `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')" title="${lbl("فتح الجدول", "Open schedule")}">
-          <div class="ct" style="margin-bottom:12px">🎯 ${lbl("اجتماعات اليوم", "Today's Meetings")}</div>
-          ${todaysMeetings
-            .map(
-              (s) => `
-            <div style="padding:9px 0;border-bottom:.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-              <div>
-                <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
-                <div style="font-size:11px;color:var(--text3);margin-top:2px">🕐 ${esc(s.meeting_time || "")}${s.platform ? " · " + esc(s.platform) : ""}</div>
-              </div>
-              ${s.meeting_type ? `<span class="tag tgold" style="font-size:11px">${esc(mtLabel(s.meeting_type, l))}</span>` : ""}
-            </div>`,
-            )
-            .join("")}
-        </div>`
-      : `<div class="card" style="text-align:center;padding:22px 16px">
-          <div style="font-size:13px;color:var(--text3)">✓ ${lbl("لا اجتماعات مجدولة اليوم", "No meetings scheduled today")}</div>
-        </div>`;
-
-    // ── Pending Governance Approvals — reuses the existing /api/gov/summary
-    // endpoint (already auth-gated); shown only to roles with governance
-    // access, no backend change.
-    const canGov = ROLE_ACCESS[role] && ROLE_ACCESS[role].has("governance");
-    const govPendingRes = ((govSummary && govSummary.recentRes) || []).filter(
-      (r) => r.status === "pending",
-    );
-    const govWidgetHtml =
-      canGov && govSummary
-        ? `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('governance')" title="${lbl("فتح الحوكمة", "Open governance")}">
-          <div class="ct" style="margin-bottom:12px">🏛️ ${lbl("موافقات الحوكمة المعلقة", "Pending Governance Approvals")}</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${govPendingRes.length ? "10px" : "0"}">
-            <span style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--amber)">${govSummary.resPending || 0} ${lbl("قرار قيد الانتظار", "resolutions pending")}</span>
-            <span style="background:rgba(91,155,214,.1);border:1px solid rgba(91,155,214,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--blue)">${govSummary.pendingMinutes || 0} ${lbl("محضر قيد المراجعة", "minutes in review")}</span>
-            ${govSummary.openActions ? `<span style="background:rgba(224,90,90,.1);border:1px solid rgba(224,90,90,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--red)">${govSummary.openActions} ${lbl("إجراء متابعة مفتوح", "open follow-ups")}</span>` : ""}
-          </div>
-          ${
-            govPendingRes.length
-              ? govPendingRes
-                  .slice(0, 4)
-                  .map(
-                    (r) => `
-            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
-              <div style="font-size:12px;color:var(--text)">${esc(r.title)}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(l === "ar" ? r.meeting_title_ar : r.meeting_title_en || r.meeting_title_ar || "")}</div>
-            </div>`,
-                  )
-                  .join("")
-              : `<div style="font-size:12px;color:var(--green)">✓ ${lbl("لا قرارات معلقة", "No pending resolutions")}</div>`
-          }
-        </div>`
-        : "";
-
-    // ── Recent AI Activity — derived from already-processed meetings; a
-    // truthful stand-in for a real activity log (out of scope: no backend
-    // change / new endpoint this round).
-    const recentAi = meetings
-      .filter((m) => m.ai_summary_ar || m.ai_summary_en)
-      .slice(0, 5);
-    const aiActivityHtml = recentAi.length
-      ? `<div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('transcripts')" title="${lbl("فتح المحاضر", "Open transcripts")}">
-          <div class="ct" style="margin-bottom:12px">🤖 ${lbl("نشاط الذكاء الاصطناعي الأخير", "Recent AI Activity")}</div>
-          ${recentAi
-            .map(
-              (m) => `
-            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
-              <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? m.title_ar : m.title_en || m.title_ar)}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">✓ ${lbl("محضر بالذكاء الاصطناعي جاهز", "AI minutes generated")}${m.meeting_date ? " · " + esc(String(m.meeting_date).substring(0, 10)) : ""}</div>
-            </div>`,
-            )
-            .join("")}
-        </div>`
-      : `<div class="card" style="text-align:center;padding:22px 16px">
-          <div style="font-size:13px;color:var(--text3)">${lbl("لا نشاط ذكاء اصطناعي بعد", "No AI activity yet")}</div>
-        </div>`;
-
-    // ── Today's Executive Briefing — a scannable bullet list, not another
-    // grid of equal-sized cards, so the most time-sensitive facts read first.
-    const dueTodayTasks = tasks.filter((t) => t.due_date === today && t.status !== "done" && t.status !== "cancelled");
-    const criticalTasks = tasks.filter((t) => taskPriorityKey(t.priority) === "critical" && t.status !== "done" && t.status !== "cancelled");
-    const decisionsAwaiting = decisions.filter((d) => d.status !== "implemented");
-    // "Meetings Today" used to just dump the user onto the Schedule panel's
-    // default List view, which sorts oldest-first — with any meeting history
-    // at all, that meant landing on a months-old past meeting instead of the
-    // one the stat card was actually about. Route into the Calendar view
-    // with today pre-selected instead, so the promised meeting is what's
-    // actually shown, not buried under history.
-    const meetingsTodayClick = todaysMeetings.length
-      ? `Panels.load('schedule').then(()=>{MasterCalendar.setView('calendar');MasterCalendar.selectDay('${today}');})`
-      : `Panels.load('schedule')`;
-    const briefingItems = [
-      { icon: "📅", val: todaysMeetings.length, ar: "اجتماعات اليوم", en: "Meetings Today", onclick: meetingsTodayClick, color: "var(--gold)" },
-      { icon: "🎯", val: dueTodayTasks.length, ar: "إجراءات مستحقة اليوم", en: "Executive Actions Due Today", onclick: `Panels.load('tasks')`, color: dueTodayTasks.length ? "var(--amber)" : "var(--text3)" },
-      { icon: "🔥", val: criticalTasks.length, ar: "إجراءات حرجة", en: "Critical Actions", onclick: `Panels.load('tasks')`, color: criticalTasks.length ? "var(--red)" : "var(--text3)" },
-      ...(canGov && govSummary ? [{ icon: "🏛️", val: govSummary.pendingMinutes || 0, ar: "موافقات معلقة", en: "Pending Approvals", onclick: `Panels.load('governance')`, color: (govSummary.pendingMinutes || 0) ? "var(--blue)" : "var(--text3)" }] : []),
-      { icon: "⚖️", val: decisionsAwaiting.length, ar: "قرارات بانتظار المراجعة", en: "Decisions Awaiting Review", onclick: `Panels.load('tasks')`, color: decisionsAwaiting.length ? "var(--amber)" : "var(--text3)" },
-    ];
-    const briefingHtml = `<div class="card" style="margin-bottom:16px">
-      <div class="ct" style="margin-bottom:10px">📰 ${lbl("موجز اليوم التنفيذي", "Today's Executive Briefing")}</div>
-      <div style="display:flex;flex-direction:column">
-        ${briefingItems
-          .map(
-            (b, i) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 4px;${i > 0 ? "border-top:.5px solid var(--border2)" : ""}" onclick="${b.onclick}">
-          <span style="font-size:18px;flex-shrink:0">${b.icon}</span>
-          <span style="font-size:20px;font-weight:800;color:${b.color};min-width:28px">${b.val}</span>
-          <span style="font-size:13px;color:var(--text2);flex:1">${l === "ar" ? b.ar : b.en}</span>
-          <span style="font-size:11px;color:var(--text3)">${l === "ar" ? "←" : "→"}</span>
-        </div>`,
-          )
-          .join("")}
-      </div>
-    </div>`;
-
-    // ── Today's Timeline — meetings (timed) and today-due actions (untimed)
-    // merged into one chronological read of the day.
-    const timelineEvents = [
-      ...todaysMeetings.map((s) => ({ time: s.meeting_time || "", icon: "🎙", title: l === "ar" ? s.title_ar : s.title_en || s.title_ar, meta: s.platform || "", go: "schedule" })),
-      ...dueTodayTasks.map((t) => ({ time: "", icon: "🎯", title: l === "ar" ? t.text_ar : t.text_en || t.text_ar, meta: l === "ar" ? t.owner_name_ar || "" : t.owner_name_en || t.owner_name_ar || "", go: "tasks" })),
-    ].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
-    const todaysTimelineHtml = timelineEvents.length
-      ? `<div class="card" style="margin-bottom:16px">
-          <div class="ct" style="margin-bottom:10px">🕐 ${lbl("الجدول الزمني لليوم", "Today's Timeline")}</div>
-          <div style="display:flex;flex-direction:column;gap:2px">
-            ${timelineEvents
-              .map(
-                (e) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 4px" onclick="Panels.load('${e.go}')">
-              <span style="font-size:11px;font-weight:700;color:var(--gold);min-width:48px">${e.time ? esc(e.time) : lbl("اليوم", "Due today")}</span>
-              <span style="font-size:14px;flex-shrink:0">${e.icon}</span>
-              <span style="font-size:12.5px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title)}</span>
-              ${e.meta ? `<span style="font-size:11px;color:var(--text3);flex-shrink:0">${esc(e.meta)}</span>` : ""}
-            </div>`,
-              )
-              .join("")}
-          </div>
-        </div>`
-      : `<div class="card" style="margin-bottom:16px;text-align:center;padding:20px">
-          <div style="font-size:13px;color:var(--text3)">✓ ${lbl("لا أحداث مجدولة اليوم", "Nothing scheduled for today")}</div>
-        </div>`;
-
-    // ── Quick Actions — the fastest path into the four most common
-    // executive workflows, one click from the command center.
-    const quickActionsHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <button class="btn-gold btn-sm" onclick="Panels.load('create-meeting')">➕ ${lbl("إنشاء اجتماع", "Create Meeting")}</button>
-      <button class="btn-ghost btn-sm" onclick="Panels.load('tasks').then(()=>Modals.addTask())">➕ ${lbl("إجراء تنفيذي جديد", "New Executive Action")}</button>
-      <button class="btn-ghost btn-sm" onclick="Panels.load('ask')">✦ ${lbl("اسأل أمين", "Ask Ameen")}</button>
-      <button class="btn-ghost btn-sm" onclick="Panels.load('documents')">📄 ${lbl("توليد تقرير", "Generate Report")}</button>
-    </div>`;
-
-    // ── Meeting Calendar Preview — read-only month glance; click any day (or
-    // "Open Calendar") to jump to the full Schedule panel.
-    const calBase = new Date();
-    const calYear = calBase.getFullYear();
-    const calMonthIdx = calBase.getMonth();
-    const calStartWeekday = new Date(calYear, calMonthIdx, 1).getDay();
-    const calDaysInMonth = new Date(calYear, calMonthIdx + 1, 0).getDate();
-    const calMonthLabel = calBase.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
-    const calWeekDayNames = l === "ar" ? ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const meetingDatesThisMonth = new Set(schedule.map((s) => (s.meeting_date || "").substring(0, 10)));
-    let calPreviewCells = "";
-    for (let i = 0; i < calStartWeekday; i++) calPreviewCells += `<div class="cal-cell cal-empty"></div>`;
-    for (let d = 1; d <= calDaysInMonth; d++) {
-      const dateStr = `${calYear}-${String(calMonthIdx + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const hasMeeting = meetingDatesThisMonth.has(dateStr);
-      const isToday = dateStr === today;
-      calPreviewCells += `<div class="cal-cell ${isToday ? "cal-today" : ""}" style="min-height:36px;cursor:pointer" onclick="Panels.load('schedule')" tabindex="0" role="button" aria-label="${dateStr}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();Panels.load('schedule')}">
-        <div class="cal-daynum" style="font-size:11px">${d}</div>
-        ${hasMeeting ? `<div class="cal-dots"><div class="cal-dot" style="background:var(--gold)"></div></div>` : ""}
+        <div class="dx2-hero-side">
+          <svg width="92" height="92" viewBox="0 0 92 92" aria-hidden="true">
+            <circle cx="46" cy="46" r="30" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="7"/>
+            <circle cx="46" cy="46" r="30" fill="none" stroke="#E2B33C" stroke-width="7" stroke-linecap="round"
+              stroke-dasharray="${dash.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 46 46)"/>
+            <text x="46" y="44" text-anchor="middle" fill="#fff" font-size="15" font-weight="800">${ready}%</text>
+            <text x="46" y="58" text-anchor="middle" fill="rgba(255,255,255,.72)" font-size="8">${lbl("جاهزية الحزمة", "Package Ready")}</text>
+          </svg>
+          <div class="dx2-hero-note"><span class="dx2-dot-a"></span>${docsNote}</div>
+        </div>
+      </div>`;
+    } else {
+      heroCard = `<div class="dx2-hero dx2-hero-empty">
+        <div class="dx2-hero-title">${lbl("لا اجتماعات قادمة", "No upcoming meetings")}</div>
+        <div class="dx2-hero-sub">${lbl("قم بجدولة اجتماعك القادم للبدء", "Schedule your next meeting to get started")}</div>
+        <div class="dx2-hero-btns"><button class="btn-amber" onclick="Panels.load('create-meeting')">+ ${lbl("إنشاء اجتماع", "Create Meeting")}</button></div>
       </div>`;
     }
-    const calendarPreviewHtml = `<div class="card" style="margin-bottom:16px">
-      <div class="ch" style="margin-bottom:10px">
-        <div class="ct">📅 ${lbl("معاينة تقويم الاجتماعات", "Meeting Calendar Preview")}</div>
-        <button class="btn-ghost btn-sm" onclick="Panels.load('schedule')">${lbl("فتح التقويم ←", "Open Calendar →")}</button>
-      </div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${esc(calMonthLabel)}</div>
-      <div class="cal-grid cal-grid-head">${calWeekDayNames.map((w) => `<div class="cal-headcell" style="font-size:9.5px">${w}</div>`).join("")}</div>
-      <div class="cal-grid">${calPreviewCells}</div>
-    </div>`;
 
-    // ── Recent Reports — this browser's own Board Pack download history (no
-    // backend "reports" log exists to query against).
-    const recentReportsList = RecentReports.list();
-    const recentReportsHtml = `<div class="card" style="margin-bottom:16px">
-      <div class="ct" style="margin-bottom:10px">📦 ${lbl("التقارير الأخيرة", "Recent Reports")}</div>
-      ${
-        recentReportsList.length
-          ? recentReportsList
-              .slice(0, 5)
-              .map(
-                (r) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2)" onclick="Panels.load('history').then(()=>MeetingHistory.select(${r.meetingId}))">
-            <span style="font-size:12px;color:var(--text)">${esc(r.title)}</span>
-            <span style="font-size:11px;color:var(--text3)">${esc((r.ts || "").substring(0, 10))}</span>
-          </div>`,
-              )
-              .join("")
-          : `<div style="font-size:12px;color:var(--text3)">${lbl("لم يتم توليد تقارير بعد — نزّل حزمة مجلس من مساحة عمل أي اجتماع", "No reports generated yet — download a Board Pack from any meeting's workspace")}</div>`
-      }
-    </div>`;
-
-    // ── Notifications — personal call-outs (mine, overdue or flagged for
-    // review), distinct from the org-wide "Urgent Overdue Tasks" list below.
-    const myNotifications = App.user
-      ? tasks
-          .filter((t) => t.owner_id === App.user.id && (t.status === "overdue" || t.needs_review))
-          .slice(0, 5)
-      : [];
-    const notificationsHtml = `<div class="card" style="margin-bottom:16px">
-      <div class="ct" style="margin-bottom:10px">🔔 ${lbl("الإشعارات", "Notifications")}</div>
-      ${
-        myNotifications.length
-          ? myNotifications
-              .map(
-                (t) => `<div class="stat-clickable" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border2)" onclick="Panels.load('tasks')">
-            <span style="font-size:13px">${t.status === "overdue" ? "⚠️" : "⚑"}</span>
-            <span style="font-size:12px;color:var(--text);flex:1">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
-            <span style="font-size:11px;color:${t.status === "overdue" ? "var(--red)" : "var(--amber)"}">${t.status === "overdue" ? lbl("متأخرة", "Overdue") : lbl("مراجعة", "Review")}</span>
-          </div>`,
-              )
-              .join("")
-          : `<div style="font-size:12px;color:var(--green)">✓ ${lbl("لا إشعارات جديدة", "No new notifications")}</div>`
-      }
-    </div>`;
-
-    const overdueList = tasks.filter((t) => t.status === "overdue");
-    const overdueHtml = overdueList.length
-      ? `
-      <div class="card stat-clickable" style="margin-top:14px;cursor:pointer" onclick="Panels.load('tasks')" title="${lbl("فتح المهام", "Open tasks")}">
-        <div class="ct" style="color:var(--red);margin-bottom:10px">⚠ ${lbl("المهام المتأخرة الفورية", "Urgent Overdue Tasks")}</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px">
-          ${overdueList
-            .slice(0, 6)
-            .map(
-              (t) => `
-            <div style="background:var(--navy3);border-radius:8px;padding:10px;border:1px solid rgba(224,90,90,.2)">
-              <div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
-              <div style="display:flex;gap:5px;flex-wrap:wrap">
-                ${t.owner_name_ar ? `<span class="tag tgold" style="font-size:11px">${esc(l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar)}</span>` : ""}
-                ${t.due_date ? `<span class="tag tr" style="font-size:11px">${esc(t.due_date)}</span>` : ""}
-              </div>
-            </div>`,
-            )
-            .join("")}
-        </div>
-      </div>`
-      : "";
-
-    // ── Board Member: governance/resolutions-focused section ──────────────────
-    const boardGovHtml =
-      role === "Board Member"
-        ? (() => {
-            const recentDec = decisions.slice(0, 8);
-            const openDec = decisions.filter(
-              (d) => d.status !== "implemented",
-            ).length;
-            return `<div class="card" style="margin-top:14px">
-        <div class="ct" style="margin-bottom:12px;color:var(--blue)">⚖️ ${lbl("قرارات مجلس الإدارة", "Board Resolutions")}</div>
-        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-          <span style="background:rgba(91,155,214,.1);border:1px solid rgba(91,155,214,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--blue)">
-            ${decisions.length} ${lbl("قرار إجمالي", "total decisions")}
-          </span>
-          <span style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--amber)">
-            ${openDec} ${lbl("قيد التنفيذ", "pending implementation")}
-          </span>
-        </div>
-        ${
-          recentDec.length
-            ? recentDec
-                .map(
-                  (d) => `
-          <div style="padding:9px 0;border-bottom:.5px solid var(--border2);display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:11px;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap;background:${d.status === "implemented" ? "rgba(46,204,113,.15)" : "rgba(255,193,7,.15)"};color:${d.status === "implemented" ? "var(--green)" : "var(--amber)"}">
-              ${esc(lbl(d.status === "implemented" ? "منفَّذ" : "قيد التنفيذ", d.status === "implemented" ? "Implemented" : "Pending"))}
-            </span>
-            <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? d.text_ar : d.text_en || d.text_ar)}</div>
-          </div>`,
-                )
-                .join("")
-            : `<div style="font-size:12px;color:var(--text3)">${lbl("لا قرارات مسجلة", "No decisions recorded yet")}</div>`
+    // ── Last Meeting card ───────────────────────────────────────────────────
+    const past = meetings
+      .filter((m) => (m.meeting_date || m.created_at || "").substring(0, 10) <= today)
+      .sort((a, b) => String(b.meeting_date || b.created_at || "").localeCompare(String(a.meeting_date || a.created_at || "")));
+    const lm = past.find((m) => m.status === "completed" || m.minutes_status === "approved" || m.minutes_status === "final_approved") || past[0] || null;
+    let lastCard;
+    if (lm) {
+      const pj = (s) => {
+        try {
+          const a = JSON.parse(s || "[]");
+          return Array.isArray(a) ? a.length : 0;
+        } catch {
+          return 0;
         }
-        ${decisions.length > 8 ? `<div style="text-align:center;margin-top:10px"><button class="btn-ghost btn-sm" onclick="Panels.load('governance')" style="font-size:11px">${lbl("عرض كل القرارات", "View all decisions")}</button></div>` : ""}
-      </div>`;
-          })()
-        : "";
-
-    // ── Committee Member: scoped task + schedule section ──────────────────────
-    const committeeHtml =
-      role === "Committee Member"
-        ? (() => {
-            const myTasks = tasks.filter(
-              (t) => t.owner_id === (App.user && App.user.id),
-            );
-            const myOpen = myTasks.filter((t) => t.status !== "done");
-            const myOverdue = myTasks.filter((t) => t.status === "overdue");
-            const upcomingCom = upcoming.slice(0, 4);
-            return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
-        <div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('tasks')">
-          <div class="ct" style="margin-bottom:12px;color:var(--green)">✅ ${lbl("مهامي", "My Tasks")}</div>
-          ${
-            myOpen.length
-              ? myOpen
-                  .slice(0, 5)
-                  .map(
-                    (t) => `
-            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
-              <div style="font-size:12px;color:var(--text)">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</div>
-              <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
-                ${t.due_date ? `<span class="tag ${t.status === "overdue" ? "tr" : "ta"}" style="font-size:11px">${esc(t.due_date)}</span>` : ""}
-                <span class="tag" style="font-size:11px;background:var(--navy4)">${esc(t.status)}</span>
-              </div>
-            </div>`,
-                  )
-                  .join("")
-              : `<div style="font-size:12px;color:var(--green)">✓ ${lbl("كل المهام مكتملة", "All tasks complete")}</div>`
-          }
-          ${myOverdue.length ? `<div style="margin-top:8px;font-size:11px;color:var(--red)">⚠ ${myOverdue.length} ${lbl("مهمة متأخرة", "overdue")}</div>` : ""}
-        </div>
-        <div class="card stat-clickable" style="cursor:pointer" onclick="Panels.load('schedule')">
-          <div class="ct" style="margin-bottom:12px;color:var(--gold)">📅 ${lbl("الاجتماعات القادمة", "Upcoming Meetings")}</div>
-          ${
-            upcomingCom.length
-              ? upcomingCom
-                  .map(
-                    (s) => `
-            <div style="padding:7px 0;border-bottom:.5px solid var(--border2)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</div>
-              <div style="font-size:11px;color:var(--text3)">📅 ${esc(s.meeting_date || "")} ${s.meeting_time ? "🕐 " + esc(s.meeting_time) : ""}</div>
-            </div>`,
-                  )
-                  .join("")
-              : `<div style="font-size:12px;color:var(--text3)">${lbl("لا اجتماعات قادمة", "No upcoming meetings")}</div>`
-          }
-        </div>
-      </div>`;
-          })()
-        : "";
-
-    const dash = Dash.get();
-    const sec = (k, html) => (dash[k] === false ? "" : html);
-    const showCharts = hasCharts && ROLE_ACCESS[role] && ROLE_ACCESS[role].has("analytics");
-
-    // ── Executive Dashboard Intelligence — meeting completion rate,
-    // department performance, at-risk flags, and rules-based insights /
-    // recommendations, all from GET /api/dashboard/intelligence (reports.view
-    // gated, so this whole block is simply absent for roles without it).
-    const intelHtml = dashIntel ? (() => {
-      const pctBar = (pct, accent) => `<div style="height:6px;background:var(--navy4);border-radius:4px;overflow:hidden;margin-top:5px"><div style="height:100%;border-radius:4px;background:${accent};width:${pct}%"></div></div>`;
-      const deptRows = (dashIntel.department_performance || []).slice(0, 6).map((d) => `
-        <div style="margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text)">
-            <span style="font-weight:600">${esc(d.department)}</span>
-            <span style="color:var(--text3)">${d.done}/${d.total} · ${d.pct}%</span>
-          </div>
-          ${pctBar(d.pct, d.overdue > 0 ? "var(--red)" : "var(--gold)")}
-        </div>`).join("") || `<div class="es" style="padding:16px;font-size:12px">${lbl("لا توجد بيانات أقسام بعد", "No department data yet")}</div>`;
-
-      const deadlineRows = (dashIntel.upcoming_deadlines?.tasks || []).slice(0, 5).map((t) => `
-        <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
-          <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? t.text_ar : t.text_en || t.text_ar)}</span>
-          <span style="color:var(--text3);flex-shrink:0">${esc(t.due_date)}</span>
-        </div>`).join("") || `<div style="font-size:12px;color:var(--text3);padding:8px 0">${lbl("لا مواعيد نهائية قريبة", "No deadlines coming up")}</div>`;
-
-      const blockedRows = (dashIntel.blocked_actions || []).slice(0, 5).map((b) => `
-        <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border3);font-size:12px">
-          <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l === "ar" ? b.text_ar : b.text_en || b.text_ar)}</span>
-          <span class="tag" style="background:rgba(224,160,48,.15);color:#e0a030;font-size:10.5px;flex-shrink:0">⛔ ${esc(b.owner_name_ar ? (l === "ar" ? b.owner_name_ar : b.owner_name_en || b.owner_name_ar) : "")}</span>
-        </div>`).join("") || `<div style="font-size:12px;color:var(--text3);padding:8px 0">${lbl("لا إجراءات معطّلة", "No blocked actions")}</div>`;
-
-      const insightRows = (dashIntel.insights || []).map((i) => `<li style="margin-bottom:6px;font-size:12.5px;color:var(--text)">${esc(l === "ar" ? i.ar : i.en)}</li>`).join("");
-      const recRows = (dashIntel.recommendations || []).map((r) => `<li style="margin-bottom:6px;font-size:12.5px;color:var(--text)">${esc(l === "ar" ? r.ar : r.en)}</li>`).join("");
-
-      return `<div style="margin-bottom:16px">
-        ${_secHdr("🧠", "ذكاء لوحة التحكم التنفيذية", "Executive Dashboard Intelligence", "", lbl("مبنية بالكامل من بيانات حية", "Built entirely from live data"))}
-        <div class="grid-2" style="gap:14px;margin-bottom:14px">
-          <div class="card">
-            <div class="ch"><div class="ct">📁 ${lbl("معدل إنجاز الاجتماعات", "Meeting Completion Rate")}</div></div>
-            <div style="font-size:28px;font-weight:800;color:var(--gold)">${dashIntel.meeting_completion_rate}%</div>
-            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${dashIntel.meetings_processed}/${dashIntel.meetings_total} ${lbl("اجتماعاً تمت معالجتها", "meetings processed")}</div>
-          </div>
-          <div class="card">
-            <div class="ch"><div class="ct">🏢 ${lbl("نظرة عامة على الأقسام", "Department Performance")}</div></div>
-            ${deptRows}
-          </div>
-          <div class="card">
-            <div class="ch"><div class="ct">📅 ${lbl("مواعيد نهائية قريبة", "Upcoming Deadlines")}</div><div class="ctsub">${lbl("خلال 7 أيام", "Within 7 days")}</div></div>
-            ${deadlineRows}
-          </div>
-          <div class="card">
-            <div class="ch"><div class="ct">⛔ ${lbl("إجراءات معطّلة", "Blocked Actions")}</div></div>
-            ${blockedRows}
-          </div>
-        </div>
-        <div class="grid-2" style="gap:14px">
-          <div class="card">
-            <div class="ch"><div class="ct">💡 ${lbl("رؤى تنفيذية", "Executive Insights")}</div></div>
-            ${insightRows ? `<ul style="margin:0;padding-inline-start:18px">${insightRows}</ul>` : `<div style="font-size:12px;color:var(--text3)">${lbl("لا رؤى إضافية حالياً", "No additional insights right now")}</div>`}
-          </div>
-          <div class="card">
-            <div class="ch"><div class="ct">✅ ${lbl("توصيات", "Recommendations")}</div></div>
-            ${recRows ? `<ul style="margin:0;padding-inline-start:18px">${recRows}</ul>` : ""}
-          </div>
-        </div>
-      </div>`;
-    })() : "";
-
-    body.innerHTML = `
-      ${greetingHtml}
-      ${roleHeader}
-      ${briefingHtml}
-      ${todaysTimelineHtml}
-      ${quickActionsHtml}
-      ${Dash.bar(l)}
-      ${sec("intel", intelHtml)}
-      ${sec("stats", `<div style="margin-bottom:14px"><div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-inline-start:2px">— ${lbl('مؤشرات الأداء الرئيسية','Key Performance Indicators')} —</div>${statsHtml}</div>`)}
-      <div class="grid-2" style="margin-bottom:16px">
-        ${calendarPreviewHtml}
-        ${todaysMeetingsHtml}
-      </div>
-      <div style="margin-bottom:16px">${canGov && govSummary ? `<div class="grid-2">${aiActivityHtml}${govWidgetHtml}</div>` : aiActivityHtml}</div>
-      <div class="grid-2" style="margin-bottom:16px">
-        ${recentReportsHtml}
-        ${notificationsHtml}
-      </div>
-      ${showCharts ? sec("charts", `<div>${_secHdr('📈','الاتجاهات والرسوم البيانية','Trends & Charts','',lbl('بيانات حية من الاجتماعات المسجلة','Live data from recorded sessions'))}${chartsGridHtml}</div>`) : ""}
-      ${sec("upcoming", `<div style="margin-bottom:14px">${_secHdr('📅','الاجتماعات القادمة','Upcoming Meetings','',lbl('انقر للذهاب إلى الجدول','Click to open full schedule'))}${upcomingHtml}</div>`)}
-      ${overdueHtml ? `<div>${_secHdr('⚠','المهام تحتاج انتباهاً','Needs Immediate Attention','','')}</div>` : ''}
-      ${sec("overdue", overdueHtml)}
-      ${boardGovHtml}
-      ${committeeHtml}`;
-
-    if (showCharts) {
-      const base = _chartBase(l);
-      const tw = analytics.tasksByWeek || [];
-      Charts.render("cht-ov-tasks", {
-        type: "bar",
-        data: {
-          labels: tw.map((r) => _weekLabel(r.week_start, l)),
-          datasets: [
-            {
-              label: lbl("مكتملة", "Done"),
-              data: tw.map((r) => r.done),
-              backgroundColor: "#2ECC8A66",
-              borderColor: "#2ECC8A",
-              borderWidth: 1.5,
-            },
-            {
-              label: lbl("مفتوحة", "Open"),
-              data: tw.map((r) => r.open),
-              backgroundColor: "#EFA82766",
-              borderColor: "#EFA827",
-              borderWidth: 1.5,
-            },
-          ],
-        },
-        options: {
-          ...base,
-          plugins: {
-            ...base.plugins,
-            legend: { ...base.plugins.legend, display: true },
-          },
-          scales: { ...base.scales, y: { ...base.scales.y, stacked: false } },
-        },
-      });
-
-      const mm = analytics.meetingsByMonth || [];
-      Charts.render("cht-ov-meetings", {
-        type: "bar",
-        data: {
-          labels: mm.map((r) => _monthLabel(r.month, l)),
-          datasets: [
-            {
-              label: lbl("اجتماعات", "Meetings"),
-              data: mm.map((r) => r.count),
-              backgroundColor: "#C9A84C66",
-              borderColor: "#C9A84C",
-              borderWidth: 1.5,
-            },
-          ],
-        },
-        options: {
-          ...base,
-          plugins: { ...base.plugins, legend: { display: false } },
-          scales: {
-            ...base.scales,
-            y: {
-              ...base.scales.y,
-              ticks: { ...base.scales.y.ticks, stepSize: 1 },
-            },
-          },
-        },
-      });
-
-      const mc = analytics.memberCompletion || [];
-      Charts.render("cht-ov-team", {
-        type: "bar",
-        data: {
-          labels: mc.map((r) =>
-            l === "ar" ? r.owner_name_ar : r.owner_name_en || r.owner_name_ar,
-          ),
-          datasets: [
-            {
-              label: lbl("الإنجاز %", "Completion %"),
-              data: mc.map((r) => r.pct),
-              backgroundColor: mc.map((r) =>
-                r.pct === 100
-                  ? "#2ECC8A66"
-                  : r.pct > 50
-                    ? "#C9A84C66"
-                    : "#E05A5A66",
-              ),
-              borderColor: mc.map((r) =>
-                r.pct === 100 ? "#2ECC8A" : r.pct > 50 ? "#C9A84C" : "#E05A5A",
-              ),
-              borderWidth: 1.5,
-            },
-          ],
-        },
-        options: {
-          ...base,
-          indexAxis: "y",
-          plugins: { ...base.plugins, legend: { display: false } },
-          scales: {
-            x: { ...base.scales.x, max: 100 },
-            y: {
-              ticks: { color: "#808090", font: { size: 9 } },
-              grid: { color: "rgba(255,255,255,0.06)" },
-            },
-          },
-        },
-      });
-
-      const ds = analytics.decisionStatus || [];
-      const dsColorMap = {
-        active: "#EFA827",
-        implemented: "#2ECC8A",
-        pending: "#5B9BD6",
       };
-      const dsLabelMap = {
-        active: lbl("نشط", "Active"),
-        implemented: lbl("منفَّذ", "Implemented"),
-        pending: lbl("معلق", "Pending"),
-      };
-      Charts.render("cht-ov-decisions", {
-        type: "doughnut",
-        data: {
-          labels: ds.map((r) => dsLabelMap[r.status] || esc(r.status)),
-          datasets: [
-            {
-              data: ds.map((r) => r.count),
-              backgroundColor: ds.map(
-                (r) => (dsColorMap[r.status] || "#888") + "bb",
-              ),
-              borderColor: ds.map((r) => dsColorMap[r.status] || "#888"),
-              borderWidth: 2,
-            },
-          ],
-        },
-        options: _chartPie(),
-      });
+      const decN = decisions.filter((d) => num(d.meeting_id) === num(lm.id)).length || pj(lm.ai_decisions);
+      const taskN = tasks.filter((t) => num(t.meeting_id || t.source_meeting_id) === num(lm.id)).length || pj(lm.ai_tasks);
+      const done = lm.status === "completed" || lm.minutes_status === "approved" || lm.minutes_status === "final_approved";
+      const stChip = done
+        ? `<span class="dx2-pill dx2-pill-green">✓ ${lbl("مكتمل", "Completed")}</span>`
+        : `<span class="dx2-pill dx2-pill-gray">${lbl("مسودة", "Draft")}</span>`;
+      const minutesChip =
+        lm.minutes_status === "approved" || lm.minutes_status === "final_approved"
+          ? `<span class="dx2-pill dx2-pill-gold">${lbl("المحضر موقّع", "Minutes Signed")}</span>`
+          : lm.minutes_status === "circulated"
+            ? `<span class="dx2-pill dx2-pill-amber">${lbl("المحضر قيد الاعتماد", "Minutes in Approval")}</span>`
+            : `<span class="dx2-pill dx2-pill-gray">${lbl("المحضر مسودة", "Minutes Draft")}</span>`;
+      const summary = btxt(lm.ai_summary_ar, lm.ai_summary_en);
+      const durMin = num(lm.duration) > 0 ? Math.round(num(lm.duration) / 60) : 0;
+      lastCard = `<div class="dx2-card dx2-last">
+        <div class="dx2-card-h"><span class="dx2-card-t">${lbl("آخر اجتماع", "Last Meeting")}</span>${stChip}</div>
+        <div class="dx2-last-title" role="button" tabindex="0" onclick="WorkspacePanel.open(${num(lm.id)})" onkeydown="if(event.key==='Enter')WorkspacePanel.open(${num(lm.id)})">${btxt(lm.title_ar, lm.title_en)}</div>
+        <div class="dx2-last-meta">📅 ${fmtD((lm.meeting_date || lm.created_at || "").substring(0, 10))}</div>
+        <div class="dx2-last-meta">${minutesChip}</div>
+        ${summary ? `<div class="dx2-last-sum">${summary.length > 200 ? summary.substring(0, 200) + "…" : summary}</div>` : ""}
+        <div class="dx2-stats">
+          <div class="dx2-stat"><div class="dx2-stat-v">${decN}</div><div class="dx2-stat-l">${lbl("قرارات", "Decisions")}</div></div>
+          <div class="dx2-stat"><div class="dx2-stat-v">${taskN}</div><div class="dx2-stat-l">${lbl("مهام أُنشئت", "Tasks Created")}</div></div>
+          <div class="dx2-stat"><div class="dx2-stat-v">${durMin ? durMin + lbl(" د", "m") : "—"}</div><div class="dx2-stat-l">${lbl("المدة", "Duration")}</div></div>
+        </div>
+        <button class="btn-gold" style="width:100%" onclick="WorkspacePanel.open(${num(lm.id)})">${lbl("عرض التفاصيل", "View Details")}</button>
+      </div>`;
+    } else {
+      lastCard = `<div class="dx2-card"><div class="dx2-card-h"><span class="dx2-card-t">${lbl("آخر اجتماع", "Last Meeting")}</span></div>
+        <div class="dx-empty"><div class="ic">🗂️</div>${lbl("لا اجتماعات سابقة بعد", "No past meetings yet")}</div></div>`;
     }
+
+    // ── Ask Ameen card ──────────────────────────────────────────────────────
+    const chip = (ico, ar, en, qAr, qEn) =>
+      `<button class="dx2-qc" data-q="${esc(rtl ? qAr : qEn)}" onclick="DashAsk.quick(this)">${ico} ${lbl(ar, en)}</button>`;
+    const askCard = `<div class="dx2-ask">
+      <div class="dx2-ask-h"><span class="dx2-ask-logo">✦</span><div><div class="dx2-ask-t">${lbl("اسأل أمين", "Ask Ameen")}</div><div class="dx2-ask-s">${lbl("المساعد الذكي", "AI Assistant")}</div></div></div>
+      <div class="dx2-ask-greet">${lbl("مرحباً", "Hello")}${firstName ? " " + esc(firstName) : ""}،<br>${lbl("كيف يمكنني مساعدتك اليوم؟", "How can I help you today?")}</div>
+      <div class="dx2-ask-sub">${lbl("أنا هنا للمساعدة في اجتماعاتك وقراراتك ومهامك.", "I'm here to help with your meetings, decisions and tasks.")}</div>
+      <div class="dx2-ask-in">
+        <input id="dx2-ask-q" type="text" placeholder="${lbl("اسأل أي شيء...", "Ask anything...")}" onkeydown="if(event.key==='Enter')DashAsk.go()"/>
+        <button onclick="DashAsk.go()" aria-label="${lbl("إرسال", "Send")}">${rtl ? "◀" : "▶"}</button>
+      </div>
+      <div class="dx2-ask-chips">
+        ${chip("🔔", "صياغة تذكير", "Draft Reminder", "صِغ رسالة تذكير للمهام المتأخرة", "Draft a reminder for the overdue tasks")}
+        ${chip("📝", "تلخيص اجتماع", "Summarize Meeting", "لخص آخر اجتماع", "Summarize the last meeting")}
+        ${chip("⚖️", "إيجاد قرار", "Find Decision", "أرني القرارات المعلقة", "Show me the pending decisions")}
+        ${chip("📈", "توليد تقرير", "Generate Report", "أنشئ ملخصاً تنفيذياً لهذا الأسبوع", "Generate an executive summary for this week")}
+      </div>
+    </div>`;
+
+    // ── AI Timeline (real activity feed) ────────────────────────────────────
+    const acts = (activityResp && Array.isArray(activityResp.activity) ? activityResp.activity : []).slice(0, 8);
+    const yday = new Date(now.getTime() - 86400000).toISOString().substring(0, 10);
+    const dayLbl = (ds) => {
+      const d10 = (ds || "").substring(0, 10);
+      if (d10 === today) return lbl("اليوم", "Today");
+      if (d10 === yday) return lbl("أمس", "Yesterday");
+      return d10 ? fmtD(d10) : "—";
+    };
+    let lastDay = null;
+    const tlRows = acts
+      .map((a) => {
+        const dl = dayLbl(a.created_at);
+        const hdr = dl !== lastDay ? `<div class="dx2-tl-day">${dl}</div>` : "";
+        lastDay = dl;
+        const tm = fmtT((a.created_at || "").substring(11, 16));
+        return (
+          hdr +
+          `<div class="dx2-tl-row"><span class="dx2-tl-time">${tm}</span><span class="dx2-tl-dot"></span>
+          <div class="dx2-tl-body"><div class="dx2-tl-t">${btxt(a.title_ar, a.title_en)}</div>
+          ${a.body_ar || a.body_en ? `<div class="dx2-tl-s">${btxt(a.body_ar, a.body_en)}</div>` : ""}</div></div>`
+        );
+      })
+      .join("");
+    const tlCard = `<div class="dx2-card">
+      <div class="dx2-card-h"><span class="dx2-card-t">${lbl("سجل النشاط", "Activity Timeline")}</span>
+        ${(ROLE_ACCESS[App.systemRole] || ROLE_ACCESS["Employee"]).has("activity") ? `<button class="dx-link" onclick="Panels.load('activity')">${lbl("عرض الكل", "View All")}</button>` : ""}</div>
+      <div class="dx2-tl">${tlRows || `<div class="dx-empty"><div class="ic">🕐</div>${lbl("لا نشاط حديث", "No recent activity")}</div>`}</div>
+    </div>`;
+
+    // ── Tasks & Follow-up columns ───────────────────────────────────────────
+    const av = (nAr, nEn) => {
+      const nm2 = (rtl ? nAr || nEn : nEn || nAr) || "";
+      const ini = String(nm2)
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w[0] || "")
+        .join("");
+      return ini ? `<span class="dx2-av" title="${esc(nm2)}">${esc(ini)}</span>` : "";
+    };
+    const relDue = (t) => {
+      if (!t.due_date) return "";
+      const dd = new Date(t.due_date + "T00:00:00");
+      const diff = Math.round((dd - new Date(today + "T00:00:00")) / 86400000);
+      if (!isFinite(diff)) return "";
+      if (diff < 0) return `<span class="dx-chip dx-red">${rtl ? "منذ " + -diff + " يوم" : -diff + "d late"}</span>`;
+      if (diff === 0) return `<span class="dx-chip dx-red">${lbl("اليوم", "Today")}</span>`;
+      if (diff === 1) return `<span class="dx-chip dx-amber">${lbl("غداً", "Tomorrow")}</span>`;
+      return `<span class="dx-chip dx-gray">${rtl ? "خلال " + diff + " يوم" : "in " + diff + "d"}</span>`;
+    };
+    const taskRow = (t) => `<div class="dx2-item" role="button" tabindex="0" onclick="Panels.load('tasks')" onkeydown="if(event.key==='Enter')Panels.load('tasks')">
+      <div class="dx2-item-main"><div class="dx2-item-t">${btxt(t.text_ar, t.text_en)}</div>
+        <div class="dx2-item-s">${btxt(t.owner_name_ar, t.owner_name_en)}</div></div>
+      ${relDue(t)}${av(t.owner_name_ar, t.owner_name_en)}
+    </div>`;
+    const decRow = (d) => `<div class="dx2-item" role="button" tabindex="0" onclick="Panels.load('tasks')" onkeydown="if(event.key==='Enter')Panels.load('tasks')">
+      <div class="dx2-item-main"><div class="dx2-item-t">${btxt(d.text_ar, d.text_en)}</div>
+        <div class="dx2-item-s">${[btxt(d.meeting_title_ar, d.meeting_title_en), (d.created_at || "").substring(0, 10)].filter(Boolean).join(" · ")}</div></div>
+    </div>`;
+    const arrow = rtl ? "←" : "→";
+    const col = (icoCls, ico, title, count, rows, moreLbl, go) => `<div class="dx2-card dx2-fcol">
+      <div class="dx2-fcol-h"><span class="dx2-ico ${icoCls}">${ico}</span><span class="dx2-card-t">${title}</span><span class="dx2-count">${count}</span></div>
+      <div class="dx2-fcol-list">${rows || `<div class="dx-empty"><div class="ic">✅</div>${lbl("لا عناصر", "Nothing here")}</div>`}</div>
+      <button class="dx2-more" onclick="Panels.load('${go}')">${moreLbl} ${arrow}</button>
+    </div>`;
+
+    // ── Smart Alerts (only real, data-backed alerts) ────────────────────────
+    const alerts = [];
+    if (overdueTasks.length)
+      alerts.push({
+        ico: "🚩",
+        cls: "dx2-al-red",
+        t: lbl("تأخير في المهام", "Overdue Tasks"),
+        s: rtl ? overdueTasks.length + " مهام متأخرة تتطلب المتابعة" : overdueTasks.length + " overdue tasks need follow-up",
+        a: lbl("راجع الآن", "Review Now"),
+        go: "tasks",
+      });
+    if (pendingApprovals)
+      alerts.push({
+        ico: "🗂️",
+        cls: "dx2-al-amber",
+        t: lbl("موافقات معلّقة", "Pending Approvals"),
+        s: rtl ? pendingApprovals + " عنصر بانتظار المراجعة" : pendingApprovals + " items awaiting review",
+        a: lbl("عرض", "View"),
+        go: "transcripts",
+      });
+    if (nm && num(nm.doc_count) === 0)
+      alerts.push({
+        ico: "📦",
+        cls: "dx2-al-blue",
+        t: lbl("حزمة الاجتماع غير مكتملة", "Meeting Package Incomplete"),
+        s: lbl("لا مستندات مرفقة للاجتماع القادم", "No documents attached to the next meeting"),
+        a: lbl("أكمل الآن", "Complete Now"),
+        go: "scheduled",
+      });
+    if (todays.length)
+      alerts.push({
+        ico: "📅",
+        cls: "dx2-al-green",
+        t: lbl("اجتماعات اليوم", "Today's Meetings"),
+        s: rtl ? todays.length + " اجتماع مجدول اليوم (" + liveCount + " مباشر)" : todays.length + " scheduled today (" + liveCount + " live)",
+        a: lbl("عرض الجدول", "View Schedule"),
+        go: "schedule",
+      });
+    const alertsHtml = alerts
+      .slice(0, 4)
+      .map(
+        (a) => `<div class="dx2-alert ${a.cls}">
+        <div class="dx2-alert-h"><span class="dx2-alert-ico">${a.ico}</span><span class="dx2-alert-t">${a.t}</span></div>
+        <div class="dx2-alert-s">${a.s}</div>
+        <button class="dx-link" onclick="Panels.load('${a.go}')">${a.a}</button>
+      </div>`,
+      )
+      .join("");
+
+    // ── Live KPI bar ────────────────────────────────────────────────────────
+    const in7d = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+    const meetingsThisWeek = schedule.filter(s => s.status !== 'cancelled' && s.meeting_date && s.meeting_date >= today && s.meeting_date <= in7d).length;
+    const kpiBar = (ico, val, ar, en, accent, onclick) =>
+      `<div onclick="${onclick}" style="flex:1;min-width:110px;cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:12px 8px;background:var(--navy3);border-radius:10px;border:1px solid var(--border2);gap:4px;transition:.15s" onmouseover="this.style.borderColor=\'${accent}\'" onmouseout="this.style.borderColor=\'var(--border2)\'">
+        <div style="font-size:20px;line-height:1">${ico}</div>
+        <div style="font-size:22px;font-weight:800;color:${accent};line-height:1">${val}</div>
+        <div style="font-size:11px;color:var(--text3);text-align:center">${lbl(ar, en)}</div>
+      </div>`;
+    const kpiBarHtml = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+      ${kpiBar("📅", meetingsThisWeek, "اجتماعات هذا الأسبوع", "This Week's Meetings", "var(--gold)", "Panels.load('schedule')")}
+      ${kpiBar("⚠️", overdueTasks.length, "مهام متأخرة", "Overdue Tasks", overdueTasks.length > 0 ? "var(--red)" : "var(--text3)", "Panels.load('tasks')")}
+      ${kpiBar("🔔", pendingApprovals, "بانتظار الاعتماد", "Pending Approvals", pendingApprovals > 0 ? "var(--amber)" : "var(--text3)", "Panels.load('transcripts')")}
+      ${kpiBar("✅", followDecisions.length, "قرارات تنتظر المتابعة", "Decisions Needing Follow-up", followDecisions.length > 0 ? "#a78bfa" : "var(--text3)", "Panels.load('governance')")}
+    </div>`;
+
+    body.innerHTML = `<div class="dashx dx2">
+      <div class="dx2-cols">
+        <div class="dx2-main">
+          ${kpiBarHtml}
+          <div class="dx2-sec-t" style="display:flex;justify-content:space-between;align-items:center">${lbl("الاجتماع القادم", "Next Meeting")}<button class="btn-amber" style="font-size:12px;padding:6px 14px" onclick="Panels.load('create-meeting')">+ ${lbl("إنشاء اجتماع", "Create Meeting")}</button></div>
+          <div class="dx2-toprow">${heroCard}${lastCard}</div>
+          <div class="dx2-sec-t">${lbl("المهام والمتابعة", "Tasks & Follow-up")}</div>
+          <div class="dx2-3col">
+            ${col("dx2-i-red", "⏰", lbl("مهام متأخرة", "Overdue Tasks"), overdueTasks.length, overdueTasks.slice(0, 3).map(taskRow).join(""), lbl("عرض كل المتأخرة", "View All Overdue"), "tasks")}
+            ${col("dx2-i-amber", "📋", lbl("مهام معلّقة", "Pending Tasks"), pendingTasks.length, pendingTasks.slice(0, 3).map(taskRow).join(""), lbl("عرض كل المعلّقة", "View All Pending"), "tasks")}
+            ${col("dx2-i-purple", "⚖️", lbl("قرارات تنتظر المتابعة", "Decisions Awaiting Follow-up"), followDecisions.length, followDecisions.slice(0, 3).map(decRow).join(""), lbl("عرض كل القرارات", "View All Decisions"), "tasks")}
+          </div>
+          ${alertsHtml ? `<div class="dx2-sec-t">${lbl("تنبيهات ذكية من أمين", "Smart Alerts from Ameen")}</div><div class="dx2-alerts">${alertsHtml}</div>` : ""}
+        </div>
+        <div class="dx2-side">${askCard}${tlCard}</div>
+      </div>
+    </div>`;
   } catch (e) {
-    body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
+    body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
   }
 }
+
+// ══ Dashboard → Ask Ameen hand-off ══════════════════════════════════════════════
+const DashAsk = {
+  _send(q) {
+    Panels.load("ask");
+    if (!q) return;
+    setTimeout(() => {
+      const ci = document.getElementById("ci");
+      if (ci) {
+        ci.value = q;
+        Chat.send();
+      }
+    }, 150);
+  },
+  go() {
+    const inp = document.getElementById("dx2-ask-q");
+    this._send(((inp && inp.value) || "").trim());
+  },
+  quick(btn) {
+    this._send(btn.getAttribute("data-q") || "");
+  },
+};
 
 // ══ Dashboard Customizer (persists which widgets are visible) ═══════════════════
 const Dash = {
@@ -10736,6 +10965,7 @@ const AdminPanel = {
       if (this._tab === "users") await this.renderUsersTab(body);
       else if (this._tab === "matrix") await this.renderMatrixTab(body);
       else if (this._tab === "audit") await this.renderAuditTab(body);
+      else if (this._tab === "org") await this.renderOrgTab(body);
     } catch (e) {
       body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
     }
@@ -11009,6 +11239,57 @@ const AdminPanel = {
   },
 
   // ── Tab 3: Audit Log ────────────────────────────────────────────────────
+  async renderOrgTab(body) {
+    const l = App.lang;
+    let s = {};
+    try { s = await api('/api/settings/org'); } catch(e) { /* non-admin fallback */ }
+    const fi = (id, lbl, val='', ph='') => `<div class="frow"><div class="fl" style="font-size:11.5px">${lbl}</div><input class="fi" id="orgs-${id}" value="${esc(val)}" placeholder="${ph}" dir="${id.endsWith('en') ? 'ltr' : 'auto'}" style="${id.endsWith('en') ? 'text-align:left' : ''}"/></div>`;
+    const fsel = (id, lbl, val, opts) => `<div class="frow"><div class="fl" style="font-size:11.5px">${lbl}</div><select class="fi" id="orgs-${id}">${opts.map(o=>`<option value="${o.v}"${val===o.v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;
+    body.innerHTML = `
+      <div class="card">
+        <div class="ct" style="margin-bottom:12px">🏢 ${l === 'ar' ? 'إعدادات المنظمة' : 'Organisation Settings'}</div>
+        <div class="fr2">
+          ${fi('org_name_ar', l==='ar'?'اسم المنظمة (عربي)':'Org Name (Arabic)', s.org_name_ar||'', l==='ar'?'شركة أمين':'Ameen Corp')}
+          ${fi('org_name_en', l==='ar'?'اسم المنظمة (إنجليزي)':'Org Name (English)', s.org_name_en||'', 'Ameen Corp')}
+        </div>
+        ${fi('org_logo_url', l==='ar'?'رابط شعار المنظمة':'Logo URL', s.org_logo_url||'', 'https://...')}
+        <div class="fr2">
+          ${fsel('default_reminder_mins', l==='ar'?'وقت إرسال التذكير (قبل الاجتماع)':'Default Reminder Time', s.default_reminder_mins||'15', [
+            {v:'5',l:'5 '+( l==='ar'?'دقائق':'min')},{v:'10',l:'10 '+(l==='ar'?'دقائق':'min')},
+            {v:'15',l:'15 '+(l==='ar'?'دقيقة':'min')},{v:'30',l:'30 '+(l==='ar'?'دقيقة':'min')},
+            {v:'60',l:l==='ar'?'ساعة واحدة':'1 hour'},{v:'120',l:l==='ar'?'ساعتان':'2 hours'},
+          ])}
+          ${fsel('default_meeting_duration', l==='ar'?'مدة الاجتماع الافتراضية':'Default Meeting Duration', s.default_meeting_duration||'60', [
+            {v:'30',l:'30 '+(l==='ar'?'دقيقة':'min')},{v:'60',l:'60 '+(l==='ar'?'دقيقة':'min')},
+            {v:'90',l:'90 '+(l==='ar'?'دقيقة':'min')},{v:'120',l:'120 '+(l==='ar'?'دقيقة':'min')},
+          ])}
+        </div>
+        ${fsel('default_lang', l==='ar'?'اللغة الافتراضية':'Default Language', s.default_lang||'ar', [
+          {v:'ar',l:'العربية / Arabic'},{v:'en',l:'English / الإنجليزية'},
+        ])}
+        <div id="orgs-err" style="display:none;font-size:11px;color:var(--red);margin-top:4px"></div>
+        <div id="orgs-ok" style="display:none;font-size:11px;color:var(--green);margin-top:4px">${l==='ar'?'✓ تم الحفظ':'✓ Saved'}</div>
+        <div class="fa" style="margin-top:14px">
+          <button class="btn-gold" onclick="AdminPanel.saveOrg()">${l==='ar'?'حفظ الإعدادات':'Save Settings'}</button>
+        </div>
+      </div>`;
+  },
+
+  async saveOrg() {
+    const l = App.lang;
+    const keys = ['org_name_ar','org_name_en','org_logo_url','default_reminder_mins','default_meeting_duration','default_lang'];
+    const payload = {};
+    keys.forEach(k => { const el = $(`orgs-${k}`); if (el) payload[k] = el.value; });
+    const errEl = $('orgs-err'); const okEl = $('orgs-ok');
+    if(errEl) errEl.style.display='none'; if(okEl) okEl.style.display='none';
+    try {
+      await api('/api/settings/org', { method: 'PATCH', body: JSON.stringify(payload) });
+      if(okEl) okEl.style.display='block';
+    } catch(e) {
+      if(errEl) { errEl.textContent=e.message; errEl.style.display='block'; }
+    }
+  },
+
   async renderAuditTab(body) {
     const l = App.lang;
     const log = await api("/api/rbac/audit-log?limit=200");
@@ -11037,16 +11318,64 @@ const AdminPanel = {
 
 // ══ Integration Center ═════════════════════════════════════════════════════════
 const Integrations = {
-  configure(provider) {
+  _provider: null,
+  _CREDS: {
+    zoom: ['client_id', 'client_secret', 'account_id'],
+    teams: ['app_id', 'client_secret', 'tenant_id'],
+    google_meet: ['oauth_client_id', 'oauth_client_secret', 'service_account_json'],
+  },
+  _LABELS: {
+    zoom: { ar: 'Zoom', en: 'Zoom' },
+    teams: { ar: 'Microsoft Teams', en: 'Microsoft Teams' },
+    google_meet: { ar: 'Google Meet', en: 'Google Meet' },
+  },
+
+  async configure(provider) {
+    this._provider = provider;
     const l = App.lang;
-    const names = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' };
-    showToast(
-      l === 'ar'
-        ? `تكامل ${names[provider]||provider} جاهز — يتطلب بيانات اعتماد API. أضف البيانات في متغيرات البيئة لتفعيله (يتطلب إعداداً من المطوّر).`
-        : `${names[provider]||provider} integration is ready — API credentials required. Add credentials to environment variables to enable it (requires developer setup).`,
-      'info'
-    );
-  }
+    const name = this._LABELS[provider] ? (l === 'ar' ? this._LABELS[provider].ar : this._LABELS[provider].en) : provider;
+    const title = $('intcfg-title');
+    if (title) title.textContent = `⚙ ${l === 'ar' ? 'إعداد' : 'Configure'} ${name}`;
+    const body = $('intcfg-body');
+    if (!body) return;
+    body.innerHTML = `<div class="es"><div class="loading"></div></div>`;
+    const m = $('modal-integration-config');
+    if (m) m.style.display = 'flex';
+    let existing = {};
+    try { existing = await api(`/api/settings/integration/${provider}`); } catch (e) {}
+    const keys = this._CREDS[provider] || [];
+    const isConfigured = existing.configured === '1';
+    body.innerHTML = `
+      ${isConfigured ? `<div style="font-size:11.5px;color:var(--green);margin-bottom:12px;padding:6px 10px;background:rgba(46,204,138,.1);border-radius:6px;border:1px solid rgba(46,204,138,.25)">✓ ${l === 'ar' ? 'متصل ومُعدّ' : 'Connected & Configured'}</div>` : ''}
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6">${l === 'ar' ? 'أدخل بيانات الاعتماد للتكامل. تُحفظ بشكل مشفّر في قاعدة البيانات.' : 'Enter your API credentials. They are stored securely in the database.'}</div>
+      ${keys.map(k => `<div class="frow"><div class="fl" style="font-size:11.5px">${k.replace(/_/g,' ')}</div><input class="fi" id="intcfg-${k}" dir="ltr" style="text-align:left;font-size:12px" placeholder="${k}" value="${esc(existing[k] || '')}"/></div>`).join('')}
+      <div id="intcfg-err" style="display:none;font-size:11px;color:var(--red);margin-top:4px"></div>
+      <div class="fa" style="margin-top:12px">
+        <button class="btn-gold" onclick="Integrations.save()">✓ ${l === 'ar' ? 'حفظ' : 'Save'}</button>
+        <button class="btn-ghost" onclick="Integrations.closeModal()">${l === 'ar' ? 'إغلاق' : 'Close'}</button>
+      </div>`;
+  },
+
+  async save() {
+    const provider = this._provider;
+    if (!provider) return;
+    const keys = this._CREDS[provider] || [];
+    const payload = {};
+    keys.forEach(k => { const el = $(`intcfg-${k}`); if (el) payload[k] = el.value; });
+    const errEl = $('intcfg-err');
+    try {
+      await api(`/api/settings/integration/${provider}`, { method: 'POST', body: JSON.stringify(payload) });
+      this.closeModal();
+      showToast(App.lang === 'ar' ? '✓ تم حفظ إعدادات التكامل' : '✓ Integration settings saved', 'success');
+    } catch (e) {
+      if (errEl) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+    }
+  },
+
+  closeModal() {
+    const m = $('modal-integration-config');
+    if (m) m.style.display = 'none';
+  },
 };
 
 function renderIntegrations() {
@@ -11212,7 +11541,10 @@ async function renderAnalytics() {
           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">📊 ${lbl("لوحة التحليلات التنفيذية","Executive Analytics")}</div>
           <div style="font-size:11.5px;color:var(--text3);line-height:1.65">${lbl("اتجاهات الأداء للاجتماعات والمهام والقرارات — بيانات حية مُجمَّعة من جميع الجلسات المسجلة","Performance trends for meetings, tasks and decisions — live data aggregated from all recorded sessions")}</div>
         </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:rgba(46,204,138,.1);color:var(--green);border:.5px solid rgba(46,204,138,.25);white-space:nowrap">📈 ${lbl("بيانات حية","Live Data")}</span>
+        <button class="btn-ghost btn-sm" style="font-size:11px" onclick="Analytics.exportCSV()">⬇ ${lbl("تصدير CSV","Export CSV")}</button>
+      </div>
       </div>
       <div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-inline-start:2px">— ${lbl("الرسوم البيانية التفاعلية","Interactive Charts")} —</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -11234,6 +11566,7 @@ async function renderAnalytics() {
         </div>
       </div>
       <div id="team-performance-section"></div>
+      <div id="risk-register-section" style="margin-top:16px"></div>
       <div class="card" style="margin-top:16px">
         <div class="ct" style="margin-bottom:12px;font-size:13px">📊 ${lbl("ملخص التحليلات", "Analytics Summary")}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;font-size:12px">
@@ -11400,6 +11733,7 @@ async function renderAnalytics() {
     });
 
     if (App.can("actions.assign")) await renderTeamPerformance(l, lbl);
+    await renderRiskRegister(l, lbl);
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
   }
@@ -11473,7 +11807,7 @@ async function renderTeamPerformance(l, lbl) {
       labels: dept.map((d) => d.department),
       datasets: [{ label: lbl("نسبة الإنجاز %", "Completion %"), data: dept.map((d) => d.pct), backgroundColor: dept.map((d) => (d.overdue > 0 ? "#DC3232bb" : "#2ECC8Abb")), borderColor: dept.map((d) => (d.overdue > 0 ? "#DC3232" : "#2ECC8A")), borderWidth: 1.5, borderRadius: 4 }],
     },
-    options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...base.scales?.y, min: 0, max: 100 } } },
+    options: { ...base, plugins: { ...base.plugins, legend: { display: false } }, scales: { ...base.scales, y: { ...(base.scales && base.scales.y), min: 0, max: 100 } } },
   });
 
   const trend = data.overdue_trend || [];
@@ -11653,3 +11987,312 @@ function filterDraftMeetings(meetings) {
     return new Date(m.created_at).getTime() > cutoff24h;
   });
 }
+
+// ══ ASK AMEEN FLOATING BUTTON ════════════════════════════════════════════════
+const AskFAB = {
+  open() {
+    const ctx = Panels.current || "overview";
+    const ctxLabels = {
+      overview: "لوحة التحكم / Dashboard",
+      scheduled: "الاجتماعات / Meetings",
+      tasks: "المهام / Tasks",
+      boards: "المجالس واللجان / Boards & Committees",
+      policies: "السياسات / Policies",
+      resolutions: "القرارات / Resolutions",
+      documents: "الوثائق / Documents",
+      analytics: "التقارير / Reports",
+      integrations: "الإعدادات / Settings",
+      admin: "إدارة الصلاحيات / Role Management",
+    };
+    AskFAB._pendingCtx = ctxLabels[ctx] || ctx;
+    Panels.load("ask").then(() => {
+      if (AskFAB._pendingCtx) {
+        const hint = document.querySelector("#chat-input, #ask-input, textarea[data-ask]");
+        if (hint && !hint.value) {
+          hint.placeholder = (App.lang === "ar"
+            ? `اسألني عن ${AskFAB._pendingCtx}…`
+            : `Ask about ${AskFAB._pendingCtx}…`);
+        }
+        AskFAB._pendingCtx = null;
+      }
+    });
+  },
+  _pendingCtx: null,
+};
+
+// ── User Profile (self-service) ───────────────────────────────────────────────
+const Profile = {
+  async open() {
+    const m = $('modal-profile');
+    if (!m) return;
+    ['prof-name-ar','prof-name-en','prof-email','prof-cur-pw','prof-new-pw','prof-confirm-pw'].forEach(id => { const el=$(id); if(el) el.value=''; });
+    ['prof-error','prof-success'].forEach(id => { const el=$(id); if(el) el.style.display='none'; });
+    m.style.display = 'flex';
+    NotifPrefs.apply();
+    try {
+      const u = await api('/api/profile');
+      if($('prof-name-ar')) $('prof-name-ar').value = u.name_ar || '';
+      if($('prof-name-en')) $('prof-name-en').value = u.name_en || '';
+      if($('prof-email')) $('prof-email').value = u.email || '';
+    } catch(e) {}
+  },
+
+  close() {
+    const m = $('modal-profile');
+    if (m) m.style.display = 'none';
+  },
+
+  async save() {
+    const l = App.lang;
+    const errEl = $('prof-error');
+    const okEl = $('prof-success');
+    const btn = $('prof-save-btn');
+    if(errEl) errEl.style.display = 'none';
+    if(okEl) okEl.style.display = 'none';
+    const nameAr = ($('prof-name-ar') || {}).value || '';
+    const nameEn = ($('prof-name-en') || {}).value || '';
+    const email = ($('prof-email') || {}).value || '';
+    const curPw = ($('prof-cur-pw') || {}).value || '';
+    const newPw = ($('prof-new-pw') || {}).value || '';
+    const cfmPw = ($('prof-confirm-pw') || {}).value || '';
+    if (newPw && newPw !== cfmPw) {
+      if(errEl) { errEl.textContent = l === 'ar' ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (newPw && newPw.length < 8) {
+      if(errEl) { errEl.textContent = l === 'ar' ? 'كلمة المرور يجب أن تتكوّن من ٨ أحرف على الأقل' : 'Password must be at least 8 characters'; errEl.style.display = 'block'; }
+      return;
+    }
+    const payload = { name_ar: nameAr, name_en: nameEn, email };
+    if (newPw) { payload.current_password = curPw; payload.new_password = newPw; }
+    if(btn) btn.disabled = true;
+    try {
+      await api('/api/profile', { method: 'PATCH', body: JSON.stringify(payload) });
+      if(okEl) okEl.style.display = 'block';
+      if($('u-name')) $('u-name').textContent = (l === 'ar' ? nameAr : nameEn) || nameAr;
+      ['prof-cur-pw','prof-new-pw','prof-confirm-pw'].forEach(id => { const el=$(id); if(el) el.value=''; });
+    } catch(e) {
+      const msg = e.message || (l === 'ar' ? 'تعذّر الحفظ' : 'Could not save');
+      if(errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    } finally {
+      if(btn) btn.disabled = false;
+    }
+  },
+};
+
+// ── Bulk Task Actions ─────────────────────────────────────────────────────────
+const BulkTasks = {
+  selected() {
+    return Array.from(document.querySelectorAll('.tk-row-chk:checked')).map(el => Number(el.dataset.id));
+  },
+  onCheck() {
+    const ids = this.selected();
+    const bar  = document.getElementById('tk-bulk-bar');
+    const cnt  = document.getElementById('tk-bulk-count');
+    const all  = document.getElementById('tk-chk-all');
+    const total = document.querySelectorAll('.tk-row-chk').length;
+    if (bar)  bar.style.display  = ids.length ? 'flex' : 'none';
+    if (cnt)  cnt.textContent    = App.lang === 'ar' ? `${ids.length} مهام محددة` : `${ids.length} task${ids.length !== 1 ? 's' : ''} selected`;
+    if (all)  all.checked        = ids.length > 0 && ids.length === total;
+    if (all)  all.indeterminate  = ids.length > 0 && ids.length < total;
+  },
+  toggleAll(checked) {
+    document.querySelectorAll('.tk-row-chk').forEach(el => { el.checked = checked; });
+    this.onCheck();
+  },
+  deselect() {
+    document.querySelectorAll('.tk-row-chk:checked').forEach(el => { el.checked = false; });
+    const all = document.getElementById('tk-chk-all');
+    if (all) { all.checked = false; all.indeterminate = false; }
+    this.onCheck();
+  },
+  async markAll(status) {
+    const ids = this.selected();
+    if (!ids.length) return;
+    const l = App.lang;
+    try {
+      await Promise.all(ids.map(id => api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })));
+      await loadBadges();
+      renderTasks();
+      showToast(l === 'ar' ? `✓ تم تحديث ${ids.length} مهمة` : `✓ Updated ${ids.length} task${ids.length !== 1 ? 's' : ''}`, 'success');
+    } catch(e) {
+      showToast(e.message, 'error');
+    }
+  },
+};
+
+// ── Analytics CSV Export ──────────────────────────────────────────────────────
+const Analytics = {
+  _data: null,
+
+  async exportCSV() {
+    const l = App.lang;
+    let data;
+    try {
+      data = await api('/api/analytics');
+    } catch (e) {
+      showToast((l === 'ar' ? 'تعذّر تحميل البيانات: ' : 'Could not load data: ') + e.message, 'error');
+      return;
+    }
+    const rows = [
+      [l === 'ar' ? 'التحليلات التنفيذية — أمين السكرتير' : 'Executive Analytics — Ameen Secretary', new Date().toLocaleDateString()],
+      [],
+      [l === 'ar' ? '--- معدل الحضور ---' : '--- Attendance Rates ---'],
+      [l === 'ar' ? 'الاجتماع' : 'Meeting', l === 'ar' ? 'معدل الحضور %' : 'Attendance %'],
+      ...(data.attendanceRates || []).map(r => [r.title_en || r.title_ar || r.id, r.rate]),
+      [],
+      [l === 'ar' ? '--- مدة الاجتماعات (دقائق) ---' : '--- Meeting Durations (min) ---'],
+      [l === 'ar' ? 'الشهر' : 'Month', l === 'ar' ? 'المتوسط' : 'Average'],
+      ...(data.durationTrend || []).map(r => [r.month || r.period || '', Math.round(r.avg_mins)]),
+      [],
+      [l === 'ar' ? '--- المهام المتأخرة حسب المسؤول ---' : '--- Overdue Tasks by Owner ---'],
+      [l === 'ar' ? 'المسؤول' : 'Owner', l === 'ar' ? 'عدد المتأخرة' : 'Overdue Count'],
+      ...(data.overdueByOwner || []).map(r => [r.owner || r.name || '', r.count]),
+      [],
+      [l === 'ar' ? '--- القرارات حسب نوع الاجتماع ---' : '--- Decisions by Meeting Type ---'],
+      [l === 'ar' ? 'نوع الاجتماع' : 'Meeting Type', l === 'ar' ? 'عدد القرارات' : 'Decision Count'],
+      ...(data.decisionsByType || []).map(r => [r.type || r.meeting_type || '', r.count]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `ameen-analytics-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  },
+};
+
+// ── Risk Register ─────────────────────────────────────────────────────────────
+async function renderRiskRegister(l, lbl) {
+  const section = $("risk-register-section");
+  if (!section) return;
+  section.innerHTML = `<div class="es" style="padding:16px"><div class="loading"></div></div>`;
+  try {
+    const risks = await api("/api/risks");
+    if (!risks.length) { section.innerHTML = ""; return; }
+    const sevCls = { high: "rr-sev-high", medium: "rr-sev-medium", low: "rr-sev-low" };
+    const sevAr  = { high: "عالية", medium: "متوسطة", low: "منخفضة" };
+    const sevEn  = { high: "High",  medium: "Medium",  low: "Low"  };
+    const counts = { high: 0, medium: 0, low: 0 };
+    risks.forEach(r => { if (counts[r.severity] !== undefined) counts[r.severity]++; });
+    section.innerHTML = `
+      <div style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-inline-start:2px">— ${lbl("سجل المخاطر","Risk Register")} —</div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div class="ct" style="font-size:13px">⚠️ ${lbl("المخاطر المستخرجة من الاجتماعات","Risks Extracted from Meetings")}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="rr-sev-high">${counts.high} ${lbl("عالية","High")}</span>
+            <span class="rr-sev-medium">${counts.medium} ${lbl("متوسطة","Medium")}</span>
+            <span class="rr-sev-low">${counts.low} ${lbl("منخفضة","Low")}</span>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead>
+              <tr>
+                <th style="text-align:start;padding:8px 10px;background:#F8F9FB;border-bottom:1px solid #EEF0F4;font-size:11px;font-weight:700;color:#697386;white-space:nowrap">${lbl("المخاطرة","Risk")}</th>
+                <th style="text-align:start;padding:8px 10px;background:#F8F9FB;border-bottom:1px solid #EEF0F4;font-size:11px;font-weight:700;color:#697386;white-space:nowrap">${lbl("الخطورة","Severity")}</th>
+                <th style="text-align:start;padding:8px 10px;background:#F8F9FB;border-bottom:1px solid #EEF0F4;font-size:11px;font-weight:700;color:#697386;white-space:nowrap">${lbl("الاجتماع","Meeting")}</th>
+                <th style="text-align:start;padding:8px 10px;background:#F8F9FB;border-bottom:1px solid #EEF0F4;font-size:11px;font-weight:700;color:#697386;white-space:nowrap">${lbl("التاريخ","Date")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${risks.slice(0,20).map(r => {
+                const text = (l==="ar" ? r.text_ar : r.text_en||r.text_ar)||"";
+                const mtg  = (l==="ar" ? r.meeting_title_ar : r.meeting_title_en||r.meeting_title_ar)||"";
+                const cls  = sevCls[r.severity] || "rr-sev-medium";
+                const sl   = l==="ar" ? (sevAr[r.severity]||r.severity) : (sevEn[r.severity]||r.severity);
+                return `<tr style="border-bottom:1px solid #EEF0F4">
+                  <td style="padding:10px;max-width:280px;line-height:1.45">${esc(text)}</td>
+                  <td style="padding:10px;white-space:nowrap"><span class="${cls}">${sl}</span></td>
+                  <td style="padding:10px;font-size:12px;color:#4A90D9;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(mtg)}</td>
+                  <td style="padding:10px;font-size:12px;color:#697386;white-space:nowrap">${fmtDate(r.meeting_date)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+        ${risks.length > 20 ? `<div style="font-size:11.5px;color:var(--text3);text-align:center;padding:10px 0">${lbl(`وعرض أول ٢٠ خطر من أصل ${risks.length}`,`Showing first 20 of ${risks.length} risks`)}</div>` : ""}
+      </div>`;
+  } catch(e) {
+    section.innerHTML = "";
+  }
+}
+
+// ── Quick Email Compose ───────────────────────────────────────────────────────
+const EmailCompose = {
+  open({ to = "", subject = "", body = "" } = {}) {
+    const m = $("modal-email-compose");
+    if (!m) return;
+    if ($("ec-to"))      $("ec-to").value      = to;
+    if ($("ec-subject")) $("ec-subject").value  = subject;
+    if ($("ec-body"))    $("ec-body").value     = body;
+    if ($("ec-error"))   $("ec-error").style.display   = "none";
+    if ($("ec-success")) $("ec-success").style.display = "none";
+    m.style.display = "flex";
+    setTimeout(() => ($("ec-to") || {}).focus && $("ec-to").focus(), 80);
+  },
+  close() {
+    const m = $("modal-email-compose"); if (m) m.style.display = "none";
+  },
+  async send() {
+    const l = App.lang;
+    const to      = ($("ec-to")      || {}).value || "";
+    const subject = ($("ec-subject") || {}).value || "";
+    const html    = ($("ec-body")    || {}).value || "";
+    const errEl   = $("ec-error");
+    const okEl    = $("ec-success");
+    const btn     = $("ec-send-btn");
+    if (errEl) errEl.style.display = "none";
+    if (okEl)  okEl.style.display  = "none";
+    if (!to || !subject || !html) {
+      if (errEl) { errEl.textContent = l==="ar" ? "يرجى ملء جميع الحقول" : "Please fill all fields"; errEl.style.display = "block"; }
+      return;
+    }
+    if (btn) btn.disabled = true;
+    try {
+      await api("/api/email/send", { method: "POST", body: JSON.stringify({ to, subject, html }) });
+      if (okEl) okEl.style.display = "block";
+      setTimeout(() => EmailCompose.close(), 1800);
+    } catch(e) {
+      if (errEl) { errEl.textContent = e.message; errEl.style.display = "block"; }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  },
+};
+
+// ── Notification Preferences ──────────────────────────────────────────────────
+const NotifPrefs = {
+  _key: "ameen_notif_prefs",
+  load() {
+    try { return JSON.parse(localStorage.getItem(this._key) || "{}"); } catch { return {}; }
+  },
+  save() {
+    const prefs = {
+      email:    !!($("notif-email")    || {}).checked,
+      whatsapp: !!($("notif-whatsapp") || {}).checked,
+      inapp:    !!($("notif-inapp")    || {}).checked,
+      digest:   !!($("notif-digest")   || {}).checked,
+    };
+    try { localStorage.setItem(this._key, JSON.stringify(prefs)); } catch {}
+    showToast(App.lang === "ar" ? "✓ تم حفظ تفضيلات الإشعارات" : "✓ Notification preferences saved", "success");
+  },
+  apply() {
+    const p = this.load();
+    const setChk = (id, val) => { const el = $(id); if (el) el.checked = !!val; };
+    setChk("notif-email",    p.email    !== false);
+    setChk("notif-whatsapp", p.whatsapp !== false);
+    setChk("notif-inapp",    p.inapp    !== false);
+    setChk("notif-digest",   p.digest   !== false);
+  },
+};
+
+// ── Ctrl+K / Cmd+K → SmartSearch ────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+    e.preventDefault();
+    SmartSearch.toggle();
+  }
+});

@@ -139,17 +139,17 @@
 
     <div class="error-msg" id="error-msg"></div>
 
-    <div>
-      <label id="lbl-email">البريد الإلكتروني</label>
-      <input type="email" id="email" autocomplete="email" placeholder="you@ameen.ai" />
+    <form id="login-form" method="post" action="/auth/login" novalidate>
+      <label for="email" id="lbl-email">البريد الإلكتروني</label>
+      <input type="email" id="email" name="email" autocomplete="username email" placeholder="you@ameen.ai" />
 
-      <label id="lbl-password">كلمة المرور</label>
-      <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+      <label for="password" id="lbl-password">كلمة المرور</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" />
 
-      <button type="submit" id="login-btn" onclick="doLogin()">
+      <button type="submit" id="login-btn">
         <span id="btn-text">تسجيل الدخول</span>
       </button>
-    </div>
+    </form>
 
     <p class="footer-note" id="footer-note">Ameen Executive Secretary v3</p>
   </div>
@@ -175,7 +175,12 @@
     }
     setLang(lang);
 
-    document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    // Real <form> submit: enables password managers/autofill, browser
+    // save-password prompts, and Enter-to-submit from any field.
+    document.getElementById('login-form').addEventListener('submit', e => {
+      e.preventDefault();
+      doLogin();
+    });
 
     function showError(msg) {
       const el = document.getElementById('error-msg');
@@ -202,6 +207,10 @@
         const data = await res.json();
         if (res.ok && data.success) {
           if (data.user && data.user.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
+          // Fallback for browsers that block the auth cookie (strict
+          // third-party-cookie settings / embedded previews): keep the token
+          // in sessionStorage and send it as an Authorization header.
+          if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
           window.location.replace('/');
         } else {
           showError(data.error || T[lang].badCreds);

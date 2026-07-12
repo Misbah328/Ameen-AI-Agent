@@ -618,19 +618,21 @@ router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) 
     title_ar, title_en, transcript, duration, meeting_type,
     board_id, committee_id, series_id, new_series, prev_meeting_id, meeting_date,
     platform, organizer_id, purpose_ar, purpose_en, expected_decisions, expected_actions,
+    meeting_join_url, meeting_location, meeting_provider,
   } = req.body;
   const resolvedSeriesId = (series_id || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
   const row = db.prepare(`
     INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type,
       board_id, committee_id, series_id, prev_meeting_id, meeting_date, platform, organizer_id,
-      purpose_ar, purpose_en, expected_decisions, expected_actions)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?)
+      purpose_ar, purpose_en, expected_decisions, expected_actions, meeting_location)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?)
   `).run(
     title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '',
     board_id || null, committee_id || null, resolvedSeriesId || null, prev_meeting_id || null, meeting_date || null,
     platform || '', organizer_id || req.user.id, purpose_ar || '', purpose_en || '',
     JSON.stringify(Array.isArray(expected_decisions) ? expected_decisions : []),
     JSON.stringify(Array.isArray(expected_actions) ? expected_actions : []),
+    meeting_location || '',
   );
   const actor = resolveActor(req.user.id);
   db.prepare(
@@ -668,15 +670,16 @@ router.patch('/meetings/:id', auth, requirePermission('meetings.edit'), (req, re
   const newPurposeEn = purpose_en !== undefined ? purpose_en : meeting.purpose_en;
   const newExpectedDecisions = expected_decisions !== undefined ? JSON.stringify(Array.isArray(expected_decisions) ? expected_decisions : []) : meeting.expected_decisions;
   const newExpectedActions = expected_actions !== undefined ? JSON.stringify(Array.isArray(expected_actions) ? expected_actions : []) : meeting.expected_actions;
+  const newMeetingLocation = req.body.meeting_location !== undefined ? (req.body.meeting_location || '') : meeting.meeting_location;
 
   db.transaction(() => {
     db.prepare(`UPDATE meetings SET title_ar=?, title_en=?, transcript=?, duration=?, meeting_type=?, source_type=?, series_id=?,
         board_id=?, committee_id=?, prev_meeting_id=?, meeting_date=?, platform=?, organizer_id=?,
-        purpose_ar=?, purpose_en=?, expected_decisions=?, expected_actions=?
+        purpose_ar=?, purpose_en=?, expected_decisions=?, expected_actions=?, meeting_location=?
       WHERE id=?`)
       .run(newTitleAr, newTitleEn, newTranscript, newDuration, newMeetingType, newSourceType, newSeriesId,
         newBoardId, newCommitteeId, newPrevMeetingId, newMeetingDate, newPlatform, newOrganizerId,
-        newPurposeAr, newPurposeEn, newExpectedDecisions, newExpectedActions, req.params.id);
+        newPurposeAr, newPurposeEn, newExpectedDecisions, newExpectedActions, newMeetingLocation, req.params.id);
 
     // Keep denormalized titles in tasks & decisions in sync
     if (title_ar !== undefined || title_en !== undefined) {
@@ -1236,6 +1239,26 @@ router.get('/tasks/manager-overview', auth, requirePermission('actions.assign'),
 // Workload and department comparison reuse computeTaskRollups() (same
 // aggregation as manager-overview/dashboard-intelligence — not recomputed
 // three different ways). Two things genuinely don't exist anywhere yet:
+// ── Risk Register — aggregate AI-extracted risks across all meetings ──────────
+router.get('/risks', auth, (req, res) => {
+  const { severity, q } = req.query;
+  const rows = db.prepare(`SELECT id, title_ar, title_en, meeting_date, ai_risks FROM meetings WHERE ai_risks IS NOT NULL AND ai_risks != '' AND ai_risks != '[]' ORDER BY meeting_date DESC`).all();
+  const risks = [];
+  rows.forEach(m => {
+    let list = [];
+    try { list = JSON.parse(m.ai_risks); if (!Array.isArray(list)) list = []; } catch { return; }
+    list.forEach((r, i) => {
+      const sev = r.severity || 'medium';
+      if (severity && sev !== severity) return;
+      const textAr = r.text_ar || (typeof r === 'string' ? r : '');
+      const textEn = r.text_en || textAr;
+      if (q && ![textAr, textEn].join(' ').toLowerCase().includes(q.toLowerCase())) return;
+      risks.push({ id: `${m.id}-${i}`, meeting_id: m.id, meeting_title_ar: m.title_ar, meeting_title_en: m.title_en, meeting_date: (m.meeting_date || '').substring(0, 10), text_ar: textAr, text_en: textEn, severity: sev, mitigation: r.mitigation || '' });
+    });
+  });
+  res.json(risks);
+});
+
 router.get('/analytics/team-performance', auth, requirePermission('actions.assign'), (req, res) => {
   const { byPerson, byDepartment } = computeTaskRollups();
 
@@ -1543,6 +1566,51 @@ router.get('/schedule', auth, (req, res) => {
   `).all());
 });
 
+// GET /api/schedule/:id/ics — download a single meeting as an ICS calendar file
+router.get('/schedule/:id/ics', auth, (req, res) => {
+  const s = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!s) return res.status(404).json({ error: 'NOT_FOUND' });
+  const uid = `ameen-meeting-${s.id}@ameen-ai.sa`;
+  const title = s.title_en || s.title_ar || 'Meeting';
+  const desc = [s.agenda_en || s.agenda_ar || '', s.meeting_location ? `Location: ${s.meeting_location}` : (s.meeting_join_url ? `Join: ${s.meeting_join_url}` : '')].filter(Boolean).join('\\n');
+  const location = s.meeting_location || s.meeting_join_url || s.platform || '';
+  // Build DTSTART / DTEND in UTC (meeting is GMT+3 / Riyadh)
+  const dateStr = (s.meeting_date || '').replace(/-/g, '');
+  const timeStr = (s.meeting_time || '09:00').replace(':', '') + '00';
+  const durationMins = s.duration_mins || 60;
+  // Convert Riyadh time (UTC+3) → UTC
+  const startLocalMin = parseInt(timeStr.slice(0, 2)) * 60 + parseInt(timeStr.slice(2, 4)) - 180;
+  const startH = String(Math.floor(((startLocalMin % 1440) + 1440) % 1440 / 60)).padStart(2, '0');
+  const startM = String(((startLocalMin % 60) + 60) % 60).padStart(2, '0');
+  const endMin = startLocalMin + durationMins;
+  const endH = String(Math.floor(((endMin % 1440) + 1440) % 1440 / 60)).padStart(2, '0');
+  const endM = String(((endMin % 60) + 60) % 60).padStart(2, '0');
+  const dtStart = `${dateStr}T${startH}${startM}00Z`;
+  const dtEnd = `${dateStr}T${endH}${endM}00Z`;
+  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Ameen Secretary//Meeting Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${title}`,
+    desc ? `DESCRIPTION:${desc}` : '',
+    location ? `LOCATION:${location}` : '',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n');
+  const filename = `meeting-${s.id}.ics`;
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(ics);
+});
+
 function conflictPayload(conflicts) {
   return {
     error: 'CONFLICT',
@@ -1576,7 +1644,7 @@ function addNPeriods(originDateStr, recurrence, n) {
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
 
 router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_location, meeting_id_external, source_meeting_id } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
     return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
@@ -1589,21 +1657,22 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
   const groupId = rec !== 'none' ? crypto.randomUUID() : null;
-  const prov = ['zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : 'physical';
-  const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[prov] || (platform || 'قاعة الاجتماعات');
+  const VALID_PROVIDERS = ['zoom','teams','google_meet','physical','virtual','hybrid'];
+  const prov = VALID_PROVIDERS.includes(meeting_provider) ? meeting_provider : 'physical';
+  const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet', virtual: 'Virtual', hybrid: 'Hybrid' }[prov] || (platform || 'قاعة الاجتماعات');
   const resolvedSeriesId = resolveOrCreateSeriesId({ series_id, new_series }, req.user.id);
   const insertSched = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_location, meeting_id_external, source_meeting_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const dur = duration_mins || 60;
   let row;
   db.transaction(() => {
-    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', source_meeting_id || null);
+    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_location || '', meeting_id_external || '', source_meeting_id || null);
     if (rec !== 'none') {
       for (let i = 1; i <= 3; i++) {
         const nextDate = addNPeriods(meeting_date, rec, i);
-        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', null);
+        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_location || '', meeting_id_external || '', null);
       }
     }
   })();
@@ -1702,9 +1771,11 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
   const chan = reminder_channel !== undefined
     ? (['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : row.reminder_channel)
     : row.reminder_channel;
-  const updProv = meeting_provider !== undefined && ['physical','zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : null;
-  const updPlatform = updProv ? ({ zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[updProv] || 'قاعة الاجتماعات') : platform;
+  const VALID_PROVIDERS_UPD = ['physical','zoom','teams','google_meet','virtual','hybrid'];
+  const updProv = meeting_provider !== undefined && VALID_PROVIDERS_UPD.includes(meeting_provider) ? meeting_provider : null;
+  const updPlatform = updProv ? ({ zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet', virtual: 'Virtual', hybrid: 'Hybrid' }[updProv] || 'قاعة الاجتماعات') : platform;
   const newSeriesId = (series_id !== undefined || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
+  const { meeting_location } = req.body;
   db.prepare(`UPDATE schedule SET
       title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
       meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
@@ -1713,6 +1784,7 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
       reminder_channel=?, meeting_type=COALESCE(?,meeting_type),
       board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id), series_id=COALESCE(?,series_id),
       meeting_provider=COALESCE(?,meeting_provider), meeting_join_url=COALESCE(?,meeting_join_url),
+      meeting_location=COALESCE(?,meeting_location),
       meeting_id_external=COALESCE(?,meeting_id_external), recording_status=COALESCE(?,recording_status),
       recording_provider=COALESCE(?,recording_provider), recording_url=COALESCE(?,recording_url),
       transcript_provider=COALESCE(?,transcript_provider), reminder_sent=0
@@ -1727,6 +1799,7 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
       newSeriesId,
       updProv,
       meeting_join_url !== undefined ? (meeting_join_url || '') : null,
+      meeting_location !== undefined ? (meeting_location || '') : null,
       meeting_id_external !== undefined ? (meeting_id_external || '') : null,
       recording_status !== undefined ? (recording_status || '') : null,
       recording_provider !== undefined ? (recording_provider || '') : null,
@@ -2344,6 +2417,27 @@ router.post('/meetings/:id/agenda', auth, (req, res) => {
   });
   tx();
   res.json(db.prepare('SELECT * FROM agenda_items WHERE meeting_id=? ORDER BY sort_order ASC, id ASC').all(meetingId));
+});
+
+// ── Agenda item reorder (move one step up or down) ─────────────────────────────
+router.patch('/meetings/:id/agenda/:itemId/reorder', auth, (req, res) => {
+  const canTouch = ['meetings.create', 'meetings.edit'].some((k) => rbacService.hasPermission(db, req.user.id, k));
+  if (!canTouch) return res.status(403).json({ error: 'Not permitted' });
+  const { id: meetingId, itemId } = req.params;
+  const { direction } = req.body; // 'up' | 'down'
+  if (!['up', 'down'].includes(direction)) return res.status(400).json({ error: 'direction must be up or down' });
+  const items = db.prepare('SELECT id, sort_order FROM agenda_items WHERE meeting_id=? ORDER BY sort_order ASC, id ASC').all(meetingId);
+  const idx = items.findIndex((x) => String(x.id) === String(itemId));
+  if (idx < 0) return res.status(404).json({ error: 'Item not found' });
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= items.length) return res.json({ items }); // already at boundary
+  const a = items[idx], b = items[swapIdx];
+  const upd = db.prepare('UPDATE agenda_items SET sort_order=? WHERE id=?');
+  db.transaction(() => {
+    upd.run(b.sort_order, a.id);
+    upd.run(a.sort_order, b.id);
+  })();
+  res.json({ success: true, items: db.prepare('SELECT * FROM agenda_items WHERE meeting_id=? ORDER BY sort_order ASC, id ASC').all(meetingId) });
 });
 
 // Append a manual, unowned note captured during a live meeting (Quick Action:
@@ -3056,6 +3150,29 @@ router.post('/meetings/:id/circulate', auth, requirePermission('minutes.publish'
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'circulated', req.user, comments, version);
   transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Minutes circulated for review');
+  // Notify all users who can approve minutes
+  try {
+    const approvers = db.prepare(`
+      SELECT DISTINCT u.id FROM users u
+      JOIN role_permissions rp ON rp.role_id = u.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE p.key = 'minutes.approve' AND u.id != ?
+    `).all(req.user ? req.user.id : 0);
+    const mtTitle = meeting.title_ar || meeting.title_en || '';
+    approvers.forEach(({ id }) => {
+      createNotification(db, {
+        userId: id,
+        type: 'minutes_circulated',
+        titleAr: `محضر جاهز للاعتماد`,
+        titleEn: `Minutes ready for approval`,
+        bodyAr: `تم تعميم محضر "${mtTitle}" للمراجعة والاعتماد`,
+        bodyEn: `Minutes for "${mtTitle}" have been circulated for review and approval`,
+        priority: 'high',
+        sourceType: 'meeting',
+        sourceId: meeting.id,
+      });
+    });
+  } catch (e) { /* non-fatal */ }
   res.json({ success: true, minutes_status: 'circulated' });
 });
 
@@ -3452,6 +3569,89 @@ router.get('/activity', auth, requirePermission('reports.view'), (req, res) => {
     : entries;
 
   res.json({ activity: filtered.slice(0, limit) });
+});
+
+// ── User profile (self-service) ───────────────────────────────────────────────
+router.get('/profile', auth, (req, res) => {
+  const u = db.prepare('SELECT id, name_ar, name_en, email, role_id FROM users WHERE id=?').get(req.user.id);
+  if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+  res.json(u);
+});
+
+router.patch('/profile', auth, async (req, res) => {
+  const { name_ar, name_en, email, current_password, new_password } = req.body;
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+  const bcrypt = require('bcryptjs');
+  const updates = [];
+  const vals = [];
+  if (name_ar !== undefined) { updates.push('name_ar=?'); vals.push(name_ar.trim()); }
+  if (name_en !== undefined) { updates.push('name_en=?'); vals.push(name_en.trim()); }
+  if (email !== undefined && email.trim() !== u.email) {
+    const taken = db.prepare('SELECT id FROM users WHERE email=? AND id!=?').get(email.trim(), u.id);
+    if (taken) return res.status(409).json({ error: 'EMAIL_TAKEN', message: 'Email already in use' });
+    updates.push('email=?'); vals.push(email.trim());
+  }
+  if (new_password) {
+    if (!current_password) return res.status(400).json({ error: 'CURRENT_PASSWORD_REQUIRED' });
+    const ok = bcrypt.compareSync(current_password, u.password || '');
+    if (!ok) return res.status(401).json({ error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
+    if (new_password.length < 8) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+    updates.push('password=?'); vals.push(bcrypt.hashSync(new_password, 10));
+  }
+  if (!updates.length) return res.json({ success: true });
+  vals.push(u.id);
+  db.prepare(`UPDATE users SET ${updates.join(',')} WHERE id=?`).run(...vals);
+  res.json({ success: true });
+});
+
+// ── Org settings ──────────────────────────────────────────────────────────────
+const ORG_KEYS = ['org_name_ar','org_name_en','org_logo_url','default_reminder_mins','default_meeting_duration','default_lang'];
+
+router.get('/settings/org', auth, requirePermission('admin.settings'), (req, res) => {
+  const rows = db.prepare(`SELECT key, value FROM settings WHERE key IN (${ORG_KEYS.map(()=>'?').join(',')})`).all(...ORG_KEYS);
+  const out = {};
+  rows.forEach(r => { out[r.key] = r.value; });
+  res.json(out);
+});
+
+router.patch('/settings/org', auth, requirePermission('admin.settings'), (req, res) => {
+  const allowed = new Set(ORG_KEYS);
+  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)');
+  const save = db.transaction((pairs) => { pairs.forEach(([k,v]) => stmt.run(k, v)); });
+  const pairs = Object.entries(req.body).filter(([k]) => allowed.has(k)).map(([k,v]) => [k, String(v)]);
+  if (!pairs.length) return res.json({ success: true });
+  save(pairs);
+  res.json({ success: true });
+});
+
+// ── Integration credentials ───────────────────────────────────────────────────
+const ALLOWED_PROVIDERS = ['zoom','teams','google_meet'];
+router.post('/settings/integration/:provider', auth, requirePermission('admin.settings'), (req, res) => {
+  const { provider } = req.params;
+  if (!ALLOWED_PROVIDERS.includes(provider)) return res.status(400).json({ error: 'UNKNOWN_PROVIDER' });
+  const creds = req.body || {};
+  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)');
+  const save = db.transaction(() => {
+    Object.entries(creds).forEach(([k, v]) => {
+      if (k && typeof v === 'string') stmt.run(`integration_${provider}_${k}`, v);
+    });
+    stmt.run(`integration_${provider}_configured`, '1');
+  });
+  save();
+  res.json({ success: true });
+});
+
+router.get('/settings/integration/:provider', auth, requirePermission('admin.settings'), (req, res) => {
+  const { provider } = req.params;
+  if (!ALLOWED_PROVIDERS.includes(provider)) return res.status(400).json({ error: 'UNKNOWN_PROVIDER' });
+  const rows = db.prepare(`SELECT key, value FROM settings WHERE key LIKE ?`).all(`integration_${provider}_%`);
+  const out = {};
+  rows.forEach(r => {
+    const shortKey = r.key.replace(`integration_${provider}_`, '');
+    out[shortKey] = r.value;
+  });
+  res.json(out);
 });
 
 module.exports = router;

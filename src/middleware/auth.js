@@ -12,8 +12,17 @@ const JWT_SECRET = process.env.JWT_SECRET || (() => {
  * Sets req.user = { id, email, system_role } on success.
  * Returns 401 JSON if missing or invalid.
  */
+// Bearer-header fallback is DEV-ONLY (Replit preview iframes / e2e browsers
+// with strict third-party-cookie blocking). Production stays cookie-only so
+// the HttpOnly protection is never weakened there.
+const ALLOW_BEARER_FALLBACK = !!process.env.REPLIT_DEV_DOMAIN && process.env.NODE_ENV !== 'production';
+
 const auth = (req, res, next) => {
-  const token = req.cookies && req.cookies.ameen_token;
+  let token = req.cookies && req.cookies.ameen_token;
+  if (!token && ALLOW_BEARER_FALLBACK) {
+    const h = req.headers.authorization || '';
+    if (h.startsWith('Bearer ')) token = h.slice(7);
+  }
   if (!token) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Not logged in' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);

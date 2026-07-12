@@ -6,10 +6,15 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const { JWT_SECRET } = require('../middleware/auth');
 
+// On Replit the dev preview loads the app inside a cross-site iframe, where
+// SameSite=Lax cookies are never sent on fetch/XHR — login would "succeed"
+// but every subsequent API call 401s. SameSite=None (which requires Secure)
+// is the standard fix there; production keeps the stricter Lax default.
+const IS_REPLIT_DEV = !!process.env.REPLIT_DEV_DOMAIN && process.env.NODE_ENV !== 'production';
 const COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production',
+  sameSite: IS_REPLIT_DEV ? 'none' : 'lax',
+  secure: IS_REPLIT_DEV || process.env.NODE_ENV === 'production',
   maxAge: 8 * 60 * 60 * 1000  // 8 hours
 };
 
@@ -36,12 +41,17 @@ router.post('/login', (req, res) => {
   res.cookie('ameen_token', token, COOKIE_OPTS);
 
   const { password: _pw, ...safeUser } = user;
+  // DEV-ONLY: token is also returned in the body so the SPA can fall back to
+  // an Authorization header when the browser blocks the cookie (see
+  // middleware). In production the token stays exclusively in the HttpOnly
+  // cookie — never exposed to page JavaScript.
+  if (IS_REPLIT_DEV) return res.json({ success: true, user: safeUser, token });
   res.json({ success: true, user: safeUser });
 });
 
 // ── POST /auth/logout ─────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
-  res.clearCookie('ameen_token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+  res.clearCookie('ameen_token', { httpOnly: true, sameSite: COOKIE_OPTS.sameSite, secure: COOKIE_OPTS.secure });
   res.json({ success: true });
 });
 
