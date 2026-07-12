@@ -8476,10 +8476,27 @@ const Schedule = {
 // exact board/committee/prev-meeting population + scheduling-conflict UX
 // already proven out by the Schedule object — see _submitSchedule() below.
 const CreateMeetingWizard = {
-  state: { step: 1, agenda: [], decisions: [], actions: [] },
+  // Participant role taxonomy — mirrors ATTENDEE_ROLES in src/routes/api.js.
+  // Any participant (internal or external) can be assigned any of these; who's
+  // *eligible* to actually create/coordinate is gated by the meetings.create
+  // permission (NAV_REQUIRED_PERMISSION), not by a role-name allowlist here.
+  ROLES: ["Chair", "Organizer", "Meeting Coordinator", "Board Member", "Committee Member", "Secretary", "Presenter", "Observer", "Guest", "External Participant"],
+  ROLE_LABELS: {
+    Chair: { ar: "رئيس الاجتماع", en: "Chair" },
+    Organizer: { ar: "المنظِّم", en: "Organizer" },
+    "Meeting Coordinator": { ar: "منسق الاجتماع", en: "Meeting Coordinator" },
+    "Board Member": { ar: "عضو مجلس الإدارة", en: "Board Member" },
+    "Committee Member": { ar: "عضو اللجنة", en: "Committee Member" },
+    Secretary: { ar: "أمين السر", en: "Secretary" },
+    Presenter: { ar: "مقدِّم", en: "Presenter" },
+    Observer: { ar: "مراقب", en: "Observer" },
+    Guest: { ar: "ضيف", en: "Guest" },
+    "External Participant": { ar: "مشارك خارجي", en: "External Participant" },
+  },
+  state: { step: 1, agenda: [], decisions: [], actions: [], participants: [], format: "in_person" },
 
   init() {
-    this.state = { step: 1, agenda: [], decisions: [], actions: [] };
+    this.state = { step: 1, agenda: [], decisions: [], actions: [], participants: [], format: "in_person" };
     this._resetFields();
     this._populateBoardSelects();
     this._populateOrganizerSelect();
@@ -8490,11 +8507,12 @@ const CreateMeetingWizard = {
     this.renderAgenda();
     this.renderChips("decisions");
     this.renderChips("actions");
+    this.renderParticipants();
     this.goStep(1);
   },
 
   _resetFields() {
-    ["cm-title", "cm-purpose-ar", "cm-purpose-en", "cm-join-url", "cm-attendees", "cm-decision-input", "cm-action-input"].forEach((id) => {
+    ["cm-title", "cm-purpose-ar", "cm-purpose-en", "cm-join-url", "cm-location", "cm-decision-input", "cm-action-input"].forEach((id) => {
       const el = $(id);
       if (el) el.value = "";
     });
@@ -8502,11 +8520,43 @@ const CreateMeetingWizard = {
     if ($("cm-date")) $("cm-date").value = "";
     if ($("cm-start")) $("cm-start").value = "09:00";
     if ($("cm-end")) $("cm-end").value = "10:00";
-    if ($("cm-plat")) { $("cm-plat").value = "physical"; this.onProviderChange(); }
+    if ($("cm-timezone")) $("cm-timezone").value = "Asia/Riyadh";
+    if ($("cm-plat")) $("cm-plat").value = "zoom";
+    this.setFormat("in_person");
+    this.onProviderChange();
+    this.updateDurationDisplay();
     if ($("cm-prev")) $("cm-prev").value = "";
     if ($("cm-channel")) $("cm-channel").value = "email";
     if ($("cm-recurrence")) $("cm-recurrence").value = "none";
     if ($("cm-attachments")) $("cm-attachments").value = "";
+  },
+
+  // In-Person / Virtual / Hybrid — hybrid shows BOTH the physical location and
+  // the virtual join-link sections (some participants attend in the room,
+  // others online — see the per-participant attendance-mode select in
+  // renderParticipants()); the other two formats show only their own half.
+  setFormat(val) {
+    this.state.format = val;
+    document.querySelectorAll("#cm-format-seg .imp-seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.val === val));
+    const locRow = $("cm-location-row");
+    const virtRow = $("cm-virtual-row");
+    if (locRow) locRow.style.display = (val === "in_person" || val === "hybrid") ? "" : "none";
+    if (virtRow) virtRow.style.display = (val === "virtual" || val === "hybrid") ? "" : "none";
+    this.renderParticipants(); // attendance-mode column only makes sense for hybrid
+  },
+
+  updateDurationDisplay() {
+    const start = ($("cm-start") || {}).value || "09:00";
+    const end = ($("cm-end") || {}).value || "10:00";
+    const mins = this._computeDuration(start, end);
+    const el = $("cm-duration-display");
+    if (!el) return;
+    const l = App.lang;
+    const hh = Math.floor(mins / 60), mm = mins % 60;
+    const text = hh > 0
+      ? (l === "ar" ? `${hh} س ${mm ? mm + " د" : ""}` : `${hh}h ${mm ? mm + "m" : ""}`)
+      : (l === "ar" ? `${mm} دقيقة` : `${mm} min`);
+    el.textContent = text.trim();
   },
 
   _populateBoardSelects() {
@@ -8531,9 +8581,7 @@ const CreateMeetingWizard = {
       committees.map((c) => `<option value="${c.id}">${esc(l === "ar" ? c.name_ar : c.name_en || c.name_ar)}</option>`).join("");
   },
   onProviderChange() {
-    const v = ($("cm-plat") && $("cm-plat").value) || "physical";
-    const row = $("cm-join-row");
-    if (row) row.style.display = v === "physical" ? "none" : "";
+    const v = ($("cm-plat") && $("cm-plat").value) || "zoom";
     const inp = $("cm-join-url");
     if (inp) inp.placeholder = v === "zoom" ? "https://zoom.us/j/..." : v === "teams" ? "https://teams.microsoft.com/l/meetup-join/..." : v === "google_meet" ? "https://meet.google.com/..." : "";
   },
@@ -8587,6 +8635,41 @@ const CreateMeetingWizard = {
   },
   updateAgendaField(i, field, val) {
     if (this.state.agenda[i]) this.state.agenda[i][field] = val;
+    if (field === "duration_mins") this.renderAgendaTotal();
+  },
+  _dragFromIndex: null,
+  onAgendaDragStart(i, ev) {
+    this._dragFromIndex = i;
+    if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = "move"; try { ev.dataTransfer.setData("text/plain", String(i)); } catch (e) {} }
+  },
+  onAgendaDragOver(ev) { ev.preventDefault(); },
+  onAgendaDrop(i, ev) {
+    ev.preventDefault();
+    const from = this._dragFromIndex;
+    this._dragFromIndex = null;
+    if (from === null || from === i) return;
+    const [moved] = this.state.agenda.splice(from, 1);
+    this.state.agenda.splice(i, 0, moved);
+    this.renderAgenda();
+  },
+  moveAgendaItem(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= this.state.agenda.length) return;
+    const [moved] = this.state.agenda.splice(i, 1);
+    this.state.agenda.splice(j, 0, moved);
+    this.renderAgenda();
+  },
+  renderAgendaTotal() {
+    const el = $("cm-agenda-total");
+    if (!el) return;
+    const l = App.lang;
+    const total = this.state.agenda.reduce((sum, a) => sum + (parseInt(a.duration_mins, 10) || 0), 0);
+    if (!total) { el.textContent = ""; return; }
+    const hh = Math.floor(total / 60), mm = total % 60;
+    const dur = hh > 0
+      ? (l === "ar" ? `${hh} س ${mm ? mm + " د" : ""}` : `${hh}h ${mm ? mm + "m" : ""}`)
+      : (l === "ar" ? `${mm} دقيقة` : `${mm} min`);
+    el.textContent = (l === "ar" ? "إجمالي الوقت المخصص: " : "Total allocated time: ") + dur.trim();
   },
   renderAgenda() {
     const box = $("cm-agenda-list");
@@ -8594,16 +8677,30 @@ const CreateMeetingWizard = {
     const l = App.lang;
     if (!this.state.agenda.length) {
       box.innerHTML = `<div style="font-size:11.5px;color:var(--text3);font-style:italic;margin-bottom:8px">${l === "ar" ? "لا توجد بنود بعد" : "No agenda items yet"}</div>`;
+      this.renderAgendaTotal();
       return;
     }
     box.innerHTML = this.state.agenda.map((item, i) => `
-      <div class="imp-grid" style="margin-bottom:8px;padding:10px;background:var(--navy3);border-radius:var(--rm);border:1px solid var(--border2)">
+      <div class="imp-grid" draggable="true"
+        ondragstart="CreateMeetingWizard.onAgendaDragStart(${i}, event)"
+        ondragover="CreateMeetingWizard.onAgendaDragOver(event)"
+        ondrop="CreateMeetingWizard.onAgendaDrop(${i}, event)"
+        style="margin-bottom:8px;padding:10px;background:var(--navy3);border-radius:var(--rm);border:1px solid var(--border2);cursor:grab">
+        <div style="grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3)">
+          <span style="cursor:grab" title="${l === "ar" ? "اسحب لإعادة الترتيب" : "Drag to reorder"}">⠿</span>
+          <span>${l === "ar" ? "بند" : "Item"} ${i + 1}</span>
+          <span style="margin-inline-start:auto;display:flex;gap:4px">
+            <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.moveAgendaItem(${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.moveAgendaItem(${i},1)" ${i === this.state.agenda.length - 1 ? "disabled" : ""}>↓</button>
+          </span>
+        </div>
         <input class="fi" placeholder="${l === "ar" ? "عنوان البند (عربي)" : "Item title (Arabic)"}" value="${esc(item.title_ar || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_ar',this.value)"/>
         <input class="fi" dir="ltr" style="text-align:left" placeholder="Item title (English)" value="${esc(item.title_en || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'title_en',this.value)"/>
-        <input class="fi" placeholder="${l === "ar" ? "مقدّم البند" : "Presenter"}" value="${esc(item.presenter || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'presenter',this.value)"/>
-        <input class="fi" type="number" min="5" step="5" placeholder="${l === "ar" ? "المدة (دقيقة)" : "Duration (min)"}" value="${item.duration_mins || 15}" oninput="CreateMeetingWizard.updateAgendaField(${i},'duration_mins',parseInt(this.value)||15)"/>
+        <input class="fi" placeholder="${l === "ar" ? "مقدّم / مالك البند" : "Presenter / Owner"}" value="${esc(item.presenter || "")}" oninput="CreateMeetingWizard.updateAgendaField(${i},'presenter',this.value)"/>
+        <input class="fi" type="number" min="5" step="5" placeholder="${l === "ar" ? "المدة المخصصة (دقيقة)" : "Allocated minutes"}" value="${item.duration_mins || 15}" oninput="CreateMeetingWizard.updateAgendaField(${i},'duration_mins',parseInt(this.value)||15)"/>
         <button type="button" class="btn-ghost btn-sm" style="grid-column:1/-1;justify-self:start" onclick="CreateMeetingWizard.removeAgendaItem(${i})">✕ ${l === "ar" ? "إزالة" : "Remove"}</button>
       </div>`).join("");
+    this.renderAgendaTotal();
   },
 
   addExpected(kind) {
@@ -8624,6 +8721,70 @@ const CreateMeetingWizard = {
     box.innerHTML = this.state[kind].map((txt, i) =>
       `<span class="chip">${esc(txt)}<button type="button" class="chip-remove" onclick="CreateMeetingWizard.removeExpected('${kind}',${i})">✕</button></span>`
     ).join("");
+  },
+
+  // Participants — internal (picked from App._members, no free typing of name/
+  // email so it always resolves to a real account) vs external (freeform
+  // name/email/phone). Every row gets a role from the same taxonomy regardless
+  // of kind — no role is restricted to "internal-only", per the requirement
+  // that eligibility follow permissions, not a hardcoded allowlist.
+  addParticipant(kind) {
+    this.state.participants.push({
+      kind, member_id: "", name: "", email: "", phone: "",
+      role: kind === "external" ? "External Participant" : "Guest",
+      attendance_mode: "virtual",
+    });
+    this.renderParticipants();
+  },
+  removeParticipant(i) {
+    this.state.participants.splice(i, 1);
+    this.renderParticipants();
+  },
+  updateParticipantField(i, field, val) {
+    const p = this.state.participants[i];
+    if (!p) return;
+    p[field] = val;
+    if (field === "member_id") {
+      const m = (App._members || []).find((x) => String(x.id) === String(val));
+      if (m) { p.name = (App.lang === "ar" ? m.name_ar : m.name_en || m.name_ar) || ""; p.email = m.email || ""; }
+    }
+  },
+  renderParticipants() {
+    const box = $("cm-participants-list");
+    if (!box) return;
+    const l = App.lang;
+    const members = App._members || [];
+    const isHybrid = this.state.format === "hybrid";
+    if (!this.state.participants.length) {
+      box.innerHTML = `<div style="font-size:11.5px;color:var(--text3);font-style:italic;margin-bottom:8px">${l === "ar" ? "لا يوجد مشاركون بعد" : "No participants added yet"}</div>`;
+      return;
+    }
+    const roleOptions = (selected) => this.ROLES.map((r) =>
+      `<option value="${esc(r)}" ${r === selected ? "selected" : ""}>${esc(this.ROLE_LABELS[r][l])}</option>`
+    ).join("");
+    box.innerHTML = this.state.participants.map((p, i) => {
+      const memberField = p.kind === "internal"
+        ? `<select class="fi" onchange="CreateMeetingWizard.updateParticipantField(${i},'member_id',this.value)">
+             <option value="">— ${l === "ar" ? "اختر عضواً" : "Select a member"} —</option>
+             ${members.map((m) => `<option value="${m.id}" ${String(m.id) === String(p.member_id) ? "selected" : ""}>${esc(l === "ar" ? m.name_ar : m.name_en || m.name_ar)}</option>`).join("")}
+           </select>`
+        : `<input class="fi" placeholder="${l === "ar" ? "الاسم" : "Name"}" value="${esc(p.name || "")}" oninput="CreateMeetingWizard.updateParticipantField(${i},'name',this.value)"/>
+           <input class="fi" dir="ltr" style="text-align:left" placeholder="Email" value="${esc(p.email || "")}" oninput="CreateMeetingWizard.updateParticipantField(${i},'email',this.value)"/>
+           <input class="fi" dir="ltr" style="text-align:left" placeholder="Phone" value="${esc(p.phone || "")}" oninput="CreateMeetingWizard.updateParticipantField(${i},'phone',this.value)"/>`;
+      const attendanceField = isHybrid
+        ? `<select class="fi" onchange="CreateMeetingWizard.updateParticipantField(${i},'attendance_mode',this.value)">
+             <option value="in_person" ${p.attendance_mode === "in_person" ? "selected" : ""}>🏛 ${l === "ar" ? "حضوري" : "In-Person"}</option>
+             <option value="virtual" ${p.attendance_mode !== "in_person" ? "selected" : ""}>💻 ${l === "ar" ? "افتراضي" : "Virtual"}</option>
+           </select>`
+        : "";
+      return `<div class="imp-grid" style="margin-bottom:8px;padding:10px;background:var(--navy3);border-radius:var(--rm);border:1px solid var(--border2)">
+        <div style="grid-column:1/-1;font-size:10.5px;color:var(--text3);font-weight:700">${p.kind === "internal" ? (l === "ar" ? "عضو من الفريق" : "Internal Member") : (l === "ar" ? "شخص خارجي" : "External Person")}</div>
+        ${memberField}
+        <select class="fi" onchange="CreateMeetingWizard.updateParticipantField(${i},'role',this.value)">${roleOptions(p.role)}</select>
+        ${attendanceField}
+        <button type="button" class="btn-ghost btn-sm" style="grid-column:1/-1;justify-self:start" onclick="CreateMeetingWizard.removeParticipant(${i})">✕ ${l === "ar" ? "إزالة" : "Remove"}</button>
+      </div>`;
+    }).join("");
   },
 
   _renderReview() {
@@ -8651,27 +8812,41 @@ const CreateMeetingWizard = {
       ? (l === "ar" ? "متابعة: " : "Continuing: ") + (selText("cm-series-existing") || empty)
       : l === "ar" ? "اجتماع مستقل" : "Standalone meeting";
     const agendaCount = this.state.agenda.filter((a) => a.title_ar || a.title_en).length;
+    const agendaTotalMins = this.state.agenda.reduce((sum, a) => sum + (parseInt(a.duration_mins, 10) || 0), 0);
     const fileCount = (($("cm-attachments") || {}).files || []).length;
+    const formatLabels = { in_person: { ar: "🏛 حضوري", en: "🏛 In-Person" }, virtual: { ar: "💻 افتراضي", en: "💻 Virtual" }, hybrid: { ar: "🔀 مختلط", en: "🔀 Hybrid" } };
+    const formatLabel = (formatLabels[this.state.format] || formatLabels.in_person)[l];
+    const locationText = this.state.format !== "virtual" ? val("cm-location") : "";
+    const virtualText = this.state.format !== "in_person" ? [selText("cm-plat"), val("cm-join-url")].filter(Boolean).join(" · ") : "";
+    const participantsSummary = this.state.participants.map((p) => {
+      const name = p.kind === "internal"
+        ? ((App._members || []).find((m) => String(m.id) === String(p.member_id)) || {})[l === "ar" ? "name_ar" : "name_en"] || p.name || "?"
+        : (p.name || p.email || p.phone || "?");
+      return `${name} (${this.ROLE_LABELS[p.role] ? this.ROLE_LABELS[p.role][l] : p.role})`;
+    }).join("، ");
 
     box.innerHTML =
       group("التفاصيل", "Details",
         row("العنوان", "Title", val("cm-title")) +
         row("النوع", "Type", selText("cm-type")) +
         row("التاريخ والوقت", "Date & time", [val("cm-date"), (val("cm-start") && val("cm-end")) ? `${val("cm-start")}–${val("cm-end")}` : val("cm-start")].filter(Boolean).join(" · ")) +
-        row("المنصة", "Platform", selText("cm-plat")) +
+        row("المنطقة الزمنية والمدة", "Timezone & Duration", `${selText("cm-timezone")} · ${$("cm-duration-display") ? $("cm-duration-display").textContent.trim() : ""}`) +
+        row("صيغة الاجتماع", "Meeting Format", formatLabel) +
+        row("الموقع الفعلي", "Physical Location", locationText) +
+        row("الاتصال المرئي", "Virtual Link", virtualText) +
         row("المنظِّم", "Organizer", selText("cm-organizer")) +
         row("المجلس", "Board", selText("cm-board")) +
         row("اللجنة", "Committee", selText("cm-committee"))
       ) +
       group("جدول الأعمال والتخطيط", "Agenda & Planning",
         row("العلاقة", "Relationship", seriesLabel) +
-        row("بنود جدول الأعمال", "Agenda Items", agendaCount ? String(agendaCount) : "") +
+        row("جدول الأعمال والوقت المخصص", "Agenda &amp; Allocated Time", agendaCount ? `${agendaCount} (${agendaTotalMins} ${l === "ar" ? "دقيقة" : "min"})` : "") +
         row("القرارات المتوقعة", "Expected Decisions", this.state.decisions.join("، ")) +
         row("الإجراءات المتوقعة", "Expected Actions", this.state.actions.join("، ")) +
         row("المرفقات", "Attachments", fileCount ? String(fileCount) : "")
       ) +
-      group("المشاركون", "Attendees",
-        row("المشاركون", "Attendees", val("cm-attendees"))
+      group("المشاركون", "Participants",
+        row("المشاركون", "Participants", participantsSummary)
       );
 
     // Creating the shared calendar/reminder entry (POST /schedule) requires
@@ -8720,6 +8895,28 @@ const CreateMeetingWizard = {
     return resData;
   },
 
+  cancel() {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? "إلغاء إنشاء هذا الاجتماع؟ سيتم فقد كل ما أدخلته." : "Cancel creating this meeting? Everything entered will be lost.")) return;
+    Panels.load("scheduled");
+  },
+
+  // Resolves the structured participant list into API-ready rows, dropping
+  // incomplete ones (internal row with no member picked, external row with
+  // no name/email/phone) rather than sending garbage.
+  _resolveParticipants() {
+    const l = App.lang;
+    return this.state.participants.map((p) => {
+      if (p.kind === "internal") {
+        const m = (App._members || []).find((x) => String(x.id) === String(p.member_id));
+        if (!m) return null;
+        return { name: (l === "ar" ? m.name_ar : m.name_en || m.name_ar) || m.name_en || m.name_ar, email: m.email || "", phone: m.phone || "", role: p.role, attendance_mode: p.attendance_mode };
+      }
+      if (!p.name && !p.email && !p.phone) return null;
+      return { name: p.name || p.email || p.phone, email: p.email || "", phone: p.phone || "", role: p.role, attendance_mode: p.attendance_mode };
+    }).filter(Boolean);
+  },
+
   async submit(isDraft) {
     const l = App.lang;
     const title = (($("cm-title") || {}).value || "").trim();
@@ -8729,22 +8926,30 @@ const CreateMeetingWizard = {
     const end = ($("cm-end") || {}).value || "";
     const boardId = parseInt(($("cm-board") || {}).value) || null;
     const committeeId = parseInt(($("cm-committee") || {}).value) || null;
+    const format = this.state.format || "in_person";
+    const physicalLocation = (($("cm-location") || {}).value || "").trim();
+    const joinUrl = (($("cm-join-url") || {}).value || "").trim();
 
     if (!title) { showToast(l === "ar" ? "الرجاء إدخال عنوان الاجتماع" : "Please enter a meeting title", "error"); this.goStep(1); return; }
     if (!boardId && !committeeId) { showToast(l === "ar" ? "الرجاء اختيار مجلس أو لجنة" : "Please select a board or committee", "error"); this.goStep(1); return; }
     if (!type) { showToast(l === "ar" ? "الرجاء اختيار نوع الاجتماع" : "Please select a meeting type", "error"); this.goStep(1); return; }
     if (!date) { showToast(l === "ar" ? "الرجاء تحديد التاريخ" : "Please set the date", "error"); this.goStep(1); return; }
     if (!start) { showToast(l === "ar" ? "الرجاء تحديد وقت البدء" : "Please set the start time", "error"); this.goStep(1); return; }
+    if ((format === "in_person" || format === "hybrid") && !physicalLocation) { showToast(l === "ar" ? "الرجاء تحديد الموقع الفعلي" : "Please set the physical location", "error"); this.goStep(1); return; }
+    if ((format === "virtual" || format === "hybrid") && !joinUrl) { showToast(l === "ar" ? "الرجاء إدخال رابط الانضمام" : "Please enter the virtual meeting link", "error"); this.goStep(1); return; }
 
     const durationMins = end ? this._computeDuration(start, end) : 60;
-    const platVal = ($("cm-plat") || {}).value || "physical";
-    const platformLabel = { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet" }[platVal] || "قاعة الاجتماعات";
+    const platVal = ($("cm-plat") || {}).value || "zoom";
+    const platformLabel = format === "in_person"
+      ? (physicalLocation || "قاعة الاجتماعات")
+      : { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet" }[platVal] || "Zoom";
+    const timezone = ($("cm-timezone") || {}).value || "Asia/Riyadh";
     const organizerId = parseInt(($("cm-organizer") || {}).value) || null;
     const prevMeetingId = parseInt(($("cm-prev") || {}).value) || null;
     const decisions = this.state.decisions.slice();
     const actions = this.state.actions.slice();
     const agendaItems = this.state.agenda.filter((a) => (a.title_ar || "").trim() || (a.title_en || "").trim());
-    const attendeesRaw = (($("cm-attendees") || {}).value || "").trim();
+    const participants = this._resolveParticipants();
 
     const btn = $(isDraft ? "cm-draft-btn" : "cm-submit-btn");
     const originalHtml = btn ? btn.innerHTML : "";
@@ -8765,12 +8970,22 @@ const CreateMeetingWizard = {
         purpose_en: (($("cm-purpose-en") || {}).value || ""),
         expected_decisions: decisions,
         expected_actions: actions,
+        timezone,
+        meeting_format: format,
+        physical_location: physicalLocation,
       }, SeriesUI.resolvePayload("cm"));
 
       const meeting = await api("/api/meetings", { method: "POST", body: JSON.stringify(meetingPayload) });
 
       if (agendaItems.length) {
         await api(`/api/meetings/${meeting.id}/agenda`, { method: "POST", body: JSON.stringify({ agenda: agendaItems }) });
+      }
+
+      // Participants are saved to the meeting itself regardless of draft
+      // status — a draft still needs to remember who was added so nothing
+      // is lost between "Save as Draft" and actually scheduling it later.
+      if (participants.length) {
+        await api(`/api/meetings/${meeting.id}/attendees`, { method: "POST", body: JSON.stringify({ attendees: participants }) }).catch(() => {});
       }
 
       const fileInput = $("cm-attachments");
@@ -8793,9 +9008,13 @@ const CreateMeetingWizard = {
           title_en: title,
           meeting_date: date,
           meeting_time: start,
+          end_time: end || null,
+          timezone,
           duration_mins: durationMins,
           platform: platformLabel,
-          attendees: attendeesRaw,
+          participants,
+          meeting_format: format,
+          physical_location: physicalLocation,
           agenda_ar: agendaItems.map((a) => a.title_ar).filter(Boolean).join("\n"),
           agenda_en: agendaItems.map((a) => a.title_en).filter(Boolean).join("\n"),
           meeting_type: type,
@@ -8806,16 +9025,9 @@ const CreateMeetingWizard = {
           recurrence: ($("cm-recurrence") || {}).value || "none",
           reminder_channel: ($("cm-channel") || {}).value || "email",
           meeting_provider: platVal,
-          meeting_join_url: (($("cm-join-url") || {}).value || "").trim(),
+          meeting_join_url: joinUrl,
           source_meeting_id: meeting.id,
         }, false);
-
-        if (attendeesRaw) {
-          const attendees = attendeesRaw.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
-          if (attendees.length) {
-            await api(`/api/meetings/${meeting.id}/attendees`, { method: "POST", body: JSON.stringify({ attendees }) });
-          }
-        }
       }
 
       showToast(isDraft
@@ -8917,6 +9129,7 @@ const ScheduledPanel = {
     const l = App.lang;
     const q = (($("sp-search") || {}).value || "").trim().toLowerCase();
     const type = ($("sp-type-filter") || {}).value || "";
+    const sort = ($("sp-sort") || {}).value || "upcoming_first";
     this._filtered = this._all.filter((s) => {
       if (type && s.meeting_type !== type) return false;
       if (q) {
@@ -8925,6 +9138,24 @@ const ScheduledPanel = {
       }
       return true;
     });
+    const dt = (s) => new Date(`${s.meeting_date} ${s.meeting_time || "00:00"}`).getTime() || 0;
+    const created = (s) => new Date(s.created_at || 0).getTime() || 0;
+    const updated = (s) => new Date(s.updated_at || s.created_at || 0).getTime() || 0;
+    const now = Date.now();
+    const sorters = {
+      meeting_date: (a, b) => dt(a) - dt(b),
+      latest_created: (a, b) => created(b) - created(a),
+      oldest_created: (a, b) => created(a) - created(b),
+      recently_updated: (a, b) => updated(b) - updated(a),
+      // Upcoming first: future meetings soonest-first, then past meetings most-recent-first.
+      upcoming_first: (a, b) => {
+        const aFut = dt(a) >= now, bFut = dt(b) >= now;
+        if (aFut && !bFut) return -1;
+        if (!aFut && bFut) return 1;
+        return aFut ? dt(a) - dt(b) : dt(b) - dt(a);
+      },
+    };
+    this._filtered.sort(sorters[sort] || sorters.upcoming_first);
     this.render();
   },
 
@@ -8996,6 +9227,7 @@ const ScheduledPanel = {
           <button class="btn-ghost btn-sm" onclick="RowMenu.toggle('${menuId}', event)">⋮</button>
           <div class="row-menu" id="${menuId}">
             ${eligible ? `<button onclick="RowMenu.closeAll();ScheduledPanel.startMeeting(${s.id})">▶ ${l === "ar" ? "بدء الاجتماع" : "Start Meeting"}</button>` : ""}
+            <button onclick="RowMenu.closeAll();RescheduleModal.open(${s.id})">🗓 ${l === "ar" ? "إعادة الجدولة" : "Reschedule"}</button>
             ${s.source_meeting_id ? `<button onclick="RowMenu.closeAll();ScheduledPanel.openWorkspace(${s.source_meeting_id})">🗃 ${l === "ar" ? "فتح مساحة العمل" : "Open Workspace"}</button>` : ""}
             <button onclick="RowMenu.closeAll();ScheduledPanel.delete(${s.id})">✕ ${l === "ar" ? "حذف" : "Delete"}</button>
           </div>
@@ -9024,11 +9256,27 @@ const ScheduledPanel = {
             board_id: s.board_id || null,
             committee_id: s.committee_id || null,
             platform: s.platform || "",
+            timezone: s.timezone || "Asia/Riyadh",
+            meeting_format: s.meeting_format || "in_person",
+            physical_location: s.physical_location || "",
           }),
         });
         meetingId = meeting.id;
         await api(`/api/schedule/${scheduleId}`, { method: "PATCH", body: JSON.stringify({ source_meeting_id: meetingId }) });
         s.source_meeting_id = meetingId;
+        // Carry the structured participant list (internal member picks +
+        // external freeform entries, each with a role and — for hybrid — an
+        // attendance mode) from the schedule row over to the now-real
+        // meeting's attendee list, instead of losing it the moment the
+        // meeting actually starts.
+        let participants = [];
+        try { participants = JSON.parse(s.participants_json || "[]"); } catch (e) {}
+        if (Array.isArray(participants) && participants.length) {
+          await api(`/api/meetings/${meetingId}/attendees`, {
+            method: "POST",
+            body: JSON.stringify({ attendees: participants }),
+          }).catch(() => {});
+        }
       }
       await api(`/api/meetings/${meetingId}/recording/start`, {
         method: "POST",
@@ -9049,6 +9297,56 @@ const ScheduledPanel = {
       showToast(l === "ar" ? "✓ تم الحذف" : "✓ Deleted");
     } catch (e) {
       showToast((l === "ar" ? "تعذّر الحذف: " : "Could not delete: ") + e.message, "error");
+    }
+  },
+};
+
+// Reschedule — distinct from a generic edit: only date/time change, backend
+// logs old→new and notifies attendees (see PATCH /schedule/:id/reschedule).
+const RescheduleModal = {
+  scheduleId: null,
+  open(scheduleId) {
+    const s = ScheduledPanel._all.find((x) => x.id === scheduleId);
+    if (!s) return;
+    this.scheduleId = scheduleId;
+    const l = App.lang;
+    const title = l === "ar" ? s.title_ar : s.title_en || s.title_ar;
+    const cur = $("reschedule-current");
+    if (cur) cur.textContent = (l === "ar" ? "الموعد الحالي: " : "Current: ") + `${esc(title)} — ${(s.meeting_date || "").substring(0, 10)} ${(s.meeting_time || "").substring(0, 5)}`;
+    if ($("rs-date")) $("rs-date").value = (s.meeting_date || "").substring(0, 10);
+    if ($("rs-time")) $("rs-time").value = (s.meeting_time || "").substring(0, 5);
+    $("modal-reschedule").classList.add("open");
+  },
+  close() {
+    $("modal-reschedule").classList.remove("open");
+    this.scheduleId = null;
+  },
+  async save(force) {
+    const l = App.lang;
+    const date = ($("rs-date") || {}).value || "";
+    const time = ($("rs-time") || {}).value || "";
+    if (!date || !time) { showToast(l === "ar" ? "الرجاء تحديد التاريخ والوقت" : "Please set both date and time", "error"); return; }
+    try {
+      const res = await fetch(`/api/schedule/${this.scheduleId}/reschedule`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meeting_date: date, meeting_time: time, force: !!force }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        const list = (data.conflicts || []).map((c) => `• ${l === "ar" ? c.title_ar : c.title_en || c.title_ar} — ${(c.meeting_date || "").substring(0, 10)} ${c.meeting_time || ""}`).join("\n");
+        const msg = l === "ar" ? "يتعارض هذا الموعد مع اجتماع مؤكَّد:\n\n" + list + "\n\nهل تريد الحفظ رغم التعارض؟" : "This time overlaps a confirmed meeting:\n\n" + list + "\n\nSave anyway?";
+        if (confirm(msg)) return this.save(true);
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+      showToast(l === "ar" ? "✓ تمت إعادة الجدولة — تم إشعار المشاركين" : "✓ Rescheduled — participants notified");
+      this.close();
+      await ScheduledPanel.refresh();
+      if (Panels.current === "schedule") await renderSchedule();
+    } catch (e) {
+      showToast((l === "ar" ? "تعذّر إعادة الجدولة: " : "Could not reschedule: ") + e.message, "error");
     }
   },
 };

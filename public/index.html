@@ -251,9 +251,22 @@
               <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
               <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
               <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+              <option value="Executive Committee Meeting">اجتماع اللجنة التنفيذية / Executive Committee Meeting</option>
               <option value="General Meeting">الاجتماع العام / General Meeting</option>
+              <option value="General Assembly">الجمعية العامة / General Assembly</option>
+              <option value="Annual General Meeting">الجمعية العامة العادية / Annual General Meeting</option>
+              <option value="Extraordinary General Meeting">الجمعية العامة غير العادية / Extraordinary General Meeting</option>
               <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+              <option value="Audit Committee Meeting">اجتماع لجنة المراجعة / Audit Committee Meeting</option>
+              <option value="Risk Committee Meeting">اجتماع لجنة المخاطر / Risk Committee Meeting</option>
+              <option value="Nomination &amp; Remuneration Committee Meeting">اجتماع لجنة الترشيحات والمكافآت / Nomination &amp; Remuneration Committee Meeting</option>
+              <option value="Management Meeting">اجتماع الإدارة / Management Meeting</option>
+              <option value="Department Meeting">اجتماع القسم / Department Meeting</option>
+              <option value="Project Meeting">اجتماع المشروع / Project Meeting</option>
               <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+              <option value="Emergency Meeting">اجتماع طارئ / Emergency Meeting</option>
+              <option value="Circular Resolution">قرار بالتمرير / Circular Resolution</option>
+              <option value="Other">أخرى / Other</option>
             </select>
             <input type="date" id="imp-new-date" class="fi"/>
             <select id="imp-new-provider" class="fi">
@@ -326,9 +339,22 @@
               <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
               <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
               <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+              <option value="Executive Committee Meeting">اجتماع اللجنة التنفيذية / Executive Committee Meeting</option>
               <option value="General Meeting">الاجتماع العام / General Meeting</option>
+              <option value="General Assembly">الجمعية العامة / General Assembly</option>
+              <option value="Annual General Meeting">الجمعية العامة العادية / Annual General Meeting</option>
+              <option value="Extraordinary General Meeting">الجمعية العامة غير العادية / Extraordinary General Meeting</option>
               <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+              <option value="Audit Committee Meeting">اجتماع لجنة المراجعة / Audit Committee Meeting</option>
+              <option value="Risk Committee Meeting">اجتماع لجنة المخاطر / Risk Committee Meeting</option>
+              <option value="Nomination &amp; Remuneration Committee Meeting">اجتماع لجنة الترشيحات والمكافآت / Nomination &amp; Remuneration Committee Meeting</option>
+              <option value="Management Meeting">اجتماع الإدارة / Management Meeting</option>
+              <option value="Department Meeting">اجتماع القسم / Department Meeting</option>
+              <option value="Project Meeting">اجتماع المشروع / Project Meeting</option>
               <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+              <option value="Emergency Meeting">اجتماع طارئ / Emergency Meeting</option>
+              <option value="Circular Resolution">قرار بالتمرير / Circular Resolution</option>
+              <option value="Other">أخرى / Other</option>
             </select>
             <div class="rec-st" id="rec-st" data-ar="اضغط للبدء" data-en="Tap to start">اضغط للبدء</div>
             <div class="rec-tm" id="rec-tm">00:00</div>
@@ -509,6 +535,10 @@
   </div>
   <div class="pbody">
     <div class="card" id="cm-form-card">
+      <div class="fa" id="cm-top-actions" style="justify-content:flex-end;gap:8px;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border2)">
+        <button class="btn-ghost btn-sm" onclick="CreateMeetingWizard.cancel()"><span data-ar="إلغاء" data-en="Cancel">Cancel</span></button>
+        <button class="btn-ghost btn-sm" id="cm-draft-btn-top" onclick="CreateMeetingWizard.submit(true)"><span data-ar="حفظ كمسودة" data-en="Save as Draft">Save as Draft</span></button>
+      </div>
       <div class="wiz-header" id="cm-wiz-header">
         <div class="wiz-step active" id="cm-wiz-dot-1" data-step="1">
           <div class="wiz-step-dot">1</div>
@@ -546,9 +576,22 @@
                 <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
                 <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
                 <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+                <option value="Executive Committee Meeting">اجتماع اللجنة التنفيذية / Executive Committee Meeting</option>
                 <option value="General Meeting">الاجتماع العام / General Meeting</option>
+                <option value="General Assembly">الجمعية العامة / General Assembly</option>
+                <option value="Annual General Meeting">الجمعية العامة العادية / Annual General Meeting</option>
+                <option value="Extraordinary General Meeting">الجمعية العامة غير العادية / Extraordinary General Meeting</option>
                 <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+                <option value="Audit Committee Meeting">اجتماع لجنة المراجعة / Audit Committee Meeting</option>
+                <option value="Risk Committee Meeting">اجتماع لجنة المخاطر / Risk Committee Meeting</option>
+                <option value="Nomination &amp; Remuneration Committee Meeting">اجتماع لجنة الترشيحات والمكافآت / Nomination &amp; Remuneration Committee Meeting</option>
+                <option value="Management Meeting">اجتماع الإدارة / Management Meeting</option>
+                <option value="Department Meeting">اجتماع القسم / Department Meeting</option>
+                <option value="Project Meeting">اجتماع المشروع / Project Meeting</option>
                 <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+                <option value="Emergency Meeting">اجتماع طارئ / Emergency Meeting</option>
+                <option value="Circular Resolution">قرار بالتمرير / Circular Resolution</option>
+                <option value="Other">أخرى / Other</option>
               </select>
             </div>
             <div class="frow">
@@ -563,11 +606,33 @@
             </div>
             <div class="frow">
               <div class="fl" data-ar="وقت البدء" data-en="Start Time">وقت البدء</div>
-              <input class="fi" type="time" id="cm-start" value="09:00"/>
+              <input class="fi" type="time" id="cm-start" value="09:00" onchange="CreateMeetingWizard.updateDurationDisplay()"/>
             </div>
             <div class="frow">
               <div class="fl" data-ar="وقت الانتهاء" data-en="End Time">وقت الانتهاء</div>
-              <input class="fi" type="time" id="cm-end" value="10:00"/>
+              <input class="fi" type="time" id="cm-end" value="10:00" onchange="CreateMeetingWizard.updateDurationDisplay()"/>
+            </div>
+          </div>
+          <div class="fr2">
+            <div class="frow">
+              <div class="fl" data-ar="المنطقة الزمنية" data-en="Timezone">المنطقة الزمنية</div>
+              <select class="fi" id="cm-timezone">
+                <option value="Asia/Riyadh">Asia/Riyadh (UTC+3)</option>
+                <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
+                <option value="Asia/Kuwait">Asia/Kuwait (UTC+3)</option>
+                <option value="Asia/Qatar">Asia/Qatar (UTC+3)</option>
+                <option value="Africa/Cairo">Africa/Cairo (UTC+2)</option>
+                <option value="Europe/London">Europe/London (UTC+0/+1)</option>
+                <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
+                <option value="America/New_York">America/New_York (UTC-5/-4)</option>
+                <option value="America/Los_Angeles">America/Los_Angeles (UTC-8/-7)</option>
+                <option value="Asia/Karachi">Asia/Karachi (UTC+5)</option>
+                <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
+              </select>
+            </div>
+            <div class="frow">
+              <div class="fl" data-ar="المدة" data-en="Duration">المدة</div>
+              <div class="fi" id="cm-duration-display" style="display:flex;align-items:center;background:var(--navy4);color:var(--text2)">60 <span data-ar="دقيقة" data-en="min" style="margin-inline-start:4px">min</span></div>
             </div>
           </div>
           <div class="fr2">
@@ -584,17 +649,28 @@
               </select>
             </div>
           </div>
-          <div class="fr2">
+          <div class="frow">
+            <div class="fl" data-ar="صيغة الاجتماع" data-en="Meeting Format">صيغة الاجتماع</div>
+            <div class="imp-seg" id="cm-format-seg">
+              <button type="button" class="imp-seg-btn active" data-val="in_person" onclick="CreateMeetingWizard.setFormat('in_person')">🏛 <span data-ar="حضوري" data-en="In-Person">In-Person</span></button>
+              <button type="button" class="imp-seg-btn" data-val="virtual" onclick="CreateMeetingWizard.setFormat('virtual')">💻 <span data-ar="افتراضي" data-en="Virtual">Virtual</span></button>
+              <button type="button" class="imp-seg-btn" data-val="hybrid" onclick="CreateMeetingWizard.setFormat('hybrid')">🔀 <span data-ar="مختلط" data-en="Hybrid">Hybrid</span></button>
+            </div>
+          </div>
+          <div class="frow" id="cm-location-row">
+            <div class="fl" data-ar="الموقع الفعلي" data-en="Physical Location">الموقع الفعلي</div>
+            <input class="fi" id="cm-location" data-ph-ar="قاعة الاجتماعات — الطابق 3" data-ph-en="Boardroom — 3rd Floor" placeholder="Boardroom — 3rd Floor"/>
+          </div>
+          <div class="fr2" id="cm-virtual-row" style="display:none">
             <div class="frow">
-              <div class="fl" data-ar="مزود الاجتماع" data-en="Meeting Provider">مزود الاجتماع</div>
+              <div class="fl" data-ar="مزود الاتصال المرئي" data-en="Virtual Provider">مزود الاتصال المرئي</div>
               <select class="fi" id="cm-plat" onchange="CreateMeetingWizard.onProviderChange()">
-                <option value="physical" data-ar="اجتماع حضوري" data-en="Physical Meeting">🏛 Physical Meeting / اجتماع حضوري</option>
                 <option value="zoom" data-ar="Zoom" data-en="Zoom">🎥 Zoom</option>
                 <option value="teams" data-ar="Microsoft Teams" data-en="Microsoft Teams">💼 Microsoft Teams</option>
                 <option value="google_meet" data-ar="Google Meet" data-en="Google Meet">🎦 Google Meet</option>
               </select>
             </div>
-            <div class="frow" id="cm-join-row" style="display:none">
+            <div class="frow" id="cm-join-row">
               <div class="fl" data-ar="رابط الانضمام" data-en="Join URL">رابط الانضمام</div>
               <input class="fi" id="cm-join-url" type="url" dir="ltr" placeholder="https://zoom.us/j/..." style="text-align:left"/>
             </div>
@@ -660,8 +736,9 @@
         <!-- Step 2 — Agenda & Planning -->
         <div class="wiz-panel" id="cm-wiz-panel-2">
           <div class="imp-section">
-            <div class="imp-label" data-ar="بنود جدول الأعمال" data-en="Agenda Items">بنود جدول الأعمال</div>
+            <div class="imp-label" data-ar="جدول الأعمال والوقت المخصص" data-en="Agenda &amp; Allocated Time">جدول الأعمال والوقت المخصص</div>
             <div id="cm-agenda-list"></div>
+            <div id="cm-agenda-total" style="font-size:11.5px;color:var(--text3);margin:2px 0 10px;font-weight:600"></div>
             <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addAgendaItem()">+ <span data-ar="إضافة بند" data-en="Add Agenda Item">Add Agenda Item</span></button>
           </div>
           <div class="imp-section">
@@ -690,11 +767,15 @@
           </div>
         </div>
 
-        <!-- Step 3 — Attendees -->
+        <!-- Step 3 — Participants -->
         <div class="wiz-panel" id="cm-wiz-panel-3">
-          <div class="frow">
-            <div class="fl" data-ar="المشاركون (أسماء أو إيميلات أو أرقام جوال)" data-en="Attendees (names, emails or phone numbers)">المشاركون</div>
-            <textarea class="fi" id="cm-attendees" rows="5" data-ph-ar="م. أحمد، sara@x.com، ‎+9665...&#10;— اسم واحد أو بريد أو رقم في كل سطر أو مفصول بفاصلة" data-ph-en="Ahmed, sara@x.com, +9665...&#10;— one name/email/phone per line or comma-separated" placeholder="Ahmed, sara@x.com, +9665..."></textarea>
+          <div class="imp-section">
+            <div class="imp-label" data-ar="المشاركون" data-en="Participants">المشاركون</div>
+            <div id="cm-participants-list"></div>
+            <div class="fa" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+              <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addParticipant('internal')">+ <span data-ar="عضو من الفريق" data-en="Internal Member">Internal Member</span></button>
+              <button type="button" class="btn-ghost btn-sm" onclick="CreateMeetingWizard.addParticipant('external')">+ <span data-ar="شخص خارجي" data-en="External Person">External Person</span></button>
+            </div>
           </div>
           <div class="fa" style="justify-content:space-between">
             <button class="btn-ghost" onclick="CreateMeetingWizard.goStep(2)">← <span data-ar="السابق" data-en="Back">Back</span></button>
@@ -709,8 +790,9 @@
           <div class="fa" style="flex-wrap:wrap;gap:8px;justify-content:space-between">
             <button class="btn-ghost" onclick="CreateMeetingWizard.goStep(3)">← <span data-ar="السابق" data-en="Back">Back</span></button>
             <div class="fa" style="flex-wrap:wrap;gap:8px">
+              <button class="btn-ghost" onclick="CreateMeetingWizard.cancel()"><span data-ar="إلغاء" data-en="Cancel">Cancel</span></button>
               <button class="btn-ghost" id="cm-draft-btn" onclick="CreateMeetingWizard.submit(true)" data-ar="حفظ كمسودة" data-en="Save as Draft">حفظ كمسودة</button>
-              <button class="btn-gold" id="cm-submit-btn" onclick="CreateMeetingWizard.submit(false)">✓ <span data-ar="إنشاء الاجتماع" data-en="Create Meeting">إنشاء الاجتماع</span></button>
+              <button class="btn-gold" id="cm-submit-btn" onclick="CreateMeetingWizard.submit(false)">✓ <span data-ar="تأكيد وجدولة الاجتماع" data-en="Confirm &amp; Schedule Meeting">Confirm &amp; Schedule Meeting</span></button>
             </div>
           </div>
         </div>
@@ -739,9 +821,29 @@
           <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
           <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
           <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+          <option value="Executive Committee Meeting">اجتماع اللجنة التنفيذية / Executive Committee Meeting</option>
           <option value="General Meeting">الاجتماع العام / General Meeting</option>
+          <option value="General Assembly">الجمعية العامة / General Assembly</option>
+          <option value="Annual General Meeting">الجمعية العامة العادية / Annual General Meeting</option>
+          <option value="Extraordinary General Meeting">الجمعية العامة غير العادية / Extraordinary General Meeting</option>
           <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+          <option value="Audit Committee Meeting">اجتماع لجنة المراجعة / Audit Committee Meeting</option>
+          <option value="Risk Committee Meeting">اجتماع لجنة المخاطر / Risk Committee Meeting</option>
+          <option value="Nomination &amp; Remuneration Committee Meeting">اجتماع لجنة الترشيحات والمكافآت / Nomination &amp; Remuneration Committee Meeting</option>
+          <option value="Management Meeting">اجتماع الإدارة / Management Meeting</option>
+          <option value="Department Meeting">اجتماع القسم / Department Meeting</option>
+          <option value="Project Meeting">اجتماع المشروع / Project Meeting</option>
           <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+          <option value="Emergency Meeting">اجتماع طارئ / Emergency Meeting</option>
+          <option value="Circular Resolution">قرار بالتمرير / Circular Resolution</option>
+          <option value="Other">أخرى / Other</option>
+        </select>
+        <select class="fi" id="sp-sort" style="max-width:200px" onchange="ScheduledPanel.applyFilters()">
+          <option value="upcoming_first" data-ar="القادمة أولاً" data-en="Upcoming First">Upcoming First</option>
+          <option value="meeting_date" data-ar="تاريخ الاجتماع" data-en="Meeting Date">Meeting Date</option>
+          <option value="latest_created" data-ar="الأحدث إنشاءً" data-en="Latest Created">Latest Created</option>
+          <option value="oldest_created" data-ar="الأقدم إنشاءً" data-en="Oldest Created">Oldest Created</option>
+          <option value="recently_updated" data-ar="آخر تحديث" data-en="Recently Updated">Recently Updated</option>
         </select>
         <button class="btn-ghost btn-sm" onclick="ScheduledPanel.refresh()">↺</button>
       </div>
@@ -827,9 +929,22 @@
             <option value="Board Meeting" data-ar="اجتماع مجلس الإدارة" data-en="Board Meeting">اجتماع مجلس الإدارة</option>
             <option value="Committee Meeting" data-ar="اجتماع اللجنة" data-en="Committee Meeting">اجتماع اللجنة</option>
             <option value="Executive Meeting" data-ar="الاجتماع التنفيذي" data-en="Executive Meeting">الاجتماع التنفيذي</option>
+            <option value="Executive Committee Meeting" data-ar="اجتماع اللجنة التنفيذية" data-en="Executive Committee Meeting">اجتماع اللجنة التنفيذية</option>
             <option value="General Meeting" data-ar="الاجتماع العام" data-en="General Meeting">الاجتماع العام</option>
+            <option value="General Assembly" data-ar="الجمعية العامة" data-en="General Assembly">الجمعية العامة</option>
+            <option value="Annual General Meeting" data-ar="الجمعية العامة العادية" data-en="Annual General Meeting">الجمعية العامة العادية</option>
+            <option value="Extraordinary General Meeting" data-ar="الجمعية العامة غير العادية" data-en="Extraordinary General Meeting">الجمعية العامة غير العادية</option>
             <option value="Strategy Meeting" data-ar="اجتماع الاستراتيجية" data-en="Strategy Meeting">اجتماع الاستراتيجية</option>
+            <option value="Audit Committee Meeting" data-ar="اجتماع لجنة المراجعة" data-en="Audit Committee Meeting">اجتماع لجنة المراجعة</option>
+            <option value="Risk Committee Meeting" data-ar="اجتماع لجنة المخاطر" data-en="Risk Committee Meeting">اجتماع لجنة المخاطر</option>
+            <option value="Nomination &amp; Remuneration Committee Meeting" data-ar="اجتماع لجنة الترشيحات والمكافآت" data-en="Nomination &amp; Remuneration Committee Meeting">اجتماع لجنة الترشيحات والمكافآت</option>
+            <option value="Management Meeting" data-ar="اجتماع الإدارة" data-en="Management Meeting">اجتماع الإدارة</option>
+            <option value="Department Meeting" data-ar="اجتماع القسم" data-en="Department Meeting">اجتماع القسم</option>
+            <option value="Project Meeting" data-ar="اجتماع المشروع" data-en="Project Meeting">اجتماع المشروع</option>
             <option value="Follow-up Meeting" data-ar="اجتماع المتابعة" data-en="Follow-up Meeting">اجتماع المتابعة</option>
+            <option value="Emergency Meeting" data-ar="اجتماع طارئ" data-en="Emergency Meeting">اجتماع طارئ</option>
+            <option value="Circular Resolution" data-ar="قرار بالتمرير" data-en="Circular Resolution">قرار بالتمرير</option>
+            <option value="Other" data-ar="أخرى" data-en="Other">أخرى</option>
           </select>
           <select id="hist-filter-provider" class="fi" onchange="MeetingHistory.applyFilters()">
             <option value="" data-ar="كل المصادر" data-en="All Providers">كل المصادر</option>
@@ -1157,9 +1272,22 @@
                 <option value="Board Meeting">اجتماع مجلس الإدارة / Board Meeting</option>
                 <option value="Committee Meeting">اجتماع اللجنة / Committee Meeting</option>
                 <option value="Executive Meeting">الاجتماع التنفيذي / Executive Meeting</option>
+                <option value="Executive Committee Meeting">اجتماع اللجنة التنفيذية / Executive Committee Meeting</option>
                 <option value="General Meeting">الاجتماع العام / General Meeting</option>
+                <option value="General Assembly">الجمعية العامة / General Assembly</option>
+                <option value="Annual General Meeting">الجمعية العامة العادية / Annual General Meeting</option>
+                <option value="Extraordinary General Meeting">الجمعية العامة غير العادية / Extraordinary General Meeting</option>
                 <option value="Strategy Meeting">اجتماع الاستراتيجية / Strategy Meeting</option>
+                <option value="Audit Committee Meeting">اجتماع لجنة المراجعة / Audit Committee Meeting</option>
+                <option value="Risk Committee Meeting">اجتماع لجنة المخاطر / Risk Committee Meeting</option>
+                <option value="Nomination &amp; Remuneration Committee Meeting">اجتماع لجنة الترشيحات والمكافآت / Nomination &amp; Remuneration Committee Meeting</option>
+                <option value="Management Meeting">اجتماع الإدارة / Management Meeting</option>
+                <option value="Department Meeting">اجتماع القسم / Department Meeting</option>
+                <option value="Project Meeting">اجتماع المشروع / Project Meeting</option>
                 <option value="Follow-up Meeting">اجتماع المتابعة / Follow-up Meeting</option>
+                <option value="Emergency Meeting">اجتماع طارئ / Emergency Meeting</option>
+                <option value="Circular Resolution">قرار بالتمرير / Circular Resolution</option>
+                <option value="Other">أخرى / Other</option>
               </select>
             </div>
             <div class="frow">
@@ -1548,6 +1676,29 @@
 </div>
 
 <!-- ══ MODAL: ADD TASK ════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-reschedule">
+  <div class="modal">
+    <div class="modal-title"><span data-ar="إعادة جدولة الاجتماع" data-en="Reschedule Meeting">إعادة جدولة الاجتماع</span></div>
+    <div id="reschedule-current" style="font-size:11.5px;color:var(--text3);margin-bottom:12px"></div>
+    <div class="fs">
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="التاريخ الجديد" data-en="New Date">التاريخ الجديد</div>
+          <input class="fi" type="date" id="rs-date"/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="الوقت الجديد" data-en="New Time">الوقت الجديد</div>
+          <input class="fi" type="time" id="rs-time"/>
+        </div>
+      </div>
+    </div>
+    <div class="fa" style="justify-content:flex-end;margin-top:16px">
+      <button class="btn-ghost" onclick="RescheduleModal.close()"><span data-ar="إلغاء" data-en="Cancel">Cancel</span></button>
+      <button class="btn-gold" onclick="RescheduleModal.save()"><span data-ar="حفظ" data-en="Save">Save</span></button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
     <div class="modal-title"><span id="modal-title-txt" data-ar="إضافة مهمة جديدة" data-en="Add New Task">إضافة مهمة جديدة</span></div>

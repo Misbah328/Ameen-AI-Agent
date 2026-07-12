@@ -631,6 +631,24 @@ db.exec(`
 ensureColumn('meetings', 'series_id', 'INTEGER');
 ensureColumn('schedule', 'series_id', 'INTEGER');
 
+// ── Meeting Creation redesign (Phase 2) ───────────────────────────────────────
+// meeting_format: 'in_person' | 'virtual' | 'hybrid'. Hybrid needs BOTH a
+// physical_location and a virtual join link (meeting_join_url already exists)
+// plus a per-attendee attendance_mode (below) for who's in the room vs online.
+ensureColumn('schedule', 'timezone', "TEXT DEFAULT 'Asia/Riyadh'");
+ensureColumn('schedule', 'meeting_format', "TEXT DEFAULT 'in_person'");
+ensureColumn('schedule', 'physical_location', "TEXT DEFAULT ''");
+ensureColumn('schedule', 'end_time', 'TEXT');
+// Structured participant list (kind/member_id/name/email/phone/role/attendance_mode)
+// captured at Create Meeting time — schedule.attendees stays a derived
+// free-text summary for the existing reminder/notification code that parses it.
+ensureColumn('schedule', 'participants_json', "TEXT DEFAULT '[]'");
+ensureColumn('schedule', 'updated_at', 'DATETIME');
+ensureColumn('meetings', 'timezone', "TEXT DEFAULT 'Asia/Riyadh'");
+ensureColumn('meetings', 'meeting_format', "TEXT DEFAULT 'in_person'");
+ensureColumn('meetings', 'physical_location', "TEXT DEFAULT ''");
+ensureColumn('meeting_attendees', 'attendance_mode', "TEXT DEFAULT 'virtual'");
+
 // ── Enterprise RBAC (Phase 4) ─────────────────────────────────────────────────
 // `roles` is the admin-configurable catalog of assignable roles (built-in
 // roles are seeded once below; Admins can also create custom roles at

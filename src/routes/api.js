@@ -627,19 +627,25 @@ router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) 
     title_ar, title_en, transcript, duration, meeting_type,
     board_id, committee_id, series_id, new_series, prev_meeting_id, meeting_date,
     platform, organizer_id, purpose_ar, purpose_en, expected_decisions, expected_actions,
+    timezone, meeting_format, physical_location,
   } = req.body;
   const resolvedSeriesId = (series_id || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
+  // Format is validated once, authoritatively, at schedule creation/reschedule
+  // time (POST/PATCH /schedule) — meetings.platform is a free-text display
+  // label here, not a structured join URL, so re-validating it would risk
+  // false rejections for meetings created straight from a schedule row.
   const row = db.prepare(`
     INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type,
       board_id, committee_id, series_id, prev_meeting_id, meeting_date, platform, organizer_id,
-      purpose_ar, purpose_en, expected_decisions, expected_actions)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?)
+      purpose_ar, purpose_en, expected_decisions, expected_actions, timezone, meeting_format, physical_location)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '',
     board_id || null, committee_id || null, resolvedSeriesId || null, prev_meeting_id || null, meeting_date || null,
     platform || '', organizer_id || req.user.id, purpose_ar || '', purpose_en || '',
     JSON.stringify(Array.isArray(expected_decisions) ? expected_decisions : []),
     JSON.stringify(Array.isArray(expected_actions) ? expected_actions : []),
+    timezone || 'Asia/Riyadh', meeting_format || 'in_person', physical_location || '',
   );
   const actor = resolveActor(req.user.id);
   db.prepare(
@@ -1586,9 +1592,37 @@ function addNPeriods(originDateStr, recurrence, n) {
 }
 
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
+// Participant role taxonomy for the Create Meeting wizard / attendee list —
+// any user can be assigned any of these (no role-name restriction on who's
+// eligible for e.g. Meeting Coordinator; that's gated by the meetings.create
+// permission at the UI layer instead, see NAV_REQUIRED_PERMISSION in app.js).
+const ATTENDEE_ROLES = ['Chair', 'Organizer', 'Meeting Coordinator', 'Board Member', 'Committee Member', 'Secretary', 'Presenter', 'Observer', 'Guest', 'External Participant'];
+
+// Meeting format validation — hybrid needs somewhere to physically show up
+// AND a link for whoever isn't; virtual/in_person only need their own half.
+const VALID_MEETING_FORMATS = ['in_person', 'virtual', 'hybrid'];
+function validateMeetingFormat(format, physicalLocation, joinUrl) {
+  if (!format) return null;
+  if (!VALID_MEETING_FORMATS.includes(format)) return 'meeting_format must be in_person, virtual, or hybrid';
+  if (format === 'hybrid' && (!physicalLocation || !joinUrl)) {
+    return 'Hybrid meetings require both a physical location and a virtual meeting link';
+  }
+  if (format === 'virtual' && !joinUrl) return 'Virtual meetings require a meeting link';
+  if (format === 'in_person' && !physicalLocation) return 'In-person meetings require a physical location';
+  return null;
+}
+// Turns the structured participants list (from the Create Meeting wizard's
+// participant rows — internal member picker + freeform external entries,
+// each with a role) into the free-text summary the existing reminder/
+// notification code (splitRecipients over schedule.attendees) already parses,
+// so that older code path keeps working unchanged.
+function participantsToAttendeesText(participants) {
+  if (!Array.isArray(participants) || !participants.length) return '';
+  return participants.map((p) => p.email || p.phone || p.name || '').filter(Boolean).join('\n');
+}
 
 router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, end_time, timezone, duration_mins, platform, attendees, participants, meeting_format, physical_location, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id } = req.body;
   if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
   if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
     return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
@@ -1596,6 +1630,8 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
   if (!/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
     return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
   }
+  const formatErr = validateMeetingFormat(meeting_format, physical_location, meeting_join_url);
+  if (formatErr) return res.status(400).json({ error: formatErr });
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   const rec = VALID_RECURRENCES.includes(recurrence) ? recurrence : 'none';
   const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
@@ -1604,18 +1640,20 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
   const prov = ['zoom','teams','google_meet'].includes(meeting_provider) ? meeting_provider : 'physical';
   const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet' }[prov] || (platform || 'قاعة الاجتماعات');
   const resolvedSeriesId = resolveOrCreateSeriesId({ series_id, new_series }, req.user.id);
+  const attendeesText = Array.isArray(participants) ? participantsToAttendeesText(participants) : (attendees || '');
+  const participantsJson = JSON.stringify(Array.isArray(participants) ? participants : []);
   const insertSched = db.prepare(`
-    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, end_time, timezone, duration_mins, platform, attendees, participants_json, meeting_format, physical_location, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_id_external, source_meeting_id, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `);
   const dur = duration_mins || 60;
   let row;
   db.transaction(() => {
-    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', source_meeting_id || null);
+    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, end_time || null, timezone || 'Asia/Riyadh', dur, provPlatform, attendeesText, participantsJson, meeting_format || 'in_person', physical_location || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', source_meeting_id || null);
     if (rec !== 'none') {
       for (let i = 1; i <= 3; i++) {
         const nextDate = addNPeriods(meeting_date, rec, i);
-        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', null);
+        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, end_time || null, timezone || 'Asia/Riyadh', dur, provPlatform, attendeesText, participantsJson, meeting_format || 'in_person', physical_location || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_id_external || '', null);
       }
     }
   })();
@@ -1625,7 +1663,7 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
   // too. Anyone who doesn't resolve to an account (external attendees) simply
   // doesn't get one, same as they don't get an account-linked anything else.
   const { splitRecipients, isValidEmail } = require('../utils/validate');
-  const attendeeEmails = splitRecipients(attendees || '').filter(isValidEmail);
+  const attendeeEmails = splitRecipients(attendeesText || '').filter(isValidEmail);
   if (attendeeEmails.length) {
     const placeholders = attendeeEmails.map(() => '?').join(',');
     const matchedUsers = db.prepare(`SELECT id FROM users WHERE email IN (${placeholders})`).all(...attendeeEmails);
@@ -1691,13 +1729,21 @@ router.post('/schedule/:id/remind', auth, requirePermission('calendar.manage'), 
 router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, res) => {
   const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, series_id, new_series, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
+  const { title_ar, title_en, meeting_date, meeting_time, end_time, timezone, duration_mins, platform, attendees, participants, meeting_format, physical_location, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, series_id, new_series, meeting_provider, meeting_join_url, meeting_id_external, recording_status, recording_provider, recording_url, transcript_provider } = req.body;
   if (meeting_date !== undefined && (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime()))) {
     return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
   }
   if (meeting_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
     return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
   }
+  const formatErr = validateMeetingFormat(
+    meeting_format !== undefined ? meeting_format : row.meeting_format,
+    physical_location !== undefined ? physical_location : row.physical_location,
+    meeting_join_url !== undefined ? meeting_join_url : row.meeting_join_url
+  );
+  if (formatErr) return res.status(400).json({ error: formatErr });
+  const attendeesText = Array.isArray(participants) ? participantsToAttendeesText(participants) : attendees;
+  const participantsJson = Array.isArray(participants) ? JSON.stringify(participants) : null;
   // Create and Confirm both check for double-booking a confirmed meeting —
   // Edit never did, even though nudging an existing meeting's date/time is
   // the most common way a coordinator introduces a real double-booking.
@@ -1720,19 +1766,25 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
   db.prepare(`UPDATE schedule SET
       title_ar=COALESCE(?,title_ar), title_en=COALESCE(?,title_en),
       meeting_date=COALESCE(?,meeting_date), meeting_time=COALESCE(?,meeting_time),
+      end_time=COALESCE(?,end_time), timezone=COALESCE(?,timezone),
       duration_mins=COALESCE(?,duration_mins), platform=COALESCE(?,platform),
-      attendees=COALESCE(?,attendees), agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
+      attendees=COALESCE(?,attendees), participants_json=COALESCE(?,participants_json),
+      meeting_format=COALESCE(?,meeting_format), physical_location=COALESCE(?,physical_location),
+      agenda_ar=COALESCE(?,agenda_ar), agenda_en=COALESCE(?,agenda_en),
       reminder_channel=?, meeting_type=COALESCE(?,meeting_type),
       board_id=COALESCE(?,board_id), committee_id=COALESCE(?,committee_id), series_id=COALESCE(?,series_id),
       meeting_provider=COALESCE(?,meeting_provider), meeting_join_url=COALESCE(?,meeting_join_url),
       meeting_id_external=COALESCE(?,meeting_id_external), recording_status=COALESCE(?,recording_status),
       recording_provider=COALESCE(?,recording_provider), recording_url=COALESCE(?,recording_url),
-      transcript_provider=COALESCE(?,transcript_provider), reminder_sent=0
+      transcript_provider=COALESCE(?,transcript_provider), reminder_sent=0, updated_at=CURRENT_TIMESTAMP
     WHERE id=?`)
     .run(
       title_ar, title_en !== undefined ? (title_en || title_ar) : null,
-      meeting_date, meeting_time, duration_mins, updPlatform,
-      attendees, agenda_ar, agenda_en, chan,
+      meeting_date, meeting_time, end_time, timezone,
+      duration_mins, updPlatform,
+      attendeesText, participantsJson,
+      meeting_format, physical_location,
+      agenda_ar, agenda_en, chan,
       meeting_type !== undefined ? (meeting_type || null) : null,
       board_id !== undefined ? (board_id || null) : null,
       committee_id !== undefined ? (committee_id || null) : null,
@@ -1750,6 +1802,63 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
     db.prepare('UPDATE schedule SET source_meeting_id=? WHERE id=?').run(req.body.source_meeting_id || null, req.params.id);
   }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
+});
+
+// Reschedule — distinct from the generic PATCH above: touches ONLY date/time
+// (preserving the same schedule row id and, if already linked, the same
+// meetings.id — nothing is recreated), always logs the old→new values, and
+// always notifies attendees, where a generic edit does neither by default.
+router.patch('/schedule/:id/reschedule', auth, requirePermission('calendar.manage'), (req, res) => {
+  const row = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const { meeting_date, meeting_time, end_time, force } = req.body;
+  if (!meeting_date || !meeting_time) return res.status(400).json({ error: 'meeting_date and meeting_time are required' });
+  if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
+    return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
+    return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
+  }
+  const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: row.duration_mins, excludeId: row.id });
+  if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
+
+  const oldDate = row.meeting_date, oldTime = row.meeting_time;
+  db.prepare('UPDATE schedule SET meeting_date=?, meeting_time=?, end_time=COALESCE(?,end_time), reminder_sent=0, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+    .run(meeting_date, meeting_time, end_time || null, row.id);
+
+  const actor = resolveActor(req.user.id);
+  if (row.source_meeting_id) {
+    const meeting = db.prepare('SELECT lifecycle_stage FROM meetings WHERE id=?').get(row.source_meeting_id);
+    if (meeting) {
+      const stage = meeting.lifecycle_stage || 'created';
+      db.prepare(`INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+        VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(row.source_meeting_id, stage, stage, req.user.id, actor.name,
+          `Rescheduled from ${oldDate} ${(oldTime || '').slice(0, 5)} to ${meeting_date} ${meeting_time}`);
+    }
+  }
+
+  const { splitRecipients, isValidEmail } = require('../utils/validate');
+  let emails = splitRecipients(row.attendees || '').filter(isValidEmail);
+  try {
+    const parts = JSON.parse(row.participants_json || '[]');
+    emails = emails.concat(parts.map((p) => p.email).filter(Boolean));
+  } catch (e) { /* malformed participants_json — fall back to attendees-only */ }
+  emails = [...new Set(emails)];
+  if (emails.length) {
+    const placeholders = emails.map(() => '?').join(',');
+    const matchedUsers = db.prepare(`SELECT id FROM users WHERE email IN (${placeholders})`).all(...emails);
+    notifyUsers(db, matchedUsers.map((u) => u.id), {
+      type: 'meeting_rescheduled',
+      titleAr: 'تمت إعادة جدولة الاجتماع',
+      titleEn: 'Meeting rescheduled',
+      bodyAr: `"${row.title_ar}" — من ${oldDate} ${(oldTime || '').slice(0, 5)} إلى ${meeting_date} ${meeting_time}`,
+      bodyEn: `"${row.title_en || row.title_ar}" — from ${oldDate} ${(oldTime || '').slice(0, 5)} to ${meeting_date} ${meeting_time}`,
+      sourceType: 'schedule', sourceId: row.id, deepLink: 'schedule',
+    }, req.user.id);
+  }
+
+  res.json({ ...db.prepare('SELECT * FROM schedule WHERE id=?').get(row.id), old_meeting_date: oldDate, old_meeting_time: oldTime });
 });
 
 router.delete('/schedule/:id/series', auth, requirePermission('calendar.manage'), (req, res) => {
@@ -2303,15 +2412,17 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
   existing.forEach(a => { byName[a.name.trim()] = a; });
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM meeting_attendees WHERE meeting_id=?').run(meetingId);
-    const ins = db.prepare(`INSERT INTO meeting_attendees (meeting_id, name, email, phone, share_token, shared, confirmed, confirmed_at, comment, responded_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const ins = db.prepare(`INSERT INTO meeting_attendees (meeting_id, name, email, phone, share_token, shared, confirmed, confirmed_at, comment, responded_at, role, attendance_mode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     list.forEach(a => {
       if (!a.name || !a.name.trim()) return;
       const prev = byName[a.name.trim()];
+      const role = ATTENDEE_ROLES.includes(a.role) ? a.role : (prev ? prev.role : 'Guest');
+      const attendanceMode = ['in_person', 'virtual'].includes(a.attendance_mode) ? a.attendance_mode : (prev ? prev.attendance_mode : 'virtual');
       ins.run(meetingId, a.name.trim(), a.email || '', a.phone || '',
         (prev && prev.share_token) || token(),
         prev ? prev.shared : 0, prev ? prev.confirmed : 0, prev ? prev.confirmed_at : null,
-        prev ? prev.comment : '', prev ? prev.responded_at : null);
+        prev ? prev.comment : '', prev ? prev.responded_at : null, role, attendanceMode);
     });
   });
   tx();
