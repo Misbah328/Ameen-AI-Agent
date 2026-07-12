@@ -203,7 +203,7 @@ try {
 if (!ADMIN_EMAIL) ADMIN_EMAIL = 'ahmed@ameen.ai';
 console.log(`  ℹ  Admin email resolved: ${ADMIN_EMAIL}`);
 
-const PASSWORD_CANDIDATES = ['ameen2026', 'AmeenAdmin2026!'];
+const PASSWORD_CANDIDATES = ['ameen2026', 'AmeenAdmin2026!', 'AmeenQA2026!'];
 const TEST_PORT = 5099;
 
 (async () => {
