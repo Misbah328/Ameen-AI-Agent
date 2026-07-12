@@ -4,3 +4,4 @@ node_modules/
 data/ai-debug.log
 data/*.db-wal
 data/*.db-shm
+data/backups/
