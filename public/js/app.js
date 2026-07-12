@@ -473,6 +473,15 @@ function _weekLabel(w, lang) {
   });
 }
 
+// Nav items whose visibility must follow an actual granted permission, not
+// just the user's system_role string — e.g. an Employee given meetings.create
+// through Role Management must see "Create Meeting" even though ROLE_ACCESS's
+// Employee set doesn't include it. Additive to ROLE_ACCESS: a role-name match
+// OR the permission grants access, never the reverse.
+const NAV_REQUIRED_PERMISSION = {
+  "create-meeting": "meetings.create",
+};
+
 function applySidebarRoles() {
   const role = App.systemRole || "Admin";
   const allowed = ROLE_ACCESS[role] || ROLE_ACCESS["Employee"];
@@ -480,7 +489,9 @@ function applySidebarRoles() {
   document.querySelectorAll(".nb[data-p]").forEach((btn) => {
     const p = btn.dataset.p;
     if (p === "admin") return;
-    btn.style.display = allowed.has(p) ? "" : "none";
+    const permKey = NAV_REQUIRED_PERMISSION[p];
+    const visible = allowed.has(p) || (permKey && App.can(permKey));
+    btn.style.display = visible ? "" : "none";
   });
 
   // Uses the same `allowed` set as every other nav item (not a literal
@@ -553,6 +564,11 @@ const App = {
     await loadBadges();
     NotificationCenter.init();
     await loadSelectLists();
+    // loadSelectLists() is what actually populates App.permissions
+    // (GET /api/rbac/my-permissions) — re-apply sidebar visibility now that
+    // permission-gated nav items (see NAV_REQUIRED_PERMISSION) can evaluate
+    // correctly instead of only seeing the pre-fetch empty set.
+    applySidebarRoles();
     Panels.init();
     Chat.restore();
     const allowed = ROLE_ACCESS[this.systemRole] || ROLE_ACCESS["Employee"];
