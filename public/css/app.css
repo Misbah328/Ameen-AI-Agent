@@ -1,7 +1,11 @@
 /* ── Reset & Base ──────────────────────────────────────────────── */
 *,::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Inter','Segoe UI',Tahoma,Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-family:'DM Sans','Inter','Segoe UI',Tahoma,Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+/* Arabic UI must render in Almarai, not the Latin body font — App.applyLang()
+   sets documentElement.lang/dir on every load and language toggle, so keying
+   off html[lang="ar"] here always matches the active language. */
+html[lang="ar"] body{font-family:'Almarai','Inter',Tahoma,Arial,sans-serif}
 
 /* ── Palette ───────────────────────────────────────────────────── */
 :root{
