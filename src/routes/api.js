@@ -3584,6 +3584,55 @@ router.get('/meetings/:id/approval-log', auth, requirePermission('minutes.view')
   res.json({ success: true, log });
 });
 
+// ── Minutes Modification Requests ────────────────────────────────────────────
+
+// GET  /api/meetings/:id/mod-requests
+router.get('/meetings/:id/mod-requests', auth, requirePermission('minutes.view'), (req, res) => {
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const rows = db.prepare(
+    `SELECT * FROM minutes_modification_requests WHERE meeting_id=? ORDER BY created_at DESC`
+  ).all(meeting.id);
+  res.json({ success: true, requests: rows });
+});
+
+// POST /api/meetings/:id/mod-requests  (any attendee with minutes.view)
+router.post('/meetings/:id/mod-requests', auth, requirePermission('minutes.view'), (req, res) => {
+  const meeting = db.prepare('SELECT id, minutes_status FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+  const { proposed_value, section_label, section_type } = req.body;
+  if (!proposed_value || !String(proposed_value).trim())
+    return res.status(400).json({ error: 'Notes are required' });
+  const u = req.user;
+  const name = u.name_en || u.name_ar || u.email || '';
+  const result = db.prepare(
+    `INSERT INTO minutes_modification_requests
+     (meeting_id, requester_id, requester_name, section_type, section_label, proposed_value, status)
+     VALUES (?,?,?,?,?,?,'pending')`
+  ).run(meeting.id, u.id, name, section_type || 'general', section_label || '', String(proposed_value).trim());
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+// POST /api/meetings/:id/mod-requests/:reqId/decide  (secretary / minutes.publish or minutes.approve)
+router.post('/meetings/:id/mod-requests/:reqId/decide', auth, (req, res) => {
+  if (!req.user.permissions.includes('minutes.publish') && !req.user.permissions.includes('minutes.approve'))
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  const row = db.prepare(
+    `SELECT * FROM minutes_modification_requests WHERE id=? AND meeting_id=?`
+  ).get(req.params.reqId, req.params.id);
+  if (!row) return res.status(404).json({ error: 'NOT_FOUND' });
+  const { decision, secretary_note } = req.body;
+  if (!['approved', 'rejected'].includes(decision))
+    return res.status(400).json({ error: 'decision must be approved or rejected' });
+  const u = req.user;
+  db.prepare(
+    `UPDATE minutes_modification_requests
+     SET status=?, secretary_id=?, secretary_name=?, secretary_note=?, decided_at=CURRENT_TIMESTAMP
+     WHERE id=?`
+  ).run(decision, u.id, u.name_en || u.name_ar || u.email || '', secretary_note || '', row.id);
+  res.json({ success: true });
+});
+
 // GET /api/meetings/:id/lifecycle — current stage + full transition history
 router.get('/meetings/:id/lifecycle', auth, requirePermission('meetings.view'), (req, res) => {
   const meeting = db.prepare('SELECT id, lifecycle_stage, lifecycle_updated_at FROM meetings WHERE id=?').get(req.params.id);

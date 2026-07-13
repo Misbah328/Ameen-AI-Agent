@@ -61,7 +61,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/css/app.css?v=20260713l"/>
+<link rel="stylesheet" href="/css/app.css?v=20260713m"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713k"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
 </head>
@@ -1925,6 +1925,30 @@
 </div>
 
 <!-- ══ MODAL: MINUTES APPROVAL ACTION (Circulate/Approve/Request Revision/Final Approve/Archive) ══ -->
+<!-- ═══ Minutes Modification Request Modal ══════════════════════════════════ -->
+<div class="modal-overlay" id="modal-mod-request" onclick="if(event.target===this)MT.closeModRequestForm()" style="display:none">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">✏ <span data-ar="طلب تعديل على المحضر" data-en="Request Minutes Modification">Request Minutes Modification</span></div>
+    <div class="fs">
+      <div class="frow">
+        <div class="fl" data-ar="القسم أو الموضوع (اختياري)" data-en="Section / Topic (optional)">Section / Topic (optional)</div>
+        <input class="fi" id="modreq-section-lbl" data-ph-ar="مثال: قرار رقم 3، الفقرة 2…" data-ph-en="e.g. Decision #3, Paragraph 2…" placeholder="e.g. Decision #3, Paragraph 2…"/>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="تفاصيل التعديل المطلوب *" data-en="Modification details *">Modification details *</div>
+        <textarea class="fi" id="modreq-notes" rows="5" data-ph-ar="اكتب هنا التعديل المقترح أو الملاحظة على المحضر…" data-ph-en="Describe the modification or note you'd like the secretary to review…" placeholder="Describe the modification or note…" style="resize:vertical"></textarea>
+      </div>
+      <div style="font-size:12.5px;color:var(--text3);padding:8px 12px;background:var(--navy3);border-radius:8px;border:1px solid var(--border2)" data-ar="سيتلقى أمين السر إشعاراً بطلبك ويمكنه القبول أو الرفض مع إضافة ملاحظة." data-en="The Secretary will be notified and can accept or reject your request with an optional note.">
+        The Secretary will be notified and can accept or reject your request with an optional note.
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="MT.closeModRequestForm()" data-ar="إلغاء" data-en="Cancel">Cancel</button>
+      <button class="btn-gold" id="modreq-submit-btn" onclick="MT.submitModRequest()" data-ar="إرسال الطلب" data-en="Submit Request">Submit Request</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-approval-action">
   <div class="modal" style="max-width:480px">
     <div class="modal-title" style="display:flex;align-items:center;gap:10px">
@@ -2106,10 +2130,10 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260713k"></script>
+<script src="/js/app.js?v=20260713l"></script>
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260713e"></script>
-<script src="/js/meetings.js?v=20260713j"></script>
+<script src="/js/meetings.js?v=20260713l"></script>
 
 <!-- ═══ Change Password Modal ══════════════════════════════════════════════ -->
 <div id="modal-change-password" onclick="if(event.target===this)closeChangePassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">

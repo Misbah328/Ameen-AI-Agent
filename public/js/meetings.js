@@ -13,6 +13,7 @@ const MT = {
   _mid: null,
   _tab: "overview",
   _approvalLog: null,
+  _modRequests: null,     // minutes modification requests
   _decSel: null,          // selected decision id in Decisions tab
   _minSec: -1,            // minutes section index (-1 = AI minutes)
   _createRendered: false,
@@ -73,7 +74,7 @@ const MT = {
   },
 
   showList() {
-    this._d = null; this._mid = null; this._approvalLog = null;
+    this._d = null; this._mid = null; this._approvalLog = null; this._modRequests = null;
     this._showView("list");
     if (window.ScheduledPanel) ScheduledPanel.refresh().catch(() => {});
   },
@@ -99,7 +100,7 @@ const MT = {
     if (!box) return;
     this._showView("detail");
     if (this._mid !== meetingId) {
-      this._decSel = null; this._minSec = -1; this._approvalLog = null;
+      this._decSel = null; this._minSec = -1; this._approvalLog = null; this._modRequests = null;
       box.innerHTML = `<div class="es"><div class="loading"></div></div>`;
     }
     this._mid = meetingId;
@@ -114,7 +115,9 @@ const MT = {
     if (App.can("minutes.view")) {
       try { this._approvalLog = (await api(`/api/meetings/${meetingId}/approval-log`)).log || []; }
       catch (_) { this._approvalLog = []; }
-    } else this._approvalLog = [];
+      try { this._modRequests = (await api(`/api/meetings/${meetingId}/mod-requests`)).requests || []; }
+      catch (_) { this._modRequests = []; }
+    } else { this._approvalLog = []; this._modRequests = []; }
     this._renderDetail();
   },
 
@@ -1278,17 +1281,17 @@ const MT = {
       { k: "approved", ar: "اعتماد الرئيس", en: "Chairman Approval" },
       { k: "final_approved", ar: "الاعتماد النهائي", en: "Final Approval" },
     ];
-    // When final_approved all steps are done; for revision_requested stay at Draft step
     const rawIdx = chain.findIndex((c) => c.k === ms);
     const idx = ms === "final_approved" ? chain.length : ms === "revision_requested" ? 0 : Math.max(0, rawIdx);
-    const steps = `<div class="mx-steps">${chain.map((c, i) => `<div class="mx-step ${i < idx ? "done" : i === idx && ms !== "final_approved" ? "cur" : i < idx ? "done" : ""}">
+    const steps = `<div class="mx-steps">${chain.map((c, i) => `<div class="mx-step ${i < idx ? "done" : i === idx && ms !== "final_approved" ? "cur" : ""}">
       <div class="mx-step-dot">${i < idx ? "✓" : i + 1}</div><div class="mx-step-l">${t(c.ar, c.en)}</div>
       <div class="mx-step-s">${i < idx ? t("مكتمل", "Done") : i === idx && ms !== "final_approved" ? (ms === "revision_requested" ? t("يحتاج مراجعة", "Revision Needed") : t("الحالة الحالية", "Current")) : t("قيد الانتظار", "Pending")}</div></div>`).join("")}</div>`;
 
     const canPublish = App.can("minutes.publish");
     const canApprove = App.can("minutes.approve");
+    const canDecide = canPublish || canApprove;
     const btns = [];
-    if ((ms === "draft" || ms === "revision_requested") && (canPublish || canApprove))
+    if ((ms === "draft" || ms === "revision_requested") && canDecide)
       btns.push(`<button class="btn-gold" onclick="MT.circulateMinutes()">📤 ${t("تعميم للاعتماد", "Circulate for Review")}</button>`);
     if (ms === "circulated" && canApprove) {
       btns.push(`<button class="btn-gold" onclick="MT.approveMinutes(false)">✅ ${t("اعتماد الرئيس", "Chairman Approve")}</button>`);
@@ -1297,6 +1300,67 @@ const MT = {
     if (ms === "approved" && canApprove)
       btns.push(`<button class="btn-gold" onclick="MT.approveMinutes(true)">🏆 ${t("الاعتماد النهائي", "Final Approve")}</button>`);
 
+    // ── Modification requests ──────────────────────────────────
+    const reqs = this._modRequests || [];
+    const pending = reqs.filter((r) => r.status === "pending");
+    const myUserId = App.user && App.user.id;
+
+    // Attendee submit button (visible when minutes circulated, user is not secretary)
+    const canRequest = App.can("minutes.view");
+    const attendeeBtn = canRequest && ms === "circulated" && !canDecide
+      ? `<button class="btn-gold btn-sm" onclick="MT.openModRequestForm()">✏ ${t("طلب تعديل", "Request Modification")}</button>`
+      : (canRequest && ms === "circulated" && canDecide
+        ? `<button class="btn-ghost btn-sm" onclick="MT.openModRequestForm()">✏ ${t("طلب تعديل", "Add Modification Request")}</button>`
+        : "");
+
+    // Status badge helper
+    const reqBadge = (s) => ({
+      pending: `<span class="tag" style="background:rgba(184,119,24,.15);color:#A8842C">${t("معلّق", "Pending")}</span>`,
+      approved: `<span class="tag" style="background:rgba(21,160,95,.15);color:#15A05F">✓ ${t("مقبول", "Accepted")}</span>`,
+      rejected: `<span class="tag" style="background:rgba(196,69,60,.15);color:#C4453C">✕ ${t("مرفوض", "Rejected")}</span>`,
+    }[s] || `<span class="tag">${esc(s)}</span>`);
+
+    // Secretary: show pending requests with accept/reject
+    let pendingSection = "";
+    if (canDecide && pending.length > 0) {
+      pendingSection = `<div class="mx-card" style="border:1.5px solid rgba(201,168,76,.4)">
+        <div class="mx-card-t">🔔 ${t("طلبات التعديل المعلّقة", "Pending Modification Requests")} <span class="mt2-tab-n">${pending.length}</span></div>
+        ${pending.map((r) => `<div class="modreq-row" id="modreq-${r.id}">
+          <div class="modreq-meta">
+            <span class="modreq-name">👤 ${esc(r.requester_name || "—")}</span>
+            ${r.section_label ? `<span class="modreq-section">📌 ${esc(r.section_label)}</span>` : ""}
+            <span class="modreq-date">${this._fmtDT(r.created_at)}</span>
+          </div>
+          <div class="modreq-note">${esc(r.proposed_value)}</div>
+          <div class="modreq-actions">
+            <input class="fi modreq-reply" id="modreq-reply-${r.id}" placeholder="${t("ملاحظة (اختياري)…", "Secretary note (optional)…")}" style="flex:1;font-size:12.5px;padding:7px 10px"/>
+            <button class="btn-gold btn-sm" onclick="MT.decideModRequest(${r.id},'approved')">✓ ${t("قبول", "Accept")}</button>
+            <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="MT.decideModRequest(${r.id},'rejected')">✕ ${t("رفض", "Reject")}</button>
+          </div>
+        </div>`).join("")}
+      </div>`;
+    }
+
+    // All requests history
+    const allReqsHtml = reqs.length
+      ? reqs.map((r) => `<div class="modreq-hist-row">
+          <div class="modreq-hist-top">
+            ${reqBadge(r.status)}
+            <span class="modreq-name">👤 ${esc(r.requester_name || "—")}</span>
+            ${r.section_label ? `<span class="modreq-section">📌 ${esc(r.section_label)}</span>` : ""}
+            <span class="modreq-date">${this._fmtDT(r.created_at)}</span>
+          </div>
+          <div class="modreq-note">${esc(r.proposed_value)}</div>
+          ${r.status !== "pending" ? `<div class="modreq-reply-note">${r.secretary_name ? `👤 ${esc(r.secretary_name)} · ` : ""}${r.secretary_note ? `"${esc(r.secretary_note)}"` : (r.status === "approved" ? t("تم القبول", "Accepted") : t("تم الرفض", "Rejected"))} · ${this._fmtDT(r.decided_at)}</div>` : ""}
+        </div>`).join("")
+      : `<div style="font-size:13px;color:var(--text3);text-align:center;padding:16px">${t("لا توجد طلبات تعديل بعد.", "No modification requests yet.")}</div>`;
+
+    const modCard = `<div class="mx-card">
+      <div class="mx-card-t">✏ ${t("طلبات تعديل المحضر", "Minutes Modification Requests")} ${reqs.length ? `<span class="mt2-tab-n">${reqs.length}</span>` : ""}${attendeeBtn ? `<div>${attendeeBtn}</div>` : ""}</div>
+      ${allReqsHtml}
+    </div>`;
+
+    // ── Approval history ───────────────────────────────────────
     const log = this._approvalLog || [];
     const actionLbl = (a) => ({
       circulated: t("تعميم المحضر", "Minutes circulated"),
@@ -1309,10 +1373,71 @@ const MT = {
         <div class="mx-vtl-t">${esc(actionLbl(e.action))}</div>
         <div class="mx-vtl-s">${esc(e.actor_name || "")}${e.actor_role ? " · " + esc(e.actor_role) : ""}${e.comments ? `<div style="margin-top:2px">"${esc(e.comments)}"</div>` : ""}</div>
         <div class="mx-vtl-d">${this._fmtDT(e.created_at)}</div></div>`).join("")}</div>`
-      : `<div style="font-size:12px;color:#98A2B3">${t("لا توجد إجراءات اعتماد مسجّلة بعد.", "No approval actions recorded yet.")}</div>`}</div>`;
+      : `<div style="font-size:13px;color:var(--text3)">${t("لا توجد إجراءات اعتماد مسجّلة بعد.", "No approval actions recorded yet.")}</div>`}</div>`;
 
     return `<div class="mx-card" style="margin-bottom:14px"><div class="mx-card-t">✅ ${t("مسار اعتماد المحضر", "Minutes Approval Workflow")}
-        <div style="display:flex;gap:8px">${btns.join("")}</div></div>${steps}</div>${logCard}`;
+        <div style="display:flex;gap:8px">${btns.join("")}</div></div>${steps}</div>
+      ${pendingSection}${modCard}${logCard}`;
+  },
+
+  // ── Modification request modal ─────────────────────────────
+  openModRequestForm() {
+    const modal = $("modal-mod-request");
+    if (!modal) return;
+    const t = (ar, en) => this.t(ar, en);
+    if ($("modreq-section-lbl")) $("modreq-section-lbl").value = "";
+    if ($("modreq-notes")) $("modreq-notes").value = "";
+    modal.style.display = "flex";
+    setTimeout(() => { try { $("modreq-notes").focus(); } catch (_) {} }, 80);
+  },
+
+  closeModRequestForm() {
+    const modal = $("modal-mod-request");
+    if (modal) modal.style.display = "none";
+  },
+
+  async submitModRequest() {
+    const t = (ar, en) => this.t(ar, en);
+    const notes = ($("modreq-notes") || {}).value || "";
+    const label = ($("modreq-section-lbl") || {}).value || "";
+    if (!notes.trim()) {
+      showToast(t("الرجاء كتابة تفاصيل التعديل المطلوب.", "Please enter the modification details."), "error");
+      return;
+    }
+    const btn = $("modreq-submit-btn");
+    if (btn) { btn.disabled = true; btn.textContent = t("جارٍ الإرسال…", "Submitting…"); }
+    try {
+      await api(`/api/meetings/${this._mid}/mod-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposed_value: notes.trim(), section_label: label.trim() }),
+      });
+      this.closeModRequestForm();
+      showToast(t("✓ تم إرسال طلب التعديل — سيراجعه أمين السر", "✓ Request submitted — Secretary will review it"));
+      await this._loadDetail(this._mid, "approval");
+    } catch (e) {
+      showToast(t("تعذّر إرسال الطلب: ", "Could not submit request: ") + e.message, "error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = t("إرسال الطلب", "Submit Request"); }
+    }
+  },
+
+  async decideModRequest(reqId, decision) {
+    const t = (ar, en) => this.t(ar, en);
+    const noteEl = $(`modreq-reply-${reqId}`);
+    const secretary_note = noteEl ? noteEl.value.trim() : "";
+    try {
+      await api(`/api/meetings/${this._mid}/mod-requests/${reqId}/decide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, secretary_note }),
+      });
+      showToast(decision === "approved"
+        ? t("✓ تم قبول طلب التعديل", "✓ Modification request accepted")
+        : t("✓ تم رفض طلب التعديل", "✓ Modification request rejected")
+      );
+      await this._loadDetail(this._mid, "approval");
+    } catch (e) { showToast(t("خطأ: ", "Error: ") + e.message, "error"); }
   },
 
   circulateMinutes() {
