@@ -283,6 +283,17 @@ select.fi option{background:var(--navy3)}
 /* More link */
 .gcal-mmore{font-size:11px;color:var(--text3);font-weight:500;padding:1px 6px;cursor:pointer;border-radius:4px;margin:1px 2px}
 .gcal-mmore:hover{background:var(--navy3);color:var(--text)}
+/* ── Meeting Series searchable combobox ── */
+.mxs-wrap{position:relative}
+.mxs-clear{position:absolute;inset-inline-end:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px;line-height:1;border-radius:4px;transition:color .1s}
+.mxs-clear:hover{color:var(--text)}
+.mxs-dd{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--navy2);border:1px solid var(--border2);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);z-index:400;max-height:230px;overflow-y:auto;padding:4px}
+.mxs-opt{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text);transition:background .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mxs-opt:hover{background:var(--navy3)}
+.mxs-sel{background:rgba(212,160,23,.13);color:var(--gold)}
+.mxs-standalone{color:var(--text3);font-style:italic}
+.mxs-icon{flex-shrink:0;font-size:13px}
+.mxs-empty{padding:10px 14px;color:var(--text3);font-size:12.5px;font-style:italic;text-align:center}
 /* ── Week / Day time-grid ── */
 .gcal-time-view{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .gcal-tgrid{display:flex;flex-direction:column;height:100%}

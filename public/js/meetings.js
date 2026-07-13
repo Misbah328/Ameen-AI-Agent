@@ -1397,7 +1397,24 @@ const MT = {
           </div>
           <div class="mx-f2">
             <div class="mx-f"><label>${t("سلسلة الاجتماعات (اختياري)", "Meeting Series (Optional)")}</label>
-              <select class="fi" id="mxc-series" style="width:100%"><option value="">${t("اجتماع مستقل", "Standalone meeting")}</option>${cs.series.map((s) => `<option value="${s.id}" ${kept.series == s.id ? "selected" : ""}>${esc(l === "ar" ? s.name_ar : s.name_en || s.name_ar)}</option>`).join("")}</select></div>
+              ${(() => {
+                const selS = kept.series ? cs.series.find((s) => s.id == kept.series) : null;
+                const selName = selS ? esc(l === "ar" ? selS.name_ar : selS.name_en || selS.name_ar) : "";
+                return `<div class="mxs-wrap">
+                  <input type="hidden" id="mxc-series" value="${kept.series || ""}"/>
+                  <div style="position:relative">
+                    <input class="fi mxs-search" id="mxc-series-search" autocomplete="off" style="width:100%;padding-inline-end:32px"
+                      value="${selName}"
+                      placeholder="${t("اجتماع مستقل — اكتب للبحث عن سلسلة...", "Standalone — type to search a series...")}"
+                      oninput="MT._seriesFilter(this.value)"
+                      onfocus="MT._seriesOpen()"
+                      onblur="setTimeout(()=>MT._seriesClose(),200)"/>
+                    ${selName ? `<button class="mxs-clear" onclick="MT._seriesClear()" title="${t("إزالة", "Clear")}">✕</button>` : ""}
+                  </div>
+                  <div class="mxs-dd" id="mxc-series-dd" style="display:none"></div>
+                </div>`;
+              })()}
+            </div>
             <div class="mx-f"><label>${t("الغرض / الوصف", "Purpose / Description")}</label>
               <input class="fi" id="mxc-purpose" style="width:100%" value="${esc(kept.purpose)}" placeholder="${t("وصف موجز لأهداف الاجتماع...", "Brief description of the meeting goals...")}"/></div>
           </div>
@@ -1497,6 +1514,65 @@ const MT = {
     ];
     return rows.map((r) => `<div class="mx-statrow"><span class="k">${r[0]}</span><span class="v" style="font-weight:600;text-align:end">${esc(String(r[1]))}</span></div>`).join("");
   },
+
+  // ── Searchable series combobox ────────────────────────────────────────────
+  _seriesOpen() {
+    MT._seriesFilter($("mxc-series-search")?.value || "");
+    const dd = $("mxc-series-dd");
+    if (dd) dd.style.display = "";
+  },
+  _seriesClose() {
+    const dd = $("mxc-series-dd");
+    if (dd) dd.style.display = "none";
+  },
+  _seriesFilter(q) {
+    const dd = $("mxc-series-dd");
+    if (!dd) return;
+    const l = App.lang;
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const all = MT._cs.series || [];
+    const query = (q || "").trim().toLowerCase();
+    const matches = query
+      ? all.filter((s) => {
+          const n = (l === "ar" ? s.name_ar : s.name_en || s.name_ar) || "";
+          return n.toLowerCase().includes(query);
+        })
+      : all;
+    const standalone = `<div class="mxs-opt mxs-standalone" onmousedown="MT._seriesPick('','')">
+      — ${t("اجتماع مستقل", "Standalone meeting")}
+    </div>`;
+    const opts = matches.map((s) => {
+      const name = (l === "ar" ? s.name_ar : s.name_en || s.name_ar) || "";
+      const cur = ($("mxc-series")?.value || "") == s.id;
+      return `<div class="mxs-opt${cur ? " mxs-sel" : ""}" onmousedown="MT._seriesPick(${s.id},'${name.replace(/\\/g,"\\\\").replace(/'/g,"\\'")}')" title="${esc(name)}">
+        <span class="mxs-icon">🔗</span>${esc(name)}
+      </div>`;
+    }).join("");
+    const empty = !matches.length && query
+      ? `<div class="mxs-empty">${t("لا توجد نتائج", "No results found")}</div>`
+      : "";
+    dd.innerHTML = standalone + opts + empty;
+    dd.style.display = "";
+  },
+  _seriesPick(id, name) {
+    const hidden = $("mxc-series");
+    const search = $("mxc-series-search");
+    const clearBtn = document.querySelector(".mxs-clear");
+    if (hidden) hidden.value = id || "";
+    if (search) {
+      search.value = id ? name : "";
+      search.placeholder = App.lang === "ar"
+        ? "اجتماع مستقل — اكتب للبحث عن سلسلة..."
+        : "Standalone — type to search a series...";
+    }
+    if (clearBtn) clearBtn.style.display = id ? "" : "none";
+    MT._seriesClose();
+  },
+  _seriesClear() {
+    MT._seriesPick("", "");
+    $("mxc-series-search")?.focus();
+  },
+  // ─────────────────────────────────────────────────────────────────────────
 
   addWizardMember() {
     const sel = $("mxc-member-sel");
