@@ -899,6 +899,7 @@ const Panels = {
   _livePanels: {
     tasks: renderTasks,
     schedule: renderSchedule,
+    calendar: () => CalendarPanel.refresh(),
     overview: renderOverview,
   },
   async load(name) {
@@ -969,6 +970,9 @@ const Panels = {
             "error",
           ),
         );
+        break;
+      case "calendar":
+        await CalendarPanel.refresh();
         break;
       case "series":
         await SeriesPanel.refresh();
@@ -10026,6 +10030,226 @@ const MasterCalendar = {
         }).join("") : `<div style="text-align:center;padding:16px"><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا عناصر هذا اليوم" : "No items this day"}</div></div>`}
       </div>` : ""}
     `;
+  },
+};
+
+// ══ CalendarPanel — full-page Google-Calendar-style view ══════════════════
+const CalendarPanel = {
+  _offset: 0,
+  _view: "month",
+  _cache: { schedule: [], meetings: [], tasks: [] },
+
+  async refresh() {
+    const el = $("cal-panel-body");
+    if (el) el.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      const [schedule, meetings, tasks] = await Promise.all([
+        api("/api/schedule"), api("/api/meetings"), api("/api/tasks"),
+      ]);
+      this._cache = { schedule, meetings, tasks };
+      this.render();
+    } catch (e) {
+      if (el) el.innerHTML = `<div class="es" style="color:var(--red)">${e.message}</div>`;
+    }
+  },
+
+  render() {
+    const el = $("cal-panel-body");
+    if (!el) return;
+    const l = App.lang;
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const todayStr = new Date().toISOString().substring(0, 10);
+
+    // Build by-date map
+    const byDate = {};
+    const { schedule, meetings, tasks } = this._cache;
+    schedule.forEach((s) => {
+      const d = (s.meeting_date || "").substring(0, 10);
+      if (d) (byDate[d] = byDate[d] || []).push({ ...s, _kind: "schedule", _color: calTypeColor(s.meeting_type) });
+    });
+    const linkedIds = new Set(schedule.filter((s) => s.source_meeting_id).map((s) => s.source_meeting_id));
+    meetings.forEach((m) => {
+      if (linkedIds.has(m.id)) return;
+      const d = (m.meeting_date || "").substring(0, 10);
+      const liveStages = ["recording", "uploaded", "ai_minutes_generated", "secretary_review", "chairman_approval", "archived"];
+      if (d && liveStages.includes(m.lifecycle_stage)) {
+        (byDate[d] = byDate[d] || []).push({ ...m, _kind: "held", _color: calTypeColor(m.meeting_type) });
+      }
+    });
+    tasks.forEach((tk) => {
+      if (!tk.due_date || ["done", "cancelled"].includes(tk.status)) return;
+      (byDate[tk.due_date] = byDate[tk.due_date] || []).push({ ...tk, _kind: "task", _color: "#E55A5A" });
+    });
+
+    // Month view
+    const today = new Date();
+    const base = new Date(today.getFullYear(), today.getMonth() + this._offset, 1);
+    const year = base.getFullYear();
+    const month = base.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const monthLabel = base.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
+    const weekDays = l === "ar"
+      ? ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"]
+      : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    // Build cells
+    let cells = "";
+    for (let i = 0; i < firstWeekday; i++) {
+      const d = daysInPrevMonth - firstWeekday + 1 + i;
+      cells += `<div class="gcal-day-cell gcal-empty-cell"><div class="gcal-day-num gcal-other-month">${d}</div></div>`;
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dayItems = byDate[dateStr] || [];
+      const isToday = dateStr === todayStr;
+      const MAX = 3;
+      const visible = dayItems.slice(0, MAX);
+      const more = dayItems.length - MAX;
+      cells += `<div class="gcal-day-cell${isToday ? " gcal-today-cell" : ""}">
+        <div class="gcal-day-num${isToday ? " gcal-day-today" : ""}">${d}</div>
+        ${visible.map((it) => {
+          const name = it._kind === "task"
+            ? (l === "ar" ? it.text_ar : it.text_en || it.text_ar)
+            : (l === "ar" ? it.title_ar : it.title_en || it.title_ar);
+          const time = it.meeting_time ? it.meeting_time.substring(0, 5) + " " : "";
+          return `<div class="gcal-event" style="background:${it._color}20;color:${it._color};border-inline-start:3px solid ${it._color}" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}">${esc(time)}${esc(name)}</div>`;
+        }).join("")}
+        ${more > 0 ? `<div class="gcal-more">+${more} ${t("أكثر", "more")}</div>` : ""}
+      </div>`;
+    }
+    const totalCells = firstWeekday + daysInMonth;
+    const nextFill = totalCells % 7 ? 7 - (totalCells % 7) : 0;
+    for (let d = 1; d <= nextFill; d++) {
+      cells += `<div class="gcal-day-cell gcal-empty-cell"><div class="gcal-day-num gcal-other-month">${d}</div></div>`;
+    }
+
+    // Upcoming sidebar — next 20 meetings from today
+    const upcoming = [];
+    Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).forEach(([date, items]) => {
+      if (date >= todayStr) items.filter((it) => it._kind !== "task").forEach((it) => upcoming.push({ date, ...it }));
+    });
+    const upHtml = upcoming.slice(0, 20).map((it) => {
+      const name = l === "ar" ? it.title_ar : it.title_en || it.title_ar;
+      const dt = new Date(it.date + "T00:00:00").toLocaleDateString(
+        l === "ar" ? "ar-SA-u-ca-gregory" : "en-US",
+        { month: "short", day: "numeric", weekday: "short" }
+      );
+      return `<div class="gcal-up-item" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})">
+        <div class="gcal-up-date">${dt}</div>
+        <div style="display:flex;gap:6px;align-items:flex-start">
+          <span style="width:9px;height:9px;border-radius:50%;background:${it._color};flex-shrink:0;margin-top:2px"></span>
+          <div>
+            <div class="gcal-up-name">${esc(name)}</div>
+            ${it.meeting_time ? `<div class="gcal-up-meta">🕐 ${it.meeting_time.substring(0, 5)}${it.duration_mins ? " · " + it.duration_mins + " " + t("د", "min") : ""}</div>` : ""}
+            ${it.meeting_location ? `<div class="gcal-up-meta">📍 ${esc(it.meeting_location)}</div>` : ""}
+          </div>
+        </div>
+      </div>`;
+    }).join("") || `<div style="text-align:center;padding:24px 0;font-size:12px;color:var(--text3)">${t("لا اجتماعات قادمة", "No upcoming meetings")}</div>`;
+
+    const legend = [
+      { c: CAL_TYPE_COLORS["Board Meeting"], ar: "مجلس الإدارة", en: "Board Meeting" },
+      { c: CAL_TYPE_COLORS["Committee Meeting"], ar: "اللجان", en: "Committee" },
+      { c: CAL_TYPE_COLORS["Executive Meeting"], ar: "تنفيذي", en: "Executive" },
+      { c: CAL_TYPE_COLORS["Strategy Meeting"], ar: "استراتيجية", en: "Strategy" },
+      { c: CAL_TYPE_COLORS["Follow-up Meeting"], ar: "متابعة", en: "Follow-up" },
+      { c: "#E55A5A", ar: "إجراء مستحق", en: "Action Due", sq: true },
+    ];
+
+    el.innerHTML = `<div class="gcal-wrap">
+      <div class="gcal-hdr">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="gcal-month-lbl">${esc(monthLabel)}</div>
+          <button class="gcal-today-btn" onclick="CalendarPanel._goToday()">${t("اليوم", "Today")}</button>
+          <button class="gcal-nav-btn" onclick="CalendarPanel._nav(-1)" title="${t("الشهر السابق", "Previous month")}">&#9664;</button>
+          <button class="gcal-nav-btn" onclick="CalendarPanel._nav(1)" title="${t("الشهر التالي", "Next month")}">&#9654;</button>
+        </div>
+        <div class="gcal-legend">${legend.map((g) => `<div class="gcal-legend-item"><span style="width:8px;height:8px;border-radius:${g.sq ? "2px" : "50%"};background:${g.c};display:inline-block;flex-shrink:0"></span>${l === "ar" ? g.ar : g.en}</div>`).join("")}</div>
+      </div>
+      <div class="gcal-body">
+        <div class="gcal-main">
+          <div class="gcal-head-row">${weekDays.map((w) => `<div class="gcal-head-cell">${w}</div>`).join("")}</div>
+          <div class="gcal-month-grid">${cells}</div>
+        </div>
+        <div class="gcal-sidebar">
+          <div class="gcal-side-title">📅 ${t("الاجتماعات القادمة", "Upcoming Meetings")}</div>
+          ${upHtml}
+        </div>
+      </div>
+    </div>`;
+  },
+
+  _nav(delta) { this._offset += delta; this.render(); },
+  _goToday() { this._offset = 0; this.render(); },
+
+  _popup(event, kind, id) {
+    event.stopPropagation();
+    const l = App.lang;
+    const t = (ar, en) => l === "ar" ? ar : en;
+    let item = null;
+    if (kind === "schedule") item = this._cache.schedule.find((s) => s.id === id);
+    else if (kind === "held") item = this._cache.meetings.find((m) => m.id === id);
+    else if (kind === "task") item = this._cache.tasks.find((tk) => tk.id === id);
+    if (!item) return;
+
+    document.getElementById("gcal-popup")?.remove();
+    const el = document.createElement("div");
+    el.id = "gcal-popup";
+    el.className = "gcal-popup";
+
+    if (kind === "task") {
+      const name = l === "ar" ? item.text_ar : item.text_en || item.text_ar;
+      el.innerHTML = `<button class="gcal-popup-close" onclick="document.getElementById('gcal-popup').remove()">✕</button>
+        <div class="gcal-popup-title">🎯 ${esc(name)}</div>
+        <div class="gcal-popup-row">📅 ${t("استحقاق: ", "Due: ")}${item.due_date || "—"}</div>
+        <div class="gcal-popup-row">🏷 ${item.priority || "normal"}</div>
+        <div style="margin-top:12px"><button class="btn-gold btn-sm" onclick="Tasks.edit(${id});document.getElementById('gcal-popup').remove()">${t("فتح المهمة", "Open Task")}</button></div>`;
+    } else {
+      const name = l === "ar" ? item.title_ar : item.title_en || item.title_ar;
+      const color = calTypeColor(item.meeting_type);
+      const isHeld = kind === "held";
+      const boardName = l === "ar" ? item.board_name_ar : item.board_name_en || item.board_name_ar;
+      el.innerHTML = `<button class="gcal-popup-close" onclick="document.getElementById('gcal-popup').remove()">✕</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span>
+          <div class="gcal-popup-title" style="margin:0">${esc(name)}</div>
+        </div>
+        ${item.meeting_type ? `<div class="gcal-popup-row">🏷 ${esc(mtLabel(item.meeting_type, l))}</div>` : ""}
+        <div class="gcal-popup-row">📅 ${item.meeting_date || ""}${item.meeting_time ? " · 🕐 " + item.meeting_time.substring(0, 5) : ""}${item.duration_mins ? " · " + item.duration_mins + " " + t("د", "min") : ""}</div>
+        ${item.meeting_location ? `<div class="gcal-popup-row">📍 ${esc(item.meeting_location)}</div>` : ""}
+        ${boardName ? `<div class="gcal-popup-row">🏛 ${esc(boardName)}</div>` : ""}
+        ${item.meeting_url ? `<div class="gcal-popup-row">🔗 <a href="${esc(item.meeting_url)}" target="_blank" rel="noopener" style="color:var(--gold)">${t("رابط الانضمام", "Join Link")}</a></div>` : ""}
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-gold btn-sm" onclick="CalendarPanel._open('${kind}',${id})">${isHeld ? t("فتح الاجتماع", "Open Meeting") : t("تعديل الاجتماع", "Edit Meeting")}</button>
+          ${!isHeld && item.meeting_url ? `<a href="${esc(item.meeting_url)}" target="_blank" rel="noopener" class="btn-ghost btn-sm">${t("انضمام", "Join")}</a>` : ""}
+        </div>`;
+    }
+
+    document.body.appendChild(el);
+    // Position near clicked element
+    const tgt = event.currentTarget || event.target;
+    const r = tgt && tgt.getBoundingClientRect ? tgt.getBoundingClientRect() : { bottom: 200, left: 400, top: 180 };
+    const pw = 310;
+    let top = r.bottom + 8;
+    let left = r.left;
+    if (top + 240 > window.innerHeight - 10) top = Math.max(10, r.top - 240 - 8);
+    if (left + pw > window.innerWidth - 10) left = window.innerWidth - pw - 10;
+    if (left < 10) left = 10;
+    el.style.top = top + "px";
+    el.style.left = left + "px";
+    const close = (e) => { if (!el.contains(e.target)) { el.remove(); document.removeEventListener("click", close); } };
+    setTimeout(() => document.addEventListener("click", close), 20);
+  },
+
+  _open(kind, id) {
+    document.getElementById("gcal-popup")?.remove();
+    if (kind === "held") {
+      Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(id), 300));
+    } else {
+      Panels.load("schedule").then(() => Schedule.edit(id));
+    }
   },
 };
 
