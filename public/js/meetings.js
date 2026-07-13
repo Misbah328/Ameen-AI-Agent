@@ -174,9 +174,10 @@ const MT = {
 
     const curTab = this._tabsDef().find((x) => x.k === this._tab) || this._tabsDef()[0];
     const crumbs = `<div class="mx-crumbs">
-      <button class="mx-crumb" onclick="MT.showList()">${t("الاجتماعات", "Meetings")}</button>
-      <span>›</span><span class="${this._tab === "overview" ? "mx-crumb-cur" : ""}">${esc(this._title(m))}</span>
-      ${this._tab !== "overview" ? `<span>›</span><span class="mx-crumb-cur">${t(curTab.ar, curTab.en)}</span>` : ""}
+      <button class="mx-back-btn" onclick="MT.showList()"><span class="mx-back-ico">←</span>${t("الاجتماعات", "Meetings")}</button>
+      <span class="mx-crumb-sep">›</span>
+      <span class="${this._tab === "overview" ? "mx-crumb-cur" : "mx-crumb-text"}">${esc(this._title(m))}</span>
+      ${this._tab !== "overview" ? `<span class="mx-crumb-sep">›</span><span class="mx-crumb-cur">${t(curTab.ar, curTab.en)}</span>` : ""}
     </div>`;
 
     // header actions — only real capabilities
@@ -1530,7 +1531,7 @@ const MT = {
     const canSchedule = App.can("calendar.manage");
 
     box.innerHTML = `
-      <div class="mx-crumbs"><button class="mx-crumb" onclick="MT.showList()">${t("الاجتماعات", "Meetings")}</button><span>›</span><span class="mx-crumb-cur">${t("إنشاء اجتماع", "Create Meeting")}</span></div>
+      <div class="mx-crumbs"><button class="mx-back-btn" onclick="MT.showList()"><span class="mx-back-ico">←</span>${t("الاجتماعات", "Meetings")}</button><span class="mx-crumb-sep">›</span><span class="mx-crumb-cur">${t("إنشاء اجتماع", "Create Meeting")}</span></div>
       <div class="mx-head">
         <div><div class="mx-head-title">${t("إنشاء اجتماع", "Create Meeting")}</div>
           <div class="mx-head-sub">${t("أدخل التفاصيل لجدولة اجتماع جديد.", "Fill in the details to schedule a new meeting.")}</div></div>
