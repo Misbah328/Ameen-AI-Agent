@@ -9902,7 +9902,7 @@ const MasterCalendar = {
   },
   openItem(kind, id) {
     if (kind === "held") {
-      Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(id), 300));
+      Panels.load("scheduled").then(() => setTimeout(() => MT.openDetail(id), 300));
       return;
     }
     const item = (App.scheduleCache || []).find((s) => s.id === id);
@@ -9916,9 +9916,9 @@ const MasterCalendar = {
         tryOpen(15);
       });
     } else if (item.source_meeting_id) {
-      Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(item.source_meeting_id), 300));
+      Panels.load("scheduled").then(() => setTimeout(() => MT.openDetail(item.source_meeting_id), 300));
     } else {
-      Panels.load("schedule").then(() => Schedule.edit(id));
+      Panels.load("scheduled").then(() => setTimeout(() => ScheduledPanel.select("sched", id), 300));
     }
   },
 
@@ -10405,7 +10405,7 @@ const CalendarPanel = {
         ${boardName ? `<div class="gcal-popup-row">🏛 ${esc(boardName)}</div>` : ""}
         ${item.meeting_url ? `<div class="gcal-popup-row">🔗 <a href="${esc(item.meeting_url)}" target="_blank" rel="noopener" style="color:var(--gold)">${t("رابط الانضمام", "Join Link")}</a></div>` : ""}
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-gold btn-sm" onclick="CalendarPanel._open('${kind}',${id})">${isHeld ? t("فتح الاجتماع", "Open Meeting") : t("تعديل الاجتماع", "Edit Meeting")}</button>
+          <button class="btn-gold btn-sm" onclick="CalendarPanel._open('${kind}',${id})">${t("فتح الاجتماع", "Open Meeting")}</button>
           ${!isHeld && item.meeting_url ? `<a href="${esc(item.meeting_url)}" target="_blank" rel="noopener" class="btn-ghost btn-sm">${t("انضمام", "Join")}</a>` : ""}
         </div>`;
     }
@@ -10429,9 +10429,11 @@ const CalendarPanel = {
   _open(kind, id) {
     document.getElementById("gcal-popup")?.remove();
     if (kind === "held") {
-      Panels.load("history").then(() => setTimeout(() => MeetingHistory.select(id), 300));
+      // Open held meeting full detail page in the new Meetings panel
+      Panels.load("scheduled").then(() => setTimeout(() => MT.openDetail(id), 300));
     } else {
-      Panels.load("schedule").then(() => Schedule.edit(id));
+      // Select the scheduled meeting in the new Meetings panel (not the old schedule editor)
+      Panels.load("scheduled").then(() => setTimeout(() => ScheduledPanel.select("sched", id), 300));
     }
   },
 };
