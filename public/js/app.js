@@ -9548,10 +9548,8 @@ const ScheduledPanel = {
         await api(`/api/schedule/${scheduleId}`, { method: "PATCH", body: JSON.stringify({ source_meeting_id: meetingId }) });
         s.source_meeting_id = meetingId;
       }
-      await api(`/api/meetings/${meetingId}/recording/start`, {
-        method: "POST",
-        body: JSON.stringify({ capture_type: "browser_microphone", scope: "local_microphone_only" }),
-      });
+      // Navigate to the live meeting workspace — the Start Modal inside the Live tab
+      // handles recording selection (with/without) before actually starting.
       await enterLiveMeeting(meetingId);
     } catch (e) {
       showToast((l === "ar" ? "تعذّر بدء الاجتماع: " : "Could not start meeting: ") + e.message, "error");

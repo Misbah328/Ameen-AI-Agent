@@ -274,6 +274,31 @@ db.exec(`
   )
 `);
 
+// ── Live Meeting Event Log ─────────────────────────────────────────────────────
+// Immutable audit trail for every significant event during a live meeting.
+// source: 'user' | 'system' | 'ai' | 'integration'
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meeting_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    entity_id INTEGER,
+    user_id INTEGER,
+    actor_name TEXT DEFAULT '',
+    source TEXT DEFAULT 'user',
+    previous_value TEXT DEFAULT '',
+    new_value TEXT DEFAULT '',
+    metadata TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+  )
+`);
+
+ensureColumn('meetings', 'actual_start_time', 'DATETIME');
+ensureColumn('meetings', 'actual_end_time', 'DATETIME');
+ensureColumn('meetings', 'with_recording', 'INTEGER DEFAULT 1');
+ensureColumn('agenda_items', 'live_status', "TEXT DEFAULT 'not_started'");
+
 // One-time backfill for meetings created before this state machine existed —
 // infer the furthest stage each legacy row already reached from its existing
 // status columns so the timeline isn't wrong for pre-existing data. Only

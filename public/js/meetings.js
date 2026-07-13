@@ -154,6 +154,7 @@ const MT = {
   setTab(k) {
     this._tab = k;
     this._renderDetail();
+    if (k === "live") setTimeout(() => { try { LiveMT.onMount(this._mid, this._d); } catch (_) {} }, 80);
   },
 
   _renderDetail() {
@@ -313,7 +314,7 @@ const MT = {
         <span class="tag tgr" style="flex-shrink:0">${a.duration_mins || 15} ${t("د", "min")}</span></div>`).join("")}</div>`;
   },
 
-  // ── Live Meeting tab (mockup 5555) ────────────────────────────
+  // ── Live Meeting tab ──────────────────────────────────────────
   _parseSpeakerTranscript() {
     const m = this._d.meeting;
     try {
@@ -327,65 +328,96 @@ const MT = {
   _tabLive() {
     const d = this._d, m = d.meeting;
     const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
     const live = m.recording_status === "recording";
     const canRec = App.can("meetings.create") || App.can("meetings.edit");
-    const tr = this._parseSpeakerTranscript();
+    const endedStages = ["uploaded", "transcript_generated", "ai_minutes_generated", "secretary_review", "chairman_approval", "archived"];
 
-    const stage = `<div>
-      <div class="mx-stage">
-        <span class="mx-stage-badge">${m.platform ? esc(m.platform) : t("اجتماع حضوري", "In-Person Meeting")}</span>
-        <div class="mx-stage-logo">🏛</div>
-        <div class="mx-stage-t">${esc(this._title(m))}</div>
-        <div class="mx-stage-s">${live ? t("الاجتماع جارٍ الآن — التسجيل نشط", "Meeting in progress — recording active") : t("لا يوجد بث مباشر لهذا الاجتماع", "No live feed for this meeting")}</div>
-        ${live ? `<span class="mx-live-pill"><span class="rdot"></span>${t("مباشر", "Live")}</span>` : ""}
+    // ── Pre-start idle state ──────────────────────────────────
+    if (!live && !endedStages.includes(m.lifecycle_stage)) {
+      return `<div class="lmt-idle-wrap">
+        <div class="lmt-idle-card">
+          <div class="lmt-idle-ico">🏛</div>
+          <div class="lmt-idle-t">${esc(this._title(m))}</div>
+          <div class="lmt-idle-meta">${m.platform ? esc(m.platform) + " · " : ""}${fmtDate(m.meeting_date)}</div>
+          <div class="lmt-idle-s">${t("الاجتماع لم يبدأ بعد. انقر أدناه لفتح مساحة الاجتماع المباشر.", "The meeting has not started. Click below to launch the live meeting workspace.")}</div>
+          ${d.attendees.length ? `<div class="lmt-idle-members">${d.attendees.slice(0, 6).map((a) => `<span class="mx-av" title="${esc(a.name)}">${esc(this._initials(a.name))}</span>`).join("")}${d.attendees.length > 6 ? `<span class="lmt-idle-more">+${d.attendees.length - 6}</span>` : ""}</div>` : ""}
+          ${canRec ? `<button class="btn-gold lmt-start-btn" onclick="LiveMT.showStartModal()">▶ ${t("بدء الاجتماع", "Start Meeting")}</button>` : `<div class="lmt-idle-s" style="color:#A8842C">${t("لا توجد صلاحية لبدء الاجتماع.", "You do not have permission to start the meeting.")}</div>`}
+        </div>
+      </div>`;
+    }
+
+    // ── Post-meeting (ended) state ────────────────────────────
+    if (endedStages.includes(m.lifecycle_stage) && !live) {
+      const tr = this._parseSpeakerTranscript();
+      return `<div class="mx-card">
+        <div class="mx-card-t">📝 ${t("نسخ الاجتماع", "Meeting Transcript")}</div>
+        ${m.actual_start_time ? `<div style="font-size:11.5px;color:#697386;margin-bottom:12px">🕐 ${t("بدأ", "Started")} ${this._fmtDT(m.actual_start_time)}${m.actual_end_time ? " · " + t("انتهى", "Ended") + " " + this._fmtDT(m.actual_end_time) : ""}</div>` : ""}
+        ${tr.length ? `<div class="lmt-transcript lmt-transcript-ro">${tr.map((r) => `<div class="lmt-tr-row">${r.speaker ? `<div class="lmt-tr-ts">${esc(r.speaker)}</div>` : ""}<div class="lmt-tr-text">${esc(r.text)}</div></div>`).join("")}</div>`
+          : `<div class="mx-empty" style="padding:32px"><div class="ic">📝</div><div class="t">${t("لا يوجد نسخ", "No transcript")}</div><div class="s">${t("سيُولَّد المحضر بعد معالجة التسجيل.", "Minutes will be generated after processing.")}</div></div>`}
+        ${canRec && m.lifecycle_stage === "uploaded" ? `<div style="margin-top:14px"><button class="btn-gold btn-sm" onclick="api('/api/meetings/${m.id}/process',{method:'POST',body:'{}'}).then(()=>{showToast(MT.t('جارٍ المعالجة…','Processing…'));MT._refreshDetail()}).catch(e=>showToast(e.message,'error'))">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button></div>` : ""}
+      </div>`;
+    }
+
+    // ── Live three-column workspace ───────────────────────────
+    const orgName = (l === "ar" ? m.recorder_ar : m.recorder_en) || m.recorder_ar || "";
+
+    const leftCol = `<div class="lmt-col-info">
+      <div class="mx-card">
+        <div class="mx-card-t">📋 ${t("معلومات الاجتماع", "Meeting Info")}</div>
+        <div class="lmt-info-row"><span class="k">📅</span><span>${fmtDate(m.meeting_date)}</span></div>
+        ${m.actual_start_time ? `<div class="lmt-info-row"><span class="k">🕐</span><span>${t("بدأ", "Started")} ${m.actual_start_time.substring(11, 16)}</span></div>` : ""}
+        ${m.platform ? `<div class="lmt-info-row"><span class="k">📡</span><span>${esc(m.platform)}</span></div>` : ""}
+        ${orgName ? `<div class="lmt-info-row"><span class="k">👤</span><span>${esc(orgName)}</span></div>` : ""}
+        <div class="lmt-info-row">
+          <span class="k">${t("التسجيل", "Recording")}</span>
+          ${m.with_recording !== 0 ? `<span class="mx-live-pill" style="font-size:10px"><span class="rdot"></span>${t("نشط", "Active")}</span>` : `<span style="font-size:11px;color:#98A2B3">${t("بدون تسجيل", "No recording")}</span>`}
+        </div>
+        <div class="lmt-timer-big" id="lmt-display-timer">00:00</div>
       </div>
-      <div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("المشاركون", "Participants")} <span class="mt2-tab-n">${d.attendees.length}</span></div>
+      <div class="mx-card" style="margin-top:12px">
+        <div class="mx-card-t">👥 ${t("المشاركون", "Participants")} <span class="mt2-tab-n">${d.attendees.length}</span></div>
         ${d.attendees.length ? d.attendees.map((a) => `<div class="mx-partrow"><span class="mx-av">${esc(this._initials(a.name))}</span>
           <div style="flex:1;min-width:0"><div class="mx-person-n">${esc(a.name)}</div><div class="mx-person-r">${esc(a.role || "")}</div></div>
-          ${a.confirmed ? `<span class="tag tg">✓ ${t("مؤكد", "Confirmed")}</span>` : `<span class="tag tgr">${t("بانتظار الرد", "Pending")}</span>`}</div>`).join("")
-        : `<div style="font-size:12px;color:#98A2B3">${t("لم تتم إضافة مشاركين.", "No participants added.")}</div>`}</div></div>`;
-
-    const transcript = `<div class="mx-card"><div class="mx-card-t">${t("النص المباشر", "Live Transcript")} ${live ? `<span class="mx-live-pill"><span class="rdot"></span>${t("مباشر", "Live")}</span>` : ""}</div>
-      ${tr.length ? `<div class="mx-transcript">${tr.map((r) => `<div class="mx-tr-row">
-          <div class="mx-tr-body">${r.speaker ? `<div class="mx-tr-sp">${esc(r.speaker)}</div>` : ""}<div class="mx-tr-tx">${esc(r.text)}</div></div></div>`).join("")}</div>`
-        : `<div class="mx-empty" style="padding:36px 12px"><div class="ic">🎙</div><div class="t">${t("لا يوجد نص بعد", "No transcript yet")}</div>
-           <div class="s">${live ? t("سيظهر النص هنا بعد رفع التسجيل ومعالجته.", "The transcript will appear here once the recording is uploaded and processed.") : t("ابدأ الاجتماع وسجّل المحادثة لتوليد النص والمحضر تلقائياً.", "Start the meeting and record the conversation to generate the transcript and minutes automatically.")}</div></div>`}</div>`;
-
-    const topics = d.agenda.map((a) => `<div class="mx-topic">${esc(this._agTitle(a))}</div>`).join("");
-    const summary = (App.lang === "ar" ? m.ai_summary_ar : m.ai_summary_en) || m.ai_summary_ar || "";
-    const sentMap = { positive: { ar: "إيجابي", en: "Positive", cls: "tg" }, neutral: { ar: "محايد", en: "Neutral", cls: "tgr" }, negative: { ar: "سلبي", en: "Negative", cls: "tr" } };
-    const sent = sentMap[m.ai_sentiment];
-    const notes = `<div class="mx-live-notes"><div class="mx-card"><div class="mx-card-t">✨ ${t("ملاحظات الذكاء الاصطناعي", "AI Notes")}</div>
-      ${summary ? `<div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:5px">${t("ملخص الاجتماع", "Meeting Summary")}</div><div class="mx-ainote-box">${esc(summary)}</div>` : `<div class="mx-ainote-box">${t("تُولَّد الملاحظات تلقائياً بعد معالجة تسجيل الاجتماع.", "Notes are generated automatically after the meeting recording is processed.")}</div>`}
-      ${topics ? `<div style="font-size:11px;font-weight:800;color:#697386;margin:10px 0 4px">${t("المحاور الرئيسية", "Key Topics")}</div>${topics}` : ""}
-      ${sent && summary ? `<div style="font-size:11px;font-weight:800;color:#697386;margin:12px 0 6px">${t("الانطباع العام", "Sentiment")}</div><span class="tag ${sent.cls}">${this.t(sent.ar, sent.en)}</span>` : ""}
-    </div></div>`;
-
-    const banner = `<div class="mx-live-banner">
-      <span>${live ? "🎙 " + t("التسجيل نشط — سيتم توليد المحضر والإجراءات تلقائياً بعد انتهاء الاجتماع.", "Recording active — minutes and actions will be generated automatically after the meeting ends.") : "💡 " + t("سيتم توليد المحضر والإجراءات تلقائياً بعد انتهاء الاجتماع ومعالجة التسجيل.", "Minutes and actions will be generated automatically after the meeting ends and the recording is processed.")}</span>
-      ${canRec ? (live
-        ? `<button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="MT.stopRecording()">■ ${t("إيقاف التسجيل", "Stop Recording")}</button>`
-        : (m.minutes_status === "draft" && m.lifecycle_stage !== "archived" ? `<button class="btn-gold btn-sm" onclick="MT.startRecording()">🎙 ${t("بدء الاجتماع والتسجيل", "Start Meeting & Record")}</button>` : "")) : ""}
+          <span class="tag ${a.confirmed ? "tg" : "tgr"}">${a.confirmed ? "✓" : "–"}</span></div>`).join("")
+        : `<div style="font-size:12px;color:#98A2B3">${t("لا يوجد مشاركون.", "No participants.")}</div>`}
+      </div>
     </div>`;
 
-    return `<div class="mx-live-grid">${stage}${transcript}${notes}</div>${banner}`;
+    const innerTabKeys = ["transcript", "agenda", "notes", "decisions", "actions"];
+    const innerTabLabels = { transcript: ["النسخ", "Transcript"], agenda: ["الأعمال", "Agenda"], notes: ["ملاحظات", "Notes"], decisions: ["قرارات", "Decisions"], actions: ["إجراءات", "Actions"] };
+    const innerTabIcons = { transcript: "📜", agenda: "🗒", notes: "✏️", decisions: "⚖️", actions: "🎯" };
+    const innerTabs = `<div class="lmt-inner-tabs">${innerTabKeys.map((k) =>
+      `<button class="lmt-inner-tab ${LiveMT._tab === k ? "active" : ""}" onclick="LiveMT.setInnerTab('${k}')">${innerTabIcons[k]} ${t(innerTabLabels[k][0], innerTabLabels[k][1])}</button>`
+    ).join("")}</div>`;
+
+    const midCol = `<div class="lmt-col-mid">
+      ${innerTabs}
+      <div class="lmt-inner-body" id="lmt-inner-body"></div>
+    </div>`;
+
+    const summary = (l === "ar" ? m.ai_summary_ar : m.ai_summary_en) || m.ai_summary_ar || "";
+    const rightCol = `<div class="lmt-col-ai">
+      <div class="mx-card">
+        <div class="mx-card-t">✨ ${t("مساعد الاجتماع", "AI Assistant")}</div>
+        <div class="lmt-ai-note">${t("الاقتراحات تُعرض هنا كمسودات. لا يُسجَّل أي قرار تلقائياً.", "Suggestions appear as drafts. Nothing is finalized automatically.")}</div>
+        ${summary ? `<div class="lmt-ai-sec">${t("ملخص الاجتماع", "Meeting Summary")}</div><div class="lmt-ai-item">📋 ${esc(summary.slice(0, 180))}${summary.length > 180 ? "…" : ""}</div>` : ""}
+        ${d.decisions.length ? `<div class="lmt-ai-sec">⚖️ ${t("قرارات مسجّلة", "Recorded Decisions")} <span class="mt2-tab-n">${d.decisions.length}</span></div>${d.decisions.slice(0, 3).map((x) => `<div class="lmt-ai-item">${esc(l === "ar" ? x.text_ar || x.text_en : x.text_en || x.text_ar)}<button class="lmt-ai-ok" onclick="void 0">✓</button></div>`).join("")}` : ""}
+        ${d.tasks.length ? `<div class="lmt-ai-sec">🎯 ${t("إجراءات مسجّلة", "Recorded Actions")} <span class="mt2-tab-n">${d.tasks.length}</span></div>${d.tasks.slice(0, 3).map((x) => `<div class="lmt-ai-item">${esc(l === "ar" ? x.text_ar || x.text_en : x.text_en || x.text_ar)}</div>`).join("")}` : ""}
+        ${!d.decisions.length && !d.tasks.length ? `<div class="lmt-ai-empty">${t("🔄 تُضاف الاقتراحات هنا أثناء الاجتماع.", "🔄 Suggestions appear here during the meeting.")}</div>` : ""}
+        <div style="margin-top:12px;border-top:1px solid #F2F4F7;padding-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn-ghost btn-sm" style="font-size:11px" onclick="LiveMT.addDecision()">+ ${t("قرار", "Decision")}</button>
+          <button class="btn-ghost btn-sm" style="font-size:11px" onclick="LiveMT.addAction()">+ ${t("إجراء", "Action")}</button>
+        </div>
+      </div>
+    </div>`;
+
+    return `<div class="lmt-workspace">${leftCol}${midCol}${rightCol}</div>
+      <div class="lmt-ctrl-bar" id="lmt-ctrl-bar"></div>`;
   },
 
-  async startRecording() {
-    try {
-      await api(`/api/meetings/${this._mid}/recording/start`, { method: "POST", body: JSON.stringify({ capture_type: "external", scope: "full_meeting" }) });
-      showToast(this.t("✓ بدأ الاجتماع — التسجيل نشط", "✓ Meeting started — recording active"));
-      await this._refreshDetail();
-    } catch (e) { showToast(this.t("تعذّر بدء التسجيل: ", "Could not start recording: ") + e.message, "error"); }
-  },
-
-  async stopRecording() {
-    try {
-      await api(`/api/meetings/${this._mid}/recording/stop`, { method: "POST", body: JSON.stringify({}) });
-      showToast(this.t("✓ تم إيقاف التسجيل", "✓ Recording stopped"));
-      await this._refreshDetail();
-    } catch (e) { showToast(this.t("تعذّر إيقاف التسجيل: ", "Could not stop recording: ") + e.message, "error"); }
-  },
+  startRecording() { LiveMT.showStartModal(); },
+  stopRecording()  { LiveMT.showEndModal(); },
 
   // ── Minutes tab (mockup 6666) ─────────────────────────────────
   setMinSec(i) { this._minSec = i; this._renderDetail(); },
@@ -1457,3 +1489,485 @@ const MT = {
 };
 
 window.MT = MT;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LiveMT — Live Meeting controller
+   Manages speech recognition, timer, transcript segments, modals, and all
+   in-meeting actions. Survives tab switches because it is module-level.
+   Accessed globally as `LiveMT`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const LiveMT = {
+  _mid: null,
+  _d: null,
+  _state: "idle",       // idle | live | paused | ended
+  _withRec: true,
+  _segments: [],        // {ts, speaker, text}
+  _notes: [],
+  _timer: null,
+  _elapsedSecs: 0,
+  _speechRec: null,
+  _saveTimer: null,
+  _liveText: "",
+  _autoScroll: true,
+  _tab: "transcript",   // inner-tab key
+  _ending: false,
+
+  t(ar, en) { return App.lang === "ar" ? ar : en; },
+
+  // ── Entry point ───────────────────────────────────────────────
+  onMount(meetingId, d) {
+    if (this._mid !== meetingId) {
+      this._fullReset();
+      this._mid = meetingId;
+    }
+    this._d = d;
+    const m = d.meeting;
+    // Restore state from server data if we just landed here fresh
+    if (this._state === "idle" && m.recording_status === "recording") {
+      this._state = "live";
+      this._withRec = m.with_recording !== 0;
+      // Calculate elapsed from recording_started_at
+      if (m.recording_started_at) {
+        this._elapsedSecs = Math.max(0, Math.round((Date.now() - new Date(m.recording_started_at + (m.recording_started_at.includes("Z") ? "" : "Z")).getTime()) / 1000));
+      }
+      // Pre-fill from server transcript
+      if (!this._segments.length && (m.transcript || "").trim()) {
+        this._segments = [{ ts: "", speaker: "", text: m.transcript.trim() }];
+      }
+      this._startTimer();
+      if (this._withRec) this._initSpeechRec();
+    }
+    if (m.recording_status !== "recording" && !["idle"].includes(this._state)) {
+      if (m.recording_status === "stopped") this._state = "ended";
+    }
+    this._mountCtrlBar();
+    this._mountInnerBody();
+  },
+
+  _fullReset() {
+    this._stopSpeechRec();
+    this._stopTimer();
+    if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
+    this._state = "idle";
+    this._segments = [];
+    this._notes = [];
+    this._elapsedSecs = 0;
+    this._liveText = "";
+    this._ending = false;
+    this._tab = "transcript";
+    this._withRec = true;
+  },
+
+  // ── Modals ────────────────────────────────────────────────────
+  showStartModal() {
+    const t = this.t.bind(this);
+    document.getElementById("lmt-start-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "lmt-overlay";
+    el.id = "lmt-start-modal";
+    el.innerHTML = `<div class="lmt-modal" onclick="event.stopPropagation()">
+      <div class="lmt-modal-ico">🏛</div>
+      <div class="lmt-modal-t">${t("بدء الاجتماع المباشر", "Start Live Meeting")}</div>
+      <div class="lmt-modal-s">${t("اختر ما إذا كنت تريد تفعيل التسجيل الصوتي والنسخ الفوري.", "Choose whether to enable audio recording and live transcription.")}</div>
+      <div class="lmt-modal-btns">
+        <button class="btn-gold" onclick="LiveMT._startMeeting(true)">🎙 ${t("بدء مع التسجيل", "Start with Recording")}</button>
+        <button class="btn-ghost" onclick="LiveMT._startMeeting(false)">▶ ${t("بدء بدون تسجيل", "Start without Recording")}</button>
+        <button class="btn-ghost btn-sm" style="color:#697386" onclick="document.getElementById('lmt-start-modal').remove()">${t("إلغاء", "Cancel")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async _startMeeting(withRecording) {
+    document.getElementById("lmt-start-modal")?.remove();
+    try {
+      await api(`/api/meetings/${this._mid}/start`, { method: "POST", body: JSON.stringify({ with_recording: withRecording }) });
+      this._state = "live";
+      this._withRec = withRecording;
+      this._elapsedSecs = 0;
+      this._startTimer();
+      if (withRecording) this._initSpeechRec();
+      showToast(this.t(
+        withRecording ? "✓ بدأ الاجتماع — التسجيل نشط" : "✓ بدأ الاجتماع — بدون تسجيل",
+        withRecording ? "✓ Meeting started — recording active" : "✓ Meeting started — no recording"
+      ));
+      await MT._refreshDetail();
+    } catch (e) {
+      showToast(this.t("تعذّر بدء الاجتماع: ", "Could not start meeting: ") + e.message, "error");
+    }
+  },
+
+  showEndModal() {
+    if (this._ending) return;
+    const t = this.t.bind(this);
+    document.getElementById("lmt-end-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "lmt-overlay";
+    el.id = "lmt-end-modal";
+    el.innerHTML = `<div class="lmt-modal" onclick="event.stopPropagation()">
+      <div class="lmt-modal-ico">🔴</div>
+      <div class="lmt-modal-t">${t("إنهاء الاجتماع", "End Meeting")}</div>
+      <div class="lmt-modal-s">${t("سيوقف إنهاء الاجتماع التسجيل والنسخ الفوري. يمكن لنظام الذكاء الاصطناعي معالجة النص وإعداد مسودة المحضر.", "Ending the meeting stops the recording and live transcription. AI can then process the transcript and prepare draft minutes.")}</div>
+      <div class="lmt-modal-btns">
+        <button class="btn-red" onclick="LiveMT._confirmEnd(true)">🔴 ${t("إنهاء ومعالجة بالذكاء الاصطناعي", "End & AI Process")}</button>
+        <button class="btn-ghost" onclick="LiveMT._confirmEnd(false)">✕ ${t("إنهاء بدون معالجة", "End without Processing")}</button>
+        <button class="btn-ghost btn-sm" style="color:#697386" onclick="document.getElementById('lmt-end-modal').remove()">${t("متابعة الاجتماع", "Continue Meeting")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async _confirmEnd(processAI) {
+    if (this._ending) return;
+    this._ending = true;
+    document.getElementById("lmt-end-modal")?.remove();
+    this._stopSpeechRec();
+    this._stopTimer();
+    if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
+    const transcript = this._segments.map((s) => `${s.ts ? "[" + s.ts + "] " : ""}${s.text}`).join("\n");
+    const liveNotes = this._notes.join("\n");
+    try {
+      await api(`/api/meetings/${this._mid}/end`, {
+        method: "POST",
+        body: JSON.stringify({ process_ai: processAI, transcript, live_notes: liveNotes }),
+      });
+      this._state = "ended";
+      if (processAI) {
+        api(`/api/meetings/${this._mid}/process`, { method: "POST", body: "{}" }).catch(() => {});
+      }
+      showToast(this.t("✓ انتهى الاجتماع — شكراً", "✓ Meeting ended — thank you"));
+      await MT._refreshDetail();
+    } catch (e) {
+      this._ending = false;
+      showToast(this.t("تعذّر إنهاء الاجتماع: ", "Could not end meeting: ") + e.message, "error");
+    }
+  },
+
+  // ── Recording controls ────────────────────────────────────────
+  pauseRecording() {
+    if (this._state !== "live") return;
+    this._state = "paused";
+    this._stopSpeechRec();
+    this._stopTimer();
+    this._mountCtrlBar();
+    this._logEvent("RECORDING_PAUSED");
+    showToast(this.t("⏸ تم إيقاف التسجيل مؤقتاً", "⏸ Recording paused"));
+  },
+
+  resumeRecording() {
+    if (this._state !== "paused") return;
+    this._state = "live";
+    this._startTimer();
+    if (this._withRec) this._initSpeechRec();
+    this._mountCtrlBar();
+    this._logEvent("RECORDING_RESUMED");
+    showToast(this.t("▶ استُؤنف التسجيل", "▶ Recording resumed"));
+  },
+
+  // ── Inner tab switching ───────────────────────────────────────
+  setInnerTab(tab) {
+    this._tab = tab;
+    this._mountInnerBody();
+    // Update tab button active states
+    document.querySelectorAll(".lmt-inner-tab").forEach((b) => {
+      b.classList.toggle("active", b.onclick?.toString().includes(`'${tab}'`) || b.getAttribute("onclick")?.includes(`'${tab}'`));
+    });
+  },
+
+  // ── Quick add actions ─────────────────────────────────────────
+  async addNote(text) {
+    if (!text?.trim()) return;
+    this._notes.push(text.trim());
+    const feed = document.getElementById("lmt-notes-feed");
+    if (feed) {
+      const row = document.createElement("div");
+      row.className = "lmt-note-row";
+      row.textContent = "📝 " + text.trim();
+      feed.appendChild(row);
+    }
+    const ni = document.getElementById("lmt-note-input");
+    if (ni) ni.value = "";
+    this._logEvent("MANUAL_NOTE_ADDED", { new_value: text.trim() });
+    showToast(this.t("✓ تمت إضافة الملاحظة", "✓ Note added"));
+  },
+
+  async addDecision() {
+    const text = prompt(this.t("نص القرار:", "Decision text:"));
+    if (!text?.trim()) return;
+    try {
+      await api("/api/decisions", { method: "POST", body: JSON.stringify({
+        text_ar: text.trim(), text_en: text.trim(), meeting_id: this._mid,
+        meeting_title_ar: this._d?.meeting?.title_ar, meeting_title_en: this._d?.meeting?.title_en,
+      }) });
+      this._logEvent("DECISION_CREATED", { new_value: text.trim() });
+      showToast(this.t("✓ تم تسجيل القرار", "✓ Decision recorded"));
+      MT._d && MT._refreshDetail();
+    } catch (e) {
+      showToast(this.t("تعذّر: ", "Failed: ") + e.message, "error");
+    }
+  },
+
+  async addAction() {
+    const text = prompt(this.t("وصف الإجراء:", "Action description:"));
+    if (!text?.trim()) return;
+    const assignee = prompt(this.t("المسؤول (اختياري):", "Assignee (optional):")) || "";
+    const due = prompt(this.t("تاريخ الاستحقاق YYYY-MM-DD (اختياري):", "Due date YYYY-MM-DD (optional):")) || "";
+    try {
+      await api("/api/tasks", { method: "POST", body: JSON.stringify({
+        text_ar: text.trim(), text_en: text.trim(), meeting_id: this._mid,
+        status: "pending", priority: "medium",
+        due_date: due || null, owner_name_ar: assignee, owner_name_en: assignee,
+      }) });
+      this._logEvent("ACTION_CREATED", { new_value: text.trim() });
+      showToast(this.t("✓ تم تسجيل الإجراء", "✓ Action recorded"));
+      MT._d && MT._refreshDetail();
+    } catch (e) {
+      showToast(this.t("تعذّر: ", "Failed: ") + e.message, "error");
+    }
+  },
+
+  async setAgendaStatus(itemId, status) {
+    try {
+      await api(`/api/meetings/${this._mid}/agenda-items/${itemId}`, { method: "PATCH", body: JSON.stringify({ live_status: status }) });
+      this._logEvent("AGENDA_STATUS_CHANGED", { entity_id: itemId, new_value: status });
+      // Update local d.agenda so inner body re-render reflects it
+      if (this._d?.agenda) {
+        const item = this._d.agenda.find((a) => a.id === itemId);
+        if (item) item.live_status = status;
+      }
+    } catch (_) {}
+  },
+
+  // ── Speech recognition ────────────────────────────────────────
+  _initSpeechRec() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    this._stopSpeechRec();
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = App.lang === "ar" ? "ar-SA" : "en-US";
+    rec.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const r = event.results[i];
+        if (r.isFinal) {
+          const text = r[0].transcript.trim();
+          if (text) {
+            const seg = {
+              ts: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+              speaker: "", text,
+            };
+            this._segments.push(seg);
+            this._liveText = "";
+            this._appendTranscriptRow(seg);
+          }
+        } else {
+          this._liveText = r[0].transcript;
+          this._updateLiveRow();
+        }
+      }
+    };
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "denied") {
+        showToast(this.t("⚠️ الوصول للميكروفون مرفوض — سيسير الاجتماع بدون نسخ صوتي", "⚠️ Microphone access denied — meeting continues without transcription"), "error");
+        this._withRec = false;
+        this._mountCtrlBar();
+      }
+    };
+    rec.onend = () => {
+      if (this._state === "live" && this._speechRec === rec) {
+        try { rec.start(); } catch (_) {}
+      }
+    };
+    try { rec.start(); } catch (_) { return; }
+    this._speechRec = rec;
+    // Periodic transcript save every 20 s
+    this._saveTimer = setInterval(() => this._saveTranscript(), 20000);
+  },
+
+  _stopSpeechRec() {
+    if (this._speechRec) { try { this._speechRec.stop(); } catch (_) {} this._speechRec = null; }
+    if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
+  },
+
+  // ── Timer ─────────────────────────────────────────────────────
+  _startTimer() {
+    if (this._timer) clearInterval(this._timer);
+    this._timer = setInterval(() => {
+      this._elapsedSecs++;
+      const el = document.getElementById("lmt-display-timer");
+      if (el) el.textContent = this._fmtElapsed();
+      const bar = document.getElementById("lmt-ctrl-bar");
+      if (bar) {
+        const ts = bar.querySelector(".lmt-ctrl-timer");
+        if (ts) ts.textContent = "⏱ " + this._fmtElapsed();
+      }
+    }, 1000);
+  },
+
+  _stopTimer() { if (this._timer) { clearInterval(this._timer); this._timer = null; } },
+
+  _fmtElapsed() {
+    const s = this._elapsedSecs;
+    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  },
+
+  // ── Transcript DOM helpers ────────────────────────────────────
+  _appendTranscriptRow(seg) {
+    const box = document.getElementById("lmt-transcript-list");
+    if (!box) return;
+    const row = document.createElement("div");
+    row.className = "lmt-tr-row";
+    row.innerHTML = (seg.ts ? `<div class="lmt-tr-ts">${seg.ts}</div>` : "") +
+      `<div class="lmt-tr-text">${esc(seg.text)}</div>`;
+    // Remove live row first, then append, then re-add live row
+    const liveRow = document.getElementById("lmt-live-row");
+    if (liveRow) { box.insertBefore(row, liveRow); } else { box.appendChild(row); }
+    if (this._autoScroll) box.scrollTop = box.scrollHeight;
+  },
+
+  _updateLiveRow() {
+    const box = document.getElementById("lmt-transcript-list");
+    if (!box) return;
+    let live = document.getElementById("lmt-live-row");
+    if (!this._liveText) { live?.remove(); return; }
+    if (!live) { live = document.createElement("div"); live.id = "lmt-live-row"; live.className = "lmt-tr-row lmt-tr-live"; box.appendChild(live); }
+    live.innerHTML = `<div class="lmt-tr-text lmt-tr-interim">${esc(this._liveText)}</div>`;
+    if (this._autoScroll) box.scrollTop = box.scrollHeight;
+  },
+
+  // ── Control bar ───────────────────────────────────────────────
+  _mountCtrlBar() {
+    const bar = document.getElementById("lmt-ctrl-bar");
+    if (!bar) return;
+    const t = this.t.bind(this);
+    const isLive = this._state === "live";
+    const isPaused = this._state === "paused";
+    const isEnded = this._state === "ended";
+    if (isEnded) { bar.style.display = "none"; return; }
+    bar.style.display = "";
+    bar.innerHTML = `
+      <div class="lmt-ctrl-left">
+        <span class="lmt-ctrl-status ${isLive ? "lmt-rec-live" : "lmt-rec-paused"}">
+          ${isLive ? '<span class="rdot"></span>' : ""}
+          ${isLive ? (this._withRec ? t("تسجيل", "REC") : t("مباشر", "LIVE")) : t("متوقف مؤقتاً", "Paused")}
+        </span>
+        <span class="lmt-ctrl-timer">⏱ ${this._fmtElapsed()}</span>
+      </div>
+      <div class="lmt-ctrl-center">
+        ${isLive && this._withRec ? `<button class="btn-ghost btn-sm" onclick="LiveMT.pauseRecording()">⏸ ${t("إيقاف مؤقت", "Pause")}</button>` : ""}
+        ${isPaused ? `<button class="btn-gold btn-sm" onclick="LiveMT.resumeRecording()">▶ ${t("استئناف", "Resume")}</button>` : ""}
+        <button class="btn-red btn-sm" onclick="LiveMT.showEndModal()">■ ${t("إنهاء الاجتماع", "End Meeting")}</button>
+      </div>
+      <div class="lmt-ctrl-right">
+        <button class="btn-ghost btn-sm" onclick="LiveMT.addDecision()" title="${t("إضافة قرار", "Add Decision")}">+ ${t("قرار", "Decision")}</button>
+        <button class="btn-ghost btn-sm" onclick="LiveMT.addAction()" title="${t("إضافة إجراء", "Add Action")}">+ ${t("إجراء", "Action")}</button>
+      </div>`;
+  },
+
+  // ── Inner body mount ──────────────────────────────────────────
+  _mountInnerBody() {
+    const box = document.getElementById("lmt-inner-body");
+    if (!box) return;
+    const t = this.t.bind(this);
+    const d = this._d;
+    const l = App.lang;
+
+    switch (this._tab) {
+      case "transcript": {
+        const segRows = this._segments.map((s) =>
+          `<div class="lmt-tr-row">${s.ts ? `<div class="lmt-tr-ts">${s.ts}</div>` : ""}<div class="lmt-tr-text">${esc(s.text)}</div></div>`
+        ).join("");
+        box.innerHTML = `
+          <div class="lmt-tr-status-bar">
+            ${this._state === "live" && this._withRec ? `<span class="lmt-status-badge lmt-badge-live"><span class="rdot"></span>${t("جارٍ النسخ", "Transcribing")}</span>` : ""}
+            ${this._state === "live" && !this._withRec ? `<span class="lmt-status-badge lmt-badge-norec">${t("اجتماع بدون تسجيل", "No recording")}</span>` : ""}
+            ${this._state === "paused" ? `<span class="lmt-status-badge lmt-badge-paused">⏸ ${t("متوقف مؤقتاً", "Paused")}</span>` : ""}
+            <label class="lmt-autoscroll-lbl">
+              <input type="checkbox" ${this._autoScroll ? "checked" : ""} onchange="LiveMT._autoScroll=this.checked">
+              ${t("تمرير تلقائي", "Auto-scroll")}
+            </label>
+          </div>
+          <div class="lmt-transcript" id="lmt-transcript-list">${segRows || `<div class="lmt-tr-empty">🎙<br>${this._state === "live" && this._withRec ? t("جارٍ الاستماع…", "Listening…") : t("لا يوجد نسخ بعد.", "No transcript yet.")}</div>`}</div>`;
+        if (this._autoScroll) { const tl = document.getElementById("lmt-transcript-list"); if (tl) tl.scrollTop = tl.scrollHeight; }
+        break;
+      }
+      case "agenda": {
+        const agenda = d?.agenda || [];
+        const statuses = [
+          { v: "not_started", ar: "لم يبدأ", en: "Not Started" },
+          { v: "in_progress", ar: "جارٍ", en: "In Progress" },
+          { v: "completed", ar: "مكتمل", en: "Completed" },
+          { v: "deferred", ar: "مؤجل", en: "Deferred" },
+          { v: "skipped", ar: "تم التخطي", en: "Skipped" },
+        ];
+        box.innerHTML = agenda.length ? agenda.map((a, i) => {
+          const title = l === "ar" ? (a.title_ar || a.title || a.title_en || "") : (a.title_en || a.title || a.title_ar || "");
+          const cur = a.live_status || "not_started";
+          const clsMap = { not_started: "", in_progress: "tgold", completed: "tg", deferred: "tgr", skipped: "tr" };
+          return `<div class="lmt-ag-row">
+            <span class="lmt-ag-n">${i + 1}</span>
+            <div class="lmt-ag-body">
+              <div class="lmt-ag-title">${esc(title)}</div>
+              ${a.presenter ? `<div class="lmt-ag-sub">👤 ${esc(a.presenter)}</div>` : ""}
+              ${a.duration_mins ? `<span class="tag tgr" style="font-size:10px">${a.duration_mins} ${t("د", "min")}</span>` : ""}
+            </div>
+            <span class="tag ${clsMap[cur] || ""}" style="flex-shrink:0">${t(statuses.find(s => s.v === cur)?.ar || cur, statuses.find(s => s.v === cur)?.en || cur)}</span>
+            <select class="fi" style="width:auto;font-size:11px;padding:3px 6px;flex-shrink:0" onchange="LiveMT.setAgendaStatus(${a.id},this.value)">
+              ${statuses.map((s) => `<option value="${s.v}" ${cur === s.v ? "selected" : ""}>${t(s.ar, s.en)}</option>`).join("")}
+            </select>
+          </div>`;
+        }).join("") : `<div class="mx-empty" style="padding:32px"><div class="ic">🗒</div><div class="t">${t("لا يوجد جدول أعمال", "No agenda")}</div></div>`;
+        break;
+      }
+      case "notes": {
+        const notesHtml = this._notes.map((n) => `<div class="lmt-note-row">📝 ${esc(n)}</div>`).join("") ||
+          `<div style="font-size:12px;color:#98A2B3;padding:12px 0">${t("لا توجد ملاحظات بعد.", "No notes yet.")}</div>`;
+        box.innerHTML = `<div class="lmt-notes-feed" id="lmt-notes-feed">${notesHtml}</div>
+          <div class="lmt-note-input-row">
+            <input class="fi" id="lmt-note-input" placeholder="${t("اكتب ملاحظة واضغط Enter…", "Type a note and press Enter…")}"
+              onkeydown="if(event.key==='Enter'&&this.value.trim()){LiveMT.addNote(this.value)}"/>
+            <button class="btn-gold btn-sm" onclick="LiveMT.addNote(document.getElementById('lmt-note-input')?.value)">+ ${t("إضافة", "Add")}</button>
+          </div>`;
+        break;
+      }
+      case "decisions": {
+        const decs = d?.decisions || [];
+        box.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+          <button class="btn-gold btn-sm" onclick="LiveMT.addDecision()">+ ${t("إضافة قرار", "Add Decision")}</button>
+        </div>
+        ${decs.length ? decs.map((x) => `<div class="lmt-dec-row">⚖️ ${esc(l === "ar" ? x.text_ar || x.text_en : x.text_en || x.text_ar)}</div>`).join("")
+          : `<div class="mx-empty" style="padding:32px"><div class="ic">⚖️</div><div class="t">${t("لا توجد قرارات بعد", "No decisions yet")}</div></div>`}`;
+        break;
+      }
+      case "actions": {
+        const tasks = d?.tasks || [];
+        box.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+          <button class="btn-gold btn-sm" onclick="LiveMT.addAction()">+ ${t("إضافة إجراء", "Add Action")}</button>
+        </div>
+        ${tasks.length ? tasks.map((x) => `<div class="lmt-dec-row">🎯 ${esc(l === "ar" ? x.text_ar || x.text_en : x.text_en || x.text_ar)}${x.owner_name_ar || x.owner_name_en ? ` <span style="font-size:11px;color:#697386">— ${esc(l === "ar" ? x.owner_name_ar : x.owner_name_en)}</span>` : ""}</div>`).join("")
+          : `<div class="mx-empty" style="padding:32px"><div class="ic">🎯</div><div class="t">${t("لا توجد إجراءات بعد", "No actions yet")}</div></div>`}`;
+        break;
+      }
+    }
+  },
+
+  // ── Helpers ───────────────────────────────────────────────────
+  async _saveTranscript() {
+    if (!this._mid || !this._segments.length) return;
+    const text = this._segments.map((s) => `${s.ts ? "[" + s.ts + "] " : ""}${s.text}`).join("\n");
+    try { await api(`/api/meetings/${this._mid}`, { method: "PATCH", body: JSON.stringify({ transcript: text }) }); } catch (_) {}
+  },
+
+  _logEvent(eventType, extra) {
+    if (!this._mid) return;
+    api(`/api/meetings/${this._mid}/events`, {
+      method: "POST",
+      body: JSON.stringify({ event_type: eventType, source: "user", ...(extra || {}) }),
+    }).catch(() => {});
+  },
+};
+
+window.LiveMT = LiveMT;

@@ -1,0 +1,437 @@
+Please improve the existing Live Meeting page shown in the attached screenshot. Do not redesign the entire Meetings module. Focus only on the live meeting, recording, transcription, and end-meeting experience described below.
+
+Main Objective
+
+When a scheduled meeting is started, the system should guide the user through a proper live meeting workflow:
+
+Start the meeting.
+Ask whether recording should begin.
+Show live transcription while the meeting is in progress.
+Allow the meeting organizer to review live participants, agenda, notes, decisions, and actions.
+End the meeting clearly and safely.
+After the meeting ends, process the transcript and generate draft minutes, decisions, and action items.
+Phase 1 — Start Meeting and Recording Confirmation
+
+When the organizer clicks Start Meeting, show a confirmation modal before entering the live session.
+
+Modal content
+
+Title: Start Live Meeting
+
+Message:
+Would you like to start recording and live transcription for this meeting?
+
+Options
+Start Meeting with Recording
+Start Meeting without Recording
+Cancel
+Behaviour
+
+If the user selects Start Meeting with Recording:
+
+Start the live meeting.
+Start the recording.
+Start live transcription.
+Store the actual meeting start time.
+Show a visible “Recording” status.
+Show a visible “Live Transcript” status.
+
+If the user selects Start Meeting without Recording:
+
+Start the live meeting.
+Do not record audio.
+Do not generate transcription.
+Still allow manual notes, actions, and decisions.
+Show a clear “Not Recording” status.
+
+Only authorized users, such as the organizer or meeting secretary, should be able to start or stop the recording.
+
+Phase 2 — Live Transcription
+
+Replace the current empty transcript panel with a real live transcription area.
+
+Live transcription behaviour
+
+While the meeting is running and recording is active:
+
+Show transcription text as it is generated.
+Add new text continuously without refreshing the page.
+Auto-scroll to the latest transcript entry.
+Allow the user to pause auto-scroll.
+Show the speaker name when available.
+Show the timestamp beside each transcript segment.
+Keep previous transcript text visible.
+Save transcript segments continuously to prevent data loss.
+Example transcript format
+
+13:06 — Mohammad W. Albuali
+We need to complete the financial review before the next board meeting.
+
+13:07 — Sarah Ahmed
+I will prepare the updated report by Sunday.
+
+Transcript states
+
+Support the following states:
+
+Connecting
+Recording
+Transcribing live
+Paused
+Processing
+Completed
+Failed
+
+If transcription temporarily fails, show a retry message without ending the meeting.
+
+Phase 3 — Live Meeting Workspace
+
+The current live meeting screen should include the useful options from the previous recording experience, but with a cleaner and more professional design.
+
+Use a three-column responsive layout on desktop.
+
+Left Column — Meeting Information
+
+Show:
+
+Meeting title
+Meeting type
+Scheduled time
+Actual start time
+Recording status
+Meeting duration timer
+Meeting platform
+Organizer
+Participant count
+Participant list
+Attendance status
+
+Participant statuses may include:
+
+Present in person
+Present virtually
+Joined late
+Left early
+Absent
+
+The participant section should update during the meeting.
+
+Middle Column — Main Live Workspace
+
+The main area should contain tabs or clearly separated sections for:
+
+Live Transcript
+Agenda
+Live Notes
+Decisions
+Actions
+Live Transcript
+
+Show the continuous live transcription.
+
+Agenda
+
+Show the meeting agenda and allow the secretary to mark each item as:
+
+Not started
+In progress
+Completed
+Deferred
+Live Notes
+
+Allow manual notes during the meeting.
+
+Decisions
+
+Allow the secretary to create a decision manually while the meeting is live.
+
+Each decision should support:
+
+Decision title
+Decision description
+Related agenda item
+Decision owner
+Status
+Actions
+
+Allow the secretary to create an action during the meeting.
+
+Each action should support:
+
+Action title
+Assignee
+Due date
+Priority
+Related agenda item
+Related decision
+
+Do not wait until the meeting ends before allowing manual decisions and actions.
+
+Right Column — AI Meeting Assistant
+
+Replace the simple “AI Notes” card with a more useful live assistant panel.
+
+Show sections such as:
+
+Key discussion points
+Possible decisions
+Possible action items
+Questions requiring follow-up
+Risks or unresolved issues
+
+During the meeting, AI suggestions should be clearly marked as drafts.
+
+Examples:
+
+Suggested Action: Sarah to submit the financial report by Sunday.
+Suggested Decision: Approve the revised project timeline.
+Follow-up Needed: Confirm the final budget with the Finance Committee.
+
+Each suggestion should have:
+
+Add
+Edit
+Dismiss
+
+Do not automatically finalize any AI-generated decision or task.
+
+Phase 4 — Recording Controls
+
+Add a fixed recording control bar that remains visible while the meeting is active.
+
+Include:
+
+Recording status
+Meeting timer
+Pause recording
+Resume recording
+Stop recording
+End meeting
+
+The organizer should always be able to see whether the meeting is being recorded.
+
+Before stopping the recording, show a confirmation message:
+
+“Are you sure you want to stop recording? Live transcription will also stop.”
+
+Stopping recording should not automatically end the meeting.
+
+Phase 5 — Fix the End Meeting Button
+
+The current End Meeting button is hidden behind the floating Ask Ameen chat button.
+
+Fix this issue completely.
+
+Required solution
+
+Move the End Meeting button into the fixed live meeting control bar.
+
+Recommended position:
+
+Bottom center of the page, or
+Top-right inside the live meeting header
+
+The button must:
+
+Always remain visible.
+Never be covered by Ask Ameen.
+Work correctly on desktop, tablet, and mobile.
+Have clear spacing from floating widgets.
+Use a higher and properly managed z-index.
+Remain accessible when the page scrolls.
+
+The Ask Ameen button should be repositioned to the bottom-right corner with sufficient spacing above the control bar.
+
+Do not solve the issue only by increasing the z-index. Improve the layout so the controls do not overlap.
+
+Phase 6 — End Meeting Confirmation
+
+When the organizer clicks End Meeting, show a confirmation modal.
+
+Modal content
+
+Title: End Meeting
+
+Message:
+Ending the meeting will stop the recording and live transcription. The system will then process the transcript and prepare draft minutes, decisions, and actions.
+
+Buttons
+End and Process Meeting
+Continue Meeting
+End without AI Processing, if permitted
+
+After confirmation:
+
+Store the actual end time.
+Stop recording.
+Stop transcription.
+Save all transcript segments.
+Save manual notes.
+Save agenda statuses.
+Save manual decisions and actions.
+Change the meeting status to Processing.
+
+Prevent users from clicking the End Meeting button multiple times.
+
+Phase 7 — Post-Meeting AI Processing
+
+After the meeting ends, process the transcript and generate draft outputs.
+
+Generate:
+
+Meeting summary
+Draft minutes
+Draft decisions
+Draft actions
+Key discussion points
+Deferred agenda items
+Follow-up questions
+
+All generated content must remain in Draft status until reviewed by an authorized user.
+
+Important rule
+
+AI-generated content must never automatically become an approved decision, finalized action, or approved meeting minute.
+
+The user must be able to:
+
+Review
+Edit
+Accept
+Reject
+Merge duplicates
+Assign owners
+Add due dates
+Phase 8 — Data and Event Logging
+
+Log important events at the database level when they occur.
+
+Create events for:
+
+MEETING_STARTED
+RECORDING_STARTED
+RECORDING_PAUSED
+RECORDING_RESUMED
+RECORDING_STOPPED
+TRANSCRIPTION_STARTED
+TRANSCRIPTION_FAILED
+TRANSCRIPTION_COMPLETED
+PARTICIPANT_JOINED
+PARTICIPANT_LEFT
+AGENDA_ITEM_STARTED
+AGENDA_ITEM_COMPLETED
+AGENDA_ITEM_DEFERRED
+MANUAL_NOTE_ADDED
+DECISION_CREATED_DURING_MEETING
+ACTION_CREATED_DURING_MEETING
+MEETING_ENDED
+AI_PROCESSING_STARTED
+AI_PROCESSING_COMPLETED
+AI_PROCESSING_FAILED
+
+Each event should store:
+
+Meeting ID
+Entity ID
+User ID
+Event type
+Timestamp
+Previous value
+New value
+Relevant metadata
+Source: user, system, AI, or integration
+
+Do not reconstruct these events later from the current meeting status.
+
+Phase 9 — Error and Recovery Handling
+
+Handle the following cases:
+
+Recording permission denied
+Microphone unavailable
+Internet connection lost
+Transcription service disconnected
+Browser refreshed during the meeting
+Meeting ended while processing is still running
+Duplicate end-meeting request
+Recording upload failed
+AI processing failed
+
+The system should preserve already captured transcript text and meeting data.
+
+If the page is refreshed, restore the active meeting state.
+
+Show clear statuses instead of silently failing.
+
+Design Requirements
+
+Use the current platform design language, but improve the layout and usability.
+
+The live meeting page should feel:
+
+Professional
+Clean
+Governance-focused
+Easy to scan
+Suitable for board and executive meetings
+
+Important design rules:
+
+Keep the transcript as the main focus.
+Do not overload the page with too many cards.
+Use clear status badges.
+Use a fixed control bar for recording and ending the meeting.
+Ensure Ask Ameen never overlaps important controls.
+Keep responsive behaviour for smaller screens.
+Use confirmation modals for destructive actions.
+Maintain accessible button sizes and contrast.
+Implementation Rules
+Do not break the existing meeting details, agenda, minutes, decisions, actions, documents, timeline, or approval tabs.
+Reuse the existing meeting permissions.
+Do not remove existing recording data.
+Use safe database migrations.
+Preserve existing meetings and transcripts.
+Keep AI-generated content separate from user-approved content.
+Add backend authorization checks, not only frontend hiding.
+Do not use mock transcription as the final implementation.
+If live transcription integration is not currently available, create the complete UI and backend event structure first, and clearly identify the remaining integration point.
+Testing Checklist
+
+After implementation, test the following:
+
+Start a meeting with recording.
+Start a meeting without recording.
+Confirm that the actual start time is stored.
+Confirm that live transcript text appears continuously.
+Confirm that transcript text remains after refreshing.
+Pause and resume recording.
+Stop recording without ending the meeting.
+Add a manual note during the meeting.
+Add a decision during the meeting.
+Add an action during the meeting.
+Update an agenda item status.
+Confirm that participants appear correctly.
+Confirm that the End Meeting button is always visible.
+Confirm that Ask Ameen does not cover any control.
+End the meeting.
+Confirm that recording and transcription stop.
+Confirm that AI processing begins.
+Confirm that generated minutes, decisions, and actions remain drafts.
+Confirm that duplicate End Meeting clicks are blocked.
+Confirm that all important events appear in the audit log.
+Required Completion Report
+
+After completing this task, provide:
+
+Files changed
+Components added
+Database changes
+API changes
+Recording and transcription integration used
+Event types added
+Permissions applied
+Error handling added
+Test cases completed
+Any remaining limitations
+
+Build this in small, safe steps. Do not redesign unrelated parts of the Meetings module.

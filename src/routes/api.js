@@ -946,6 +946,101 @@ router.post('/meetings/:id/recording/stop', auth, requirePermission('meetings.cr
   res.json({ success: true, recording_status: 'stopped' });
 });
 
+// ── Live Meeting Endpoints ─────────────────────────────────────────────────────
+
+// POST /api/meetings/:id/events — append an immutable live-meeting event
+router.post('/meetings/:id/events', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
+  const mid = req.params.id;
+  const { event_type, entity_id, source, previous_value, new_value, metadata } = req.body;
+  if (!event_type) return res.status(400).json({ error: 'event_type required' });
+  const result = db.prepare(`
+    INSERT INTO meeting_events
+      (meeting_id, event_type, entity_id, user_id, actor_name, source, previous_value, new_value, metadata)
+    VALUES (?,?,?,?,?,?,?,?,?)
+  `).run(
+    mid, event_type, entity_id || null,
+    req.user.id, req.user.name_ar || req.user.name_en || '',
+    source || 'user',
+    previous_value || '', new_value || '',
+    typeof metadata === 'object' ? JSON.stringify(metadata) : (metadata || '{}')
+  );
+  res.json({ id: result.lastInsertRowid });
+});
+
+// GET /api/meetings/:id/events — full event log for this meeting
+router.get('/meetings/:id/events', auth, requirePermission('meetings.view'), (req, res) => {
+  const events = db.prepare(
+    'SELECT * FROM meeting_events WHERE meeting_id=? ORDER BY created_at ASC'
+  ).all(req.params.id);
+  res.json(events);
+});
+
+// POST /api/meetings/:id/start — start meeting (records actual_start_time & recording preference)
+router.post('/meetings/:id/start', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
+  const meeting = db.prepare('SELECT id, lifecycle_stage FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const withRec = req.body.with_recording !== false ? 1 : 0;
+  db.prepare(`
+    UPDATE meetings SET
+      actual_start_time = COALESCE(actual_start_time, CURRENT_TIMESTAMP),
+      with_recording    = ?,
+      recording_status  = CASE WHEN ? THEN 'recording' ELSE recording_status END,
+      recording_started_by   = CASE WHEN ? THEN ? ELSE recording_started_by END,
+      recording_started_at   = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE recording_started_at END,
+      recording_capture_type = CASE WHEN ? THEN 'browser_microphone' ELSE recording_capture_type END,
+      recording_scope        = CASE WHEN ? THEN 'local_microphone_only' ELSE recording_scope END
+    WHERE id = ?
+  `).run(withRec, withRec, withRec, req.user.id, withRec, withRec, withRec, meeting.id);
+  transitionMeeting(
+    meeting.id, 'recording', req.user.id,
+    withRec ? 'Meeting started with recording' : 'Meeting started without recording'
+  );
+  db.prepare(`
+    INSERT INTO meeting_events (meeting_id, event_type, user_id, actor_name, source, new_value, metadata)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(
+    meeting.id,
+    withRec ? 'RECORDING_STARTED' : 'MEETING_STARTED',
+    req.user.id, req.user.name_ar || req.user.name_en || '', 'user',
+    withRec ? 'recording' : 'started',
+    JSON.stringify({ with_recording: withRec })
+  );
+  res.json({ success: true, with_recording: withRec });
+});
+
+// POST /api/meetings/:id/end — end meeting, persist transcript & notes, trigger AI flag
+router.post('/meetings/:id/end', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
+  const meeting = db.prepare('SELECT id, lifecycle_stage FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const { live_notes, transcript } = req.body;
+  db.prepare(`
+    UPDATE meetings SET
+      actual_end_time  = CURRENT_TIMESTAMP,
+      recording_status = 'stopped',
+      recording_stopped_at = CURRENT_TIMESTAMP,
+      live_notes = COALESCE(NULLIF(?,''), live_notes),
+      transcript = COALESCE(NULLIF(?,''), transcript)
+    WHERE id = ?
+  `).run(live_notes || '', transcript || '', meeting.id);
+  transitionMeeting(meeting.id, 'uploaded', req.user.id, 'Meeting ended');
+  db.prepare(`
+    INSERT INTO meeting_events (meeting_id, event_type, user_id, actor_name, source, metadata)
+    VALUES (?,?,?,?,?,?)
+  `).run(meeting.id, 'MEETING_ENDED', req.user.id, req.user.name_ar || req.user.name_en || '', 'user', '{}');
+  res.json({ success: true });
+});
+
+// PATCH /api/meetings/:id/agenda-items/:itemId — update agenda item live status
+router.patch('/meetings/:id/agenda-items/:itemId', auth, requirePermission('meetings.create', 'meetings.edit'), (req, res) => {
+  const { live_status } = req.body;
+  if (!live_status) return res.status(400).json({ error: 'live_status required' });
+  const valid = ['not_started', 'in_progress', 'completed', 'deferred', 'skipped'];
+  if (!valid.includes(live_status)) return res.status(400).json({ error: 'invalid live_status' });
+  db.prepare('UPDATE agenda_items SET live_status=? WHERE id=? AND meeting_id=?')
+    .run(live_status, req.params.itemId, req.params.id);
+  res.json({ success: true });
+});
+
 // ── File Upload ────────────────────────────────────────────────────────────────
 router.post('/meetings/:id/upload', auth, requirePermission('documents.upload'), upload.single('file'), async (req, res) => {
  try {
