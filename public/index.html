@@ -61,7 +61,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/css/app.css?v=20260713i"/>
+<link rel="stylesheet" href="/css/app.css?v=20260713j"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713h"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
 </head>
@@ -1926,15 +1926,19 @@
 
 <!-- ══ MODAL: MINUTES APPROVAL ACTION (Circulate/Approve/Request Revision/Final Approve/Archive) ══ -->
 <div class="modal-overlay" id="modal-approval-action">
-  <div class="modal" style="max-width:460px">
-    <div class="modal-title"><span id="approval-modal-title-txt">Circulate for Approval</span></div>
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+      <span id="approval-modal-ico" style="font-size:20px;flex-shrink:0">📤</span>
+      <span id="approval-modal-title-txt">Circulate for Approval</span>
+    </div>
     <div class="fs">
+      <div id="approval-modal-subtitle" style="font-size:12.5px;color:var(--text3);line-height:1.6;padding:8px 12px;background:var(--navy3);border-radius:8px;border:1px solid var(--border2)"></div>
       <div class="frow">
-        <div class="fl" data-ar="ملاحظات (اختياري)" data-en="Comments (optional)">ملاحظات (اختياري)</div>
-        <textarea class="fi" id="approval-modal-comments" rows="3" data-ph-ar="أضف ملاحظة اختيارية..." data-ph-en="Add an optional note..." placeholder="Add an optional note..."></textarea>
+        <div class="fl" id="approval-modal-comment-lbl">Comments (optional)</div>
+        <textarea class="fi" id="approval-modal-comments" rows="3" placeholder="Add an optional note..."></textarea>
       </div>
       <div class="fa">
-        <button class="btn-gold" id="approval-modal-confirm-btn" onclick="ApprovalModal.confirm()">✓ <span data-ar="تأكيد" data-en="Confirm">Confirm</span></button>
+        <button class="btn-gold" id="approval-modal-confirm-btn" onclick="ApprovalModal.confirm()">✓ Confirm</button>
         <button class="btn-ghost" onclick="ApprovalModal.close()"><span data-ar="إلغاء" data-en="Cancel">Cancel</span></button>
       </div>
     </div>
@@ -2102,10 +2106,10 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260713i"></script>
+<script src="/js/app.js?v=20260713j"></script>
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260713e"></script>
-<script src="/js/meetings.js?v=20260713i"></script>
+<script src="/js/meetings.js?v=20260713j"></script>
 
 <!-- ═══ Change Password Modal ══════════════════════════════════════════════ -->
 <div id="modal-change-password" onclick="if(event.target===this)closeChangePassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">

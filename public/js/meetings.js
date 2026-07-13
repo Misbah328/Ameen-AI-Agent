@@ -1315,45 +1315,27 @@ const MT = {
         <div style="display:flex;gap:8px">${btns.join("")}</div></div>${steps}</div>${logCard}`;
   },
 
-  async circulateMinutes() {
+  circulateMinutes() {
     const m = this._d && this._d.meeting;
     const ms = m && (m.minutes_status || "draft");
     if (ms !== "draft" && ms !== "revision_requested") {
       showToast(this.t("المحضر ليس في حالة مسودة", "Minutes are not in draft state"), "error");
       return;
     }
-    const comments = prompt(this.t("ملاحظة للمعتمدين (اختياري):", "Note to approvers (optional):")) ?? null;
-    if (comments === null) return; // user pressed Cancel
-    try {
-      await api(`/api/meetings/${this._mid}/circulate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comments: comments || "" }),
-      });
-      showToast(this.t("✓ تم التعميم بنجاح — تم إشعار المعتمدين", "✓ Circulated — approvers have been notified"));
+    ApprovalModal.open(this._mid, "circulate", async () => {
+      showToast(this.t("✓ تم التعميم — تم إشعار المعتمدين", "✓ Circulated — approvers notified"));
       await this._loadDetail(this._mid, "approval");
-    } catch (e) { showToast(this.t("تعذّر التعميم: ", "Could not circulate: ") + e.message, "error"); }
+    });
   },
 
-  async requestRevision() {
-    const comments = prompt(this.t("سبب طلب المراجعة:", "Reason for requesting revision:"));
-    if (comments === null) return; // user pressed Cancel
-    if (!comments.trim()) {
-      showToast(this.t("يرجى إدخال سبب المراجعة", "Please enter a reason for revision"), "error");
-      return;
-    }
-    try {
-      await api(`/api/meetings/${this._mid}/request-revision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comments }),
-      });
-      showToast(this.t("✓ تم طلب المراجعة — أُعيد المحضر للمسودة", "✓ Revision requested — minutes returned to draft"));
+  requestRevision() {
+    ApprovalModal.open(this._mid, "request-revision", async () => {
+      showToast(this.t("✓ أُعيد المحضر للمراجعة", "✓ Returned for revision"));
       await this._loadDetail(this._mid, "approval");
-    } catch (e) { showToast(this.t("خطأ: ", "Error: ") + e.message, "error"); }
+    });
   },
 
-  async approveMinutes(isFinal) {
+  approveMinutes(isFinal) {
     const m = this._d && this._d.meeting;
     const ms = m && (m.minutes_status || "draft");
     const required = isFinal ? "approved" : "circulated";
@@ -1361,17 +1343,10 @@ const MT = {
       showToast(this.t("حالة المحضر غير مناسبة لهذا الإجراء", "Minutes status does not match this action"), "error");
       return;
     }
-    const comments = prompt(this.t("تعليق (اختياري):", "Comment (optional):")) ?? null;
-    if (comments === null) return;
-    try {
-      await api(`/api/meetings/${this._mid}/${isFinal ? "final-approve" : "approve"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comments: comments || "" }),
-      });
+    ApprovalModal.open(this._mid, isFinal ? "final-approve" : "approve", async () => {
       showToast(this.t("✓ تم الاعتماد بنجاح", "✓ Approved successfully"));
       await this._loadDetail(this._mid, "approval");
-    } catch (e) { showToast(this.t("تعذّر الاعتماد: ", "Could not approve: ") + e.message, "error"); }
+    });
   },
 
   // ═════════════════════════════════════════════════════════════

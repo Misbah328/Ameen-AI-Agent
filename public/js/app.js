@@ -5049,33 +5049,56 @@ if ($("modal-series")) {
 const ApprovalModal = {
   _meetingId: null,
   _action: null,
-  open(meetingId, action) {
+  _onConfirm: null,
+  _required: false,
+  _cfg(action) {
     const l = App.lang;
-    const actionLabels = {
-      'circulate': l === 'ar' ? 'تعميم للاعتماد' : 'Circulate for Approval',
-      'approve': l === 'ar' ? 'اعتماد' : 'Approve',
-      'request-revision': l === 'ar' ? 'طلب مراجعة' : 'Request Revision',
-      'final-approve': l === 'ar' ? 'اعتماد نهائي' : 'Final Approve',
-      'archive': l === 'ar' ? 'أرشفة الاجتماع' : 'Archive Meeting',
-    };
+    const ar = (a, e) => l === 'ar' ? a : e;
+    return {
+      'circulate':        { ico: '📤', title: ar('تعميم المحضر للاعتماد', 'Circulate Minutes for Review'),      sub: ar('سيتم إشعار جميع المعتمدين بأن المحضر جاهز للمراجعة والاعتماد.', 'All approvers will be notified that the minutes are ready for their review.'),      lbl: ar('ملاحظة للمعتمدين (اختياري)', 'Note to approvers (optional)'),       btn: ar('📤 تعميم للاعتماد', '📤 Circulate'),          required: false },
+      'approve':          { ico: '✅', title: ar('اعتماد محضر الاجتماع', 'Approve Meeting Minutes'),             sub: ar('سيُسجَّل اعتمادك لهذا المحضر ويُشعَر الكاتب بذلك.', 'Your approval will be recorded and the secretary will be notified.'),           lbl: ar('تعليق (اختياري)', 'Comment (optional)'),                              btn: ar('✅ اعتماد', '✅ Approve'),                     required: false },
+      'request-revision': { ico: '🔄', title: ar('طلب مراجعة المحضر', 'Request Minutes Revision'),              sub: ar('سيُعاد المحضر إلى حالة المسودة مع ملاحظاتك لإجراء التعديلات اللازمة.', 'Minutes will be returned to draft with your notes for the necessary corrections.'), lbl: ar('سبب طلب المراجعة (مطلوب)', 'Reason for revision (required)'),        btn: ar('🔄 طلب مراجعة', '🔄 Request Revision'),        required: true  },
+      'final-approve':    { ico: '🏆', title: ar('الاعتماد النهائي للمحضر', 'Final Board Approval'),            sub: ar('سيُوثَّق الاعتماد النهائي وتُقفَل دورة حياة الاجتماع رسمياً.', 'Final approval will be documented and the meeting lifecycle will be officially closed.'), lbl: ar('تعليق (اختياري)', 'Comment (optional)'),                          btn: ar('🏆 اعتماد نهائي', '🏆 Final Approve'),          required: false },
+      'archive':          { ico: '🗄️', title: ar('أرشفة الاجتماع', 'Archive Meeting'),                          sub: ar('سيُنقَل الاجتماع إلى الأرشيف ولن يظهر في القوائم الرئيسية.', 'The meeting will be moved to the archive and hidden from main lists.'),          lbl: ar('ملاحظة (اختياري)', 'Note (optional)'),                               btn: ar('🗄️ أرشفة', '🗄️ Archive'),                       required: false },
+    }[action] || { ico: '✓', title: action, sub: '', lbl: l === 'ar' ? 'ملاحظات' : 'Comments', btn: l === 'ar' ? 'تأكيد' : 'Confirm', required: false };
+  },
+  open(meetingId, action, onConfirm) {
+    const cfg = this._cfg(action);
     this._meetingId = meetingId;
     this._action = action;
-    const titleEl = $('approval-modal-title-txt');
-    if (titleEl) titleEl.textContent = actionLabels[action] || action;
-    const commentsEl = $('approval-modal-comments');
-    if (commentsEl) commentsEl.value = '';
+    this._onConfirm = onConfirm || null;
+    this._required = cfg.required;
+    const set = (id, prop, val) => { const el = $(id); if (el) el[prop] = val; };
+    set('approval-modal-ico', 'textContent', cfg.ico);
+    set('approval-modal-title-txt', 'textContent', cfg.title);
+    const subEl = $('approval-modal-subtitle');
+    if (subEl) { subEl.textContent = cfg.sub; subEl.style.display = cfg.sub ? '' : 'none'; }
+    set('approval-modal-comment-lbl', 'textContent', cfg.lbl);
+    set('approval-modal-comments', 'value', '');
+    set('approval-modal-comments', 'placeholder', cfg.lbl);
+    set('approval-modal-confirm-btn', 'innerHTML', cfg.btn);
+    const btn = $('approval-modal-confirm-btn');
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
     $('modal-approval-action').classList.add('open');
+    setTimeout(() => { const ta = $('approval-modal-comments'); if (ta) ta.focus(); }, 80);
   },
   close() {
     $('modal-approval-action').classList.remove('open');
-    this._meetingId = null;
-    this._action = null;
+    this._meetingId = null; this._action = null; this._onConfirm = null; this._required = false;
   },
   async confirm() {
     const l = App.lang;
     const meetingId = this._meetingId, action = this._action;
     if (!meetingId || !action) return;
-    const comments = ($('approval-modal-comments') && $('approval-modal-comments').value) || '';
+    const comments = ($('approval-modal-comments') && $('approval-modal-comments').value.trim()) || '';
+    if (this._required && !comments) {
+      showToast(l === 'ar' ? 'هذا الحقل مطلوب' : 'This field is required', 'error');
+      $('approval-modal-comments') && $('approval-modal-comments').focus();
+      return;
+    }
+    const btn = $('approval-modal-confirm-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    const cb = this._onConfirm;
     try {
       await api(`/api/meetings/${meetingId}/${action}`, {
         method: 'POST',
@@ -5083,9 +5106,11 @@ const ApprovalModal = {
         body: JSON.stringify({ comments }),
       });
       this.close();
-      await renderTranscripts();
+      if (cb) await cb();
+      else await renderTranscripts();
     } catch (e) {
       showToast((l === 'ar' ? 'حدث خطأ: ' : 'Error: ') + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
     }
   },
 };
