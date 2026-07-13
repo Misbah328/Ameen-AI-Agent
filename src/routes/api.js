@@ -1083,7 +1083,8 @@ ${text.slice(0, 3500)}
       }
     }
   } catch {}
-  const uploaderName = db.prepare('SELECT name_ar FROM users WHERE id=?').get(req.user.id)?.name_ar || '';
+  const _uRow = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+  const uploaderName = (_uRow?.name_ar || _uRow?.name_en || '');
   const row = db.prepare(`
     INSERT INTO meeting_documents (meeting_id, title, doc_type, description, uploaded_by, upload_date, status, is_mock, created_by, file_path, file_size, file_type, ai_summary, ai_key_points, doc_classification)
     VALUES (?,?,?,?,?,date('now'),'uploaded',0,?,?,?,?,?,?,?)

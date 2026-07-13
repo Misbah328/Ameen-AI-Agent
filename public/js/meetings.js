@@ -952,7 +952,7 @@ const MT = {
     return `<div class="mx-card"><div class="mx-card-t">📄 ${t("المستندات وحزمة المجلس", "Documents & Board Pack")} <span class="mt2-tab-n">${d.documents.length}</span>${uploadBtn}</div>
       ${d.documents.map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div>
         <div style="flex:1;min-width:0"><div class="mx-doc-name" dir="auto">${esc(x.title)}</div>
-          <div class="mx-doc-meta">${[this._fmtSize(x.file_size), x.doc_classification ? esc(x.doc_classification) : "", x.upload_date || x.created_at ? fmtDate(x.upload_date || x.created_at) : ""].filter(Boolean).join(" · ")}</div>
+          <div class="mx-doc-meta">${[this._fmtSize(x.file_size), x.doc_classification ? esc(x.doc_classification) : "", x.upload_date || x.created_at ? fmtDate(x.upload_date || x.created_at) : "", x.uploaded_by ? `👤 ${esc(x.uploaded_by)}` : ""].filter(Boolean).join(" · ")}</div>
           ${x.ai_summary ? `<div style="font-size:11.5px;color:#697386;line-height:1.5;margin-top:3px">${esc(x.ai_summary)}</div>` : ""}</div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener" title="${t("تنزيل", "Download")}">⬇</a>
