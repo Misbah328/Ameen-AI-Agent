@@ -117,18 +117,18 @@ const DEFAULT_ROLE_PERMISSIONS = {
   // TASK_FULL_MANAGE_ROLES list (full task reassign/edit/delete rights) —
   // preserved here via the full actions.* set so this retrofit does not
   // regress their current capability.
-  'Board Member':       ['meetings.view', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'calendar.view', 'governance.general_assembly', 'governance.voting', 'governance.resolutions', 'documents.download', 'reports.view', 'ai.ask'],
+  'Board Member':       ['meetings.view', 'meetings.create', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'calendar.view', 'governance.general_assembly', 'governance.voting', 'governance.resolutions', 'documents.download', 'reports.view', 'ai.ask'],
   'Committee Chair':    ['meetings.view', 'meetings.create', 'meetings.edit', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'calendar.view', 'governance.committees', 'governance.voting', 'governance.resolutions', 'documents.upload', 'documents.download', 'reports.view', 'ai.ask'],
-  'Committee Member':   ['meetings.view', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'calendar.view', 'governance.voting', 'documents.download', 'reports.view', 'ai.ask'],
+  'Committee Member':   ['meetings.view', 'meetings.create', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'calendar.view', 'governance.voting', 'documents.download', 'reports.view', 'ai.ask'],
   'Executive':          ['meetings.view', 'meetings.create', 'meetings.edit', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'series.manage', 'calendar.view', 'calendar.manage', 'meetings.archive', 'documents.upload', 'documents.download', 'documents.share', 'reports.view', 'reports.generate', 'ai.ask', 'ai.generate_minutes', 'ai.generate_reports'],
   'Manager':            ['meetings.view', 'meetings.create', 'meetings.edit', 'minutes.view', 'actions.view', 'actions.assign', 'actions.update', 'actions.close', 'series.view', 'series.manage', 'calendar.view', 'calendar.manage', 'meetings.archive', 'documents.upload', 'documents.download', 'reports.view', 'reports.generate', 'ai.ask', 'ai.generate_minutes', 'admin.teams'],
   // Employee deliberately has actions.update but NOT actions.view — the
   // absence of actions.view is what scopes their task list to their own
   // tasks only in GET /tasks, matching current behavior exactly.
   'Employee':           ['meetings.view', 'meetings.create', 'minutes.view', 'actions.update', 'ai.ask'],
-  'Auditor':            ['meetings.view', 'minutes.view', 'actions.view', 'series.view', 'calendar.view', 'documents.download', 'reports.view', 'reports.export'],
-  'Guest':              ['meetings.view', 'minutes.view', 'calendar.view'],
-  'Observer':           ['meetings.view', 'minutes.view'],
+  'Auditor':            ['meetings.view', 'meetings.create', 'minutes.view', 'actions.view', 'series.view', 'calendar.view', 'documents.download', 'reports.view', 'reports.export'],
+  'Guest':              ['meetings.view', 'meetings.create', 'minutes.view', 'calendar.view'],
+  'Observer':           ['meetings.view', 'meetings.create', 'minutes.view'],
 };
 
 const ROLE_KEYS = Object.keys(ROLE_META);
