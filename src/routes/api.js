@@ -1142,12 +1142,30 @@ router.post('/meetings/:id/process', auth, requirePermission('ai.generate_minute
     transitionMeeting(meeting.id, 'ai_minutes_generated', req.user.id, 'AI minutes generated');
     res.json({ success: true, ...out });
   } catch (e) {
-    // NO_API_KEY (or any AI-side failure) is an environment/configuration
-    // condition, not a server bug — 422 so the frontend can show a clear
-    // "AI unavailable" message instead of a generic crash. The pipeline
-    // deliberately never fabricates and persists fake minutes/tasks on
-    // failure (see services/pipeline.js), so there is no demo fallback here.
-    res.status(422).json({ error: e.message, code: /NO_API_KEY/i.test(e.message) ? 'AI_UNAVAILABLE' : 'PROCESS_FAILED' });
+    const raw = e.message || '';
+    // Always log the raw technical error server-side for admins to diagnose
+    console.error(`[AI Process] Meeting ${meeting.id} failed — raw error: ${raw}`);
+
+    // Translate raw AI/infra errors into user-friendly messages; never expose
+    // internal API error strings (e.g. "credit balance", "API_ERROR:") to users.
+    let userMsg, code;
+    if (/NO_API_KEY/i.test(raw)) {
+      userMsg = 'AI service is not configured. Please contact your administrator.';
+      code = 'AI_UNAVAILABLE';
+    } else if (/credit balance|insufficient_quota|quota|billing/i.test(raw)) {
+      userMsg = 'AI processing is temporarily unavailable — the AI credit limit has been reached. Please contact your administrator or try again later.';
+      code = 'AI_QUOTA';
+    } else if (/API_ERROR/i.test(raw)) {
+      userMsg = 'The AI service returned an error. Please try again in a few minutes, or contact your administrator.';
+      code = 'AI_SERVICE_ERROR';
+    } else if (/timeout|ETIMEDOUT|ECONNREFUSED/i.test(raw)) {
+      userMsg = 'The AI service timed out. Please try again.';
+      code = 'AI_TIMEOUT';
+    } else {
+      userMsg = 'AI processing could not be completed. Your meeting data has been preserved — you can try again or continue manually.';
+      code = 'PROCESS_FAILED';
+    }
+    res.status(422).json({ error: userMsg, code, retry_allowed: true });
   }
 });
 

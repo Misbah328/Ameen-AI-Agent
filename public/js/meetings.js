@@ -153,8 +153,12 @@ const MT = {
 
   setTab(k) {
     this._tab = k;
+    // Issue 1 fix: set LiveMT._mid synchronously BEFORE rendering, so the
+    // "Start Meeting" button works on the very first click even if onMount's
+    // 80ms timer hasn't fired yet.
+    if (k === "live" && this._mid) LiveMT._mid = this._mid;
     this._renderDetail();
-    if (k === "live") setTimeout(() => { try { LiveMT.onMount(this._mid, this._d); } catch (_) {} }, 80);
+    if (k === "live") setTimeout(() => { try { LiveMT.onMount(this._mid, this._d); } catch (_) {} }, 0);
   },
 
   _renderDetail() {
@@ -350,7 +354,7 @@ const MT = {
           <div class="lmt-idle-meta">${m.platform ? esc(m.platform) + " · " : ""}${fmtDate(m.meeting_date)}</div>
           <div class="lmt-idle-s">${t("الاجتماع لم يبدأ بعد. انقر أدناه لفتح مساحة الاجتماع المباشر.", "The meeting has not started. Click below to launch the live meeting workspace.")}</div>
           ${d.attendees.length ? `<div class="lmt-idle-members">${d.attendees.slice(0, 6).map((a) => `<span class="mx-av" title="${esc(a.name)}">${esc(this._initials(a.name))}</span>`).join("")}${d.attendees.length > 6 ? `<span class="lmt-idle-more">+${d.attendees.length - 6}</span>` : ""}</div>` : ""}
-          ${canRec ? `<button class="btn-gold lmt-start-btn" onclick="LiveMT.showStartModal()">▶ ${t("بدء الاجتماع", "Start Meeting")}</button>` : `<div class="lmt-idle-s" style="color:#A8842C">${t("لا توجد صلاحية لبدء الاجتماع.", "You do not have permission to start the meeting.")}</div>`}
+          ${canRec ? `<button class="btn-gold lmt-start-btn" onclick="LiveMT._mid=${m.id};LiveMT.showStartModal()">▶ ${t("بدء الاجتماع", "Start Meeting")}</button>` : `<div class="lmt-idle-s" style="color:#A8842C">${t("لا توجد صلاحية لبدء الاجتماع.", "You do not have permission to start the meeting.")}</div>`}
         </div>
       </div>`;
     }
@@ -363,6 +367,7 @@ const MT = {
       const draftDecs = (d.decisions || []).filter((x) => x.ai_status === "ai_draft");
       const draftTasks = (d.tasks || []).filter((x) => x.ai_status === "ai_draft");
 
+      const aiError = LiveMT._aiProcessError;
       let statusPanel = "";
       if (isProcessing) {
         statusPanel = `<div class="pm-processing-bar">
@@ -370,6 +375,19 @@ const MT = {
           <div>
             <div class="pm-proc-t">${t("جارٍ معالجة الاجتماع بالذكاء الاصطناعي…", "AI is processing the meeting…")}</div>
             <div class="pm-proc-s">${t("يُستخرج المحضر والقرارات والمهام. ستُعرض النتائج تلقائياً عند الانتهاء.", "Extracting minutes, decisions and tasks. Results will appear automatically when ready.")}</div>
+          </div>
+        </div>`;
+      } else if (aiError) {
+        statusPanel = `<div class="pm-ai-error-bar">
+          <div class="pm-ai-err-ico">⚠️</div>
+          <div class="pm-ai-err-body">
+            <div class="pm-ai-err-t">${t("تعذّرت معالجة الذكاء الاصطناعي", "AI Processing Failed")}</div>
+            <div class="pm-ai-err-s">${esc(aiError)}</div>
+            <div class="pm-ai-err-s" style="margin-top:4px">${t("بيانات الاجتماع (النص والحضور والملاحظات) محفوظة. يمكنك إعادة المحاولة أو المتابعة يدوياً.", "Meeting data (transcript, attendance, notes) is preserved. You can retry or continue manually.")}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+            ${canRec ? `<button class="btn-gold btn-sm" onclick="LiveMT._aiProcessError=null;LiveMT._triggerAIProcess(${m.id})">🔄 ${t("إعادة المحاولة", "Retry")}</button>` : ""}
+            <button class="btn-ghost btn-sm" onclick="MT.setTab('minutes')">📝 ${t("متابعة يدوياً", "Continue Manually")}</button>
           </div>
         </div>`;
       } else if (isProcessed && (draftDecs.length || draftTasks.length)) {
@@ -395,7 +413,7 @@ const MT = {
         ${m.actual_start_time ? `<div style="font-size:11.5px;color:#697386;margin-bottom:12px">🕐 ${t("بدأ", "Started")} ${this._fmtDT(m.actual_start_time)}${m.actual_end_time ? " · " + t("انتهى", "Ended") + " " + this._fmtDT(m.actual_end_time) : ""}</div>` : ""}
         ${tr.length ? `<div class="lmt-transcript lmt-transcript-ro">${tr.map((r) => `<div class="lmt-tr-row">${r.speaker ? `<div class="lmt-tr-ts">${esc(r.speaker)}</div>` : ""}<div class="lmt-tr-text">${esc(r.text)}</div></div>`).join("")}</div>`
           : `<div class="mx-empty" style="padding:32px"><div class="ic">📝</div><div class="t">${t("لا يوجد نسخ", "No transcript")}</div><div class="s">${t("سيُولَّد المحضر بعد معالجة التسجيل.", "Minutes will be generated after processing.")}</div></div>`}
-        ${canRec && !isProcessed && !isProcessing ? `<div style="margin-top:14px"><button class="btn-gold btn-sm" onclick="LiveMT._processingAI=true;MT._renderDetail();api('/api/meetings/${m.id}/process',{method:'POST',body:'{}'}).then(()=>{LiveMT._processingAI=false;showToast(MT.t('✅ اكتملت المعالجة','✅ Processing complete'));MT._refreshDetail()}).catch(e=>{LiveMT._processingAI=false;showToast(e.message,'error');MT._renderDetail()})">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button></div>` : ""}
+        ${canRec && !isProcessed && !isProcessing ? `<div style="margin-top:14px"><button class="btn-gold btn-sm" id="pm-trigger-ai-btn" onclick="LiveMT._triggerAIProcess(${m.id})">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button></div>` : ""}
       </div>`;
     }
 
@@ -1815,6 +1833,9 @@ const LiveMT = {
   _autoScroll: true,
   _tab: "transcript",   // inner-tab key
   _ending: false,
+  _starting: false,
+  _processingAI: false,
+  _aiProcessError: null,
 
   t(ar, en) { return App.lang === "ar" ? ar : en; },
 
@@ -1858,12 +1879,16 @@ const LiveMT = {
     this._elapsedSecs = 0;
     this._liveText = "";
     this._ending = false;
+    this._starting = false;
+    this._processingAI = false;
+    this._aiProcessError = null;
     this._tab = "transcript";
     this._withRec = true;
   },
 
   // ── Modals ────────────────────────────────────────────────────
   showStartModal() {
+    if (this._starting) return; // already starting
     const t = this.t.bind(this);
     document.getElementById("lmt-start-modal")?.remove();
     const el = document.createElement("div");
@@ -1874,19 +1899,33 @@ const LiveMT = {
       <div class="lmt-modal-t">${t("بدء الاجتماع المباشر", "Start Live Meeting")}</div>
       <div class="lmt-modal-s">${t("اختر ما إذا كنت تريد تفعيل التسجيل الصوتي والنسخ الفوري.", "Choose whether to enable audio recording and live transcription.")}</div>
       <div class="lmt-modal-btns">
-        <button class="btn-gold" onclick="LiveMT._startMeeting(true)">🎙 ${t("بدء مع التسجيل", "Start with Recording")}</button>
-        <button class="btn-ghost" onclick="LiveMT._startMeeting(false)">▶ ${t("بدء بدون تسجيل", "Start without Recording")}</button>
+        <button class="btn-gold" id="lmt-start-rec-btn" onclick="LiveMT._startMeeting(true)">🎙 ${t("بدء مع التسجيل", "Start with Recording")}</button>
+        <button class="btn-ghost" id="lmt-start-norec-btn" onclick="LiveMT._startMeeting(false)">▶ ${t("بدء بدون تسجيل", "Start without Recording")}</button>
         <button class="btn-ghost btn-sm" style="color:#697386" onclick="document.getElementById('lmt-start-modal').remove()">${t("إلغاء", "Cancel")}</button>
       </div>
     </div>`;
-    el.addEventListener("click", () => el.remove());
+    // Clicking the backdrop closes the modal (stopPropagation on inner div prevents this from firing when clicking buttons)
+    el.addEventListener("click", () => { if (!this._starting) el.remove(); });
     document.body.appendChild(el);
+    console.log(`[LiveMT] showStartModal — _mid=${this._mid}`);
   },
 
   async _startMeeting(withRecording) {
+    // Guard: prevent double-invocation from rapid/repeated clicks
+    if (this._starting) return;
+    if (!this._mid) {
+      showToast(this.t("خطأ: معرّف الاجتماع غير موجود", "Error: meeting ID not set"), "error");
+      return;
+    }
+    this._starting = true;
+    // Disable all modal buttons immediately to prevent duplicate API calls
+    document.querySelectorAll("#lmt-start-modal button").forEach((b) => { b.disabled = true; });
     document.getElementById("lmt-start-modal")?.remove();
+    console.log(`[LiveMT] Starting meeting ${this._mid}, withRecording=${withRecording}`);
     try {
+      console.log(`[LiveMT] Sending POST /api/meetings/${this._mid}/start`);
       await api(`/api/meetings/${this._mid}/start`, { method: "POST", body: JSON.stringify({ with_recording: withRecording }) });
+      console.log(`[LiveMT] Meeting ${this._mid} started successfully`);
       this._state = "live";
       this._withRec = withRecording;
       this._elapsedSecs = 0;
@@ -1898,6 +1937,8 @@ const LiveMT = {
       ));
       await MT._refreshDetail();
     } catch (e) {
+      console.error(`[LiveMT] Failed to start meeting ${this._mid}:`, e.message);
+      this._starting = false;
       showToast(this.t("تعذّر بدء الاجتماع: ", "Could not start meeting: ") + e.message, "error");
     }
   },
@@ -1923,6 +1964,28 @@ const LiveMT = {
     document.body.appendChild(el);
   },
 
+  // ── AI Processing (triggered from post-meeting state) ─────────
+  async _triggerAIProcess(meetingId) {
+    const btn = document.getElementById("pm-trigger-ai-btn");
+    if (btn) { btn.disabled = true; btn.textContent = this.t("جارٍ المعالجة…", "Processing…"); }
+    this._processingAI = true;
+    MT._renderDetail();
+    console.log(`[LiveMT] Triggering AI processing for meeting ${meetingId}`);
+    try {
+      await api(`/api/meetings/${meetingId}/process`, { method: "POST", body: "{}" });
+      this._processingAI = false;
+      showToast(this.t("✅ اكتملت المعالجة — النتائج جاهزة للمراجعة", "✅ Processing complete — results ready for review"));
+      await MT._refreshDetail();
+    } catch (e) {
+      console.error(`[LiveMT] AI processing failed:`, e.message);
+      this._processingAI = false;
+      // Show a user-friendly error (backend sanitizes the raw API error)
+      this._aiProcessError = e.message;
+      MT._renderDetail();
+      showToast(e.message, "error");
+    }
+  },
+
   async _confirmEnd(processAI) {
     if (this._ending) return;
     this._ending = true;
@@ -1932,6 +1995,7 @@ const LiveMT = {
     if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
     const transcript = this._segments.map((s) => `${s.ts ? "[" + s.ts + "] " : ""}${s.text}`).join("\n");
     const liveNotes = this._notes.join("\n");
+    console.log(`[LiveMT] Ending meeting ${this._mid}, processAI=${processAI}`);
     try {
       await api(`/api/meetings/${this._mid}/end`, {
         method: "POST",
@@ -1943,19 +2007,25 @@ const LiveMT = {
       if (processAI) {
         this._processingAI = true;
         MT._renderDetail();
+        console.log(`[LiveMT] Starting AI processing for meeting ${this._mid}`);
         api(`/api/meetings/${this._mid}/process`, { method: "POST", body: "{}" })
           .then(async () => {
+            console.log(`[LiveMT] AI processing completed for meeting ${this._mid}`);
             this._processingAI = false;
             showToast(this.t("✅ اكتملت المعالجة — النتائج جاهزة للمراجعة", "✅ Processing complete — results ready for review"));
             await MT._refreshDetail();
           })
-          .catch(() => {
+          .catch((e) => {
+            console.error(`[LiveMT] AI processing failed for meeting ${this._mid}:`, e.message);
             this._processingAI = false;
-            showToast(this.t("تعذّرت المعالجة — حاول مجدداً", "Processing failed — please try again"), "error");
+            this._aiProcessError = e.message;
             MT._renderDetail();
+            // Show friendly toast — backend already sanitized the raw API error
+            showToast(e.message, "error");
           });
       }
     } catch (e) {
+      console.error(`[LiveMT] Failed to end meeting ${this._mid}:`, e.message);
       this._ending = false;
       showToast(this.t("تعذّر إنهاء الاجتماع: ", "Could not end meeting: ") + e.message, "error");
     }

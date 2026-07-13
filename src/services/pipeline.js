@@ -378,9 +378,12 @@ async function processMeeting({ meetingId, userId = null }) {
 
   let result;
   if (extractionSettled.status === 'rejected') {
-    aiLog('ai:failed', { meetingId, error: extractionSettled.reason?.message });
-    db.prepare("UPDATE meetings SET status='error' WHERE id=?").run(meeting.id);
-    throw new Error('AI processing failed: ' + extractionSettled.reason?.message);
+    const reason = extractionSettled.reason?.message || 'unknown error';
+    aiLog('ai:failed', { meetingId, error: reason });
+    // Do NOT set status='error' — preserve all meeting data (transcript,
+    // attendance, notes, agenda) so the organiser can retry AI later or
+    // continue manually. The meeting stays in its current lifecycle stage.
+    throw new Error('AI processing failed: ' + reason);
   }
   try {
     aiLog('ai:raw', { meetingId, chars: extractionSettled.value.length, preview: extractionSettled.value.slice(0, 400) });
@@ -395,7 +398,7 @@ async function processMeeting({ meetingId, userId = null }) {
     });
   } catch (e) {
     aiLog('ai:failed', { meetingId, error: e.message });
-    db.prepare("UPDATE meetings SET status='error' WHERE id=?").run(meeting.id);
+    // Same as above — preserve data, do not mark the meeting as errored.
     throw new Error('AI processing failed: ' + e.message);
   }
 

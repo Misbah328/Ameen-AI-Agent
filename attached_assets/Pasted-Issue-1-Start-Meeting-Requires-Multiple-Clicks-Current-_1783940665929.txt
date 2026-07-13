@@ -1,0 +1,177 @@
+Issue 1 — Start Meeting Requires Multiple Clicks
+Current Behaviour
+
+When I click Start Meeting, nothing happens on the first click.
+
+I have to click the Start Meeting button approximately 4 times before the meeting actually starts.
+
+This creates a poor user experience and makes it seem like the application is unresponsive.
+
+Expected Behaviour
+
+The meeting should start immediately on the first click.
+
+The flow should be:
+
+Click Start Meeting
+Show the recording confirmation dialog (if enabled)
+User selects an option
+Meeting starts immediately
+Recording starts (if selected)
+Live transcription begins
+Update the meeting status to Live
+Store the actual meeting start time
+
+There should never be a need to click the button multiple times.
+
+Please Investigate
+
+Check for:
+
+Duplicate click handlers
+Debounce/throttle issues
+State management problems
+React re-render issues
+Multiple asynchronous requests
+API request failures
+Loading state not updating correctly
+Disabled button logic
+Event propagation problems
+Backend response delays
+Duplicate mutations or API calls
+Required Behaviour
+
+When the user clicks Start Meeting:
+
+Disable the button immediately.
+Show a loading indicator.
+Prevent duplicate clicks.
+Send only one API request.
+Re-enable the button only if an error occurs.
+Transition to the Live Meeting page after a successful response.
+Issue 2 — AI Processing Fails
+
+After the meeting ends, clicking Trigger AI Processing displays the error shown in the attached screenshot:
+
+AI processing failed: API_ERROR: Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.
+
+Expected Behaviour
+
+The application should not fail silently or expose raw API errors to the end user.
+
+Please investigate why AI processing is failing.
+
+Possible causes include:
+
+Invalid API key
+Missing environment variables
+Anthropic API credits exhausted
+Incorrect model configuration
+Incorrect API endpoint
+Backend exception handling
+Timeout handling
+Missing retry logic
+Required Improvements
+1. Improve Error Handling
+
+Instead of showing the raw API error, display a professional message such as:
+
+AI processing is currently unavailable. Please check the AI service configuration or try again later.
+
+For administrators, log the detailed API error in the server logs.
+
+2. Validate Configuration Before Processing
+
+Before calling the AI service, verify:
+
+API key exists.
+API key is valid.
+Required environment variables are configured.
+Selected AI model exists.
+AI service is reachable.
+
+If validation fails, return a meaningful error without crashing the workflow.
+
+3. Preserve Meeting Data
+
+Even if AI processing fails:
+
+Keep the meeting completed.
+Preserve the transcript.
+Preserve recording metadata.
+Preserve manual notes.
+Preserve attendance.
+Preserve agenda updates.
+
+The meeting should never be lost because AI processing failed.
+
+4. Retry Support
+
+Allow the organizer to retry AI processing later.
+
+Example button:
+
+Retry AI Processing
+
+Do not require recording the meeting again.
+
+5. Manual Processing Option
+
+If AI processing is unavailable, the user should still be able to:
+
+Write minutes manually.
+Create decisions manually.
+Create actions manually.
+
+The meeting workflow should continue without AI.
+
+Logging
+
+Please log the following:
+
+Start Meeting
+Button clicked
+API request sent
+API response received
+Meeting started
+Recording started
+Transcription started
+Errors
+AI Processing
+AI request sent
+AI provider response
+Processing started
+Processing completed
+Processing failed
+Failure reason
+Retry attempts
+Testing Checklist
+
+Please verify the following:
+
+Start Meeting
+Starts on the first click.
+Only one API request is sent.
+Loading state is displayed.
+Duplicate clicks are prevented.
+Meeting transitions correctly to Live mode.
+AI Processing
+AI processing starts correctly.
+Proper validation occurs before calling the API.
+Errors are handled gracefully.
+Transcript is preserved if processing fails.
+Retry works correctly.
+Manual meeting management still works without AI.
+No raw API errors are exposed to normal users.
+Deliverables
+
+After fixing these issues, please provide:
+
+Root cause of the multiple-click Start Meeting issue.
+Root cause of the AI processing failure.
+Files changed.
+Backend changes.
+Frontend changes.
+Error handling improvements.
+Logging improvements.
+Test results confirming both issues have been resolved.
