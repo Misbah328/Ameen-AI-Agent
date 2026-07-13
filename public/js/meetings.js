@@ -943,6 +943,7 @@ const MT = {
     const d = this._d;
     const t = (ar, en) => this.t(ar, en);
     const canUpload = App.can("documents.upload");
+    const canDelete = App.can("documents.delete");
     const uploadBtn = canUpload ? `<button class="btn-gold btn-sm" onclick="$('mtx-doc-file').click()">+ ${t("رفع مستند", "Upload Document")}</button>
       <input type="file" id="mtx-doc-file" style="display:none" accept=".pdf,.docx,.xlsx,.pptx,.txt" onchange="MT.uploadDoc(this)"/>` : "";
     if (!d.documents.length)
@@ -953,7 +954,21 @@ const MT = {
         <div style="flex:1;min-width:0"><div class="mx-doc-name" dir="auto">${esc(x.title)}</div>
           <div class="mx-doc-meta">${[this._fmtSize(x.file_size), x.doc_classification ? esc(x.doc_classification) : "", x.upload_date || x.created_at ? fmtDate(x.upload_date || x.created_at) : ""].filter(Boolean).join(" · ")}</div>
           ${x.ai_summary ? `<div style="font-size:11.5px;color:#697386;line-height:1.5;margin-top:3px">${esc(x.ai_summary)}</div>` : ""}</div>
-        <a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener" title="${t("تنزيل", "Download")}">⬇</a></div>`).join("")}</div>`;
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener" title="${t("تنزيل", "Download")}">⬇</a>
+          ${canDelete ? `<button class="mx-doc-del" onclick="MT.deleteDoc(${x.id})" title="${t("حذف", "Delete")}">🗑</button>` : ""}
+        </div></div>`).join("")}</div>`;
+  },
+
+  async deleteDoc(docId) {
+    const t = (ar, en) => this.t(ar, en);
+    const msg = App.lang === "ar" ? "هل تريد حذف هذا المستند؟ لا يمكن التراجع عن هذا الإجراء." : "Delete this document? This cannot be undone.";
+    if (!confirm(msg)) return;
+    try {
+      await api(`/api/meeting-documents/${docId}`, { method: "DELETE" });
+      showToast(t("✓ تم حذف المستند", "✓ Document deleted"));
+      await this._refreshDetail();
+    } catch (e) { showToast(t("تعذّر حذف المستند: ", "Could not delete document: ") + e.message, "error"); }
   },
 
   async uploadDoc(input) {

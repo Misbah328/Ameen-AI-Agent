@@ -72,6 +72,8 @@
 .mx-doc-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#0F1728;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mx-doc-meta{font-size:10.5px;color:#98A2B3;font-weight:500}
 .mx-doc-dl{color:#A8842C;font-size:14px;text-decoration:none;flex-shrink:0;padding:4px}
+.mx-doc-del{background:none;border:none;cursor:pointer;font-size:14px;padding:4px;flex-shrink:0;opacity:0.55;transition:opacity .15s}
+.mx-doc-del:hover{opacity:1}
 
 /* decision / action check rows */
 .mx-checkrow{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;font-size:12.5px;color:#1D2939;font-weight:600;line-height:1.45}
