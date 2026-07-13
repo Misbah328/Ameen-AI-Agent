@@ -1135,10 +1135,16 @@ const MT = {
               <div style="display:flex;gap:8px">
                 <button class="${cs.format === "inperson" ? "btn-gold" : "btn-ghost"} btn-sm" style="flex:1" onclick="MT._cs.format='inperson';MT._paintCreate()">👥 ${t("حضوري", "In-Person")}</button>
                 <button class="${cs.format === "virtual" ? "btn-gold" : "btn-ghost"} btn-sm" style="flex:1" onclick="MT._cs.format='virtual';MT._paintCreate()">🎥 ${t("افتراضي", "Virtual")}</button>
+                <button class="${cs.format === "hybrid" ? "btn-gold" : "btn-ghost"} btn-sm" style="flex:1" onclick="MT._cs.format='hybrid';MT._paintCreate()">🔀 ${t("هجين", "Hybrid")}</button>
               </div></div>
             ${cs.format === "inperson"
               ? `<div class="mx-f"><label>${t("الموقع / القاعة", "Location / Venue")} <span class="req">*</span></label><input class="fi" id="mxc-venue" style="width:100%" value="${esc(kept.venue)}" placeholder="${t("قاعة الاجتماعات الرئيسية", "Main Boardroom")}"/></div>`
-              : `<div class="mx-f"><label>${t("رابط الانضمام", "Join URL")}</label><input class="fi" id="mxc-joinurl" style="width:100%" value="${esc(kept.joinurl)}" placeholder="https://..."/></div>`}
+              : cs.format === "hybrid"
+                ? `<div class="mx-f2" style="gap:10px">
+                    <div><label>${t("الموقع / القاعة", "Location / Venue")} <span class="req">*</span></label><input class="fi" id="mxc-venue" style="width:100%" value="${esc(kept.venue)}" placeholder="${t("قاعة الاجتماعات الرئيسية", "Main Boardroom")}"/></div>
+                    <div><label>${t("رابط الانضمام للمشاركة عن بُعد", "Join URL (for remote attendees)")}</label><input class="fi" id="mxc-joinurl" style="width:100%" value="${esc(kept.joinurl)}" placeholder="https://..."/></div>
+                  </div>`
+                : `<div class="mx-f"><label>${t("رابط الانضمام", "Join URL")}</label><input class="fi" id="mxc-joinurl" style="width:100%" value="${esc(kept.joinurl)}" placeholder="https://..."/></div>`}
           </div>
         </div>
 
@@ -1205,7 +1211,11 @@ const MT = {
     const rows = [
       ["🗓", v("mxc-date") ? fmtDate(v("mxc-date")) : t("لم يُحدَّد التاريخ", "Date not set")],
       ["🕐", v("mxc-start") ? `${v("mxc-start")}${v("mxc-end") ? " – " + v("mxc-end") : ""}` : t("لم يُحدَّد الوقت", "Time not set")],
-      ["📍", cs.format === "virtual" ? (v("mxc-joinurl") || t("اجتماع افتراضي", "Virtual meeting")) : (v("mxc-venue") || t("لم يُحدَّد المكان", "Venue not set"))],
+      ["📍", cs.format === "virtual"
+        ? (v("mxc-joinurl") || t("اجتماع افتراضي", "Virtual meeting"))
+        : cs.format === "hybrid"
+          ? (v("mxc-venue") ? v("mxc-venue") + (v("mxc-joinurl") ? " + " + t("رابط عن بُعد", "remote link") : "") : t("لم يُحدَّد المكان", "Venue not set"))
+          : (v("mxc-venue") || t("لم يُحدَّد المكان", "Venue not set"))],
       ["👥", `${cs.members.length} ${t("عضو", "Members")}${extraN ? t(`، ${extraN} مشارك إضافي`, `, ${extraN} Additional Attendees`) : ""}`],
       ["🗒", `${cs.agenda.filter((a) => a.title.trim()).length} ${t("بند في جدول الأعمال", "Agenda items")}`],
     ];
@@ -1238,7 +1248,7 @@ const MT = {
     if (!date) return showToast(t("الرجاء تحديد التاريخ", "Please set the date"), "error");
     const start = v("mxc-start");
     if (!start) return showToast(t("الرجاء تحديد وقت البدء", "Please set the start time"), "error");
-    if (!isDraft && cs.format === "inperson" && !v("mxc-venue")) return showToast(t("الرجاء تحديد الموقع / القاعة", "Please set the location / venue"), "error");
+    if (!isDraft && (cs.format === "inperson" || cs.format === "hybrid") && !v("mxc-venue")) return showToast(t("الرجاء تحديد الموقع / القاعة", "Please set the location / venue"), "error");
 
     const end = v("mxc-end");
     let durationMins = 60;
@@ -1247,7 +1257,11 @@ const MT = {
       durationMins = (eh * 60 + em) - (sh * 60 + sm);
       if (durationMins <= 0) durationMins += 24 * 60;
     }
-    const platform = cs.format === "virtual" ? (v("mxc-joinurl") ? t("اجتماع افتراضي", "Virtual") : t("اجتماع افتراضي", "Virtual")) : (v("mxc-venue") || "قاعة الاجتماعات");
+    const platform = cs.format === "virtual"
+      ? (v("mxc-joinurl") || t("اجتماع افتراضي", "Virtual"))
+      : cs.format === "hybrid"
+        ? (v("mxc-venue") || t("اجتماع هجين", "Hybrid"))
+        : (v("mxc-venue") || "قاعة الاجتماعات");
     const agendaItems = cs.agenda.filter((a) => a.title.trim()).map((a, i) => ({ title_ar: a.title.trim(), title_en: a.title.trim(), duration_mins: a.mins || 15, sort_order: i }));
     const extraNames = (v("mxc-extra") || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
     const allAttendees = [...cs.members.map((m) => m.name), ...extraNames];
@@ -1299,8 +1313,8 @@ const MT = {
             board_id: parseInt(v("mxc-board")) || null,
             committee_id: parseInt(v("mxc-committee")) || null,
             series_id: meeting.series_id || null,
-            meeting_provider: cs.format === "virtual" ? "virtual" : "physical",
-            meeting_join_url: cs.format === "virtual" ? v("mxc-joinurl") : "",
+            meeting_provider: cs.format === "virtual" ? "virtual" : cs.format === "hybrid" ? "hybrid" : "physical",
+            meeting_join_url: (cs.format === "virtual" || cs.format === "hybrid") ? v("mxc-joinurl") : "",
             source_meeting_id: meeting.id,
           }),
         });
