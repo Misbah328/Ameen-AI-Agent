@@ -2674,6 +2674,23 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(meetingId));
 });
 
+// Add a single attendee to an existing meeting without replacing others.
+router.post('/meetings/:id/attendees/add', auth, (req, res) => {
+  const meetingId = req.params.id;
+  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(meetingId);
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+  const { name, email, phone } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+  const existing = db.prepare('SELECT id FROM meeting_attendees WHERE meeting_id=? AND LOWER(name)=LOWER(?)').get(meetingId, name.trim());
+  if (existing) return res.status(409).json({ error: 'Participant already added' });
+  const { randomBytes } = require('crypto');
+  const tok = randomBytes(16).toString('hex');
+  db.prepare(`INSERT INTO meeting_attendees (meeting_id, name, email, phone, share_token, shared, confirmed) VALUES (?, ?, ?, ?, ?, 0, 0)`)
+    .run(meetingId, name.trim(), email || '', phone || '', tok);
+  const attendee = db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id DESC LIMIT 1').get(meetingId);
+  res.json(attendee);
+});
+
 // Replace the agenda for a meeting — used by the Create Meeting wizard's Agenda
 // step and by the Meeting Workspace's Agenda tab. Mirrors the bulk-replace
 // pattern used by /attendees above.

@@ -305,8 +305,22 @@ const MT = {
         ${e.actor_name ? `<div class="mx-htl-s">${esc(e.actor_name)}</div>` : ""}</div>`).join("")}</div>`
         : `<div style="font-size:12px;color:#98A2B3">${t("لا توجد أحداث بعد.", "No events yet.")}</div>`}</div>`;
 
+    const canEdit = App.can("meetings.edit") || App.can("meetings.create");
+    const partCard = `<div class="mx-card"><div class="mx-card-t">👥 ${t("المشاركون", "Participants")} <span class="mt2-tab-n">${d.attendees.length}</span>
+        ${canEdit ? `<button class="btn-gold btn-sm" onclick="MT.addMember()">+ ${t("إضافة عضو", "Add Member")}</button>` : ""}
+      </div>
+      ${d.attendees.length ? d.attendees.map((a) => `<div class="mx-partrow">
+        <span class="mx-av">${esc(this._initials(a.name))}</span>
+        <div style="flex:1;min-width:0"><div class="mx-person-n">${esc(a.name)}</div>
+          <div class="mx-person-r">${esc(a.role || a.email || "")}</div></div>
+        <span class="tag ${a.confirmed ? "tg" : "tgold"}">${a.confirmed ? t("حضر", "Attended") : t("مدعو", "Invited")}</span>
+      </div>`).join("") : `<div style="font-size:12px;color:#98A2B3;margin-bottom:8px">${t("لم يُضَف أي مشارك بعد.", "No participants added yet.")}</div>`}
+      ${canEdit ? `<button class="btn-ghost btn-sm" style="margin-top:6px;width:100%" onclick="MT.addMember()">+ ${t("إضافة مشارك", "Add Participant")}</button>` : ""}
+    </div>`;
+
     return `<div class="mx-grid2">${summaryCard}${progressCard}</div>
-      <div class="mx-grid3">${decCard}${actCard}${docCard}</div>${tlCard}`;
+      <div class="mx-grid3">${decCard}${actCard}${docCard}</div>
+      ${partCard}${tlCard}`;
   },
 
   // ── Agenda tab ────────────────────────────────────────────────
@@ -434,7 +448,9 @@ const MT = {
         <div class="lmt-timer-big" id="lmt-display-timer">00:00</div>
       </div>
       <div class="mx-card" style="margin-top:12px">
-        <div class="mx-card-t">👥 ${t("المشاركون", "Participants")} <span class="mt2-tab-n">${d.attendees.length}</span></div>
+        <div class="mx-card-t">👥 ${t("المشاركون", "Participants")} <span class="mt2-tab-n">${d.attendees.length}</span>
+          <button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="MT.addMember()">+ ${t("إضافة", "Add")}</button>
+        </div>
         ${d.attendees.length ? d.attendees.map((a) => `<div class="mx-partrow"><span class="mx-av">${esc(this._initials(a.name))}</span>
           <div style="flex:1;min-width:0"><div class="mx-person-n">${esc(a.name)}</div><div class="mx-person-r">${esc(a.role || "")}</div></div>
           <span class="tag ${a.confirmed ? "tg" : "tgr"}">${a.confirmed ? "✓" : "–"}</span></div>`).join("")
@@ -1059,6 +1075,79 @@ const MT = {
     } catch (e) { showToast(this.t("تعذّر التعيين: ", "Could not assign: ") + e.message, "error"); }
   },
 
+  // ── Add Member to existing meeting ───────────────────────────
+  async addMember() {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    document.getElementById("mt-member-modal")?.remove();
+
+    let registeredUsers = [];
+    try { registeredUsers = await api("/api/users"); } catch (_) {}
+    const existing = new Set((this._d.attendees || []).map((a) => a.name.trim().toLowerCase()));
+
+    const el = document.createElement("div");
+    el.className = "modal-overlay open";
+    el.id = "mt-member-modal";
+    el.innerHTML = `<div class="modal-box" style="max-width:480px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span>👥 ${t("إضافة مشارك", "Add Participant")}</span>
+        <button class="modal-close" onclick="document.getElementById('mt-member-modal').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+        ${registeredUsers.length ? `<div class="frow">
+          <label class="fl">👤 ${t("اختر من القائمة (عضو مسجّل)", "Pick a registered member")}</label>
+          <select class="fi" id="mt-mem-pick" onchange="MT._onMemberPick()">
+            <option value="">${t("— اختر عضواً —", "— Select a member —")}</option>
+            ${registeredUsers.filter((u) => !existing.has(((l === "ar" ? u.name_ar : u.name_en) || u.name_ar || "").trim().toLowerCase()))
+              .map((u) => `<option value="${esc((l === "ar" ? u.name_ar : u.name_en) || u.name_ar)}" data-email="${esc(u.email || "")}">${esc((l === "ar" ? u.name_ar : u.name_en) || u.name_ar)}</option>`).join("")}
+          </select>
+        </div>
+        <div style="text-align:center;font-size:11px;color:#98A2B3;font-weight:700">${t("أو أدخل يدوياً", "OR ENTER MANUALLY")}</div>` : ""}
+        <div class="frow">
+          <label class="fl">${t("الاسم", "Name")} <span class="req">*</span></label>
+          <input class="fi" id="mt-mem-name" placeholder="${t("اسم المشارك", "Participant name")}" />
+        </div>
+        <div class="frow">
+          <label class="fl">${t("البريد الإلكتروني", "Email")}</label>
+          <input class="fi" id="mt-mem-email" type="email" placeholder="${t("(اختياري)", "(optional)")}" />
+        </div>
+        <div class="frow">
+          <label class="fl">${t("رقم الهاتف", "Phone")}</label>
+          <input class="fi" id="mt-mem-phone" type="tel" placeholder="${t("(اختياري)", "(optional)")}" />
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('mt-member-modal').remove()">${t("إلغاء", "Cancel")}</button>
+        <button class="btn-gold" onclick="MT._saveNewMember()">+ ${t("إضافة المشارك", "Add Participant")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  _onMemberPick() {
+    const sel = document.getElementById("mt-mem-pick");
+    if (!sel || !sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    const nameEl = document.getElementById("mt-mem-name");
+    const emailEl = document.getElementById("mt-mem-email");
+    if (nameEl) nameEl.value = sel.value;
+    if (emailEl && opt?.dataset?.email) emailEl.value = opt.dataset.email;
+  },
+
+  async _saveNewMember() {
+    const name = document.getElementById("mt-mem-name")?.value?.trim();
+    if (!name) { showToast(this.t("الرجاء كتابة اسم المشارك", "Please enter the participant's name"), "error"); return; }
+    const email = document.getElementById("mt-mem-email")?.value?.trim() || "";
+    const phone = document.getElementById("mt-mem-phone")?.value?.trim() || "";
+    document.getElementById("mt-member-modal")?.remove();
+    try {
+      await api(`/api/meetings/${this._mid}/attendees/add`, { method: "POST", body: JSON.stringify({ name, email, phone }) });
+      showToast(this.t(`✓ تمت إضافة ${name}`, `✓ ${name} added`));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر الإضافة: ", "Could not add: ") + e.message, "error"); }
+  },
+
   // ── Actions tab ───────────────────────────────────────────────
   _tabActions() {
     const d = this._d;
@@ -1345,7 +1434,7 @@ const MT = {
                 <option value="">${t("اختر عضواً...", "Select a member...")}</option>
                 ${cs.users.filter((u) => !cs.members.some((mm) => mm.name === ((l === "ar" ? u.name_ar : u.name_en) || u.name_ar))).map((u) => `<option value="${esc((l === "ar" ? u.name_ar : u.name_en) || u.name_ar || "")}">${esc((l === "ar" ? u.name_ar : u.name_en) || u.name_ar || "")}</option>`).join("")}
               </select>
-              <button class="btn-ghost btn-sm" onclick="MT.addMember()">+ ${t("إضافة", "Add")}</button></div></div>
+              <button class="btn-ghost btn-sm" onclick="MT.addWizardMember()">+ ${t("إضافة", "Add")}</button></div></div>
           <div class="mx-f" style="margin-bottom:0"><label>${t("مشاركون إضافيون (اختياري)", "Additional Attendees (Optional)")}</label>
             <input class="fi" id="mxc-extra" style="width:100%" value="${esc(kept.extra)}" placeholder="${t("أسماء مفصولة بفواصل...", "Comma-separated names...")}"/></div>
         </div>
@@ -1409,7 +1498,7 @@ const MT = {
     return rows.map((r) => `<div class="mx-statrow"><span class="k">${r[0]}</span><span class="v" style="font-weight:600;text-align:end">${esc(String(r[1]))}</span></div>`).join("");
   },
 
-  addMember() {
+  addWizardMember() {
     const sel = $("mxc-member-sel");
     if (!sel || !sel.value) return;
     this._cs.members.push({ name: sel.value });
