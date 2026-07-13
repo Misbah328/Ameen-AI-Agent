@@ -332,6 +332,7 @@ const ROLE_ACCESS = {
 // browse policies/resolutions (backend permissions remain the real gate).
 Object.values(ROLE_ACCESS).forEach((set) => {
   if (set.has("documents")) { set.add("policies"); set.add("resolutions"); }
+  if (set.has("scheduled") || set.has("tasks")) set.add("calendar");
 });
 
 // ══ Executive Action taxonomy ══════════════════════════════════════════════
