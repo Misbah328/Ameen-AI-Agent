@@ -11361,8 +11361,10 @@ async function renderOverview() {
     body.innerHTML = `<div class="dashx dx2">
       <div class="dx2-cols">
         <div class="dx2-main">
-          ${kpiBarHtml}
-          <div class="dx2-sec-t" style="display:flex;justify-content:space-between;align-items:center">${lbl("الاجتماع القادم", "Next Meeting")}<button class="btn-amber" style="font-size:12px;padding:6px 14px" onclick="Panels.load('create-meeting')">+ ${lbl("إنشاء اجتماع", "Create Meeting")}</button></div>
+          <div class="dx2-sec-t" style="display:flex;justify-content:space-between;align-items:center">
+            <span>${lbl("الاجتماع القادم", "Next Meeting")}</span>
+            <button class="btn-gold" style="font-size:12px;padding:6px 16px" onclick="Panels.load('create-meeting')">+ ${lbl("إنشاء اجتماع", "Create Meeting")}</button>
+          </div>
           <div class="dx2-toprow">${heroCard}${lastCard}</div>
           <div class="dx2-sec-t">${lbl("المهام والمتابعة", "Tasks & Follow-up")}</div>
           <div class="dx2-3col">
