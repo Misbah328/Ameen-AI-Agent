@@ -294,8 +294,8 @@ const MT = {
 
     const docCard = `<div class="mx-card"><div class="mx-card-t">📁 ${t("المستندات وحزمة المجلس", "Documents & Board Pack")}<button class="mx-link" onclick="MT.setTab('documents')">${t("عرض الكل", "View All")}</button></div>
       ${d.documents.length ? d.documents.slice(0, 5).map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div>
-        <div style="flex:1;min-width:0"><div class="mx-doc-name">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div>
-        <a class="mx-doc-dl" href="/uploads/${encodeURIComponent(x.file_path)}" target="_blank" rel="noopener">⬇</a></div>`).join("")
+        <div style="flex:1;min-width:0"><div class="mx-doc-name" dir="auto">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div>
+        <a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener">⬇</a></div>`).join("")
         : `<div style="font-size:12px;color:#98A2B3">${t("لا توجد مستندات مرفوعة.", "No uploaded documents.")}</div>`}</div>`;
 
     // timeline strip from real lifecycle log
@@ -557,8 +557,8 @@ const MT = {
       </div>
       ${d.documents.length ? `<div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("التنزيلات", "Downloads")}</div>
         ${d.documents.map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div>
-          <div style="flex:1;min-width:0"><div class="mx-doc-name">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div>
-          <a class="mx-doc-dl" href="/uploads/${encodeURIComponent(x.file_path)}" target="_blank" rel="noopener">⬇</a></div>`).join("")}</div>` : ""}
+          <div style="flex:1;min-width:0"><div class="mx-doc-name" dir="auto">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div>
+          <a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener">⬇</a></div>`).join("")}</div>` : ""}
     </div>`;
 
     return `<div class="mx-min-grid">${nav}<div>${center}${decMini}${actMini}</div>${side}</div>`;
@@ -725,7 +725,7 @@ const MT = {
         ${sel.notes ? `<div style="border-top:1px solid #F2F4F7;margin-top:8px;padding-top:10px"><div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:4px">${t("ملاحظات", "Notes")}</div><div style="font-size:12.5px;color:#374151;line-height:1.6">${esc(sel.notes)}</div></div>` : ""}
         ${sel.implementation_notes ? `<div style="border-top:1px solid #F2F4F7;margin-top:8px;padding-top:10px"><div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:4px">${t("ملاحظات التنفيذ", "Implementation Notes")}</div><div style="font-size:12.5px;color:#374151;line-height:1.6">${esc(sel.implementation_notes)}</div></div>` : ""}
         ${this._d.documents.length ? `<div style="border-top:1px solid #F2F4F7;margin-top:10px;padding-top:10px"><div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:4px">${t("مستندات الاجتماع", "Meeting Documents")} <span class="mt2-tab-n">${this._d.documents.length}</span></div>
-          ${this._d.documents.slice(0, 3).map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div><div style="flex:1;min-width:0"><div class="mx-doc-name">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div><a class="mx-doc-dl" href="/uploads/${encodeURIComponent(x.file_path)}" target="_blank" rel="noopener">⬇</a></div>`).join("")}</div>` : ""}
+          ${this._d.documents.slice(0, 3).map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div><div style="flex:1;min-width:0"><div class="mx-doc-name" dir="auto">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div><a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener">⬇</a></div>`).join("")}</div>` : ""}
       </div>`;
     }
 
@@ -950,10 +950,10 @@ const MT = {
         <div class="mx-empty"><div class="ic">📄</div><div class="t">${t("لا توجد مستندات", "No documents")}</div><div class="s">${t("لم تُرفع مستندات لهذا الاجتماع بعد.", "No documents have been uploaded to this meeting yet.")}</div></div></div>`;
     return `<div class="mx-card"><div class="mx-card-t">📄 ${t("المستندات وحزمة المجلس", "Documents & Board Pack")} <span class="mt2-tab-n">${d.documents.length}</span>${uploadBtn}</div>
       ${d.documents.map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div>
-        <div style="flex:1;min-width:0"><div class="mx-doc-name">${esc(x.title)}</div>
+        <div style="flex:1;min-width:0"><div class="mx-doc-name" dir="auto">${esc(x.title)}</div>
           <div class="mx-doc-meta">${[this._fmtSize(x.file_size), x.doc_classification ? esc(x.doc_classification) : "", x.upload_date || x.created_at ? fmtDate(x.upload_date || x.created_at) : ""].filter(Boolean).join(" · ")}</div>
           ${x.ai_summary ? `<div style="font-size:11.5px;color:#697386;line-height:1.5;margin-top:3px">${esc(x.ai_summary)}</div>` : ""}</div>
-        <a class="mx-doc-dl" href="/uploads/${encodeURIComponent(x.file_path)}" target="_blank" rel="noopener" title="${t("تنزيل", "Download")}">⬇</a></div>`).join("")}</div>`;
+        <a class="mx-doc-dl" href="/api/documents/${x.id}/download" rel="noopener" title="${t("تنزيل", "Download")}">⬇</a></div>`).join("")}</div>`;
   },
 
   async uploadDoc(input) {

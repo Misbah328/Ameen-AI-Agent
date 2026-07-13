@@ -250,10 +250,21 @@ const multer = require('multer');
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Multer (via busboy) decodes multipart Content-Disposition filenames as
+// Latin-1 (ISO-8859-1) per the old HTTP spec. Modern browsers send UTF-8,
+// so Arabic filenames arrive garbled (Ø§Ù„...). Re-encoding from latin1→utf8
+// is a no-op for pure ASCII (English filenames stay unchanged) and correctly
+// restores Arabic/non-Latin text. Apply to every use of file.originalname.
+function fixFilename(name) {
+  if (!name) return name;
+  try { return Buffer.from(name, 'latin1').toString('utf8'); }
+  catch { return name; }
+}
+
 const _uploadStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(fixFilename(file.originalname)).toLowerCase();
     cb(null, `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
   }
 });
@@ -262,7 +273,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf', '.docx', '.xlsx', '.pptx', '.txt'];
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(fixFilename(file.originalname)).toLowerCase();
     cb(null, allowed.includes(ext));
   }
 });
@@ -274,7 +285,7 @@ if (!fs.existsSync(RECORDINGS_DIR)) fs.mkdirSync(RECORDINGS_DIR, { recursive: tr
 const _recStorage = multer.diskStorage({
   destination: RECORDINGS_DIR,
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.webm';
+    const ext = path.extname(fixFilename(file.originalname)).toLowerCase() || '.webm';
     cb(null, `rec_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
   }
 });
@@ -283,7 +294,7 @@ const uploadRec = multer({
   limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.webm', '.mp4', '.mp3', '.wav', '.ogg', '.m4a', '.aac'];
-    const ext = path.extname(file.originalname).toLowerCase() || '.webm';
+    const ext = path.extname(fixFilename(file.originalname)).toLowerCase() || '.webm';
     cb(null, allowed.includes(ext));
   }
 });
@@ -1050,9 +1061,10 @@ router.post('/meetings/:id/upload', auth, requirePermission('documents.upload'),
     try { fs.unlinkSync(req.file.path); } catch {}
     return res.status(404).json({ error: 'Meeting not found' });
   }
+  const originalName = fixFilename(req.file.originalname);
   let aiSummary = '', aiKeyPoints = '[]', docClassification = '';
   try {
-    const text = await extractFileText(req.file.path, req.file.originalname);
+    const text = await extractFileText(req.file.path, originalName);
     if (text.length > 80) {
       const aiPrompt = `ما يلي هو محتوى وثيقة من اجتماع. استخرج ما يلي وأعد JSON صالحاً فقط بلا أي شرح:
 {"summary":"ملخص موجز 3-5 جمل","key_points":["نقطة 1","نقطة 2","نقطة 3"],"classification":"تقرير مالي أو محضر أو خطة عمل أو سياسة أو عرض أو بيانات أو أخرى"}
@@ -1077,8 +1089,8 @@ ${text.slice(0, 3500)}
     VALUES (?,?,?,?,?,date('now'),'uploaded',0,?,?,?,?,?,?,?)
   `).run(
     meeting.id,
-    req.file.originalname,
-    path.extname(req.file.originalname).slice(1).toUpperCase() || 'DOC',
+    originalName,
+    path.extname(originalName).slice(1).toUpperCase() || 'DOC',
     aiSummary.slice(0, 500),
     uploaderName,
     req.user.id,
@@ -1089,7 +1101,7 @@ ${text.slice(0, 3500)}
     aiKeyPoints,
     docClassification
   );
-  res.json({ success: true, id: row.lastInsertRowid, filename: req.file.filename, original: req.file.originalname, summary: aiSummary, classification: docClassification });
+  res.json({ success: true, id: row.lastInsertRowid, filename: req.file.filename, original: originalName, summary: aiSummary, classification: docClassification });
  } catch (e) {
   console.error('✗ /meetings/:id/upload failed:', e.message);
   try { if (req.file) fs.unlinkSync(req.file.path); } catch {}
@@ -1122,6 +1134,39 @@ router.get('/documents/library', auth, requirePermission('documents.download'), 
   if (type) { sql += ` AND md.doc_type=?`; params.push(type); }
   sql += ' ORDER BY md.id DESC LIMIT 100';
   res.json(db.prepare(sql).all(...params));
+});
+
+// ── Document download with correct Arabic filename header ──────────────────────
+// Instead of relying on express.static (which serves with the opaque storage
+// name like doc_1234.pdf), this endpoint sets a proper Content-Disposition
+// so the browser saves the file under its original name, including Arabic.
+router.get('/documents/:id/download', auth, requirePermission('documents.download'), (req, res) => {
+  const doc = db.prepare('SELECT * FROM meeting_documents WHERE id=?').get(req.params.id);
+  if (!doc || !doc.file_path) return res.status(404).json({ error: 'Document not found' });
+  const filePath = path.join(UPLOADS_DIR, doc.file_path);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
+  const originalName = doc.title || doc.file_path;
+  // RFC 5987: filename= (ASCII fallback) + filename*= (UTF-8 encoded)
+  const asciiFallback = originalName.replace(/[^\x20-\x7E]/g, '_');
+  const encodedName = encodeURIComponent(originalName).replace(/'/g, '%27');
+  res.setHeader('Content-Type', doc.file_type || 'application/octet-stream');
+  res.setHeader('Content-Disposition',
+    `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`);
+  res.sendFile(filePath);
+});
+
+// ── Task attachment download with correct Arabic filename header ───────────────
+router.get('/tasks/:id/attachments/:attId/download', auth, (req, res) => {
+  const att = db.prepare('SELECT * FROM task_attachments WHERE id=? AND task_id=?').get(req.params.attId, req.params.id);
+  if (!att) return res.status(404).json({ error: 'Attachment not found' });
+  const filePath = path.join(UPLOADS_DIR, att.file_path);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
+  const originalName = att.file_name || att.file_path;
+  const asciiFallback = originalName.replace(/[^\x20-\x7E]/g, '_');
+  const encodedName = encodeURIComponent(originalName).replace(/'/g, '%27');
+  res.setHeader('Content-Disposition',
+    `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`);
+  res.sendFile(filePath);
 });
 
 // ── Delete an uploaded document ────────────────────────────────────────────────
@@ -1642,7 +1687,7 @@ router.post('/tasks/:id/attachments', auth, upload.single('file'), (req, res) =>
   const row = db.prepare(`
     INSERT INTO task_attachments (task_id, file_name, file_path, file_size, kind, uploaded_by, uploaded_by_name)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(task.id, req.file.originalname, req.file.filename, req.file.size, kind, req.user.id, uploaderName ? (uploaderName.name_en || uploaderName.name_ar) : '');
+  `).run(task.id, fixFilename(req.file.originalname), req.file.filename, req.file.size, kind, req.user.id, uploaderName ? (uploaderName.name_en || uploaderName.name_ar) : '');
   res.json(db.prepare('SELECT * FROM task_attachments WHERE id=?').get(row.lastInsertRowid));
 });
 

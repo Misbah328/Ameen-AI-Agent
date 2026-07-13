@@ -1,0 +1,207 @@
+Fix Arabic File Names Displaying as Garbled Text
+
+The English document names are displaying correctly, but Arabic file names become corrupted after upload and appear as characters such as:
+
+Ø§Ù„...
+
+This is a character-encoding issue, most likely caused by incorrect UTF-8 handling between the browser, backend, database, storage service, or response headers.
+
+Please fix the Arabic document upload and display flow without changing unrelated document features.
+
+Expected Behaviour
+
+When a user uploads a file with an Arabic name, the original filename must remain unchanged and display correctly everywhere.
+
+Example:
+
+محضر اجتماع مجلس الإدارة.pdf
+
+It must display exactly like this after:
+
+Uploading
+Saving
+Refreshing the page
+Downloading
+Viewing document cards
+Viewing meeting documents
+Viewing document history
+Searching documents
+
+English and mixed Arabic-English filenames must also continue to work.
+
+Required Investigation
+
+Check the complete filename flow:
+
+Browser file selection
+FormData upload request
+Multipart form parsing
+Backend filename handling
+Database storage
+Cloud or local file storage
+API response serialization
+Frontend rendering
+Download headers
+
+Look specifically for accidental Latin-1 or ISO-8859-1 decoding of UTF-8 text.
+
+Common incorrect patterns to remove include:
+
+Buffer.from(filename, "latin1").toString("utf8")
+
+or unnecessary uses of:
+
+decodeURIComponent()
+escape()
+unescape()
+
+Do not encode or decode the filename multiple times.
+
+Backend Requirements
+
+Ensure the application uses UTF-8 throughout.
+
+Store Two Separate Values
+
+Store:
+
+original_filename
+storage_filename
+
+Example:
+
+original_filename: محضر اجتماع مجلس الإدارة.pdf
+storage_filename: 8f3b2a1c-1234-5678-9012.pdf
+
+Use a generated safe storage name for the physical file, but always display and return the original filename to the user.
+
+Do not use the Arabic filename as the physical storage key unless the storage system is confirmed to support it safely.
+
+Database
+
+Ensure the filename column supports Unicode.
+
+For PostgreSQL, UTF-8 should work by default.
+
+For MySQL or MariaDB, use:
+
+utf8mb4
+
+Check that the relevant columns and tables are not using latin1.
+
+Do not modify existing filenames destructively without first creating a backup or safe migration.
+
+API and Header Requirements
+
+Ensure API responses use:
+
+Content-Type: application/json; charset=utf-8
+
+For file downloads, use RFC-compatible filename headers.
+
+Prefer:
+
+Content-Disposition: attachment; filename="document.pdf"; filename*=UTF-8''<encoded-arabic-filename>
+
+Use filename* for the real UTF-8 Arabic filename.
+
+Do not place raw unescaped Arabic text incorrectly inside HTTP headers.
+
+Frontend Requirements
+
+Render filenames as normal Unicode strings.
+
+Do not manually convert character encodings in the frontend.
+
+Add proper direction handling:
+
+dir="auto"
+
+This allows Arabic names to display right-to-left and English names left-to-right.
+
+For example:
+
+<span dir="auto">{document.originalFilename}</span>
+
+For mixed Arabic and English text, use dir="auto" rather than forcing the entire card to RTL.
+
+Existing Corrupted File Names
+
+The application may already contain corrupted filenames in the database.
+
+Please:
+
+Identify records containing mojibake patterns such as:
+Ø
+Ù
+Ã
+Attempt a safe repair only when the conversion is confidently reversible.
+Preserve the original database value before changing it.
+Do not automatically modify valid filenames.
+
+A likely repair pattern may be:
+
+Buffer.from(corruptedName, "latin1").toString("utf8")
+
+However, use this only as a one-time migration for already corrupted records, not in the normal upload flow.
+
+Add a dry-run option or log which records would be changed before applying the migration.
+
+Upload Validation
+
+Support filenames containing:
+
+Arabic letters
+English letters
+Numbers
+Spaces
+Hyphens
+Underscores
+Parentheses
+Arabic numerals
+Mixed Arabic-English text
+
+Examples to test:
+
+محضر الاجتماع.pdf
+تقرير مجلس الإدارة 2026.pdf
+الاجتماع التنفيذي - النسخة النهائية.docx
+Board Report - مجلس الإدارة.pdf
+قرار رقم ١٢.pdf
+Testing Checklist
+
+Please test all of the following:
+
+Upload an Arabic PDF.
+Confirm the filename displays correctly immediately.
+Refresh the page.
+Confirm the name remains correct.
+Download the file.
+Confirm the downloaded filename is correct.
+Upload an Arabic DOCX file.
+Upload a mixed Arabic-English filename.
+Upload a filename containing Arabic numerals.
+Confirm English filenames still work.
+Confirm search works using Arabic filename text.
+Confirm document cards use proper RTL/LTR direction.
+Confirm API responses return valid UTF-8.
+Confirm no double encoding occurs.
+Test previously corrupted filenames and report whether they can be safely repaired.
+Important Constraints
+Do not rename valid English files.
+Do not delete existing documents.
+Do not redesign the Documents page.
+Do not fix this only visually with CSS.
+Fix the encoding at the source.
+Preserve the original filename separately from the internal storage name.
+Use a safe database migration if schema changes are required.
+
+After fixing it, provide:
+
+Root cause
+Files changed
+Database changes
+Existing records repaired
+Upload tests completed
+Download tests completed
+Any remaining limitations

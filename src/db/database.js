@@ -1353,6 +1353,55 @@ if (!db.prepare("SELECT value FROM settings WHERE key='v_meetings_redesign_seede
   }
 }
 
+// ── Repair Arabic filenames corrupted by Latin-1 / UTF-8 mojibake ────────────
+// Multer used to decode multipart filenames as Latin-1. Arabic UTF-8 bytes
+// (e.g. 0xD9 0x85 for م) were stored as two Latin-1 chars (Ù…), producing
+// garbled titles like "Ø§Ù„...". The signature is any character in U+00C0–U+00FF
+// (the Latin-1 extended block) appearing immediately before another such char.
+// We only repair records where re-encoding from latin1→utf8 produces valid text.
+(function repairMojibakeFilenames() {
+  function isMojibake(str) {
+    if (!str) return false;
+    // Latin-1 supplement chars 0xC0–0xFF appearing in pairs signal UTF-8 bytes
+    // stored as Latin-1. Specifically Ø (0xD8) and Ù (0xD9) are the high bytes
+    // of Arabic UTF-8 sequences.
+    return /[\xC0-\xFF][\x80-\xBF]/.test(str) || /[ØÙÚ][^\x00-\x7F]/.test(str);
+  }
+  function tryFix(str) {
+    try {
+      return Buffer.from(str, 'latin1').toString('utf8');
+    } catch {
+      return null;
+    }
+  }
+  let fixed = 0;
+  // meeting_documents.title
+  const docs = db.prepare("SELECT id, title FROM meeting_documents WHERE title IS NOT NULL AND title != ''").all();
+  for (const d of docs) {
+    if (isMojibake(d.title)) {
+      const repaired = tryFix(d.title);
+      if (repaired && repaired !== d.title) {
+        db.prepare('UPDATE meeting_documents SET title = ? WHERE id = ?').run(repaired, d.id);
+        console.log(`[repair] meeting_documents #${d.id}: "${d.title}" → "${repaired}"`);
+        fixed++;
+      }
+    }
+  }
+  // task_attachments.file_name
+  const atts = db.prepare("SELECT id, file_name FROM task_attachments WHERE file_name IS NOT NULL AND file_name != ''").all();
+  for (const a of atts) {
+    if (isMojibake(a.file_name)) {
+      const repaired = tryFix(a.file_name);
+      if (repaired && repaired !== a.file_name) {
+        db.prepare('UPDATE task_attachments SET file_name = ? WHERE id = ?').run(repaired, a.id);
+        console.log(`[repair] task_attachments #${a.id}: "${a.file_name}" → "${repaired}"`);
+        fixed++;
+      }
+    }
+  }
+  if (fixed > 0) console.log(`✓ Repaired ${fixed} mojibake filename(s) in database`);
+})();
+
 // ── Ensure admin user has a valid bcrypt password ────────────────────────────
 // Runs once on startup. If the seed user's password is not a bcrypt hash,
 // sets a default development password and logs it ONCE to the console.

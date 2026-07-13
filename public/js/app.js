@@ -6625,7 +6625,7 @@ const TaskAttachments = {
     const rows = attachments.map((a) => `
       <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--navy3);border-radius:6px;margin-bottom:5px">
         <span style="font-size:14px;flex-shrink:0">${a.kind === "completion" ? "✅" : "📎"}</span>
-        <a href="/uploads/${encodeURIComponent(a.file_path)}" target="_blank" rel="noopener" style="flex:1;min-width:0;font-size:11.5px;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.file_name)}">${esc(a.file_name)}</a>
+        <a href="/api/tasks/${taskId}/attachments/${a.id}/download" rel="noopener" style="flex:1;min-width:0;font-size:11.5px;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.file_name)}" dir="auto">${esc(a.file_name)}</a>
         <span style="font-size:10.5px;color:var(--text3);flex-shrink:0">${fmtSize(a.file_size)}</span>
         <button onclick="TaskAttachments.remove(${taskId}, ${a.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;flex-shrink:0" title="${l === "ar" ? "حذف" : "Remove"}">✕</button>
       </div>`).join("");
