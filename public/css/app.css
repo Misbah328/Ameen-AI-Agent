@@ -663,6 +663,48 @@ textarea.fi{min-height:88px}
 /* ── Document output ──────────────────────────────────────────── */
 .doc-out{border-radius:12px;padding:20px;font-size:14px;line-height:2.05}
 
+/* ── Document generator two-column grid ───────────────────────── */
+/* Replace the old flex:1;min-height:0 grid that collapsed inside  */
+/* pbody (overflow-y:auto makes flex:1 unreliable in that context) */
+.doc-gen-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:15px;align-items:start}
+
+/* ── Document Properties accordion card ───────────────────────── */
+.doc-props-card{padding:0;overflow:visible}
+
+/* Accordion toggle button — full-width, looks like a card header */
+.doc-props-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;padding:22px 24px;
+  background:none;border:none;cursor:pointer;
+  font:inherit;color:inherit;text-align:start;
+  border-radius:var(--r);
+  transition:background var(--t);
+}
+.doc-props-toggle:hover{background:var(--navy3)}
+.doc-props-toggle:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.doc-props-title{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+
+/* Chevron SVG — rotates when collapsed */
+.doc-props-chevron{
+  width:18px;height:18px;flex-shrink:0;
+  color:var(--text3);
+  transition:transform .22s ease;
+}
+/* When aria-expanded=false the chevron points right (rotated -90deg) */
+.doc-props-toggle[aria-expanded="false"] .doc-props-chevron{transform:rotate(-90deg)}
+
+/* Collapsible body */
+.doc-props-body{
+  padding:0 24px 22px;
+  overflow:visible;
+}
+.doc-props-body.doc-props-collapsed{display:none}
+
+@media(max-width:768px){
+  .doc-gen-grid{grid-template-columns:1fr}
+}
+
 /* ── Extraction grid ──────────────────────────────────────────── */
 .eg{gap:14px}
 

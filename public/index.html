@@ -1176,10 +1176,17 @@
       </div>
       <div id="doc-library-section"><div class="es"><div class="loading"></div></div></div>
     </div>
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:15px;flex:1;min-height:0">
-      <div class="card" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
-        <div class="ct" data-ar="خصائص الوثيقة" data-en="Document Properties">خصائص الوثيقة</div>
-        <div class="fs">
+    <div class="doc-gen-grid">
+      <div class="card doc-props-card">
+        <button class="doc-props-toggle" id="doc-props-toggle"
+          aria-expanded="true" aria-controls="doc-props-body"
+          onclick="(function(btn){var open=btn.getAttribute('aria-expanded')==='true';btn.setAttribute('aria-expanded',String(!open));document.getElementById('doc-props-body').classList.toggle('doc-props-collapsed',open);})(this)">
+          <span class="doc-props-title" data-ar="خصائص الوثيقة" data-en="Document Properties">خصائص الوثيقة</span>
+          <svg class="doc-props-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 7.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="fs doc-props-body" id="doc-props-body">
           <div class="frow">
             <div class="fl" data-ar="نوع الوثيقة" data-en="Document Type">نوع الوثيقة</div>
             <select class="fi" id="doc-type">
@@ -1229,7 +1236,7 @@
           </div>
         </div>
       </div>
-      <div class="card" style="display:flex;flex-direction:column;min-height:0">
+      <div class="card" style="display:flex;flex-direction:column">
         <div class="ch" style="flex-wrap:wrap">
           <div>
             <div class="ct" data-ar="الوثيقة المُولَّدة" data-en="Generated Document">الوثيقة المُولَّدة</div>

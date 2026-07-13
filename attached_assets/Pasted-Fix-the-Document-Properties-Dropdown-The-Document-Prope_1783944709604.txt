@@ -1,0 +1,109 @@
+Fix the “Document Properties” Dropdown
+
+The Document Properties dropdown/accordion is broken. In the attached screenshot, only the header is visible and the content area is empty or hidden incorrectly.
+
+Please fix this component without redesigning the whole page.
+
+Current Problem
+The Document Properties section does not expand correctly.
+The dropdown arrow is barely visible or incorrectly positioned.
+The content does not appear under the header.
+The component height/layout looks broken.
+The left column has a large empty area.
+The right-side Generated Document section works, but the left panel does not.
+Expected Behaviour
+
+When the user clicks Document Properties:
+
+The section should expand smoothly.
+All property fields should appear directly below the header.
+The arrow should clearly point:
+Down when expanded
+Right when collapsed
+The section should not overlap other components.
+The page layout should adjust automatically to the expanded content.
+The content must remain visible on desktop, tablet, and mobile.
+Fields to Display
+
+Show the existing document property fields, such as:
+
+Document title
+Document type
+Entity
+Department or committee
+Related meeting
+Owner
+Language
+Confidentiality level
+Version
+Effective date
+Expiry or review date
+Tags
+Description
+
+Do not create duplicate fields. Reuse the current data and form controls already available in the component.
+
+Layout Requirements
+
+For desktop:
+
+Keep the two-column layout.
+Left column: Document Properties
+Right column: Generated Document
+Both columns should align from the top.
+The left section should expand naturally based on its content.
+Do not use a fixed height that clips the fields.
+
+For smaller screens:
+
+Stack the sections vertically.
+Document Properties should appear first.
+Generated Document should appear below it.
+Technical Checks
+
+Please investigate:
+
+Incorrect height, max-height, or overflow: hidden
+Accordion content not rendering
+Wrong conditional rendering state
+Broken display, visibility, or opacity
+Incorrect absolute positioning
+Parent container clipping the dropdown
+z-index issues
+Grid or flex alignment problems
+Chevron icon positioned outside the button
+Accordion state not updating after clicking
+Required Fixes
+Remove any fixed height that hides the accordion content.
+Use height: auto for the expanded state.
+Ensure the parent container uses overflow: visible.
+Keep the header fully clickable.
+Add a clear hover and focus state.
+Make the chevron visible and aligned to the right.
+Preserve entered values when collapsing and reopening.
+Do not reset the form when the accordion is closed.
+Do not allow the accordion to open behind another component.
+Accessibility
+Use a real button for the accordion header.
+Add aria-expanded.
+Add aria-controls.
+Support keyboard interaction with Enter and Space.
+Ensure visible focus styling.
+Testing Checklist
+
+Please test:
+
+Open Document Properties.
+Confirm all fields appear.
+Close it.
+Reopen it.
+Confirm entered values remain.
+Confirm the arrow changes direction.
+Confirm the left panel height adjusts correctly.
+Confirm no fields are clipped.
+Confirm the right panel is not affected.
+Confirm responsive stacking works.
+Confirm keyboard opening works.
+Confirm the section works after page refresh.
+
+Please fix only this dropdown/accordion and related layout issue. Do not redesign the Generated Document section or other parts of the page.
