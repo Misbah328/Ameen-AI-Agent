@@ -9455,16 +9455,44 @@ const ScheduledPanel = {
     const box = $("sp-detail");
     if (!box) return;
     const l = App.lang;
-    if (!this._selKind) {
-      box.innerHTML = "";
-      return;
-    }
+
+    // reset clickable state
+    box.classList.remove("sp-detail--active");
+    box.onclick = null;
+    box.style.cursor = "";
+
+    if (!this._selKind) { box.innerHTML = ""; return; }
+
+    let openFn = null;
+
     if (this._selKind === "meeting") {
-      box.innerHTML = this._meetingDetailHtml(this._meetingsById[this._selId], l);
-      return;
+      const m = this._meetingsById[this._selId];
+      if (m) {
+        openFn = () => MT.openDetail(m.id);
+        box.innerHTML = this._meetingDetailHtml(m, l);
+      }
+    } else {
+      const s = this._all.find((x) => x.id === this._selId);
+      if (s) {
+        const linked = this._linked(s);
+        if (linked) openFn = () => MT.openDetail(linked.id);
+        box.innerHTML = this._schedDetailHtml(s, l);
+      }
     }
-    const s = this._all.find((x) => x.id === this._selId);
-    box.innerHTML = s ? this._schedDetailHtml(s, l) : "";
+
+    if (openFn) {
+      box.classList.add("sp-detail--active");
+      box.style.cursor = "pointer";
+      box.onclick = (e) => {
+        if (e.target.closest("button,a,input,select,textarea,[role='button']")) return;
+        openFn();
+      };
+      // Prepend the "click to open" hint banner
+      const hint = document.createElement("div");
+      hint.className = "sp-detail-hint";
+      hint.innerHTML = `<span>☰ ${l === "ar" ? "انقر لفتح الصفحة الكاملة" : "Click to open full meeting page"}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span>`;
+      box.insertBefore(hint, box.firstChild);
+    }
   },
 
   _fmtLongDate(ds, l) {
