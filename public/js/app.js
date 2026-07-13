@@ -10127,34 +10127,62 @@ const CalendarPanel = {
     const label = base.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
     const weekDays = this._weekDays(l);
 
+    // Sort helper — all-day first, then by time
+    const sortItems = (arr) => {
+      const allDay = arr.filter((it) => !it.meeting_time);
+      const timed = arr.filter((it) => !!it.meeting_time).sort((a, b) => (a.meeting_time || "").localeCompare(b.meeting_time || ""));
+      return [...allDay, ...timed];
+    };
+
+    const renderCellEvents = (items, ds) => {
+      const sorted = sortItems(items);
+      const MAX = 3;
+      const visible = sorted.slice(0, MAX);
+      const more = sorted.length - MAX;
+      const chips = visible.map((it) => {
+        const name = it._kind === "task"
+          ? (l === "ar" ? it.text_ar : it.text_en || it.text_ar)
+          : (l === "ar" ? it.title_ar : it.title_en || it.title_ar);
+        const isAllDay = !it.meeting_time;
+        if (isAllDay) {
+          // Full-width solid bar — exactly like Google Calendar all-day events
+          return `<div class="gcal-mbar" style="background:${it._color}" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}">${esc(name)}</div>`;
+        } else {
+          // Dot + time + title — exactly like Google Calendar timed events
+          const time = it.meeting_time.substring(0, 5);
+          return `<div class="gcal-mrow" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}">
+            <span class="gcal-mdot" style="background:${it._color}"></span>
+            <span class="gcal-mrow-time">${esc(time)}</span>
+            <span class="gcal-mrow-name">${esc(name)}</span>
+          </div>`;
+        }
+      }).join("");
+      const moreHtml = more > 0
+        ? `<div class="gcal-mmore" onclick="CalendarPanel._dayClick('${ds}')">+${more} ${t("أكثر", "more")}</div>`
+        : "";
+      return chips + moreHtml;
+    };
+
     let cells = "";
     for (let i = 0; i < firstWeekday; i++) {
       const d = daysInPrevMonth - firstWeekday + 1 + i;
-      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday">${d}</div></div>`;
+      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday gcal-mday-other">${d}</div></div>`;
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const items = byDate[ds] || [];
       const isToday = ds === todayStr;
-      const MAX = 3;
-      const visible = items.slice(0, MAX);
-      const more = items.length - MAX;
       cells += `<div class="gcal-mcell${isToday ? " gcal-mtoday" : ""}">
-        <div class="gcal-mday${isToday ? " gcal-mday-today" : ""}" onclick="CalendarPanel._dayClick('${ds}')">${d}</div>
-        ${visible.map((it) => {
-          const name = it._kind === "task"
-            ? (l === "ar" ? it.text_ar : it.text_en || it.text_ar)
-            : (l === "ar" ? it.title_ar : it.title_en || it.title_ar);
-          const time = it.meeting_time ? it.meeting_time.substring(0, 5) + " " : "";
-          return `<div class="gcal-mevent" style="background:${it._color};color:#fff" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}">${esc(time + name)}</div>`;
-        }).join("")}
-        ${more > 0 ? `<div class="gcal-mmore" onclick="CalendarPanel._dayClick('${ds}')">+${more} ${t("أكثر", "more")}</div>` : ""}
+        <div class="gcal-mday-wrap">
+          <span class="gcal-mday${isToday ? " gcal-mday-today" : ""}" onclick="CalendarPanel._dayClick('${ds}')">${d}</span>
+        </div>
+        ${renderCellEvents(items, ds)}
       </div>`;
     }
     const totalCells = firstWeekday + daysInMonth;
     const nextFill = totalCells % 7 ? 7 - (totalCells % 7) : 0;
     for (let d = 1; d <= nextFill; d++) {
-      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday">${d}</div></div>`;
+      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday gcal-mday-other">${d}</div></div>`;
     }
 
     el.innerHTML = `<div class="gcal-wrap">

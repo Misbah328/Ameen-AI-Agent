@@ -259,19 +259,30 @@ select.fi option{background:var(--navy3)}
 /* ── Month view ── */
 .gcal-month-view{display:flex;flex-direction:column;flex:1;overflow:hidden}
 .gcal-month-head{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border2);background:var(--navy2);flex-shrink:0}
-.gcal-month-headcell{text-align:center;font-size:11px;font-weight:700;color:var(--text3);padding:8px 4px;letter-spacing:.5px}
+.gcal-month-headcell{text-align:center;font-size:11px;font-weight:600;color:var(--text3);padding:9px 4px;letter-spacing:.8px;text-transform:uppercase}
 .gcal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;overflow-y:auto;align-content:start}
-.gcal-mcell{border-right:1px solid var(--border2);border-bottom:1px solid var(--border2);min-height:108px;padding:5px 4px 3px;cursor:default}
-.gcal-mcell:nth-child(7n){border-right:none}
-.gcal-other{background:var(--navy2);opacity:.6}
-.gcal-mtoday{background:rgba(212,160,23,.07)}
-.gcal-mday{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:700;color:var(--text3);cursor:pointer;margin-bottom:3px;transition:var(--t)}
-.gcal-mday:hover{background:var(--navy3);color:var(--text)}
-.gcal-mday-today{background:var(--gold)!important;color:var(--navy)!important;font-weight:900}
-.gcal-mevent{font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;margin-bottom:2px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1.6;transition:filter .12s}
-.gcal-mevent:hover{filter:brightness(1.25)}
-.gcal-mmore{font-size:10.5px;color:var(--text3);font-weight:600;padding:1px 5px;cursor:pointer;border-radius:4px}
-.gcal-mmore:hover{background:var(--navy3);color:var(--gold)}
+.gcal-mcell{border-inline-end:1px solid var(--border2);border-bottom:1px solid var(--border2);min-height:120px;padding:4px 3px 2px;cursor:default;box-sizing:border-box}
+.gcal-mcell:last-child,.gcal-mcell:nth-child(7n){border-inline-end:none}
+.gcal-other{background:var(--navy2)}
+.gcal-mtoday{background:var(--navy)}
+/* Day number */
+.gcal-mday-wrap{display:flex;align-items:center;margin-bottom:2px;padding:0 2px}
+.gcal-mday{display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;transition:background .12s}
+.gcal-mday:hover{background:var(--navy3)}
+.gcal-mday-other{color:var(--text3);opacity:.5}
+.gcal-mday-today{background:var(--gold)!important;color:var(--navy)!important;font-weight:700}
+/* All-day bar — same as Google Calendar's green event bars */
+.gcal-mbar{font-size:11.5px;font-weight:500;color:#fff;padding:1px 6px;border-radius:4px;margin:1px 2px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1.7;transition:filter .1s}
+.gcal-mbar:hover{filter:brightness(1.15)}
+/* Timed event row — dot + time + name */
+.gcal-mrow{display:flex;align-items:center;gap:4px;padding:1px 4px;border-radius:4px;cursor:pointer;overflow:hidden;transition:background .1s}
+.gcal-mrow:hover{background:var(--navy3)}
+.gcal-mdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.gcal-mrow-time{font-size:11px;font-weight:500;color:var(--text2);flex-shrink:0;white-space:nowrap}
+.gcal-mrow-name{font-size:11.5px;font-weight:400;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+/* More link */
+.gcal-mmore{font-size:11px;color:var(--text3);font-weight:500;padding:1px 6px;cursor:pointer;border-radius:4px;margin:1px 2px}
+.gcal-mmore:hover{background:var(--navy3);color:var(--text)}
 /* ── Week / Day time-grid ── */
 .gcal-time-view{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .gcal-tgrid{display:flex;flex-direction:column;height:100%}
