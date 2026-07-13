@@ -904,16 +904,7 @@ const Panels = {
     overview: renderOverview,
   },
   async load(name) {
-    // Warn if the Schedule or Create Meeting form has unsaved changes before navigating away.
-    if (this.current === "schedule" && name !== "schedule"
-        && typeof Schedule !== "undefined" && Schedule._dirty) {
-      const l = App.lang;
-      const msg = l === "ar"
-        ? "لديك تغييرات غير محفوظة. هل تريد المغادرة؟"
-        : "You have unsaved changes. Are you sure you want to leave?";
-      if (!confirm(msg)) return;
-      Schedule._dirty = false;
-    }
+    // Warn if the Create Meeting form has unsaved changes before navigating away.
     if (this.current === "create-meeting" && name !== "create-meeting"
         && typeof CreateMeetingWizard !== "undefined" && CreateMeetingWizard._dirty) {
       const l = App.lang;
@@ -938,7 +929,7 @@ const Panels = {
     const navAlias = {
       "create-meeting": "scheduled", record: "scheduled", live: "scheduled",
       transcripts: "scheduled", history: "scheduled",
-      series: "scheduled", lastmeeting: "scheduled", schedule: "scheduled",
+      series: "scheduled", lastmeeting: "scheduled", schedule: "calendar",
       team: "integrations", activity: "overview",
     };
     const navName = document.querySelector(`.nb[data-p="${name}"]`) ? name : navAlias[name] || name;
@@ -962,15 +953,7 @@ const Panels = {
         await renderTasks();
         break;
       case "schedule":
-        await renderSchedule();
-        renderTemplates().catch((e) =>
-          showToast(
-            (App.lang === "ar"
-              ? "تعذّر تحميل القوالب: "
-              : "Could not load templates: ") + e.message,
-            "error",
-          ),
-        );
+        await CalendarPanel.refresh();
         break;
       case "calendar":
         await CalendarPanel.refresh();
@@ -6953,7 +6936,7 @@ const SmartSearch = {
     const r = this._lastResults[idx];
     if (!r) return;
     this.close();
-    const PANEL_FOR = { meeting: "history", task: "tasks", document: "documents", resolution: "governance", schedule: "schedule", ask_ameen: "ask" };
+    const PANEL_FOR = { meeting: "history", task: "tasks", document: "documents", resolution: "governance", schedule: "calendar", ask_ameen: "ask" };
     const panel = PANEL_FOR[r.source_type];
     if (!panel) return;
     await Panels.load(panel);
@@ -9580,7 +9563,7 @@ const ScheduledPanel = {
     if (live && linked) qa.push({ ico: "▶", ar: "متابعة الاجتماع المباشر", en: "Rejoin Live Meeting", on: `MT.openDetail(${linked.id},'live')` });
     qa.push({ ico: "📆", ar: "إعادة جدولة", en: "Reschedule", on: `ScheduledPanel.reschedule(${s.id})` });
     if (linked) qa.push({ ico: "📄", ar: "المستندات", en: "Documents", on: `MT.openDetail(${linked.id},'documents')` });
-    qa.push({ ico: "📅", ar: "عرض في التقويم", en: "View in Calendar", on: `Panels.load('schedule')` });
+    qa.push({ ico: "📅", ar: "عرض في التقويم", en: "View in Calendar", on: `Panels.load('calendar')` });
     const quick = `<div class="mt2-card"><div class="mt2-card-t">${t("إجراءات سريعة", "Quick Actions")}</div>
       <div class="mt2-qa">${qa
         .map((a) => `<button class="mt2-qa-btn" onclick="${a.on}"><span>${a.ico} ${t(a.ar, a.en)}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>`)
