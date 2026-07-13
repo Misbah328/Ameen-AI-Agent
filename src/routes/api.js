@@ -1826,6 +1826,13 @@ router.get('/schedule', auth, (req, res) => {
   `).all());
 });
 
+// GET /api/schedule/:id — fetch a single schedule row
+router.get('/schedule/:id', auth, (req, res) => {
+  const s = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
+  if (!s) return res.status(404).json({ error: 'NOT_FOUND' });
+  res.json(s);
+});
+
 // GET /api/schedule/:id/ics — download a single meeting as an ICS calendar file
 router.get('/schedule/:id/ics', auth, (req, res) => {
   const s = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);

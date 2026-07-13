@@ -9626,16 +9626,19 @@ const ScheduledPanel = {
     window.open(url, "_blank", "noopener");
   },
 
-  reschedule(scheduleId) {
+  async reschedule(scheduleId) {
     const l = App.lang;
-    const s = this._all.find((x) => x.id === scheduleId);
-    if (!s) return;
     const t = (ar, en) => l === "ar" ? ar : en;
+    let s = this._all.find((x) => x.id === scheduleId);
+    if (!s) {
+      try { s = await api(`/api/schedule/${scheduleId}`); } catch (_) {}
+    }
+    if (!s) { showToast(t("تعذّر تحميل بيانات الاجتماع", "Could not load meeting data"), "error"); return; }
     const existing = document.getElementById("reschedule-modal");
     if (existing) existing.remove();
     const modal = document.createElement("div");
     modal.id = "reschedule-modal";
-    modal.className = "modal-overlay";
+    modal.className = "modal-overlay open";
     modal.innerHTML = `
       <div class="modal-box" style="max-width:420px">
         <div class="modal-header">
@@ -9667,7 +9670,10 @@ const ScheduledPanel = {
 
   async _confirmReschedule(scheduleId) {
     const l = App.lang;
-    const s = this._all.find((x) => x.id === scheduleId);
+    let s = this._all.find((x) => x.id === scheduleId);
+    if (!s) {
+      try { s = await api(`/api/schedule/${scheduleId}`); } catch (_) {}
+    }
     if (!s) return;
     const newDate = (document.getElementById("rs-date") || {}).value || "";
     const newTime = (document.getElementById("rs-time") || {}).value || "";
