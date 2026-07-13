@@ -265,20 +265,28 @@ const MT = {
           <div class="mx-step-s">${log ? fmtDate(log.created_at) : (i === cur ? t("الحالي", "Current") : t("قيد الانتظار", "Pending"))}</div></div>`;
       }).join("")}</div></div>`;
 
-    // key decisions / actions / documents cards
+    // key decisions / actions / documents cards — exclude ai_draft items from overview counts
+    const ovDecs = d.decisions.filter((x) => x.ai_status !== "ai_draft");
+    const ovTasks = d.tasks.filter((x) => x.ai_status !== "ai_draft");
+    const pendingDecs = d.decisions.filter((x) => x.ai_status === "ai_draft").length;
+    const pendingTasks = d.tasks.filter((x) => x.ai_status === "ai_draft").length;
+
     const decCard = `<div class="mx-card"><div class="mx-card-t">⚖️ ${t("أبرز القرارات", "Key Decisions")}<button class="mx-link" onclick="MT.setTab('decisions')">${t("عرض الكل", "View All")}</button></div>
-      ${d.decisions.length ? d.decisions.slice(0, 5).map((x) => `<div class="mx-checkrow"><span class="mx-check">✔</span><span>${esc(this._text(x))}</span></div>`).join("")
-        : `<div style="font-size:12px;color:#98A2B3">${t("لا توجد قرارات مسجّلة بعد.", "No decisions recorded yet.")}</div>`}</div>`;
+      ${ovDecs.length ? ovDecs.slice(0, 5).map((x) => `<div class="mx-checkrow"><span class="mx-check">✔</span><span>${esc(this._text(x))}</span></div>`).join("") : ""}
+      ${pendingDecs ? `<div style="font-size:11.5px;color:#6366F1;margin-top:6px">🤖 ${pendingDecs} ${t("قرار يحتاج مراجعة", pendingDecs === 1 ? "decision awaiting review" : "decisions awaiting review")} — <button class="mx-link" onclick="MT.setTab('decisions')">${t("مراجعة", "Review")}</button></div>` : ""}
+      ${!ovDecs.length && !pendingDecs ? `<div style="font-size:12px;color:#98A2B3">${t("لا توجد قرارات مسجّلة بعد.", "No decisions recorded yet.")}</div>` : ""}</div>`;
 
     const actCard = `<div class="mx-card"><div class="mx-card-t">🎯 ${t("الإجراءات التنفيذية", "Executive Actions")}<button class="mx-link" onclick="MT.setTab('actions')">${t("عرض الكل", "View All")}</button></div>
-      ${d.tasks.length ? d.tasks.slice(0, 4).map((x) => {
+      ${ovTasks.length ? ovTasks.slice(0, 4).map((x) => {
         const meta = (typeof taskStatusMeta === "function") ? taskStatusMeta(x.status) : null;
         const owner = (App.lang === "ar" ? x.owner_name_ar : x.owner_name_en) || x.owner_name_ar || "";
         return `<div class="mx-docrow"><span class="mx-av">${esc(this._initials(owner || "؟"))}</span>
           <div style="flex:1;min-width:0"><div class="mx-doc-name">${esc(this._text(x))}</div>
           <div class="mx-doc-meta">${owner ? esc(owner) + " · " : ""}${x.due_date ? t("الاستحقاق: ", "Due: ") + fmtDate(x.due_date) : ""}</div></div>
           ${meta ? `<span class="tag ${meta.tagClass}">${App.lang === "ar" ? meta.ar : meta.en}</span>` : ""}</div>`;
-      }).join("") : `<div style="font-size:12px;color:#98A2B3">${t("لا توجد إجراءات بعد.", "No actions yet.")}</div>`}</div>`;
+      }).join("") : ""}
+      ${pendingTasks ? `<div style="font-size:11.5px;color:#6366F1;margin-top:6px">🤖 ${pendingTasks} ${t("مهمة تحتاج مراجعة", pendingTasks === 1 ? "task awaiting review" : "tasks awaiting review")} — <button class="mx-link" onclick="MT.setTab('actions')">${t("مراجعة", "Review")}</button></div>` : ""}
+      ${!ovTasks.length && !pendingTasks ? `<div style="font-size:12px;color:#98A2B3">${t("لا توجد إجراءات بعد.", "No actions yet.")}</div>` : ""}</div>`;
 
     const docCard = `<div class="mx-card"><div class="mx-card-t">📁 ${t("المستندات وحزمة المجلس", "Documents & Board Pack")}<button class="mx-link" onclick="MT.setTab('documents')">${t("عرض الكل", "View All")}</button></div>
       ${d.documents.length ? d.documents.slice(0, 5).map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div>
@@ -350,12 +358,44 @@ const MT = {
     // ── Post-meeting (ended) state ────────────────────────────
     if (endedStages.includes(m.lifecycle_stage) && !live) {
       const tr = this._parseSpeakerTranscript();
-      return `<div class="mx-card">
+      const isProcessing = Boolean(LiveMT._processingAI);
+      const isProcessed = m.status === "processed";
+      const draftDecs = (d.decisions || []).filter((x) => x.ai_status === "ai_draft");
+      const draftTasks = (d.tasks || []).filter((x) => x.ai_status === "ai_draft");
+
+      let statusPanel = "";
+      if (isProcessing) {
+        statusPanel = `<div class="pm-processing-bar">
+          <div class="pm-proc-spin">⟳</div>
+          <div>
+            <div class="pm-proc-t">${t("جارٍ معالجة الاجتماع بالذكاء الاصطناعي…", "AI is processing the meeting…")}</div>
+            <div class="pm-proc-s">${t("يُستخرج المحضر والقرارات والمهام. ستُعرض النتائج تلقائياً عند الانتهاء.", "Extracting minutes, decisions and tasks. Results will appear automatically when ready.")}</div>
+          </div>
+        </div>`;
+      } else if (isProcessed && (draftDecs.length || draftTasks.length)) {
+        statusPanel = `<div class="pm-complete-bar">
+          <div class="pm-complete-ico">✅</div>
+          <div class="pm-complete-body">
+            <div class="pm-complete-t">${t("اكتملت معالجة الاجتماع — النتائج جاهزة للمراجعة", "Meeting Processing Complete — Results Ready for Review")}</div>
+            <div class="pm-complete-s">${[
+              draftDecs.length ? `${draftDecs.length} ${t("قرار مقترح", draftDecs.length === 1 ? "suggested decision" : "suggested decisions")}` : "",
+              draftTasks.length ? `${draftTasks.length} ${t("مهمة مقترحة", draftTasks.length === 1 ? "suggested task" : "suggested tasks")}` : "",
+            ].filter(Boolean).join(" · ")}</div>
+            <div class="pm-complete-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+              ${draftDecs.length ? `<button class="btn-gold btn-sm" onclick="MT.setTab('decisions')">⚖️ ${t("مراجعة القرارات", "Review Decisions")}</button>` : ""}
+              ${draftTasks.length ? `<button class="btn-gold btn-sm" onclick="MT.setTab('actions')">🎯 ${t("مراجعة المهام", "Review Tasks")}</button>` : ""}
+              <button class="btn-ghost btn-sm" onclick="MT.setTab('minutes')">📝 ${t("المحضر", "Minutes")}</button>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      return `${statusPanel}<div class="mx-card">
         <div class="mx-card-t">📝 ${t("نسخ الاجتماع", "Meeting Transcript")}</div>
         ${m.actual_start_time ? `<div style="font-size:11.5px;color:#697386;margin-bottom:12px">🕐 ${t("بدأ", "Started")} ${this._fmtDT(m.actual_start_time)}${m.actual_end_time ? " · " + t("انتهى", "Ended") + " " + this._fmtDT(m.actual_end_time) : ""}</div>` : ""}
         ${tr.length ? `<div class="lmt-transcript lmt-transcript-ro">${tr.map((r) => `<div class="lmt-tr-row">${r.speaker ? `<div class="lmt-tr-ts">${esc(r.speaker)}</div>` : ""}<div class="lmt-tr-text">${esc(r.text)}</div></div>`).join("")}</div>`
           : `<div class="mx-empty" style="padding:32px"><div class="ic">📝</div><div class="t">${t("لا يوجد نسخ", "No transcript")}</div><div class="s">${t("سيُولَّد المحضر بعد معالجة التسجيل.", "Minutes will be generated after processing.")}</div></div>`}
-        ${canRec && m.lifecycle_stage === "uploaded" ? `<div style="margin-top:14px"><button class="btn-gold btn-sm" onclick="api('/api/meetings/${m.id}/process',{method:'POST',body:'{}'}).then(()=>{showToast(MT.t('جارٍ المعالجة…','Processing…'));MT._refreshDetail()}).catch(e=>showToast(e.message,'error'))">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button></div>` : ""}
+        ${canRec && !isProcessed && !isProcessing ? `<div style="margin-top:14px"><button class="btn-gold btn-sm" onclick="LiveMT._processingAI=true;MT._renderDetail();api('/api/meetings/${m.id}/process',{method:'POST',body:'{}'}).then(()=>{LiveMT._processingAI=false;showToast(MT.t('✅ اكتملت المعالجة','✅ Processing complete'));MT._refreshDetail()}).catch(e=>{LiveMT._processingAI=false;showToast(e.message,'error');MT._renderDetail()})">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button></div>` : ""}
       </div>`;
     }
 
@@ -454,16 +494,24 @@ const MT = {
     }
 
     // decisions & actions mini tables under the minutes body
-    const decMini = d.decisions.length ? `<div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("القرارات", "Decisions")} <span class="mt2-tab-n">${d.decisions.length}</span><button class="mx-link" onclick="MT.setTab('decisions')">${t("عرض الكل", "View All")} →</button></div>
-      <table class="mx-table"><thead><tr><th>#</th><th>${t("القرار", "Decision")}</th><th>${t("الحالة", "Status")}</th></tr></thead><tbody>
-      ${d.decisions.slice(0, 4).map((x, i) => `<tr><td class="mx-num">${this._num("D", i)}</td><td>${esc(this._text(x))}</td><td>${this._decBadge(x.status)}</td></tr>`).join("")}
-      </tbody></table></div>` : "";
-    const actMini = d.tasks.length ? `<div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("الإجراءات", "Actions")} <span class="mt2-tab-n">${d.tasks.length}</span><button class="mx-link" onclick="MT.setTab('actions')">${t("عرض الكل", "View All")} →</button></div>
-      <table class="mx-table"><thead><tr><th>#</th><th>${t("الإجراء", "Action")}</th><th>${t("الاستحقاق", "Due")}</th><th>${t("الحالة", "Status")}</th></tr></thead><tbody>
-      ${d.tasks.slice(0, 4).map((x, i) => {
+    const minDecs = d.decisions.filter((x) => x.ai_status !== "ai_draft");
+    const minTasks = d.tasks.filter((x) => x.ai_status !== "ai_draft");
+    const minPendDecs = d.decisions.filter((x) => x.ai_status === "ai_draft").length;
+    const minPendTasks = d.tasks.filter((x) => x.ai_status === "ai_draft").length;
+    const decMini = (minDecs.length || minPendDecs) ? `<div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("القرارات", "Decisions")} <span class="mt2-tab-n">${minDecs.length}</span><button class="mx-link" onclick="MT.setTab('decisions')">${t("عرض الكل", "View All")} →</button></div>
+      ${minDecs.length ? `<table class="mx-table"><thead><tr><th>#</th><th>${t("القرار", "Decision")}</th><th>${t("الحالة", "Status")}</th></tr></thead><tbody>
+      ${minDecs.slice(0, 4).map((x, i) => `<tr><td class="mx-num">${this._num("D", i)}</td><td>${esc(this._text(x))}</td><td>${this._decBadge(x.status)}</td></tr>`).join("")}
+      </tbody></table>` : ""}
+      ${minPendDecs ? `<div style="font-size:11.5px;color:#6366F1;margin-top:6px">🤖 ${minPendDecs} ${t("قرار ينتظر مراجعتك", minPendDecs === 1 ? "decision awaiting review" : "decisions awaiting review")} — <button class="mx-link" onclick="MT.setTab('decisions')">${t("مراجعة", "Review")}</button></div>` : ""}
+      </div>` : "";
+    const actMini = (minTasks.length || minPendTasks) ? `<div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("الإجراءات", "Actions")} <span class="mt2-tab-n">${minTasks.length}</span><button class="mx-link" onclick="MT.setTab('actions')">${t("عرض الكل", "View All")} →</button></div>
+      ${minTasks.length ? `<table class="mx-table"><thead><tr><th>#</th><th>${t("الإجراء", "Action")}</th><th>${t("الاستحقاق", "Due")}</th><th>${t("الحالة", "Status")}</th></tr></thead><tbody>
+      ${minTasks.slice(0, 4).map((x, i) => {
         const meta = (typeof taskStatusMeta === "function") ? taskStatusMeta(x.status) : null;
         return `<tr><td class="mx-num">${this._num("A", i)}</td><td>${esc(this._text(x))}</td><td style="white-space:nowrap">${x.due_date ? fmtDate(x.due_date) : "—"}</td><td>${meta ? `<span class="tag ${meta.tagClass}">${l === "ar" ? meta.ar : meta.en}</span>` : esc(x.status || "")}</td></tr>`;
-      }).join("")}</tbody></table></div>` : "";
+      }).join("")}</tbody></table>` : ""}
+      ${minPendTasks ? `<div style="font-size:11.5px;color:#6366F1;margin-top:6px">🤖 ${minPendTasks} ${t("مهمة تنتظر مراجعتك", minPendTasks === 1 ? "task awaiting review" : "tasks awaiting review")} — <button class="mx-link" onclick="MT.setTab('actions')">${t("مراجعة", "Review")}</button></div>` : ""}
+      </div>` : "";
 
     // right column: approval status + stats + real downloads
     const ms = m.minutes_status || "draft";
@@ -507,8 +555,69 @@ const MT = {
       pending: { ar: "قيد الانتظار", en: "Pending", cls: "tgold" },
       deferred: { ar: "مؤجل", en: "Deferred", cls: "tgr" },
       cancelled: { ar: "ملغى", en: "Cancelled", cls: "tr" },
+      rejected: { ar: "مرفوض", en: "Rejected", cls: "tr" },
+      under_review: { ar: "قيد المراجعة", en: "Under Review", cls: "ta" },
+      ai_draft: { ar: "مسودة AI", en: "AI Draft", cls: "tpurple" },
     }[String(status || "").toLowerCase()] || { ar: status || "—", en: status || "—", cls: "tgr" };
     return `<span class="tag ${map.cls}">${this.t(map.ar, map.en)}</span>`;
+  },
+
+  _aiConfBadge(confidence) {
+    const map = {
+      high: { ar: "ثقة عالية", en: "High Confidence", cls: "pm-conf-high" },
+      medium: { ar: "ثقة متوسطة", en: "Medium Confidence", cls: "pm-conf-med" },
+      low: { ar: "ثقة منخفضة", en: "Low Confidence", cls: "pm-conf-low" },
+    }[String(confidence || "medium").toLowerCase()] || { ar: "—", en: "—", cls: "pm-conf-med" };
+    return `<span class="pm-conf-badge ${map.cls}">${this.t(map.ar, map.en)}</span>`;
+  },
+
+  _aiDecisionCard(x) {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const canAct = App.can("actions.assign") || App.can("actions.update");
+    const mainText = esc(l === "ar" ? x.text_ar || x.text_en : x.text_en || x.text_ar);
+    const altText = l === "ar" ? x.text_en : x.text_ar;
+    return `<div class="pm-draft-card" id="pm-dec-${x.id}">
+      <div class="pm-draft-card-head">
+        <span class="pm-draft-label">🤖 ${t("قرار مقترح", "Suggested Decision")}</span>
+        ${this._aiConfBadge(x.confidence || "medium")}
+      </div>
+      <div class="pm-draft-card-text">${mainText}</div>
+      ${altText && altText !== (l === "ar" ? x.text_ar : x.text_en) ? `<div class="pm-draft-card-alt">${esc(altText)}</div>` : ""}
+      ${x.transcript_segment ? `<div class="pm-draft-card-ref">💬 ${t("من النص:", "From transcript:")} <em>${esc(x.transcript_segment)}</em></div>` : ""}
+      ${canAct ? `<div class="pm-draft-card-actions">
+        <button class="btn-ghost btn-sm" onclick="MT.editAiDecision(${x.id})">✏ ${t("تعديل", "Edit")}</button>
+        <button class="pm-btn-approve btn-sm" onclick="MT.approveDecision(${x.id},{})">✓ ${t("اعتماد", "Approve")}</button>
+        <button class="pm-btn-reject btn-sm" onclick="MT.rejectDecision(${x.id})">✕ ${t("رفض", "Reject")}</button>
+      </div>` : ""}
+    </div>`;
+  },
+
+  _aiTaskCard(x) {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const canAct = App.can("actions.assign") || App.can("actions.update");
+    const mainText = esc(l === "ar" ? x.text_ar || x.text_en : x.text_en || x.text_ar);
+    const owner = l === "ar" ? x.owner_name_ar : x.owner_name_en;
+    const prio = { high: { ar: "عالية", en: "High", cls: "tr" }, critical: { ar: "حرجة", en: "Critical", cls: "tr" }, medium: { ar: "متوسطة", en: "Medium", cls: "tgold" }, normal: { ar: "عادية", en: "Normal", cls: "tgr" }, low: { ar: "منخفضة", en: "Low", cls: "tgr" } }[String(x.priority || "normal").toLowerCase()];
+    return `<div class="pm-draft-card" id="pm-task-${x.id}">
+      <div class="pm-draft-card-head">
+        <span class="pm-draft-label">🤖 ${t("مهمة مقترحة", "Suggested Task")}</span>
+        ${this._aiConfBadge(x.ai_confidence || "medium")}
+        ${prio ? `<span class="tag ${prio.cls}" style="font-size:10px">${t(prio.ar, prio.en)}</span>` : ""}
+      </div>
+      <div class="pm-draft-card-text">${mainText}</div>
+      <div class="pm-draft-card-meta">
+        ${owner ? `<span>👤 ${esc(owner)}</span>` : `<span class="pm-meta-warn">👤 ${t("لم يُحدَّد المسؤول", "No assignee")}</span>`}
+        ${x.due_date ? `<span>📅 ${fmtDate(x.due_date)}</span>` : `<span class="pm-meta-warn">📅 ${t("لا يوجد تاريخ استحقاق", "No due date")}</span>`}
+      </div>
+      ${x.transcript_segment ? `<div class="pm-draft-card-ref">💬 ${t("من النص:", "From transcript:")} <em>${esc(x.transcript_segment)}</em></div>` : ""}
+      ${canAct ? `<div class="pm-draft-card-actions">
+        <button class="btn-ghost btn-sm" onclick="MT.editAiTask(${x.id})">✏ ${t("تعديل", "Edit")}</button>
+        <button class="pm-btn-approve btn-sm" onclick="MT.approveTask(${x.id},{})">✓ ${t("اعتماد", "Approve")}</button>
+        <button class="pm-btn-reject btn-sm" onclick="MT.rejectTask(${x.id})">✕ ${t("رفض", "Reject")}</button>
+      </div>` : ""}
+    </div>`;
   },
 
   selDecision(id) { this._decSel = id; this._renderDetail(); },
@@ -518,15 +627,37 @@ const MT = {
   _tabDecisions() {
     const d = this._d;
     const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
     const f = this._decFilter;
     const all = d.decisions;
-    const list = all.filter((x) =>
+
+    // Split AI drafts from approved/official decisions
+    const aiDrafts = all.filter((x) => x.ai_status === "ai_draft");
+    const official = all.filter((x) => x.ai_status !== "ai_draft");
+
+    const canAdd = App.can("actions.update") || App.can("actions.assign");
+    const canAct = App.can("actions.assign") || App.can("actions.update");
+
+    // AI Draft review panel
+    let draftPanel = "";
+    if (aiDrafts.length) {
+      draftPanel = `<div class="pm-review-banner">
+        <div class="pm-banner-ico">🤖</div>
+        <div class="pm-banner-body">
+          <div class="pm-banner-t">${t(`${aiDrafts.length} قرار مقترح يحتاج مراجعة`, `${aiDrafts.length} AI-suggested decision${aiDrafts.length !== 1 ? "s" : ""} need${aiDrafts.length === 1 ? "s" : ""} review`)}</div>
+          <div class="pm-banner-s">${t("القرارات المولَّدة بالذكاء الاصطناعي لا تصبح رسمية تلقائياً — راجع كل قرار واعتمده أو ارفضه.", "AI-generated decisions are not official until reviewed — approve or reject each one.")}</div>
+        </div>
+        ${canAct ? `<button class="btn-gold btn-sm" onclick="MT.approveAllDecisions()">✓ ${t("اعتماد الكل", "Approve All")}</button>` : ""}
+      </div>
+      <div class="pm-draft-list">${aiDrafts.map((x) => this._aiDecisionCard(x)).join("")}</div>`;
+    }
+
+    const list = official.filter((x) =>
       (!f.q || (x.text_ar || "").includes(f.q) || (x.text_en || "").toLowerCase().includes(f.q.toLowerCase())) &&
       (!f.status || String(x.status || "").toLowerCase() === f.status));
-    const sel = all.find((x) => x.id === this._decSel) || list[0] || null;
+    const sel = official.find((x) => x.id === this._decSel) || list[0] || null;
     if (sel && this._decSel !== sel.id) this._decSel = sel.id;
-    const statuses = [...new Set(all.map((x) => String(x.status || "").toLowerCase()).filter(Boolean))];
-    const canAdd = App.can("actions.update") || App.can("actions.assign");
+    const statuses = [...new Set(official.map((x) => String(x.status || "").toLowerCase()).filter(Boolean))];
 
     const filterBar = `<div class="mx-filterbar">
       <input class="fi" style="flex:1;min-width:160px" placeholder="${t("بحث في القرارات...", "Search decisions...")}" value="${esc(f.q)}"
@@ -541,14 +672,14 @@ const MT = {
     if (!all.length)
       return `<div class="mx-card">${canAdd ? filterBar : ""}<div class="mx-empty"><div class="ic">⚖️</div><div class="t">${t("لا توجد قرارات", "No decisions")}</div><div class="s">${t("لم تُسجَّل قرارات لهذا الاجتماع بعد. تُستخرج القرارات تلقائياً من التسجيل أو يمكن إضافتها يدوياً.", "No decisions recorded for this meeting yet. Decisions are extracted automatically from the recording, or can be added manually.")}</div></div></div>`;
 
-    const table = `<div class="mx-card">
-      <div class="mx-card-t">${t("القرارات", "Decisions")} <span class="mt2-tab-n">${all.length}</span></div>
+    const officialSection = official.length ? `<div class="mx-card">
+      <div class="mx-card-t">${t("القرارات الرسمية", "Official Decisions")} <span class="mt2-tab-n">${official.length}</span></div>
       ${filterBar}
       <div style="overflow-x:auto"><table class="mx-table"><thead><tr>
         <th>#</th><th>${t("القرار", "Decision")}</th><th>${t("اتخذه", "Decided By")}</th><th>${t("التاريخ", "Date")}</th><th>${t("الحالة", "Status")}</th>
       </tr></thead><tbody>
       ${list.map((x) => {
-        const idx = all.indexOf(x);
+        const idx = official.indexOf(x);
         return `<tr class="mx-row-click ${sel && sel.id === x.id ? "sel" : ""}" onclick="MT.selDecision(${x.id})">
           <td class="mx-num">${this._num("D", idx)}</td>
           <td style="font-weight:600">${esc(this._text(x))}</td>
@@ -557,28 +688,30 @@ const MT = {
           <td>${this._decBadge(x.status)}</td></tr>`;
       }).join("") || `<tr><td colspan="5" style="color:#98A2B3">${t("لا توجد نتائج مطابقة.", "No matching results.")}</td></tr>`}
       </tbody></table></div>
-      <div style="font-size:11px;color:#98A2B3;margin-top:8px">${t(`عرض ${list.length} من ${all.length} قرارات`, `Showing ${list.length} of ${all.length} decisions`)}</div></div>`;
+      <div style="font-size:11px;color:#98A2B3;margin-top:8px">${t(`عرض ${list.length} من ${official.length} قرارات`, `Showing ${list.length} of ${official.length} decisions`)}</div></div>` : "";
 
     let details = "";
     if (sel) {
-      const idx = all.indexOf(sel);
+      const idx = official.indexOf(sel);
       const row = (ico, kAr, kEn, v) => v ? `<div class="mx-dd-row"><span class="k">${ico} ${t(kAr, kEn)}</span><span class="v">${v}</span></div>` : "";
       details = `<div class="mx-card"><div class="mx-card-t">${t("تفاصيل القرار", "Decision Details")} ${this._decBadge(sel.status)}</div>
         <div class="mx-num" style="margin-bottom:4px">${this._num("D", idx)}</div>
         <div class="mx-dd-t">${esc(this._text(sel))}</div>
-        ${(App.lang === "ar" ? sel.text_en : sel.text_ar) && sel.text_ar !== sel.text_en ? `<div style="font-size:12px;color:#697386;line-height:1.55;margin-bottom:8px">${esc(App.lang === "ar" ? sel.text_en : sel.text_ar)}</div>` : ""}
+        ${(l === "ar" ? sel.text_en : sel.text_ar) && sel.text_ar !== sel.text_en ? `<div style="font-size:12px;color:#697386;line-height:1.55;margin-bottom:8px">${esc(l === "ar" ? sel.text_en : sel.text_ar)}</div>` : ""}
         <div style="border-top:1px solid #F2F4F7;margin-top:10px;padding-top:8px">
           ${row("🗓", "التاريخ", "Date", this._fmtDT(sel.created_at))}
           ${row("👤", "اتخذه", "Decided By", sel.decided_by ? esc(sel.decided_by) : "")}
           ${row("📌", "الحالة", "Status", this._decBadge(sel.status))}
+          ${sel.approved_at ? row("✓", "اعتُمد في", "Approved at", this._fmtDT(sel.approved_at)) : ""}
         </div>
         ${sel.notes ? `<div style="border-top:1px solid #F2F4F7;margin-top:8px;padding-top:10px"><div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:4px">${t("ملاحظات", "Notes")}</div><div style="font-size:12.5px;color:#374151;line-height:1.6">${esc(sel.notes)}</div></div>` : ""}
+        ${sel.implementation_notes ? `<div style="border-top:1px solid #F2F4F7;margin-top:8px;padding-top:10px"><div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:4px">${t("ملاحظات التنفيذ", "Implementation Notes")}</div><div style="font-size:12.5px;color:#374151;line-height:1.6">${esc(sel.implementation_notes)}</div></div>` : ""}
         ${this._d.documents.length ? `<div style="border-top:1px solid #F2F4F7;margin-top:10px;padding-top:10px"><div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:4px">${t("مستندات الاجتماع", "Meeting Documents")} <span class="mt2-tab-n">${this._d.documents.length}</span></div>
           ${this._d.documents.slice(0, 3).map((x) => `<div class="mx-docrow"><div class="mx-doc-ico">${this._docIco(x)}</div><div style="flex:1;min-width:0"><div class="mx-doc-name">${esc(x.title)}</div><div class="mx-doc-meta">${this._fmtSize(x.file_size)}</div></div><a class="mx-doc-dl" href="/uploads/${encodeURIComponent(x.file_path)}" target="_blank" rel="noopener">⬇</a></div>`).join("")}</div>` : ""}
       </div>`;
     }
 
-    return `<div class="mx-split">${table}${details}</div>`;
+    return `${draftPanel ? `<div class="pm-draft-section">${draftPanel}</div>` : ""}<div class="mx-split">${officialSection}${details}</div>`;
   },
 
   async addDecision() {
@@ -591,19 +724,188 @@ const MT = {
     } catch (e) { showToast(this.t("تعذّر إضافة القرار: ", "Could not add decision: ") + e.message, "error"); }
   },
 
+  // ── AI Draft approve / reject — decisions ─────────────────────
+  async approveDecision(id, extraData) {
+    try {
+      await api(`/api/decisions/${id}/approve`, { method: "POST", body: JSON.stringify(extraData || {}) });
+      showToast(this.t("✓ تم اعتماد القرار", "✓ Decision approved"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر اعتماد القرار: ", "Could not approve decision: ") + e.message, "error"); }
+  },
+
+  async rejectDecision(id) {
+    const reason = prompt(this.t("سبب الرفض (اختياري):", "Reason for rejection (optional):")) || "";
+    try {
+      await api(`/api/decisions/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+      showToast(this.t("✓ تم رفض القرار", "✓ Decision rejected"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر رفض القرار: ", "Could not reject decision: ") + e.message, "error"); }
+  },
+
+  editAiDecision(id) {
+    const dec = this._d.decisions.find((x) => x.id === id);
+    if (!dec) return;
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    document.getElementById("pm-edit-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "lmt-overlay";
+    el.id = "pm-edit-modal";
+    el.innerHTML = `<div class="lmt-modal pm-edit-modal" onclick="event.stopPropagation()" style="max-width:540px;text-align:start">
+      <div class="lmt-modal-t" style="margin-bottom:16px">✏ ${t("تعديل القرار", "Edit Decision")}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("النص بالعربية", "Arabic Text")}</label>
+          <textarea id="pm-dec-ar" class="fi" rows="3" style="resize:vertical">${esc(dec.text_ar || "")}</textarea></div>
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("النص بالإنجليزية", "English Text")}</label>
+          <textarea id="pm-dec-en" class="fi" rows="3" style="resize:vertical">${esc(dec.text_en || "")}</textarea></div>
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("صاحب القرار", "Decided By")}</label>
+          <input id="pm-dec-by" class="fi" value="${esc(dec.decided_by || "")}"/></div>
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("ملاحظات", "Notes")}</label>
+          <textarea id="pm-dec-notes" class="fi" rows="2" style="resize:vertical">${esc(dec.notes || "")}</textarea></div>
+      </div>
+      <div class="lmt-modal-btns" style="margin-top:20px;flex-direction:row;gap:8px">
+        <button class="pm-btn-approve" style="flex:1" onclick="MT._saveEditDecision(${id})">✓ ${t("اعتماد والحفظ", "Approve & Save")}</button>
+        <button class="btn-ghost" style="flex:1" onclick="document.getElementById('pm-edit-modal').remove()">${t("إلغاء", "Cancel")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async _saveEditDecision(id) {
+    const text_ar = document.getElementById("pm-dec-ar")?.value?.trim();
+    const text_en = document.getElementById("pm-dec-en")?.value?.trim();
+    const decided_by = document.getElementById("pm-dec-by")?.value?.trim();
+    const notes = document.getElementById("pm-dec-notes")?.value?.trim();
+    document.getElementById("pm-edit-modal")?.remove();
+    await this.approveDecision(id, { text_ar, text_en, decided_by, notes });
+  },
+
+  async approveAllDecisions() {
+    const drafts = this._d.decisions.filter((x) => x.ai_status === "ai_draft");
+    if (!drafts.length) return;
+    try {
+      await Promise.all(drafts.map((x) => api(`/api/decisions/${x.id}/approve`, { method: "POST", body: "{}" })));
+      showToast(this.t(`✓ تم اعتماد ${drafts.length} قرارات`, `✓ ${drafts.length} decisions approved`));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر اعتماد القرارات: ", "Could not approve decisions: ") + e.message, "error"); }
+  },
+
+  // ── AI Draft approve / reject — tasks ─────────────────────────
+  async approveTask(id, extraData) {
+    try {
+      await api(`/api/tasks/${id}/approve`, { method: "POST", body: JSON.stringify(extraData || {}) });
+      showToast(this.t("✓ تم اعتماد المهمة", "✓ Task approved"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر اعتماد المهمة: ", "Could not approve task: ") + e.message, "error"); }
+  },
+
+  async rejectTask(id) {
+    const reason = prompt(this.t("سبب الرفض (اختياري):", "Reason for rejection (optional):")) || "";
+    try {
+      await api(`/api/tasks/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+      showToast(this.t("✓ تم رفض المهمة", "✓ Task rejected"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر رفض المهمة: ", "Could not reject task: ") + e.message, "error"); }
+  },
+
+  editAiTask(id) {
+    const task = this._d.tasks.find((x) => x.id === id);
+    if (!task) return;
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const users = this._d.attendees || [];
+    document.getElementById("pm-edit-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "lmt-overlay";
+    el.id = "pm-edit-modal";
+    el.innerHTML = `<div class="lmt-modal pm-edit-modal" onclick="event.stopPropagation()" style="max-width:540px;text-align:start">
+      <div class="lmt-modal-t" style="margin-bottom:16px">✏ ${t("تعديل المهمة", "Edit Task")}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("النص بالعربية", "Arabic Text")}</label>
+          <textarea id="pm-task-ar" class="fi" rows="2" style="resize:vertical">${esc(task.text_ar || "")}</textarea></div>
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("النص بالإنجليزية", "English Text")}</label>
+          <textarea id="pm-task-en" class="fi" rows="2" style="resize:vertical">${esc(task.text_en || "")}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("المسؤول", "Assignee")}</label>
+            <select id="pm-task-owner" class="fi">
+              <option value="">${t("— اختر مسؤولاً —", "— Select assignee —")}</option>
+              ${users.map((u) => `<option value="${u.user_id || u.id}" ${task.owner_id == (u.user_id || u.id) ? "selected" : ""}>${esc(l === "ar" ? u.name_ar || u.name_en : u.name_en || u.name_ar)}</option>`).join("")}
+            </select></div>
+          <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("تاريخ الاستحقاق", "Due Date")}</label>
+            <input id="pm-task-due" type="date" class="fi" value="${esc(task.due_date || "")}"/></div>
+        </div>
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("الأولوية", "Priority")}</label>
+          <select id="pm-task-priority" class="fi">
+            ${[["low","منخفضة","Low"],["normal","عادية","Normal"],["medium","متوسطة","Medium"],["high","عالية","High"],["critical","حرجة","Critical"]].map(([v,ar,en]) => `<option value="${v}" ${(task.priority||"normal")===v?"selected":""}>${t(ar,en)}</option>`).join("")}
+          </select></div>
+        <div><label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("ملاحظات", "Notes")}</label>
+          <textarea id="pm-task-notes" class="fi" rows="2" style="resize:vertical">${esc(task.notes || "")}</textarea></div>
+      </div>
+      <div class="lmt-modal-btns" style="margin-top:20px;flex-direction:row;gap:8px">
+        <button class="pm-btn-approve" style="flex:1" onclick="MT._saveEditTask(${id})">✓ ${t("اعتماد والحفظ", "Approve & Save")}</button>
+        <button class="btn-ghost" style="flex:1" onclick="document.getElementById('pm-edit-modal').remove()">${t("إلغاء", "Cancel")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async _saveEditTask(id) {
+    const text_ar = document.getElementById("pm-task-ar")?.value?.trim();
+    const text_en = document.getElementById("pm-task-en")?.value?.trim();
+    const owner_id = document.getElementById("pm-task-owner")?.value || null;
+    const due_date = document.getElementById("pm-task-due")?.value || null;
+    const priority = document.getElementById("pm-task-priority")?.value || null;
+    const notes = document.getElementById("pm-task-notes")?.value?.trim() || null;
+    document.getElementById("pm-edit-modal")?.remove();
+    await this.approveTask(id, { text_ar, text_en, owner_id: owner_id ? Number(owner_id) : null, due_date, priority, notes });
+  },
+
+  async approveAllTasks() {
+    const drafts = this._d.tasks.filter((x) => x.ai_status === "ai_draft");
+    if (!drafts.length) return;
+    try {
+      await Promise.all(drafts.map((x) => api(`/api/tasks/${x.id}/approve`, { method: "POST", body: "{}" })));
+      showToast(this.t(`✓ تم اعتماد ${drafts.length} مهام`, `✓ ${drafts.length} tasks approved`));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر اعتماد المهام: ", "Could not approve tasks: ") + e.message, "error"); }
+  },
+
   // ── Actions tab ───────────────────────────────────────────────
   _tabActions() {
     const d = this._d;
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
+    const canAct = App.can("actions.assign") || App.can("actions.update");
+
+    // Split AI drafts from official tasks
+    const aiDrafts = d.tasks.filter((x) => x.ai_status === "ai_draft");
+    const officialAll = d.tasks.filter((x) => x.ai_status !== "ai_draft");
+
+    // AI Draft review panel
+    let draftPanel = "";
+    if (aiDrafts.length) {
+      draftPanel = `<div class="pm-review-banner">
+        <div class="pm-banner-ico">🤖</div>
+        <div class="pm-banner-body">
+          <div class="pm-banner-t">${t(`${aiDrafts.length} مهمة مقترحة تحتاج مراجعة`, `${aiDrafts.length} AI-suggested task${aiDrafts.length !== 1 ? "s" : ""} need${aiDrafts.length === 1 ? "s" : ""} review`)}</div>
+          <div class="pm-banner-s">${t("راجع كل مهمة وحدِّد المسؤول وتاريخ الاستحقاق قبل الاعتماد.", "Review each task, assign an owner and due date, then approve.")}</div>
+        </div>
+        ${canAct ? `<button class="btn-gold btn-sm" onclick="MT.approveAllTasks()">✓ ${t("اعتماد الكل", "Approve All")}</button>` : ""}
+      </div>
+      <div class="pm-draft-list">${aiDrafts.map((x) => this._aiTaskCard(x)).join("")}</div>`;
+    }
+
     if (!d.tasks.length)
       return `<div class="mx-card"><div class="mx-empty"><div class="ic">🎯</div><div class="t">${t("لا توجد إجراءات", "No actions")}</div><div class="s">${t("تُستخرج الإجراءات التنفيذية تلقائياً من تسجيل الاجتماع بعد معالجته.", "Executive actions are extracted automatically from the meeting recording once processed.")}</div></div></div>`;
-    return `<div class="mx-card"><div class="mx-card-t">🎯 ${t("الإجراءات التنفيذية", "Executive Actions")} <span class="mt2-tab-n">${d.tasks.length}</span>
+
+    const officialSection = officialAll.length ? `<div class="mx-card"><div class="mx-card-t">🎯 ${t("الإجراءات الرسمية", "Official Actions")} <span class="mt2-tab-n">${officialAll.length}</span>
         <button class="mx-link" onclick="Panels.load('tasks')">${t("فتح لوحة المهام", "Open Tasks Board")} →</button></div>
       <div style="overflow-x:auto"><table class="mx-table"><thead><tr>
         <th>#</th><th>${t("الإجراء", "Action")}</th><th>${t("المسؤول", "Owner")}</th><th>${t("الاستحقاق", "Due Date")}</th><th>${t("الأولوية", "Priority")}</th><th>${t("الحالة", "Status")}</th>
       </tr></thead><tbody>
-      ${d.tasks.map((x, i) => {
+      ${officialAll.map((x, i) => {
         const meta = (typeof taskStatusMeta === "function") ? taskStatusMeta(x.status) : null;
         const owner = (l === "ar" ? x.owner_name_ar : x.owner_name_en) || x.owner_name_ar || "";
         const prio = { high: { ar: "عالية", en: "High", cls: "tr" }, urgent: { ar: "عاجلة", en: "Urgent", cls: "tr" }, normal: { ar: "عادية", en: "Normal", cls: "tgr" }, medium: { ar: "متوسطة", en: "Medium", cls: "tgold" }, low: { ar: "منخفضة", en: "Low", cls: "tgr" } }[String(x.priority || "").toLowerCase()];
@@ -613,7 +915,9 @@ const MT = {
           <td style="white-space:nowrap">${x.due_date ? fmtDate(x.due_date) : "—"}</td>
           <td>${prio ? `<span class="tag ${prio.cls}">${this.t(prio.ar, prio.en)}</span>` : "—"}</td>
           <td>${meta ? `<span class="tag ${meta.tagClass}">${l === "ar" ? meta.ar : meta.en}</span>` : esc(x.status || "")}</td></tr>`;
-      }).join("")}</tbody></table></div></div>`;
+      }).join("")}</tbody></table></div></div>` : "";
+
+    return `${draftPanel ? `<div class="pm-draft-section">${draftPanel}</div>` : ""}${officialSection}`;
   },
 
   // ── Documents tab ─────────────────────────────────────────────
@@ -1634,11 +1938,23 @@ const LiveMT = {
         body: JSON.stringify({ process_ai: processAI, transcript, live_notes: liveNotes }),
       });
       this._state = "ended";
-      if (processAI) {
-        api(`/api/meetings/${this._mid}/process`, { method: "POST", body: "{}" }).catch(() => {});
-      }
       showToast(this.t("✓ انتهى الاجتماع — شكراً", "✓ Meeting ended — thank you"));
       await MT._refreshDetail();
+      if (processAI) {
+        this._processingAI = true;
+        MT._renderDetail();
+        api(`/api/meetings/${this._mid}/process`, { method: "POST", body: "{}" })
+          .then(async () => {
+            this._processingAI = false;
+            showToast(this.t("✅ اكتملت المعالجة — النتائج جاهزة للمراجعة", "✅ Processing complete — results ready for review"));
+            await MT._refreshDetail();
+          })
+          .catch(() => {
+            this._processingAI = false;
+            showToast(this.t("تعذّرت المعالجة — حاول مجدداً", "Processing failed — please try again"), "error");
+            MT._renderDetail();
+          });
+      }
     } catch (e) {
       this._ending = false;
       showToast(this.t("تعذّر إنهاء الاجتماع: ", "Could not end meeting: ") + e.message, "error");

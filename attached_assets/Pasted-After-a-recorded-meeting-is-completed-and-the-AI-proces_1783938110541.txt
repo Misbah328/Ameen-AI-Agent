@@ -1,0 +1,298 @@
+After a recorded meeting is completed and the AI processing finishes, show the generated Tasks and Decisions on the same meeting page.
+
+Do not redirect the user to a separate page immediately. The organizer or secretary should be able to review, edit, assign, and approve the generated items directly inside the completed meeting.
+
+Required Post-Meeting Flow
+
+When the user clicks End Meeting:
+
+Stop the recording and live transcription.
+Process the transcript.
+Generate draft minutes.
+Extract draft decisions.
+Extract draft tasks/action items.
+Keep the user on the same meeting page.
+Show a clear processing status until the results are ready.
+Automatically display the generated results when processing is complete.
+Post-Meeting Results Layout
+
+After processing, show the following sections on the same page:
+
+Meeting Summary
+Draft Minutes
+Decisions
+Tasks / Action Items
+Unresolved Discussion Points
+
+The user should also be able to access the same information from the existing tabs:
+
+Minutes
+Decisions
+Actions
+
+Do not create duplicate records when the user moves between tabs.
+
+Generated Tasks Section
+
+For every task extracted from the transcript, show:
+
+Task title
+Task description
+Assignee
+Due date
+Priority
+Related agenda item
+Related decision
+Source transcript reference
+Status
+AI confidence, if available
+
+Each generated task must initially have the status:
+
+AI Draft
+
+The user should be able to:
+
+Edit the task
+Assign it to an internal user
+Add an external responsible person, if allowed
+Set or change the due date
+Set priority
+Link it to an agenda item
+Link it to a decision
+Approve and save it
+Reject it
+Merge duplicate tasks
+Assignment Behaviour
+
+When the user assigns and approves a task:
+
+Save it as an official meeting action.
+Add it to the meeting’s Actions tab.
+Add it to the central Tasks section of the platform.
+Link it permanently to the originating meeting.
+Link it to the relevant entity.
+Link it to the related agenda item or decision, where applicable.
+Show the meeting title and meeting date in the central task record.
+Notify the assigned person according to the existing notification rules.
+
+Example:
+
+Task: Prepare the revised financial report
+Assigned to: Sarah Ahmed
+Due date: 20 July 2026
+Origin: Executive Meeting — Performance Review
+Related agenda item: Financial Performance Review
+
+The task must appear both:
+
+Inside the meeting under Actions
+In the main platform Tasks section
+
+Both views must reference the same database record. Do not create two separate copies.
+
+Generated Decisions Section
+
+For every decision extracted from the transcript, show:
+
+Decision title
+Decision description
+Decision owner
+Related agenda item
+Related task
+Decision date
+Status
+Source transcript reference
+AI confidence, if available
+
+Each generated decision must initially have the status:
+
+AI Draft
+
+The user should be able to:
+
+Edit the decision
+Approve it
+Reject it
+Merge duplicates
+Link it to an agenda item
+Link it to one or more tasks
+Assign a responsible owner
+Add implementation notes
+
+When approved:
+
+Save it in the meeting’s Decisions tab.
+Link it to the originating meeting.
+Link it to the correct entity.
+Preserve the transcript source.
+Create any related tasks only after user confirmation.
+
+AI-generated decisions must not become official automatically.
+
+Same-Page Review Experience
+
+After processing is complete, show a review panel such as:
+
+Meeting Processing Complete
+1 draft summary generated
+6 draft minute sections generated
+3 possible decisions identified
+5 possible tasks identified
+
+Buttons:
+
+Review Minutes
+Review Decisions
+Review Tasks
+Review All
+
+The user should be able to approve items one by one or select multiple items and approve them together.
+
+Task Status Workflow
+
+Use the following task statuses:
+
+AI Draft
+Awaiting Assignment
+Assigned
+In Progress
+Completed
+Overdue
+Cancelled
+Rejected
+
+Recommended behaviour:
+
+Generated but not reviewed → AI Draft
+Approved without assignee → Awaiting Assignment
+Approved and assigned → Assigned
+Work started → In Progress
+Finished → Completed
+Decision Status Workflow
+
+Use the following decision statuses:
+
+AI Draft
+Under Review
+Approved
+Rejected
+Deferred
+Reopened
+Amended
+Implemented
+Database and Linking Requirements
+
+Use one central task record with references such as:
+
+Task ID
+Meeting ID
+Entity ID
+Agenda item ID
+Decision ID
+Assignee ID
+Created from AI
+Transcript segment ID
+Approved by
+Approved timestamp
+Status
+
+For decisions, store:
+
+Decision ID
+Meeting ID
+Entity ID
+Agenda item ID
+Transcript segment ID
+Created from AI
+Approved by
+Approved timestamp
+Status
+
+Do not duplicate tasks between the meeting Actions tab and the central Tasks section. Both locations must read from the same source record.
+
+Editing and Synchronization
+
+When a task is updated from the meeting page, the same change must appear in the central Tasks section.
+
+When a task is updated from the central Tasks section, the change must appear in the meeting Actions tab.
+
+Synchronize:
+
+Assignee
+Due date
+Priority
+Status
+Description
+Completion progress
+
+The same synchronization rule applies to decisions shown in different parts of the platform.
+
+Permissions
+
+Only authorized users should be able to approve AI-generated tasks and decisions.
+
+Suggested permissions:
+
+Organizer
+Meeting secretary
+Governance administrator
+Authorized committee chair
+
+Regular attendees may view or comment only if permitted.
+
+An assignee may update the status of their assigned task but should not change the original meeting decision unless authorized.
+
+Audit Logging
+
+Create event records for:
+
+AI_TASK_GENERATED
+AI_TASK_EDITED
+AI_TASK_APPROVED
+AI_TASK_REJECTED
+TASK_ASSIGNED
+TASK_DUE_DATE_CHANGED
+TASK_STATUS_CHANGED
+AI_DECISION_GENERATED
+AI_DECISION_EDITED
+AI_DECISION_APPROVED
+AI_DECISION_REJECTED
+DECISION_LINKED_TO_TASK
+
+Each event should include:
+
+Meeting ID
+Task or decision ID
+User ID
+Timestamp
+Previous value
+New value
+Source
+Relevant metadata
+Testing Checklist
+
+Please test the following:
+
+Record and complete a meeting.
+End the meeting.
+Confirm that processing begins.
+Confirm that draft tasks and decisions appear on the same meeting page.
+Edit a generated task.
+Assign the task to a user.
+Set a due date and priority.
+Approve the task.
+Confirm that it appears in the meeting Actions tab.
+Confirm that it also appears in the central Tasks section.
+Confirm that both views use the same record.
+Update the task status from the central Tasks section.
+Confirm that the meeting Actions tab updates.
+Approve a generated decision.
+Confirm that it appears in the meeting Decisions tab.
+Link a task to the approved decision.
+Reject an incorrect AI-generated item.
+Confirm that rejected items do not appear as official tasks or decisions.
+Confirm that all actions are recorded in the audit log.
+Confirm that refreshing the page does not lose the generated results.
+
+Please implement only this post-meeting Tasks and Decisions workflow and do not redesign unrelated meeting features.

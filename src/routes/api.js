@@ -1488,6 +1488,96 @@ router.delete('/tasks/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── AI Draft Task approve / reject ─────────────────────────────────────────────
+function logMeetingEvent(meetingId, eventType, entityId, userId, prevVal, newVal, meta) {
+  if (!meetingId) return;
+  try {
+    db.prepare(`INSERT INTO meeting_events (meeting_id, event_type, entity_id, user_id, source, previous_value, new_value, metadata) VALUES (?, ?, ?, ?, 'user', ?, ?, ?)`)
+      .run(meetingId, eventType, entityId || null, userId || null, prevVal || '', newVal || '', JSON.stringify(meta || {}));
+  } catch (_) {}
+}
+
+router.post('/tasks/:id/approve', auth, async (req, res) => {
+  if (!canFullyManageActions(req.user.id)) return res.status(403).json({ error: 'Not permitted to approve tasks' });
+  const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Not found' });
+
+  const { owner_id, due_date, priority, text_ar, text_en, notes } = req.body;
+  let oId = owner_id || task.owner_id || null;
+  let oNameAr = task.owner_name_ar || '';
+  let oNameEn = task.owner_name_en || '';
+  if (owner_id) {
+    const u = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(owner_id);
+    if (u) { oNameAr = u.name_ar; oNameEn = u.name_en; }
+  }
+  const newStatus = oId ? 'assigned' : 'open';
+  db.prepare(`UPDATE tasks SET
+    ai_status='approved', status=?, review_status='approved',
+    approved_by=?, approved_at=CURRENT_TIMESTAMP,
+    owner_id=COALESCE(?,owner_id), owner_name_ar=COALESCE(?,owner_name_ar), owner_name_en=COALESCE(?,owner_name_en),
+    due_date=COALESCE(?,due_date), priority=COALESCE(?,priority),
+    text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en), notes=COALESCE(?,notes),
+    assigned_at=CASE WHEN ? IS NOT NULL AND (owner_id IS NULL OR owner_id != ?) THEN CURRENT_TIMESTAMP ELSE assigned_at END,
+    updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(newStatus, req.user.id, oId, oNameAr || null, oNameEn || null,
+      due_date || null, priority || null, text_ar || null, text_en || null, notes || null,
+      owner_id || null, owner_id || null, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
+  logMeetingEvent(task.source_meeting_id, 'AI_TASK_APPROVED', task.id, req.user.id, 'ai_draft', 'approved', { text_ar: task.text_ar });
+  if (owner_id && owner_id !== task.owner_id) {
+    logMeetingEvent(task.source_meeting_id, 'TASK_ASSIGNED', task.id, req.user.id, task.owner_name_ar || '', oNameAr, { owner_id });
+    await notifyTaskAssigned(updated, req.user.id);
+  }
+  res.json(updated);
+});
+
+router.post('/tasks/:id/reject', auth, (req, res) => {
+  if (!canFullyManageActions(req.user.id)) return res.status(403).json({ error: 'Not permitted to reject tasks' });
+  const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Not found' });
+  const { reason } = req.body;
+  db.prepare(`UPDATE tasks SET ai_status='rejected', status='cancelled', rejection_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(reason || '', req.params.id);
+  logMeetingEvent(task.source_meeting_id, 'AI_TASK_REJECTED', task.id, req.user.id, 'ai_draft', 'rejected', { reason: reason || '' });
+  res.json({ success: true });
+});
+
+// ── AI Draft Decision approve / reject ─────────────────────────────────────────
+router.post('/decisions/:id/approve', auth, (req, res) => {
+  if (!canFullyManageActions(req.user.id)) return res.status(403).json({ error: 'Not permitted to approve decisions' });
+  const dec = db.prepare('SELECT * FROM decisions WHERE id=?').get(req.params.id);
+  if (!dec) return res.status(404).json({ error: 'Not found' });
+  const { text_ar, text_en, notes, implementation_notes, decided_by, owner_id } = req.body;
+  let ownerName = decided_by || dec.decided_by || '';
+  if (owner_id) {
+    const u = db.prepare('SELECT name_ar FROM users WHERE id=?').get(owner_id);
+    if (u) ownerName = u.name_ar;
+  }
+  db.prepare(`UPDATE decisions SET
+    ai_status='approved', status='active', approved_by=?, approved_at=CURRENT_TIMESTAMP,
+    text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en),
+    notes=COALESCE(?,notes), implementation_notes=COALESCE(?,implementation_notes),
+    decided_by=COALESCE(?,decided_by), owner_id=COALESCE(?,owner_id)
+    WHERE id=?`)
+    .run(req.user.id, text_ar || null, text_en || null, notes || null, implementation_notes || null,
+      ownerName || null, owner_id || null, req.params.id);
+  const updated = db.prepare('SELECT * FROM decisions WHERE id=?').get(req.params.id);
+  logMeetingEvent(dec.meeting_id, 'AI_DECISION_APPROVED', dec.id, req.user.id, 'ai_draft', 'approved', { text_ar: dec.text_ar });
+  res.json(updated);
+});
+
+router.post('/decisions/:id/reject', auth, (req, res) => {
+  if (!canFullyManageActions(req.user.id)) return res.status(403).json({ error: 'Not permitted to reject decisions' });
+  const dec = db.prepare('SELECT * FROM decisions WHERE id=?').get(req.params.id);
+  if (!dec) return res.status(404).json({ error: 'Not found' });
+  const { reason } = req.body;
+  db.prepare(`UPDATE decisions SET ai_status='rejected', status='cancelled', rejection_reason=? WHERE id=?`)
+    .run(reason || '', req.params.id);
+  logMeetingEvent(dec.meeting_id, 'AI_DECISION_REJECTED', dec.id, req.user.id, 'ai_draft', 'rejected', { reason: reason || '' });
+  res.json({ success: true });
+});
+
 // ── Task Progress History ──────────────────────────────────────────────────────
 
 router.get('/tasks/:id/updates', auth, (req, res) => {
@@ -1635,8 +1725,19 @@ router.post('/decisions', auth, (req, res) => {
 });
 
 router.patch('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {
-  db.prepare('UPDATE decisions SET status=? WHERE id=?').run(req.body.status, req.params.id);
-  res.json({ success: true });
+  const dec = db.prepare('SELECT * FROM decisions WHERE id=?').get(req.params.id);
+  if (!dec) return res.status(404).json({ error: 'Not found' });
+  const { status, text_ar, text_en, notes, decided_by, implementation_notes } = req.body;
+  db.prepare(`UPDATE decisions SET
+    status=COALESCE(?,status), text_ar=COALESCE(?,text_ar), text_en=COALESCE(?,text_en),
+    notes=COALESCE(?,notes), decided_by=COALESCE(?,decided_by),
+    implementation_notes=COALESCE(?,implementation_notes)
+    WHERE id=?`)
+    .run(status || null, text_ar || null, text_en || null, notes || null, decided_by || null, implementation_notes || null, req.params.id);
+  if (status && status !== dec.status) {
+    logMeetingEvent(dec.meeting_id, 'AI_DECISION_EDITED', dec.id, req.user.id, dec.status, status, {});
+  }
+  res.json(db.prepare('SELECT * FROM decisions WHERE id=?').get(req.params.id));
 });
 
 router.delete('/decisions/:id', auth, requirePermission('actions.assign'), (req, res) => {

@@ -319,3 +319,49 @@
 
 /* ── Post-meeting transcript (read-only) ────────────────────── */
 .lmt-transcript-ro .lmt-tr-text{background:#fff;border-color:#E7E9EE}
+
+/* ── Post-meeting AI review — shared ────────────────────────── */
+.pm-draft-section{margin-bottom:16px}
+.pm-review-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#F0F4FF 0%,#EDF9F4 100%);border:1.5px solid #C7D7FF;border-radius:14px;padding:14px 18px;margin-bottom:12px}
+.pm-banner-ico{font-size:26px;flex-shrink:0}
+.pm-banner-body{flex:1;min-width:0}
+.pm-banner-t{font-size:13.5px;font-weight:800;color:#1a2540;margin-bottom:2px}
+.pm-banner-s{font-size:11.5px;color:#5b6e8a;line-height:1.5}
+.pm-draft-list{display:flex;flex-direction:column;gap:10px}
+.pm-draft-card{background:#fff;border:1.5px solid #E0E7FF;border-radius:12px;padding:14px 16px;transition:border-color .15s,box-shadow .15s}
+.pm-draft-card:hover{border-color:#818CF8;box-shadow:0 2px 12px rgba(99,102,241,.1)}
+.pm-draft-card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.pm-draft-label{font-size:11px;font-weight:700;color:#6366F1;background:#EEF2FF;padding:2px 8px;border-radius:100px}
+.pm-conf-badge{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px}
+.pm-conf-high{background:#D1FAE5;color:#065F46}
+.pm-conf-med{background:#FEF3C7;color:#92400E}
+.pm-conf-low{background:#FEE2E2;color:#991B1B}
+.pm-draft-card-text{font-size:13.5px;font-weight:600;color:#0F1728;line-height:1.5;margin-bottom:6px}
+.pm-draft-card-alt{font-size:12px;color:#697386;line-height:1.5;margin-bottom:6px}
+.pm-draft-card-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#374151;margin-bottom:6px}
+.pm-meta-warn{color:#B45309;font-style:italic}
+.pm-draft-card-ref{font-size:11px;color:#9CA3AF;line-height:1.5;margin-bottom:8px;padding:6px 10px;background:#F9FAFB;border-radius:6px;border-left:3px solid #D1D5DB}
+[dir=rtl] .pm-draft-card-ref{border-left:none;border-right:3px solid #D1D5DB}
+.pm-draft-card-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.pm-btn-approve{background:#1F8A5D;color:#fff;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s}
+.pm-btn-approve:hover{background:#16704A}
+.pm-btn-reject{background:#fff;color:#DC2626;border:1.5px solid #FECACA;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
+.pm-btn-reject:hover{background:#FEF2F2;border-color:#DC2626}
+
+/* ── Edit modal tweaks ───────────────────────────────────────── */
+.pm-edit-modal{max-width:540px!important;text-align:start!important;padding:28px 28px!important}
+
+/* ── Purple tag (AI Draft status) ───────────────────────────── */
+.tpurple{background:#EEF2FF;color:#4F46E5;border-color:#C7D2FE}
+
+/* ── Processing / complete bars (post-meeting live tab) ─────── */
+.pm-processing-bar{display:flex;align-items:center;gap:14px;background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:14px;padding:14px 18px;margin-bottom:16px}
+.pm-proc-spin{font-size:28px;flex-shrink:0;animation:pm-spin 1.5s linear infinite}
+@keyframes pm-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.pm-proc-t{font-size:13.5px;font-weight:800;color:#92400E;margin-bottom:2px}
+.pm-proc-s{font-size:11.5px;color:#B45309;line-height:1.5}
+.pm-complete-bar{display:flex;align-items:flex-start;gap:14px;background:linear-gradient(135deg,#ECFDF5 0%,#F0FDF4 100%);border:1.5px solid #A7F3D0;border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.pm-complete-ico{font-size:28px;flex-shrink:0}
+.pm-complete-body{flex:1;min-width:0}
+.pm-complete-t{font-size:14px;font-weight:800;color:#064E3B;margin-bottom:4px}
+.pm-complete-s{font-size:12px;color:#065F46;line-height:1.5}

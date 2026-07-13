@@ -341,6 +341,8 @@ Object.values(ROLE_ACCESS).forEach((set) => {
 // Legacy DB values ('new', 'normal', 'urgent') are aliased rather than
 // migrated, so existing rows keep working with zero data changes.
 const TASK_STATUS_META = {
+  ai_draft: { ar: "مسودة AI", en: "AI Draft", tagClass: "tpurple" },
+  awaiting_assignment: { ar: "بانتظار الإسناد", en: "Awaiting Assignment", tagClass: "tb" },
   open: { ar: "مفتوحة", en: "Open", tagClass: "tb" },
   assigned: { ar: "مُسندة", en: "Assigned", tagClass: "tgold" },
   inprogress: { ar: "قيد التنفيذ", en: "In Progress", tagClass: "ta" },

@@ -477,9 +477,10 @@ async function processMeeting({ meetingId, userId = null }) {
 
   // ── Idempotency: clear previously AI-derived rows for this meeting before
   // re-inserting, so re-processing (e.g. auto-process on stop + manual button)
-  // never duplicates. Confirmed drafts are preserved (only status='draft' cleared).
-  db.prepare('DELETE FROM tasks WHERE source_meeting_id=?').run(meeting.id);
-  db.prepare('DELETE FROM decisions WHERE meeting_id=?').run(meeting.id);
+  // never duplicates. Only AI-draft rows are removed — user-approved rows are
+  // preserved so approved tasks/decisions survive a re-run.
+  db.prepare("DELETE FROM tasks WHERE source_meeting_id=? AND ai_status='ai_draft'").run(meeting.id);
+  db.prepare("DELETE FROM decisions WHERE meeting_id=? AND ai_status='ai_draft'").run(meeting.id);
   db.prepare("DELETE FROM schedule WHERE source_meeting_id=? AND status='draft'").run(meeting.id);
 
   // ── Sync tasks into the tasks table (linked to Meeting_ID) ────────────────
@@ -492,8 +493,8 @@ async function processMeeting({ meetingId, userId = null }) {
     aiLog('task:none', { meetingId, reason });
   } else {
     const insertTask = db.prepare(`
-      INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, needs_review, review_status, ai_confidence, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+      INSERT INTO tasks (text_ar, text_en, owner_id, owner_name_ar, owner_name_en, due_date, priority, status, ai_status, needs_review, review_status, ai_confidence, created_from_ai, transcript_segment, source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'ai_draft', 'ai_draft', ?, 'pending', ?, 1, ?, ?, ?, ?, ?)
     `);
     for (const t of tasks) {
       // Match on whichever owner field the model returned (AR or EN). A sentinel
@@ -512,13 +513,17 @@ async function processMeeting({ meetingId, userId = null }) {
       // or owner/date are missing; high when a real team member was matched AND
       // a due date was extracted; medium otherwise (e.g. owner named but unmatched).
       const confidence = uncertain ? 'low' : (u && t.due ? 'high' : 'medium');
-      insertTask.run(
+      const row = insertTask.run(
         t.text_ar, t.text_en || t.text_ar,
         u ? u.id : null, t.owner_ar || '', t.owner_en || '',
         t.due || '', t.priority || 'normal', review, confidence,
+        t.transcript_ref || '',
         meeting.id, finalTitleAr, finalTitleEn, userId || meeting.recorded_by || null
       );
       tasksCreated++;
+      // Log AI_TASK_GENERATED event
+      db.prepare(`INSERT INTO meeting_events (meeting_id, event_type, entity_id, user_id, source, metadata) VALUES (?, 'AI_TASK_GENERATED', ?, ?, 'ai', ?)`)
+        .run(meeting.id, row.lastInsertRowid, userId || null, JSON.stringify({ text_ar: t.text_ar, confidence, owner: t.owner_ar || t.owner_en || '' }));
       aiLog('task:created', {
         meetingId, text: (t.text_ar || '').slice(0, 80), owner: t.owner_ar || '(unassigned)',
         due: t.due || '(none)', needs_review: review === 1, reason: review ? (t.review_reason || 'missing owner/date') : ''
@@ -529,8 +534,19 @@ async function processMeeting({ meetingId, userId = null }) {
   // ── Decisions ─────────────────────────────────────────────────────────────
   const decisions = Array.isArray(result.decisions) ? result.decisions : [];
   if (decisions.length) {
-    const insertDecision = db.prepare(`INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en) VALUES (?, ?, ?, ?, ?)`);
-    decisions.forEach(d => insertDecision.run(d.text_ar, d.text_en || d.text_ar, meeting.id, finalTitleAr, finalTitleEn));
+    const insertDecision = db.prepare(`
+      INSERT INTO decisions (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en, ai_status, created_from_ai, confidence, transcript_segment)
+      VALUES (?, ?, ?, ?, ?, 'ai_draft', 1, ?, ?)
+    `);
+    decisions.forEach(d => {
+      const row = insertDecision.run(
+        d.text_ar, d.text_en || d.text_ar, meeting.id, finalTitleAr, finalTitleEn,
+        d.confidence || 'medium', d.transcript_ref || ''
+      );
+      // Log AI_DECISION_GENERATED event
+      db.prepare(`INSERT INTO meeting_events (meeting_id, event_type, entity_id, user_id, source, metadata) VALUES (?, 'AI_DECISION_GENERATED', ?, ?, 'ai', ?)`)
+        .run(meeting.id, row.lastInsertRowid, userId || null, JSON.stringify({ text_ar: d.text_ar }));
+    });
   }
 
   // ── Proactive scheduling: turn intents into Draft meetings ────────────────
