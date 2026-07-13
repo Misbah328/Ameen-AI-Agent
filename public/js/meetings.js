@@ -507,7 +507,12 @@ const MT = {
       center = `<div class="mx-card">
         ${summary ? `<div class="mx-keypoints"><div class="mx-keypoints-t">${t("ملخص النقاش", "Discussion Summary")}</div><div style="font-size:12.5px;color:#1D2939;line-height:1.7">${esc(summary)}</div></div>` : ""}
         ${minutes ? `<div class="mx-minutes-body">${esc(minutes)}</div>`
-          : `<div class="mx-empty" style="padding:40px 12px"><div class="ic">📝</div><div class="t">${t("لم يُولَّد المحضر بعد", "Minutes not generated yet")}</div><div class="s">${t("يُولَّد المحضر تلقائياً بعد معالجة تسجيل الاجتماع بالذكاء الاصطناعي.", "Minutes are generated automatically once the meeting recording is processed by AI.")}</div></div>`}
+          : `<div class="mx-empty" style="padding:30px 12px">
+              <div class="ic">📝</div>
+              <div class="t">${t("لم يُولَّد المحضر بعد", "Minutes not generated yet")}</div>
+              <div class="s">${t("يُولَّد المحضر تلقائياً بعد معالجة تسجيل الاجتماع بالذكاء الاصطناعي، أو يمكنك كتابته يدوياً.", "Minutes are generated automatically after AI processing, or you can write them manually.")}</div>
+              ${App.can("minutes.view") || App.can("meetings.edit") ? `<button class="btn-gold btn-sm" style="margin-top:14px" onclick="MT.writeMinutes()">✏ ${t("كتابة المحضر يدوياً", "Write Minutes Manually")}</button>` : ""}
+            </div>`}
       </div>`;
     }
 
@@ -890,6 +895,170 @@ const MT = {
     } catch (e) { showToast(this.t("تعذّر اعتماد المهام: ", "Could not approve tasks: ") + e.message, "error"); }
   },
 
+  // ── Write Minutes manually ────────────────────────────────────
+  writeMinutes() {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const m = this._d.meeting;
+    const existing = (l === "ar" ? m.ai_minutes_ar : m.ai_minutes_en) || m.ai_minutes_ar || "";
+    document.getElementById("mt-minutes-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "modal-overlay open";
+    el.id = "mt-minutes-modal";
+    el.innerHTML = `<div class="modal-box" style="max-width:680px;width:95vw" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span>📝 ${t("كتابة المحضر", "Write Minutes")}</span>
+        <button class="modal-close" onclick="document.getElementById('mt-minutes-modal').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;color:#697386">${esc(this._title(m))}</div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#697386;margin-bottom:4px;display:block">${t("نص المحضر (عربي / ثنائي اللغة)", "Minutes Text (Arabic / Bilingual)")}</label>
+          <textarea id="mt-min-ar" class="fi" rows="12" style="resize:vertical;font-size:13px;line-height:1.7;direction:auto">${esc(existing)}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('mt-minutes-modal').remove()">${t("إلغاء", "Cancel")}</button>
+        <button class="btn-gold" onclick="MT.saveManualMinutes()">✓ ${t("حفظ المحضر", "Save Minutes")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async saveManualMinutes() {
+    const text = document.getElementById("mt-min-ar")?.value?.trim();
+    if (!text) { showToast(this.t("الرجاء كتابة نص المحضر", "Please enter the minutes text"), "error"); return; }
+    document.getElementById("mt-minutes-modal")?.remove();
+    try {
+      await api(`/api/meetings/${this._mid}/manual-minutes`, { method: "POST", body: JSON.stringify({ minutes_ar: text, minutes_en: text }) });
+      showToast(this.t("✓ تم حفظ المحضر", "✓ Minutes saved"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر حفظ المحضر: ", "Could not save minutes: ") + e.message, "error"); }
+  },
+
+  // ── Add Action / Assign Action ────────────────────────────────
+  addAction() {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const users = this._d.attendees || [];
+    const m = this._d.meeting;
+    document.getElementById("mt-action-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "modal-overlay open";
+    el.id = "mt-action-modal";
+    el.innerHTML = `<div class="modal-box" style="max-width:500px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span>🎯 ${t("إضافة إجراء", "Add Action")}</span>
+        <button class="modal-close" onclick="document.getElementById('mt-action-modal').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div class="frow">
+          <label class="fl">${t("وصف الإجراء", "Action Description")} <span class="req">*</span></label>
+          <input class="fi" id="mt-act-text" placeholder="${t("ما الإجراء المطلوب تنفيذه؟", "What action needs to be taken?")}" />
+        </div>
+        <div class="frow">
+          <label class="fl">${t("المسؤول", "Assignee")}</label>
+          <select class="fi" id="mt-act-owner">
+            <option value="">${t("— اختر عضو الفريق —", "— Select team member —")}</option>
+            ${users.filter(u => u.user_id || u.id).map((u) => `<option value="${u.user_id || u.id}">${esc(l === "ar" ? u.name_ar || u.name_en : u.name_en || u.name_ar)}</option>`).join("")}
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="frow">
+            <label class="fl">${t("تاريخ الاستحقاق", "Due Date")}</label>
+            <input class="fi" id="mt-act-due" type="date" />
+          </div>
+          <div class="frow">
+            <label class="fl">${t("الأولوية", "Priority")}</label>
+            <select class="fi" id="mt-act-prio">
+              ${[["normal","عادية","Normal"],["medium","متوسطة","Medium"],["high","عالية","High"],["low","منخفضة","Low"]].map(([v,ar,en]) => `<option value="${v}">${t(ar,en)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('mt-action-modal').remove()">${t("إلغاء", "Cancel")}</button>
+        <button class="btn-gold" onclick="MT._saveNewAction()">+ ${t("إضافة الإجراء", "Add Action")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async _saveNewAction() {
+    const text = document.getElementById("mt-act-text")?.value?.trim();
+    if (!text) { showToast(this.t("الرجاء كتابة وصف الإجراء", "Please enter action description"), "error"); return; }
+    const owner_id = document.getElementById("mt-act-owner")?.value || null;
+    const due_date = document.getElementById("mt-act-due")?.value || null;
+    const priority = document.getElementById("mt-act-prio")?.value || "normal";
+    const m = this._d.meeting;
+    document.getElementById("mt-action-modal")?.remove();
+    try {
+      await api("/api/tasks", { method: "POST", body: JSON.stringify({
+        text_ar: text, text_en: text,
+        owner_id: owner_id ? Number(owner_id) : null,
+        due_date, priority,
+        source_meeting_id: this._mid,
+        source_meeting_title_ar: m.title_ar,
+        source_meeting_title_en: m.title_en,
+        review_status: "approved",
+      })});
+      showToast(this.t("✓ تم إضافة الإجراء", "✓ Action added"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر إضافة الإجراء: ", "Could not add action: ") + e.message, "error"); }
+  },
+
+  assignAction(taskId) {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const task = this._d.tasks.find((x) => x.id === taskId);
+    if (!task) return;
+    const users = this._d.attendees || [];
+    document.getElementById("mt-assign-modal")?.remove();
+    const el = document.createElement("div");
+    el.className = "modal-overlay open";
+    el.id = "mt-assign-modal";
+    el.innerHTML = `<div class="modal-box" style="max-width:420px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span>👤 ${t("تعيين المسؤول", "Assign to Team")}</span>
+        <button class="modal-close" onclick="document.getElementById('mt-assign-modal').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:12.5px;font-weight:600;color:#0F1728;background:#F6F5F1;border-radius:8px;padding:10px 12px">${esc(this._text(task))}</div>
+        <div class="frow">
+          <label class="fl">${t("المسؤول", "Assignee")} <span class="req">*</span></label>
+          <select class="fi" id="mt-asgn-owner">
+            <option value="">${t("— اختر عضو الفريق —", "— Select team member —")}</option>
+            ${users.filter(u => u.user_id || u.id).map((u) => `<option value="${u.user_id || u.id}" ${task.owner_id == (u.user_id || u.id) ? "selected" : ""}>${esc(l === "ar" ? u.name_ar || u.name_en : u.name_en || u.name_ar)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="frow">
+          <label class="fl">${t("تاريخ الاستحقاق", "Due Date")}</label>
+          <input class="fi" id="mt-asgn-due" type="date" value="${esc(task.due_date || "")}" />
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('mt-assign-modal').remove()">${t("إلغاء", "Cancel")}</button>
+        <button class="btn-gold" onclick="MT._saveAssign(${taskId})">✓ ${t("تعيين", "Assign")}</button>
+      </div>
+    </div>`;
+    el.addEventListener("click", () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  async _saveAssign(taskId) {
+    const owner_id = document.getElementById("mt-asgn-owner")?.value;
+    const due_date = document.getElementById("mt-asgn-due")?.value || null;
+    if (!owner_id) { showToast(this.t("الرجاء اختيار عضو", "Please select a team member"), "error"); return; }
+    document.getElementById("mt-assign-modal")?.remove();
+    try {
+      await api(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ owner_id: Number(owner_id), due_date }) });
+      showToast(this.t("✓ تم التعيين", "✓ Assigned successfully"));
+      await this._refreshDetail();
+    } catch (e) { showToast(this.t("تعذّر التعيين: ", "Could not assign: ") + e.message, "error"); }
+  },
+
   // ── Actions tab ───────────────────────────────────────────────
   _tabActions() {
     const d = this._d;
@@ -915,13 +1084,15 @@ const MT = {
       <div class="pm-draft-list">${aiDrafts.map((x) => this._aiTaskCard(x)).join("")}</div>`;
     }
 
+    const addBtn = canAct ? `<button class="btn-gold btn-sm" onclick="MT.addAction()">+ ${t("إضافة إجراء", "Add Action")}</button>` : "";
+
     if (!d.tasks.length)
-      return `<div class="mx-card"><div class="mx-empty"><div class="ic">🎯</div><div class="t">${t("لا توجد إجراءات", "No actions")}</div><div class="s">${t("تُستخرج الإجراءات التنفيذية تلقائياً من تسجيل الاجتماع بعد معالجته.", "Executive actions are extracted automatically from the meeting recording once processed.")}</div></div></div>`;
+      return `<div class="mx-card"><div class="mx-card-t">🎯 ${t("الإجراءات", "Actions")} ${addBtn}</div><div class="mx-empty"><div class="ic">🎯</div><div class="t">${t("لا توجد إجراءات", "No actions")}</div><div class="s">${t("تُستخرج الإجراءات التنفيذية تلقائياً من التسجيل، أو يمكنك إضافتها يدوياً.", "Executive actions are extracted automatically from the recording, or add them manually.")}</div></div></div>`;
 
     const officialSection = officialAll.length ? `<div class="mx-card"><div class="mx-card-t">🎯 ${t("الإجراءات الرسمية", "Official Actions")} <span class="mt2-tab-n">${officialAll.length}</span>
-        <button class="mx-link" onclick="Panels.load('tasks')">${t("فتح لوحة المهام", "Open Tasks Board")} →</button></div>
+        ${addBtn}<button class="mx-link" onclick="Panels.load('tasks')">${t("لوحة المهام", "Tasks Board")} →</button></div>
       <div style="overflow-x:auto"><table class="mx-table"><thead><tr>
-        <th>#</th><th>${t("الإجراء", "Action")}</th><th>${t("المسؤول", "Owner")}</th><th>${t("الاستحقاق", "Due Date")}</th><th>${t("الأولوية", "Priority")}</th><th>${t("الحالة", "Status")}</th>
+        <th>#</th><th>${t("الإجراء", "Action")}</th><th>${t("المسؤول", "Owner")}</th><th>${t("الاستحقاق", "Due Date")}</th><th>${t("الأولوية", "Priority")}</th><th>${t("الحالة", "Status")}</th><th></th>
       </tr></thead><tbody>
       ${officialAll.map((x, i) => {
         const meta = (typeof taskStatusMeta === "function") ? taskStatusMeta(x.status) : null;
@@ -929,10 +1100,11 @@ const MT = {
         const prio = { high: { ar: "عالية", en: "High", cls: "tr" }, urgent: { ar: "عاجلة", en: "Urgent", cls: "tr" }, normal: { ar: "عادية", en: "Normal", cls: "tgr" }, medium: { ar: "متوسطة", en: "Medium", cls: "tgold" }, low: { ar: "منخفضة", en: "Low", cls: "tgr" } }[String(x.priority || "").toLowerCase()];
         return `<tr><td class="mx-num">${this._num("A", i)}</td>
           <td style="font-weight:600">${esc(this._text(x))}</td>
-          <td style="white-space:nowrap">${owner ? `<div class="mx-person"><span class="mx-av">${esc(this._initials(owner))}</span><span class="mx-person-n">${esc(owner)}</span></div>` : "—"}</td>
+          <td style="white-space:nowrap">${owner ? `<div class="mx-person"><span class="mx-av">${esc(this._initials(owner))}</span><span class="mx-person-n">${esc(owner)}</span></div>` : `<span style="color:#98A2B3;font-size:11px">${t("غير محدد", "Unassigned")}</span>`}</td>
           <td style="white-space:nowrap">${x.due_date ? fmtDate(x.due_date) : "—"}</td>
           <td>${prio ? `<span class="tag ${prio.cls}">${this.t(prio.ar, prio.en)}</span>` : "—"}</td>
-          <td>${meta ? `<span class="tag ${meta.tagClass}">${l === "ar" ? meta.ar : meta.en}</span>` : esc(x.status || "")}</td></tr>`;
+          <td>${meta ? `<span class="tag ${meta.tagClass}">${l === "ar" ? meta.ar : meta.en}</span>` : esc(x.status || "")}</td>
+          <td style="white-space:nowrap">${canAct ? `<button class="btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="MT.assignAction(${x.id})">👤 ${t("تعيين", "Assign")}</button>` : ""}</td></tr>`;
       }).join("")}</tbody></table></div></div>` : "";
 
     return `${draftPanel ? `<div class="pm-draft-section">${draftPanel}</div>` : ""}${officialSection}`;

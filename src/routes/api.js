@@ -1826,6 +1826,21 @@ router.get('/schedule', auth, (req, res) => {
   `).all());
 });
 
+// POST /api/meetings/:id/manual-minutes — save hand-written minutes
+router.post('/meetings/:id/manual-minutes', auth, (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Not found' });
+  const { minutes_ar, minutes_en } = req.body;
+  if (!minutes_ar) return res.status(400).json({ error: 'minutes_ar required' });
+  db.prepare('UPDATE meetings SET ai_minutes_ar=?, ai_minutes_en=? WHERE id=?')
+    .run(minutes_ar, minutes_en || minutes_ar, req.params.id);
+  const stagesBeforeGenerated = ['created', 'recording', 'transcript_generated'];
+  if (stagesBeforeGenerated.includes(meeting.lifecycle_stage || 'created')) {
+    transitionMeeting(req.params.id, 'ai_minutes_generated', req.user.id, 'Manual minutes saved');
+  }
+  res.json({ ok: true });
+});
+
 // GET /api/schedule/:id — fetch a single schedule row
 router.get('/schedule/:id', auth, (req, res) => {
   const s = db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id);
