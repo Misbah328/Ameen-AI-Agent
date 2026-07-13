@@ -902,7 +902,7 @@ const Panels = {
     overview: renderOverview,
   },
   async load(name) {
-    // Warn if the Schedule form has unsaved changes before navigating away.
+    // Warn if the Schedule or Create Meeting form has unsaved changes before navigating away.
     if (this.current === "schedule" && name !== "schedule"
         && typeof Schedule !== "undefined" && Schedule._dirty) {
       const l = App.lang;
@@ -911,6 +911,15 @@ const Panels = {
         : "You have unsaved changes. Are you sure you want to leave?";
       if (!confirm(msg)) return;
       Schedule._dirty = false;
+    }
+    if (this.current === "create-meeting" && name !== "create-meeting"
+        && typeof CreateMeetingWizard !== "undefined" && CreateMeetingWizard._dirty) {
+      const l = App.lang;
+      const msg = l === "ar"
+        ? "لديك تغييرات غير محفوظة. هل تريد المغادرة؟"
+        : "You have unsaved changes. Are you sure you want to leave?";
+      if (!confirm(msg)) return;
+      CreateMeetingWizard._dirty = false;
     }
     // Live Meetings runs a 1s elapsed-timer interval while open — stop it the
     // moment we navigate away, same idea as Rec clearing its own timerInt on
@@ -8583,6 +8592,9 @@ const Schedule = {
 // already proven out by the Schedule object — see _submitSchedule() below.
 const CreateMeetingWizard = {
   state: { step: 1, agenda: [], decisions: [], actions: [], roles: [] },
+  _submitting: false,
+  _dirty: false,
+  _dirtyBound: false,
   _ROLES: [
     { val: "chair",           ar: "رئيس الجلسة",       en: "Chair"                },
     { val: "organizer",       ar: "منظِّم",              en: "Organizer"            },
@@ -8599,6 +8611,9 @@ const CreateMeetingWizard = {
   init() {
     this.state = { step: 1, agenda: [], decisions: [], actions: [], roles: [] };
     this._resetFields();
+    this._dirty = false;
+    this._submitting = false;
+    this._dirtyBound = false;
     this._populateBoardSelects();
     this._populateOrganizerSelect();
     this._populatePrevMeetings();
@@ -8611,6 +8626,7 @@ const CreateMeetingWizard = {
     this.renderAttachmentNames();
     this._applySchedulePermission();
     this.goStep(1);
+    this._initDirtyTracking();
     // App._boards/_members are filled by loadSelectLists() after login — if
     // the user opens Create Meeting before that finishes, the selects would
     // stay empty. Fetch the reference data directly in that case.
@@ -8650,12 +8666,55 @@ const CreateMeetingWizard = {
     }
   },
 
+  _setSubmitting(on, isDraft) {
+    this._submitting = on;
+    const l = App.lang;
+    const loadingLabel = l === "ar" ? "جارٍ..." : "Working...";
+    const draftLabel   = l === "ar" ? "حفظ كمسودة" : "Save as Draft";
+    const createLabel  = l === "ar" ? "إنشاء الاجتماع" : "Create Meeting";
+    ["cm-submit-top", "cm-submit-btn", "cm-bottom-submit"].forEach(id => {
+      const btn = $(id); if (!btn) return;
+      btn.disabled = on;
+      const lbl = btn.querySelector("span");
+      if (lbl) lbl.textContent = on && !isDraft ? loadingLabel : createLabel;
+    });
+    ["cm-draft-top", "cm-draft-btn", "cm-bottom-draft"].forEach(id => {
+      const btn = $(id); if (!btn) return;
+      btn.disabled = on;
+      btn.textContent = on && isDraft ? loadingLabel : draftLabel;
+    });
+    const cancelBtn = $("cm-bottom-cancel");
+    if (cancelBtn) cancelBtn.disabled = on;
+  },
+
+  bottomCancel() {
+    if (this._dirty) {
+      const l = App.lang;
+      const msg = l === "ar"
+        ? "لديك تغييرات غير محفوظة. هل تريد المغادرة؟"
+        : "You have unsaved changes. Are you sure you want to leave?";
+      if (!confirm(msg)) return;
+    }
+    this._dirty = false;
+    Panels.load("scheduled");
+  },
+
+  _initDirtyTracking() {
+    if (this._dirtyBound) return;
+    const card = $("cm-form-card");
+    if (!card) return;
+    const mark = () => { if (!this._submitting) this._dirty = true; };
+    card.addEventListener("input", mark);
+    card.addEventListener("change", mark);
+    this._dirtyBound = true;
+  },
+
   // Hide "Create Meeting" (schedule) actions for roles without calendar.manage
   // — they can still save drafts. Applies to both the sticky header buttons
   // and the step-4 submit button.
   _applySchedulePermission() {
     const canSchedule = App.can("calendar.manage");
-    ["cm-submit-top", "cm-submit-btn"].forEach((id) => {
+    ["cm-submit-top", "cm-submit-btn", "cm-bottom-submit"].forEach((id) => {
       const el = $(id);
       if (el) el.style.display = canSchedule ? "" : "none";
     });
@@ -8978,9 +9037,8 @@ const CreateMeetingWizard = {
     const joinUrlVal = (($("cm-join-url") || {}).value || "").trim();
     const rolesPayload = this.state.roles.filter(r => r.name || r.role);
 
-    const btn = $(isDraft ? "cm-draft-btn" : "cm-submit-btn");
-    const originalHtml = btn ? btn.innerHTML : "";
-    if (btn) btn.disabled = true;
+    if (this._submitting) return;
+    this._setSubmitting(true, isDraft);
 
     try {
       const meetingPayload = Object.assign({
@@ -9063,11 +9121,12 @@ const CreateMeetingWizard = {
       showToast(isDraft
         ? (l === "ar" ? "✓ تم حفظ الاجتماع كمسودة" : "✓ Meeting saved as draft")
         : (l === "ar" ? "✓ تم إنشاء الاجتماع وجدولته" : "✓ Meeting created and scheduled"));
+      this._dirty = false;
       await Panels.load("scheduled");
     } catch (e) {
       showToast((l === "ar" ? "تعذّر إنشاء الاجتماع: " : "Could not create meeting: ") + e.message, "error");
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+      this._setSubmitting(false, isDraft);
     }
   },
 };

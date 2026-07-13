@@ -1182,7 +1182,13 @@ const MT = {
         <div class="mx-card"><div class="mx-card-t">${t("معاينة الاجتماع", "Meeting Preview")}</div>
           <div id="mxc-preview">${this._createPreviewHtml()}</div>
         </div>
-      </div></div>`;
+      </div></div>
+
+      <div class="mxc-action-bar" id="mxc-bottom-bar">
+        <button class="btn-ghost mxc-ab-cancel" id="mxc-bottom-cancel" onclick="MT.cancelCreate()">${t("إلغاء", "Cancel")}</button>
+        <button class="btn-ghost" id="mxc-bottom-draft" onclick="MT.submitCreate(true)">${t("حفظ كمسودة", "Save as Draft")}</button>
+        ${canSchedule ? `<button class="btn-gold" id="mxc-bottom-submit" onclick="MT.submitCreate(false)">📅 ${t("جدولة الاجتماع", "Schedule Meeting")}</button>` : ""}
+      </div>`;
 
     // live preview updates
     ["mxc-title", "mxc-date", "mxc-start", "mxc-end", "mxc-venue", "mxc-joinurl", "mxc-extra"].forEach((id) => {
@@ -1246,8 +1252,11 @@ const MT = {
     const extraNames = (v("mxc-extra") || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
     const allAttendees = [...cs.members.map((m) => m.name), ...extraNames];
 
+    if (this._submittingCreate) return;
+    this._submittingCreate = true;
+    const allBtns = ["mxc-draft-btn","mxc-submit-btn","mxc-bottom-draft","mxc-bottom-submit","mxc-bottom-cancel"];
     const draftBtn = $("mxc-draft-btn"), subBtn = $("mxc-submit-btn");
-    [draftBtn, subBtn].forEach((b) => { if (b) b.disabled = true; });
+    allBtns.forEach((id) => { const b = $(id); if (b) b.disabled = true; });
     try {
       const meeting = await api("/api/meetings", {
         method: "POST",
@@ -1323,8 +1332,22 @@ const MT = {
     } catch (e) {
       showToast(t("تعذّر إنشاء الاجتماع: ", "Could not create meeting: ") + e.message, "error");
     } finally {
-      [draftBtn, subBtn].forEach((b) => { if (b) b.disabled = false; });
+      this._submittingCreate = false;
+      allBtns.forEach((id) => { const b = $(id); if (b) b.disabled = false; });
     }
+  },
+
+  cancelCreate() {
+    const t = (ar, en) => this.t(ar, en);
+    if (this._cs && (this._cs.members.length || this._cs.agenda.some((a) => a.title.trim()) || $("mxc-title")?.value.trim())) {
+      const msg = App.lang === "ar"
+        ? "لديك تغييرات غير محفوظة. هل تريد المغادرة؟"
+        : "You have unsaved changes. Are you sure you want to leave?";
+      if (!confirm(msg)) return;
+    }
+    this._cs = null;
+    this._createRendered = false;
+    this.showList();
   },
 
   // ═════════════════════════════════════════════════════════════

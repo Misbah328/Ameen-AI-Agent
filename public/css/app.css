@@ -1532,6 +1532,40 @@ button.mt2-chev-open:hover{background:#F2F4F7;color:#A8842C}
 .bnav-ask svg{stroke:#1a1a2e!important}
 @media(max-width:768px){.bottom-nav{display:flex}.main{padding-bottom:72px}.shell>.sidebar{display:none}}
 
+/* ══ MT CREATE MEETING — bottom action bar ══════════════════════════════════ */
+.mxc-action-bar{
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;
+  padding:14px 170px 14px 22px;margin-top:20px;flex-wrap:wrap;
+  border-top:1px solid #E4E7EC;
+  position:sticky;bottom:0;z-index:10;
+  background:#F4F5F7;
+  box-shadow:0 -3px 12px rgba(0,0,0,.08);
+}
+[dir="rtl"] .mxc-action-bar{padding:14px 22px 14px 170px}
+.mxc-ab-cancel{margin-inline-end:auto!important}
+@media(max-width:600px){
+  .mxc-action-bar{flex-direction:column;gap:8px;padding:12px 16px;margin-top:12px}
+  .mxc-ab-cancel{width:100%;text-align:center;margin-inline-end:0!important}
+  .mxc-action-bar .btn-ghost,.mxc-action-bar .btn-gold{width:100%;justify-content:center}
+}
+
+/* ══ CREATE MEETING WIZARD — bottom action bar ═══════════════════════════════ */
+.cm-action-bar{
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;
+  padding:14px 170px 14px 22px;flex-wrap:wrap;
+  border-top:1px solid #E4E7EC;
+  position:sticky;bottom:0;z-index:10;
+  background:#F4F5F7;
+  box-shadow:0 -3px 12px rgba(0,0,0,.08);
+}
+[dir="rtl"] .cm-action-bar{padding:14px 22px 14px 170px}
+.cm-ab-cancel{margin-inline-end:auto!important}
+@media(max-width:600px){
+  .cm-action-bar{flex-direction:column;gap:8px;padding:12px 16px}
+  .cm-ab-cancel{width:100%;text-align:center;margin-inline-end:0!important}
+  .cm-action-bar .cw-btn-ghost,.cm-action-bar .cw-btn-primary{width:100%;justify-content:center}
+}
+
 /* ══ SCHEDULE FORM — bottom action bar ══════════════════════════════════════ */
 .nm-action-bar{
   display:flex;align-items:center;justify-content:flex-end;gap:10px;

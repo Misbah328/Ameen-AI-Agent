@@ -810,6 +810,19 @@
         <span class="cw-strip-i">✓ <span data-ar="بدء الاجتماع والتسجيل" data-en="Start the meeting and record">بدء الاجتماع والتسجيل</span></span>
         <span class="cw-strip-i">✓ <span data-ar="توليد المحضر والقرارات والإجراءات بالذكاء الاصطناعي" data-en="Generate AI minutes, decisions &amp; actions">توليد المحضر والقرارات والإجراءات بالذكاء الاصطناعي</span></span>
       </div>
+
+      <!-- ── Bottom action bar ── -->
+      <div class="cm-action-bar" id="cm-bottom-bar">
+        <button class="cw-btn-ghost cm-ab-cancel" id="cm-bottom-cancel" onclick="CreateMeetingWizard.bottomCancel()">
+          <span data-ar="إلغاء" data-en="Cancel">إلغاء / Cancel</span>
+        </button>
+        <button class="cw-btn-ghost" id="cm-bottom-draft" onclick="CreateMeetingWizard.submit(true)">
+          <span data-ar="حفظ كمسودة" data-en="Save as Draft">حفظ كمسودة</span>
+        </button>
+        <button class="cw-btn-primary" id="cm-bottom-submit" onclick="CreateMeetingWizard.submit(false)">
+          ✓ <span id="cm-bottom-label" data-ar="إنشاء الاجتماع" data-en="Create Meeting">إنشاء الاجتماع</span>
+        </button>
+      </div>
     </div>
   </div>
 </section>
