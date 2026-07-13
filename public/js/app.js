@@ -223,7 +223,7 @@ function renderMinutesDoc(raw, lang) {
 // ══ RBAC ═══════════════════════════════════════════════════════════════════════
 const ROLE_ACCESS = {
   Admin: new Set([
-    "create-meeting", "scheduled", "live", "workspace",
+    "create-meeting", "scheduled", "live",
     "transcripts",
     "history",
     "lastmeeting",
@@ -240,7 +240,7 @@ const ROLE_ACCESS = {
     "admin",
   ]),
   CEO: new Set([
-    "create-meeting", "scheduled", "live", "workspace",
+    "create-meeting", "scheduled", "live",
     "transcripts",
     "history",
     "lastmeeting",
@@ -278,7 +278,7 @@ const ROLE_ACCESS = {
     "governance", "boards",
   ]),
   Executive: new Set([
-    "create-meeting", "scheduled", "live", "workspace",
+    "create-meeting", "scheduled", "live",
     "transcripts",
     "history",
     "lastmeeting",
@@ -291,7 +291,7 @@ const ROLE_ACCESS = {
     "analytics", "activity",
   ]),
   Manager: new Set([
-    "create-meeting", "scheduled", "live", "workspace",
+    "create-meeting", "scheduled", "live",
     "transcripts",
     "history",
     "tasks",
@@ -303,21 +303,21 @@ const ROLE_ACCESS = {
     "overview",
     "analytics", "activity",
   ]),
-  Employee: new Set(["overview", "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "tasks", "ask"]),
+  Employee: new Set(["overview", "create-meeting", "scheduled", "live", "transcripts", "history", "tasks", "ask"]),
   Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
   // ── Phase 4 enterprise RBAC roles ──────────────────────────────────────────
   "Super Admin": new Set([
-    "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
     "governance", "boards", "integrations", "admin",
   ]),
   "Organization Admin": new Set([
-    "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
     "governance", "boards", "integrations", "admin",
   ]),
   "Board Secretary": new Set([
-    "create-meeting", "scheduled", "live", "workspace", "transcripts", "history", "lastmeeting", "tasks", "ask",
+    "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "overview", "analytics", "activity", "governance", "boards",
   ]),
   "Committee Chair": new Set([
@@ -935,7 +935,7 @@ const Panels = {
     // "Meetings" nav item highlighted while the user is inside any of them.
     const navAlias = {
       "create-meeting": "scheduled", record: "scheduled", live: "scheduled",
-      workspace: "scheduled", transcripts: "scheduled", history: "scheduled",
+      transcripts: "scheduled", history: "scheduled",
       series: "scheduled", lastmeeting: "scheduled", schedule: "scheduled",
       team: "integrations", activity: "overview",
     };
@@ -1026,8 +1026,8 @@ const Panels = {
         await LiveMeetingsPanel.refresh();
         break;
       case "workspace":
-        await WorkspacePanel.refresh();
-        break;
+        if (window.MT) { MT.openDetail(null); } else await Panels.load("scheduled");
+        return;
     }
     this._startPolling();
   },
@@ -1802,7 +1802,6 @@ const Rec = {
     if (wasBound && finishedMeetingId && (Panels.current === "record" || Panels.current === "live")) {
       showToast(App.lang === "ar" ? "✓ تم إيقاف التسجيل — جارٍ فتح صفحة الاجتماع" : "✓ Recording stopped — opening the meeting page");
       if (window.MT) MT.openDetail(finishedMeetingId);
-      else WorkspacePanel.open(finishedMeetingId);
     }
   },
 
@@ -6805,7 +6804,7 @@ const NotificationCenter = {
       if (sourceType === "task" && sourceId) {
         setTimeout(() => { try { Tasks.edit(sourceId); } catch(e){} }, 200);
       } else if (sourceType === "meeting" && sourceId) {
-        setTimeout(() => { try { WorkspacePanel.open(sourceId); } catch(e){} }, 200);
+        setTimeout(() => { try { if(window.MT) MT.openDetail(sourceId); } catch(e){} }, 200);
       } else if (sourceType === "schedule" && sourceId) {
         setTimeout(() => { try { ScheduledPanel.openWorkspace(sourceId); } catch(e){} }, 300);
       } else if (sourceType === "resolution") {
@@ -9860,89 +9859,7 @@ const LiveMeetingsPanel = {
 };
 
 // ══ Meeting Workspace (Phase 2 redesign) ═══════════════════════════════════
-// "One central workspace for each meeting" — rather than a second, duplicated
-// rendering of overview/agenda/transcript/AI review/actions/documents/
-// timeline/reports, this reuses MeetingHistory's existing tabbed detail view
-// (see MeetingHistory._target above) targeted at this panel's own `ws-*`
-// containers instead of History's `hist-*` ones. Reachable directly from the
-// sidebar (with a live/recent-aware landing choice), and as a deep link from
-// Scheduled ("Open Workspace"), Live Meetings (after Stop), and History
-// (which still also has its own inline split view for browsing).
-const WorkspacePanel = {
-  async refresh() {
-    // No specific meeting requested (plain sidebar click) — prefer whatever's
-    // most relevant right now: a meeting actually in progress, else the last
-    // one the user was looking at, else let them choose.
-    try {
-      const meetings = await api("/api/meetings");
-      const live = meetings.find((m) => m.lifecycle_stage === "recording");
-      if (live) { this.open(live.id); return; }
-    } catch (_) {}
-    const recentIds = MeetingRecent.list();
-    if (recentIds.length) { this.open(recentIds[0]); return; }
-    this.showPicker();
-  },
-
-  open(meetingId) {
-    Panels.current = "workspace";
-    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
-    const panel = $("panel-workspace");
-    if (panel) panel.classList.add("active");
-    document.querySelectorAll(".nb").forEach((b) => b.classList.toggle("active", b.dataset.p === "workspace"));
-    App.applyLang(App.lang);
-    MeetingHistory._target = "ws";
-    const picker = $("ws-picker");
-    const detail = $("ws-detail");
-    const backBtn = $("ws-back-btn");
-    if (picker) picker.style.display = "none";
-    if (detail) detail.style.display = "";
-    if (backBtn) backBtn.style.display = "";
-    MeetingHistory.select(meetingId);
-  },
-
-  async showPicker() {
-    MeetingHistory._target = "ws";
-    const picker = $("ws-picker");
-    const detail = $("ws-detail");
-    const backBtn = $("ws-back-btn");
-    if (detail) detail.style.display = "none";
-    if (backBtn) backBtn.style.display = "none";
-    if (!picker) return;
-    picker.style.display = "";
-    picker.innerHTML = '<div class="es"><div class="loading"></div></div>';
-    const l = App.lang;
-    try {
-      const [meetings, schedule] = await Promise.all([api("/api/meetings"), api("/api/schedule")]);
-      const live = meetings.filter((m) => m.lifecycle_stage === "recording");
-      const recentIds = MeetingRecent.list();
-      const byId = {}; meetings.forEach((m) => { byId[m.id] = m; });
-      const recent = recentIds.map((id) => byId[id]).filter(Boolean).slice(0, 5);
-      const upcoming = schedule.filter((s) => s.status !== "cancelled" && !(s.source_meeting_id && byId[s.source_meeting_id] && byId[s.source_meeting_id].lifecycle_stage !== "created" && byId[s.source_meeting_id].lifecycle_stage !== "invited" && byId[s.source_meeting_id].lifecycle_stage !== "scheduled")).slice(0, 5);
-      const title = (m) => (l === "ar" ? m.title_ar : m.title_en || m.title_ar) || "";
-      const section = (icon, ar, en, itemsHtml) => itemsHtml ? `
-        <div class="hist-sec" style="margin-bottom:14px">
-          <div class="hist-sec-h">${icon} ${l === "ar" ? ar : en}</div>
-          <div class="hist-sec-body">${itemsHtml}</div>
-        </div>` : "";
-      const liveHtml = live.map((m) => `<div class="task-row" style="cursor:pointer" onclick="WorkspacePanel.open(${m.id})">
-        <span class="live-badge-pulse"></span> <span style="flex:1">${esc(title(m))}</span></div>`).join("");
-      const recentHtml = recent.map((m) => `<div class="task-row" style="cursor:pointer" onclick="WorkspacePanel.open(${m.id})">
-        <span style="flex:1">${esc(title(m))}</span></div>`).join("");
-      const upcomingHtml = upcoming.map((s) => `<div class="task-row" style="cursor:pointer" onclick="Panels.load('scheduled')">
-        <span style="flex:1">${esc(l === "ar" ? s.title_ar : s.title_en || s.title_ar)}</span>
-        <span style="color:var(--text3);font-size:11px">${(s.meeting_date || "").substring(0, 10)}</span></div>`).join("");
-      const body = section("🔴", "مباشر الآن", "Live Now", liveHtml) + section("🕐", "شوهد مؤخراً", "Recently Viewed", recentHtml) + section("🗓", "قادمة", "Upcoming", upcomingHtml);
-      picker.innerHTML = body || `<div class="card"><div class="es">
-        <div class="es-icon">🗃</div>
-        <div class="es-title">${l === "ar" ? "لا توجد اجتماعات بعد" : "No meetings yet"}</div>
-        <div class="es-sub">${l === "ar" ? "أنشئ أول اجتماع لفتح مساحة عمله هنا" : "Create your first meeting to open its workspace here"}</div>
-        <button class="btn-gold" style="margin-top:10px" onclick="Panels.load('create-meeting')">➕ ${l === "ar" ? "إنشاء اجتماع" : "Create Meeting"}</button>
-      </div></div>`;
-    } catch (e) {
-      picker.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
-    }
-  },
-};
+// WorkspacePanel removed — all "open meeting" deep-links now use MT.openDetail().
 
 // ══ Master Calendar (Phase T) — month grid over the Schedule panel, color-
 // coded by meeting type + Executive Actions due, click any item to jump to
@@ -10859,7 +10776,7 @@ async function renderOverview() {
       const durMin = num(lm.duration) > 0 ? Math.round(num(lm.duration) / 60) : 0;
       lastCard = `<div class="dx2-card dx2-last">
         <div class="dx2-card-h"><span class="dx2-card-t">${lbl("آخر اجتماع", "Last Meeting")}</span>${stChip}</div>
-        <div class="dx2-last-title" role="button" tabindex="0" onclick="WorkspacePanel.open(${num(lm.id)})" onkeydown="if(event.key==='Enter')WorkspacePanel.open(${num(lm.id)})">${btxt(lm.title_ar, lm.title_en)}</div>
+        <div class="dx2-last-title" role="button" tabindex="0" onclick="MT.openDetail(${num(lm.id)})" onkeydown="if(event.key==='Enter')MT.openDetail(${num(lm.id)})">${btxt(lm.title_ar, lm.title_en)}</div>
         <div class="dx2-last-meta">📅 ${fmtD((lm.meeting_date || lm.created_at || "").substring(0, 10))}</div>
         <div class="dx2-last-meta">${minutesChip}</div>
         ${summary ? `<div class="dx2-last-sum">${summary.length > 200 ? summary.substring(0, 200) + "…" : summary}</div>` : ""}
@@ -10868,7 +10785,7 @@ async function renderOverview() {
           <div class="dx2-stat"><div class="dx2-stat-v">${taskN}</div><div class="dx2-stat-l">${lbl("مهام أُنشئت", "Tasks Created")}</div></div>
           <div class="dx2-stat"><div class="dx2-stat-v">${durMin ? durMin + lbl(" د", "m") : "—"}</div><div class="dx2-stat-l">${lbl("المدة", "Duration")}</div></div>
         </div>
-        <button class="btn-gold" style="width:100%" onclick="WorkspacePanel.open(${num(lm.id)})">${lbl("عرض التفاصيل", "View Details")}</button>
+        <button class="btn-gold" style="width:100%" onclick="MT.openDetail(${num(lm.id)})">${lbl("عرض التفاصيل", "View Details")}</button>
       </div>`;
     } else {
       lastCard = `<div class="dx2-card"><div class="dx2-card-h"><span class="dx2-card-t">${lbl("آخر اجتماع", "Last Meeting")}</span></div>
