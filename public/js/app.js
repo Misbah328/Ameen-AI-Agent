@@ -902,6 +902,16 @@ const Panels = {
     overview: renderOverview,
   },
   async load(name) {
+    // Warn if the Schedule form has unsaved changes before navigating away.
+    if (this.current === "schedule" && name !== "schedule"
+        && typeof Schedule !== "undefined" && Schedule._dirty) {
+      const l = App.lang;
+      const msg = l === "ar"
+        ? "لديك تغييرات غير محفوظة. هل تريد المغادرة؟"
+        : "You have unsaved changes. Are you sure you want to leave?";
+      if (!confirm(msg)) return;
+      Schedule._dirty = false;
+    }
     // Live Meetings runs a 1s elapsed-timer interval while open — stop it the
     // moment we navigate away, same idea as Rec clearing its own timerInt on
     // stop(), so it doesn't keep ticking against detached DOM in the background.
@@ -7857,6 +7867,62 @@ const BoardPack = {
 
 // ══ Schedule ══════════════════════════════════════════════════════════════════
 const Schedule = {
+  _submitting: false,
+  _dirty: false,
+  _editingId: null,
+  _dirtyBound: false,
+
+  _setSubmitting(on, isDraft) {
+    this._submitting = on;
+    const l = App.lang;
+    const scheduleLabel = this._editingId
+      ? (l === "ar" ? "حفظ التعديلات" : "Save Changes")
+      : (l === "ar" ? "جدولة الاجتماع" : "Schedule Meeting");
+    const schedLoading = l === "ar" ? "جارٍ الجدولة..." : "Scheduling...";
+    const draftLoading = l === "ar" ? "جارٍ الحفظ..." : "Saving draft...";
+    const draftLabel  = l === "ar" ? "حفظ كمسودة" : "Save as Draft";
+
+    ["nm-submit-btn", "nm-bottom-submit"].forEach((id) => {
+      const btn = $(id);
+      if (!btn) return;
+      btn.disabled = on;
+      const lbl = btn.querySelector("span[id]") || btn.querySelector("span");
+      if (lbl) lbl.textContent = on ? (isDraft ? draftLoading : schedLoading) : scheduleLabel;
+    });
+    const draftBtn = $("nm-bottom-draft");
+    if (draftBtn) {
+      draftBtn.disabled = on;
+      draftBtn.textContent = on && isDraft ? draftLoading : draftLabel;
+    }
+  },
+
+  bottomCancel() {
+    if (this._dirty) {
+      const l = App.lang;
+      const msg = l === "ar"
+        ? "لديك تغييرات غير محفوظة. هل تريد المغادرة؟"
+        : "You have unsaved changes. Are you sure you want to leave?";
+      if (!confirm(msg)) return;
+    }
+    this._dirty = false;
+    if (this._editingId) {
+      this.cancelEdit();
+    } else {
+      this._resetForm();
+      Panels.load("scheduled");
+    }
+  },
+
+  _initDirtyTracking() {
+    if (this._dirtyBound) return;
+    const card = $("nm-form-card");
+    if (!card) return;
+    const mark = () => { if (!this._submitting) this._dirty = true; };
+    card.addEventListener("input", mark);
+    card.addEventListener("change", mark);
+    this._dirtyBound = true;
+  },
+
   _populateBoardSelects() {
     const l = App.lang;
     const boards = App._boards || [];
@@ -7873,6 +7939,7 @@ const Schedule = {
     this.onBoardChange();
     this._populatePrevMeetings();
     SeriesUI.init('nm');
+    this._initDirtyTracking();
   },
   async _populatePrevMeetings() {
     const sel = $("nm-prev");
@@ -7996,7 +8063,6 @@ const Schedule = {
         row("جدول الأعمال", "Agenda", val("nm-agenda-ar") || val("nm-agenda-en"))
       );
   },
-  _editingId: null,
   _resetForm() {
     ["nm-title", "nm-att", "nm-agenda-ar", "nm-agenda-en"].forEach(
       (id) => ($(id).value = ""),
@@ -8015,6 +8081,7 @@ const Schedule = {
     SeriesUI.invalidate();
     SeriesUI.setMode("nm", "standalone");
     SeriesUI.init("nm");
+    this._dirty = false;
     this.wizGoTo(1);
   },
   // Toggles the "Schedule New Meeting" form between create mode (guided
@@ -8027,10 +8094,15 @@ const Schedule = {
     if (titleEl) titleEl.textContent = editing
       ? (l === "ar" ? "تعديل الاجتماع" : "Edit Meeting")
       : (l === "ar" ? "جدولة اجتماع جديد" : "Schedule New Meeting");
-    const labelEl = $("nm-submit-label");
-    if (labelEl) labelEl.textContent = editing
+    const schedLabel = editing
       ? (l === "ar" ? "حفظ التعديلات" : "Save Changes")
       : (l === "ar" ? "جدولة" : "Schedule");
+    const labelEl = $("nm-submit-label");
+    if (labelEl) labelEl.textContent = schedLabel;
+    const bottomLabel = $("nm-bottom-label");
+    if (bottomLabel) bottomLabel.textContent = editing
+      ? (l === "ar" ? "حفظ التعديلات" : "Save Changes")
+      : (l === "ar" ? "جدولة الاجتماع" : "Schedule Meeting");
     const cancelBtn = $("nm-cancel-btn");
     if (cancelBtn) cancelBtn.style.display = editing ? "" : "none";
     const tplBtn = $("nm-template-save-btn");
@@ -8039,6 +8111,7 @@ const Schedule = {
     if (card) card.classList.toggle("wiz-flat", editing);
   },
   cancelEdit() {
+    this._dirty = false;
     this._editingId = null;
     this._resetForm();
     this._setFormMode(false);
@@ -8073,40 +8146,73 @@ const Schedule = {
       alert((l === "ar" ? "تعذّر تحميل الاجتماع: " : "Could not load meeting: ") + e.message);
     }
   },
-  async add() {
+  async add(isDraft = false) {
+    if (this._submitting) return;
     const editingId = this._editingId;
-    const title = $("nm-title").value.trim();
+    const l = App.lang;
+
+    const titleEl  = $("nm-title");
+    const dateEl   = $("nm-date");
+    const timeEl   = $("nm-time");
+    const title    = titleEl ? titleEl.value.trim() : "";
+    const dateVal  = dateEl  ? dateEl.value  : "";
+    const timeVal  = timeEl  ? timeEl.value  : "";
+    const isFlat   = ($("nm-form-card") || {}).classList && $("nm-form-card").classList.contains("wiz-flat");
+
+    // ── Validate required fields ────────────────────────────────
+    const highlightField = (el, step) => {
+      if (!el) return;
+      el.classList.add("fi-error");
+      setTimeout(() => el.classList.remove("fi-error"), 2500);
+      if (!isFlat && step) this.wizGoTo(step);
+      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), isFlat ? 0 : 350);
+      el.focus();
+    };
+    if (!title) {
+      highlightField(titleEl, 1);
+      showToast(l === "ar" ? "يرجى إدخال عنوان الاجتماع" : "Please enter a meeting title", "error");
+      return;
+    }
+    if (!isDraft && !dateVal) {
+      highlightField(dateEl, 1);
+      showToast(l === "ar" ? "يرجى تحديد تاريخ الاجتماع" : "Please select a meeting date", "error");
+      return;
+    }
+    if (!isDraft && !timeVal) {
+      highlightField(timeEl, 1);
+      showToast(l === "ar" ? "يرجى تحديد وقت الاجتماع" : "Please select a meeting time", "error");
+      return;
+    }
+
     const data = {
       title_ar: title,
       title_en: title,
-      meeting_date: $("nm-date").value,
-      meeting_time: $("nm-time").value,
-      duration_mins: $("nm-dur").value,
-      meeting_provider: $("nm-plat").value,
+      meeting_date: dateVal,
+      meeting_time: timeVal,
+      duration_mins: $("nm-dur") ? $("nm-dur").value : 60,
+      meeting_provider: $("nm-plat") ? $("nm-plat").value : "physical",
       meeting_join_url: ($("nm-join-url") && $("nm-join-url").value.trim()) || "",
       meeting_location: ($("nm-location") && $("nm-location").value.trim()) || "",
-      platform: { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet", hybrid: "Hybrid", virtual: "Virtual" }[$("nm-plat").value] || "قاعة اجتماعات",
-      attendees: $("nm-att").value,
-      agenda_ar: $("nm-agenda-ar").value,
-      agenda_en: $("nm-agenda-en").value,
+      platform: { zoom: "Zoom", teams: "Microsoft Teams", google_meet: "Google Meet", hybrid: "Hybrid", virtual: "Virtual" }[($("nm-plat") || {}).value] || "قاعة اجتماعات",
+      attendees: ($("nm-att") && $("nm-att").value) || "",
+      agenda_ar: ($("nm-agenda-ar") && $("nm-agenda-ar").value) || "",
+      agenda_en: ($("nm-agenda-en") && $("nm-agenda-en").value) || "",
       reminder_channel: ($("nm-channel") && $("nm-channel").value) || "email",
       meeting_type: ($("nm-type") && $("nm-type").value) || "",
       board_id: parseInt($("nm-board") && $("nm-board").value) || null,
       committee_id: parseInt($("nm-committee") && $("nm-committee").value) || null,
       prev_meeting_id: parseInt($("nm-prev") && $("nm-prev").value) || null,
       recurrence: ($("nm-recurrence") && $("nm-recurrence").value) || "none",
+      draft: isDraft,
       ...SeriesUI.resolvePayload("nm"),
     };
-    if (!data.title_ar || !data.meeting_date || !data.meeting_time) {
-      alert(
-        App.lang === "ar"
-          ? "يرجى إدخال العنوان والتاريخ والوقت"
-          : "Please enter title, date and time",
-      );
-      return;
+
+    this._setSubmitting(true, isDraft);
+    try {
+      await this._submit(data, editingId, data.recurrence, false, isDraft);
+    } finally {
+      this._setSubmitting(false, isDraft);
     }
-    const rec = data.recurrence;
-    await this._submit(data, editingId, rec, false);
   },
   // Split out of add() so a 409 double-booking response can re-submit with
   // force:true after the user confirms — Schedule.confirm() already had this
@@ -8115,7 +8221,7 @@ const Schedule = {
   // conflicts list, so both silently had no double-booking protection from
   // the user's point of view (create showed a bare "CONFLICT" string with no
   // way to proceed; edit had no conflict check at all until now).
-  async _submit(data, editingId, rec, force) {
+  async _submit(data, editingId, rec, force, isDraft = false) {
     const l = App.lang;
     try {
       const url = editingId ? `/api/schedule/${editingId}` : "/api/schedule";
@@ -8134,14 +8240,17 @@ const Schedule = {
           l === "ar"
             ? "يتعارض هذا الموعد مع اجتماع مؤكَّد:\n\n" + list + "\n\nهل تريد الحفظ رغم التعارض؟"
             : "This time overlaps a confirmed meeting:\n\n" + list + "\n\nSave anyway?";
-        if (confirm(msg)) return this._submit(data, editingId, rec, true);
+        if (confirm(msg)) return this._submit(data, editingId, rec, true, isDraft);
         return;
       }
       if (!res.ok) throw new Error(resData.message || resData.error || `HTTP ${res.status}`);
+      this._dirty = false;
       if (editingId) {
         this._editingId = null;
         this._setFormMode(false);
         showToast(l === "ar" ? "✓ تم حفظ التعديلات" : "✓ Changes saved");
+      } else if (isDraft) {
+        showToast(l === "ar" ? "✓ تم الحفظ كمسودة" : "✓ Saved as draft");
       } else {
         $("sched-toast").style.display = "flex";
         setTimeout(() => ($("sched-toast").style.display = "none"), 2500);
@@ -8149,7 +8258,7 @@ const Schedule = {
       await renderSchedule();
       await loadBadges();
       this._resetForm();
-      if (!editingId && rec !== "none")
+      if (!editingId && !isDraft && rec !== "none")
         showToast(
           l === "ar"
             ? `✓ تم جدولة الاجتماع + 3 تكرارات (${recurrenceLabel(rec, l)})`

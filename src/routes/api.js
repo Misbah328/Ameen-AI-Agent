@@ -1903,56 +1903,61 @@ function addNPeriods(originDateStr, recurrence, n) {
 const VALID_RECURRENCES = ['none', 'weekly', 'biweekly', 'monthly', 'quarterly'];
 
 router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) => {
-  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_location, meeting_id_external, source_meeting_id } = req.body;
-  if (!title_ar || !meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
-  if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
-    return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
-  }
-  if (!/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
-    return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
+  const { title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, meeting_type, board_id, committee_id, prev_meeting_id, series_id, new_series, recurrence, force, meeting_provider, meeting_join_url, meeting_location, meeting_id_external, source_meeting_id, draft } = req.body;
+  const isDraft = !!draft;
+  const effectiveDate = meeting_date || new Date().toISOString().substring(0, 10);
+  const effectiveTime = meeting_time || '09:00';
+  if (!title_ar) return res.status(400).json({ error: 'Required fields missing' });
+  if (!isDraft) {
+    if (!meeting_date || !meeting_time) return res.status(400).json({ error: 'Required fields missing' });
+    if (!/^\d{4}-\d{2}-\d{2}/.test(meeting_date) || isNaN(new Date(meeting_date).getTime())) {
+      return res.status(400).json({ error: 'meeting_date must be a valid YYYY-MM-DD date' });
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d/.test(meeting_time)) {
+      return res.status(400).json({ error: 'meeting_time must be in HH:MM format' });
+    }
   }
   const chan = ['email', 'whatsapp', 'both'].includes(reminder_channel) ? reminder_channel : 'email';
   const rec = VALID_RECURRENCES.includes(recurrence) ? recurrence : 'none';
-  const conflicts = findConflicts({ date: meeting_date, time: meeting_time, durationMins: duration_mins || 60 });
+  const status = isDraft ? 'draft' : 'confirmed';
+  const conflicts = isDraft ? [] : findConflicts({ date: effectiveDate, time: effectiveTime, durationMins: duration_mins || 60 });
   if (conflicts.length && !force) return res.status(409).json(conflictPayload(conflicts));
-  const groupId = rec !== 'none' ? crypto.randomUUID() : null;
+  const groupId = rec !== 'none' && !isDraft ? crypto.randomUUID() : null;
   const VALID_PROVIDERS = ['zoom','teams','google_meet','physical','virtual','hybrid'];
   const prov = VALID_PROVIDERS.includes(meeting_provider) ? meeting_provider : 'physical';
   const provPlatform = { zoom: 'Zoom', teams: 'Microsoft Teams', google_meet: 'Google Meet', virtual: 'Virtual', hybrid: 'Hybrid' }[prov] || (platform || 'قاعة الاجتماعات');
   const resolvedSeriesId = resolveOrCreateSeriesId({ series_id, new_series }, req.user.id);
   const insertSched = db.prepare(`
     INSERT INTO schedule (title_ar, title_en, meeting_date, meeting_time, duration_mins, platform, attendees, agenda_ar, agenda_en, reminder_channel, status, created_by, meeting_type, board_id, committee_id, prev_meeting_id, series_id, recurrence, recurrence_group_id, meeting_provider, meeting_join_url, meeting_location, meeting_id_external, source_meeting_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const dur = duration_mins || 60;
   let row;
   db.transaction(() => {
-    row = insertSched.run(title_ar, title_en || title_ar, meeting_date, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_location || '', meeting_id_external || '', source_meeting_id || null);
-    if (rec !== 'none') {
+    row = insertSched.run(title_ar, title_en || title_ar, effectiveDate, effectiveTime, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, status, req.user.id, meeting_type || '', board_id || null, committee_id || null, prev_meeting_id || null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_location || '', meeting_id_external || '', source_meeting_id || null);
+    if (rec !== 'none' && !isDraft) {
       for (let i = 1; i <= 3; i++) {
-        const nextDate = addNPeriods(meeting_date, rec, i);
-        insertSched.run(title_ar, title_en || title_ar, nextDate, meeting_time, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_location || '', meeting_id_external || '', null);
+        const nextDate = addNPeriods(effectiveDate, rec, i);
+        insertSched.run(title_ar, title_en || title_ar, nextDate, effectiveTime, dur, provPlatform, attendees || '', agenda_ar || '', agenda_en || '', chan, status, req.user.id, meeting_type || '', board_id || null, committee_id || null, null, resolvedSeriesId || null, rec, groupId, prov, meeting_join_url || '', meeting_location || '', meeting_id_external || '', null);
       }
     }
   })();
-  // attendees is free-text (names/emails/phones, comma or newline separated)
-  // rather than a list of user ids — match whatever looks like an email
-  // against real accounts so registered attendees get an in-app notification
-  // too. Anyone who doesn't resolve to an account (external attendees) simply
-  // doesn't get one, same as they don't get an account-linked anything else.
-  const { splitRecipients, isValidEmail } = require('../utils/validate');
-  const attendeeEmails = splitRecipients(attendees || '').filter(isValidEmail);
-  if (attendeeEmails.length) {
-    const placeholders = attendeeEmails.map(() => '?').join(',');
-    const matchedUsers = db.prepare(`SELECT id FROM users WHERE email IN (${placeholders})`).all(...attendeeEmails);
-    notifyUsers(db, matchedUsers.map(u => u.id), {
-      type: 'meeting_scheduled',
-      titleAr: 'تمت جدولة اجتماع جديد',
-      titleEn: 'New meeting scheduled',
-      bodyAr: `"${title_ar}" — ${meeting_date} الساعة ${meeting_time}`,
-      bodyEn: `"${title_en || title_ar}" — ${meeting_date} at ${meeting_time}`,
-      sourceType: 'schedule', sourceId: row.lastInsertRowid, deepLink: 'schedule',
-    }, req.user.id);
+  // Skip attendee notifications for drafts — they haven't been confirmed yet.
+  if (!isDraft) {
+    const { splitRecipients, isValidEmail } = require('../utils/validate');
+    const attendeeEmails = splitRecipients(attendees || '').filter(isValidEmail);
+    if (attendeeEmails.length) {
+      const placeholders = attendeeEmails.map(() => '?').join(',');
+      const matchedUsers = db.prepare(`SELECT id FROM users WHERE email IN (${placeholders})`).all(...attendeeEmails);
+      notifyUsers(db, matchedUsers.map(u => u.id), {
+        type: 'meeting_scheduled',
+        titleAr: 'تمت جدولة اجتماع جديد',
+        titleEn: 'New meeting scheduled',
+        bodyAr: `"${title_ar}" — ${effectiveDate} الساعة ${effectiveTime}`,
+        bodyEn: `"${title_en || title_ar}" — ${effectiveDate} at ${effectiveTime}`,
+        sourceType: 'schedule', sourceId: row.lastInsertRowid, deepLink: 'schedule',
+      }, req.user.id);
+    }
   }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
 });

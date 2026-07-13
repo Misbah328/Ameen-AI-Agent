@@ -1487,6 +1487,19 @@
             </div>
           </div>
 
+          <!-- ── Bottom action bar ── -->
+          <div class="nm-action-bar" id="nm-bottom-bar">
+            <button class="nm-ab-cancel" id="nm-bottom-cancel" onclick="Schedule.bottomCancel()">
+              <span data-ar="إلغاء" data-en="Cancel">إلغاء / Cancel</span>
+            </button>
+            <button class="nm-ab-draft" id="nm-bottom-draft" onclick="Schedule.add(true)">
+              <span data-ar="حفظ كمسودة" data-en="Save as Draft">حفظ كمسودة</span>
+            </button>
+            <button class="nm-ab-primary" id="nm-bottom-submit" onclick="Schedule.add(false)">
+              ✓ <span id="nm-bottom-label" data-ar="جدولة الاجتماع" data-en="Schedule Meeting">جدولة الاجتماع</span>
+            </button>
+          </div>
+
           <button class="btn-ghost btn-sm" id="nm-cancel-btn" onclick="Schedule.cancelEdit()" style="display:none;margin-top:12px">✕ <span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
           <div class="toast" id="sched-toast">✓ <span data-ar="تمت الجدولة" data-en="Scheduled">تمت الجدولة</span></div>
         </div>

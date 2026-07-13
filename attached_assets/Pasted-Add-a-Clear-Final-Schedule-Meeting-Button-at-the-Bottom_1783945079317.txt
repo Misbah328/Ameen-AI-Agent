@@ -1,0 +1,111 @@
+Add a Clear Final “Schedule Meeting” Button at the Bottom
+
+The current Schedule button at the top-right is acceptable, but it is easy to miss because the form is long. Please add a second, more noticeable primary action button at the end of the meeting creation form.
+
+Recommended Button Text
+
+Use:
+
+Schedule Meeting
+
+This is clearer than “Confirm” or “Book” because the user is creating a scheduled meeting, not booking a room.
+
+Required Placement
+
+Add the button after the final section of the form, below the Agenda section.
+
+Recommended layout:
+
+Bottom-right of the form on desktop
+Full-width or nearly full-width on mobile
+Keep enough spacing above and below the button
+Make it visually prominent using the platform’s primary dark green style
+
+Also include a secondary button beside it:
+
+Save as Draft
+Cancel
+
+Recommended order:
+
+Cancel | Save as Draft | Schedule Meeting
+
+Button Behaviour
+
+When the user clicks Schedule Meeting:
+
+Validate all required fields.
+Highlight any missing or invalid fields.
+Scroll to the first field with an error.
+Disable the button immediately.
+Show a loading state such as:
+Scheduling…
+Send only one request.
+Prevent duplicate meeting creation.
+On success, show:
+Meeting scheduled successfully
+Redirect the user to the new meeting overview page.
+Important Validation
+
+Before scheduling, confirm:
+
+Meeting title is entered
+Meeting type is selected
+Entity is selected
+Date and times are valid
+End time is later than start time
+Location or virtual meeting details are complete
+Required participants are added
+Required agenda rules are satisfied, if applicable
+Keep the Top Button
+
+Do not remove the existing top-right Schedule button.
+
+Both the top and bottom buttons should trigger the same submit function and use the same validation logic.
+
+Do not create two separate submission flows.
+
+Prevent Duplicate Meetings
+
+The current form must not create duplicate meetings if:
+
+The user clicks both buttons
+The user clicks repeatedly
+The request is slow
+The page is temporarily unresponsive
+
+Use one shared loading/submission state for both buttons.
+
+Unsaved Changes
+
+If the user clicks Cancel or leaves the page after entering information, show:
+
+You have unsaved changes. Are you sure you want to leave?
+
+Do not show this warning after a successful save or scheduling action.
+
+Design Requirements
+Use the same visual style as the existing platform.
+Make Schedule Meeting the strongest primary action.
+Keep Save as Draft as a secondary outlined button.
+Keep Cancel subtle.
+Ensure the Ask Ameen floating button does not cover the action area.
+Add enough bottom padding so the buttons remain fully visible.
+Testing Checklist
+
+Please test:
+
+The bottom Schedule Meeting button appears after the Agenda section.
+The button is clearly visible without scrolling back to the top.
+Both Schedule buttons use the same handler.
+Required-field validation works.
+The page scrolls to the first validation error.
+The loading state appears immediately.
+Repeated clicks do not create duplicate meetings.
+Save as Draft works.
+Cancel works.
+Unsaved changes warning works.
+Mobile layout displays the buttons correctly.
+Ask Ameen does not overlap the buttons.
+
+Please implement only this final action area and related submission behaviour. Do not redesign the rest of the meeting creation form.
