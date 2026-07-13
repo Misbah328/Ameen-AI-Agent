@@ -1331,21 +1331,23 @@ const MT = {
         agenda: [{ title: "", mins: 15 }],
         members: [],           // {name, role}
         files: [],             // File objects
-        users: [], boards: [], committees: [], series: [],
+        users: [], boards: [], committees: [], allMeetings: [],
         format: "inperson",
       };
       box.innerHTML = `<div class="es"><div class="loading"></div></div>`;
       // lookups — each optional, failures leave the select hidden
-      const [users, boards, committees, series] = await Promise.all([
+      const [users, boards, committees, allMeetings] = await Promise.all([
         api("/api/users").catch(() => []),
         api("/api/gov/boards").catch(() => []),
         api("/api/gov/committees").catch(() => []),
-        api("/api/gov/meeting-series").catch(() => []),
+        api("/api/meetings").catch(() => []),
       ]);
       this._cs.users = Array.isArray(users) ? users : [];
       this._cs.boards = Array.isArray(boards) ? boards : (boards.boards || []);
       this._cs.committees = Array.isArray(committees) ? committees : (committees.committees || []);
-      this._cs.series = Array.isArray(series) ? series : (series.series || []);
+      // All held meetings — sorted newest first for the "link to previous meeting" picker
+      this._cs.allMeetings = (Array.isArray(allMeetings) ? allMeetings : [])
+        .sort((a, b) => (b.meeting_date || "").localeCompare(a.meeting_date || ""));
     }
     this._paintCreate();
     this._createRendered = true;
@@ -1396,20 +1398,22 @@ const MT = {
               <select class="fi" id="mxc-committee" style="width:100%"><option value="">—</option>${cs.committees.map((c) => `<option value="${c.id}" ${kept.committee == c.id ? "selected" : ""}>${esc(l === "ar" ? c.name_ar : c.name_en || c.name_ar)}</option>`).join("")}</select></div>
           </div>
           <div class="mx-f2">
-            <div class="mx-f"><label>${t("سلسلة الاجتماعات (اختياري)", "Meeting Series (Optional)")}</label>
+            <div class="mx-f"><label>${t("ربط باجتماع سابق (اختياري)", "Link to Previous Meeting (Optional)")}</label>
               ${(() => {
-                const selS = kept.series ? cs.series.find((s) => s.id == kept.series) : null;
-                const selName = selS ? esc(l === "ar" ? selS.name_ar : selS.name_en || selS.name_ar) : "";
+                const selM = kept.series ? cs.allMeetings.find((m) => m.id == kept.series) : null;
+                const selName = selM ? esc(l === "ar" ? selM.title_ar : selM.title_en || selM.title_ar) : "";
+                const selDate = selM ? (selM.meeting_date || "").substring(0, 10) : "";
+                const selDisplay = selM ? `${selName}${selDate ? "  ·  " + selDate : ""}` : "";
                 return `<div class="mxs-wrap">
                   <input type="hidden" id="mxc-series" value="${kept.series || ""}"/>
                   <div style="position:relative">
                     <input class="fi mxs-search" id="mxc-series-search" autocomplete="off" style="width:100%;padding-inline-end:32px"
-                      value="${selName}"
-                      placeholder="${t("اجتماع مستقل — اكتب للبحث عن سلسلة...", "Standalone — type to search a series...")}"
+                      value="${selDisplay}"
+                      placeholder="${t("اجتماع مستقل — اكتب للبحث في الاجتماعات...", "Standalone — type to search meetings...")}"
                       oninput="MT._seriesFilter(this.value)"
                       onfocus="MT._seriesOpen()"
                       onblur="setTimeout(()=>MT._seriesClose(),200)"/>
-                    ${selName ? `<button class="mxs-clear" onclick="MT._seriesClear()" title="${t("إزالة", "Clear")}">✕</button>` : ""}
+                    ${selM ? `<button class="mxs-clear" onclick="MT._seriesClear()" title="${t("إزالة الربط", "Clear link")}">✕</button>` : ""}
                   </div>
                   <div class="mxs-dd" id="mxc-series-dd" style="display:none"></div>
                 </div>`;
@@ -1530,40 +1534,47 @@ const MT = {
     if (!dd) return;
     const l = App.lang;
     const t = (ar, en) => l === "ar" ? ar : en;
-    const all = MT._cs.series || [];
+    const all = MT._cs.allMeetings || [];
     const query = (q || "").trim().toLowerCase();
     const matches = query
-      ? all.filter((s) => {
-          const n = (l === "ar" ? s.name_ar : s.name_en || s.name_ar) || "";
-          return n.toLowerCase().includes(query);
+      ? all.filter((m) => {
+          const n = (l === "ar" ? m.title_ar : m.title_en || m.title_ar) || "";
+          const d = (m.meeting_date || "").substring(0, 10);
+          return n.toLowerCase().includes(query) || d.includes(query);
         })
       : all;
+    const curId = ($("mxc-series")?.value || "");
     const standalone = `<div class="mxs-opt mxs-standalone" onmousedown="MT._seriesPick('','')">
-      — ${t("اجتماع مستقل", "Standalone meeting")}
+      — ${t("اجتماع مستقل (بدون ربط)", "Standalone (no link)")}
     </div>`;
-    const opts = matches.map((s) => {
-      const name = (l === "ar" ? s.name_ar : s.name_en || s.name_ar) || "";
-      const cur = ($("mxc-series")?.value || "") == s.id;
-      return `<div class="mxs-opt${cur ? " mxs-sel" : ""}" onmousedown="MT._seriesPick(${s.id},'${name.replace(/\\/g,"\\\\").replace(/'/g,"\\'")}')" title="${esc(name)}">
-        <span class="mxs-icon">🔗</span>${esc(name)}
+    const opts = matches.map((m) => {
+      const name = (l === "ar" ? m.title_ar : m.title_en || m.title_ar) || "";
+      const date = (m.meeting_date || "").substring(0, 10);
+      const safeName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const safeDisp = (name + (date ? "  ·  " + date : "")).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const isCur = curId && curId == m.id;
+      return `<div class="mxs-opt${isCur ? " mxs-sel" : ""}" onmousedown="MT._seriesPick(${m.id},'${safeDisp}')" title="${esc(name)}">
+        <span class="mxs-icon">🔗</span>
+        <span class="mxs-mname">${esc(name)}</span>
+        ${date ? `<span class="mxs-mdate">${esc(date)}</span>` : ""}
       </div>`;
     }).join("");
-    const empty = !matches.length && query
-      ? `<div class="mxs-empty">${t("لا توجد نتائج", "No results found")}</div>`
+    const empty = !matches.length
+      ? `<div class="mxs-empty">${t("لا توجد اجتماعات", "No meetings found")}</div>`
       : "";
     dd.innerHTML = standalone + opts + empty;
     dd.style.display = "";
   },
-  _seriesPick(id, name) {
+  _seriesPick(id, display) {
     const hidden = $("mxc-series");
     const search = $("mxc-series-search");
     const clearBtn = document.querySelector(".mxs-clear");
     if (hidden) hidden.value = id || "";
     if (search) {
-      search.value = id ? name : "";
+      search.value = id ? display : "";
       search.placeholder = App.lang === "ar"
-        ? "اجتماع مستقل — اكتب للبحث عن سلسلة..."
-        : "Standalone — type to search a series...";
+        ? "اجتماع مستقل — اكتب للبحث في الاجتماعات..."
+        : "Standalone — type to search meetings...";
     }
     if (clearBtn) clearBtn.style.display = id ? "" : "none";
     MT._seriesClose();
@@ -1631,7 +1642,7 @@ const MT = {
           meeting_type: v("mxc-type"),
           board_id: parseInt(v("mxc-board")) || null,
           committee_id: parseInt(v("mxc-committee")) || null,
-          series_id: parseInt(v("mxc-series")) || null,
+          prev_meeting_id: parseInt(v("mxc-series")) || null,
           meeting_date: `${date} ${start}:00`,
           platform,
           purpose_ar: v("mxc-purpose"), purpose_en: v("mxc-purpose"),

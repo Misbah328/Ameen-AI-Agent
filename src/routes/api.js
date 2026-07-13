@@ -631,7 +631,23 @@ router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) 
     platform, organizer_id, purpose_ar, purpose_en, expected_decisions, expected_actions,
     meeting_join_url, meeting_location, meeting_provider,
   } = req.body;
-  const resolvedSeriesId = (series_id || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
+  let resolvedSeriesId = (series_id || new_series) ? resolveOrCreateSeriesId({ series_id, new_series }, req.user.id) : null;
+  const resolvedPrevId = prev_meeting_id || null;
+  // Auto-link to a series via the chosen previous meeting when no explicit series was given
+  if (!resolvedSeriesId && resolvedPrevId) {
+    const prevM = db.prepare('SELECT id, series_id, title_ar, title_en FROM meetings WHERE id=?').get(resolvedPrevId);
+    if (prevM) {
+      if (prevM.series_id) {
+        resolvedSeriesId = prevM.series_id;
+      } else {
+        // Create a new series named after the previous meeting and retroactively link it
+        const sNameEn = prevM.title_en || prevM.title_ar || 'Meeting Series';
+        const sNameAr = prevM.title_ar || sNameEn;
+        resolvedSeriesId = resolveOrCreateSeriesId({ new_series: { name_ar: sNameAr, name_en: sNameEn } }, req.user.id);
+        db.prepare('UPDATE meetings SET series_id=? WHERE id=?').run(resolvedSeriesId, prevM.id);
+      }
+    }
+  }
   const row = db.prepare(`
     INSERT INTO meetings (title_ar, title_en, transcript, duration, recorded_by, meeting_type,
       board_id, committee_id, series_id, prev_meeting_id, meeting_date, platform, organizer_id,
@@ -639,7 +655,7 @@ router.post('/meetings', auth, requirePermission('meetings.create'), (req, res) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?)
   `).run(
     title_ar, title_en || title_ar, transcript || '', duration || 0, req.user.id, meeting_type || '',
-    board_id || null, committee_id || null, resolvedSeriesId || null, prev_meeting_id || null, meeting_date || null,
+    board_id || null, committee_id || null, resolvedSeriesId || null, resolvedPrevId, meeting_date || null,
     platform || '', organizer_id || req.user.id, purpose_ar || '', purpose_en || '',
     JSON.stringify(Array.isArray(expected_decisions) ? expected_decisions : []),
     JSON.stringify(Array.isArray(expected_actions) ? expected_actions : []),
