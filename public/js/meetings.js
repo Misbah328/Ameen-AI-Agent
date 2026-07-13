@@ -1278,17 +1278,24 @@ const MT = {
       { k: "approved", ar: "اعتماد الرئيس", en: "Chairman Approval" },
       { k: "final_approved", ar: "الاعتماد النهائي", en: "Final Approval" },
     ];
-    const idx = Math.max(0, chain.findIndex((c) => c.k === ms));
-    const steps = `<div class="mx-steps">${chain.map((c, i) => `<div class="mx-step ${i < idx ? "done" : i === idx ? "cur" : ""}">
+    // When final_approved all steps are done; for revision_requested stay at Draft step
+    const rawIdx = chain.findIndex((c) => c.k === ms);
+    const idx = ms === "final_approved" ? chain.length : ms === "revision_requested" ? 0 : Math.max(0, rawIdx);
+    const steps = `<div class="mx-steps">${chain.map((c, i) => `<div class="mx-step ${i < idx ? "done" : i === idx && ms !== "final_approved" ? "cur" : i < idx ? "done" : ""}">
       <div class="mx-step-dot">${i < idx ? "✓" : i + 1}</div><div class="mx-step-l">${t(c.ar, c.en)}</div>
-      <div class="mx-step-s">${i === idx ? t("الحالة الحالية", "Current") : i < idx ? t("مكتمل", "Done") : t("قيد الانتظار", "Pending")}</div></div>`).join("")}</div>`;
+      <div class="mx-step-s">${i < idx ? t("مكتمل", "Done") : i === idx && ms !== "final_approved" ? (ms === "revision_requested" ? t("يحتاج مراجعة", "Revision Needed") : t("الحالة الحالية", "Current")) : t("قيد الانتظار", "Pending")}</div></div>`).join("")}</div>`;
 
+    const canPublish = App.can("minutes.publish");
     const canApprove = App.can("minutes.approve");
     const btns = [];
-    if (canApprove && (ms === "draft" || ms === "circulated"))
-      btns.push(`<button class="btn-gold" onclick="MT.approveMinutes(false)">✓ ${t("اعتماد المحضر", "Approve Minutes")}</button>`);
-    if (canApprove && ms === "approved")
-      btns.push(`<button class="btn-gold" onclick="MT.approveMinutes(true)">✓✓ ${t("الاعتماد النهائي", "Final Approve")}</button>`);
+    if ((ms === "draft" || ms === "revision_requested") && (canPublish || canApprove))
+      btns.push(`<button class="btn-gold" onclick="MT.circulateMinutes()">📤 ${t("تعميم للاعتماد", "Circulate for Review")}</button>`);
+    if (ms === "circulated" && canApprove) {
+      btns.push(`<button class="btn-gold" onclick="MT.approveMinutes(false)">✅ ${t("اعتماد الرئيس", "Chairman Approve")}</button>`);
+      btns.push(`<button class="btn-ghost" onclick="MT.requestRevision()" style="color:var(--red);border-color:var(--red)">🔄 ${t("طلب مراجعة", "Request Revision")}</button>`);
+    }
+    if (ms === "approved" && canApprove)
+      btns.push(`<button class="btn-gold" onclick="MT.approveMinutes(true)">🏆 ${t("الاعتماد النهائي", "Final Approve")}</button>`);
 
     const log = this._approvalLog || [];
     const actionLbl = (a) => ({
@@ -1308,12 +1315,62 @@ const MT = {
         <div style="display:flex;gap:8px">${btns.join("")}</div></div>${steps}</div>${logCard}`;
   },
 
-  async approveMinutes(isFinal) {
-    const comments = prompt(this.t("تعليق (اختياري):", "Comment (optional):")) || "";
+  async circulateMinutes() {
+    const m = this._d && this._d.meeting;
+    const ms = m && (m.minutes_status || "draft");
+    if (ms !== "draft" && ms !== "revision_requested") {
+      showToast(this.t("المحضر ليس في حالة مسودة", "Minutes are not in draft state"), "error");
+      return;
+    }
+    const comments = prompt(this.t("ملاحظة للمعتمدين (اختياري):", "Note to approvers (optional):")) ?? null;
+    if (comments === null) return; // user pressed Cancel
     try {
-      await api(`/api/meetings/${this._mid}/${isFinal ? "final-approve" : "approve"}`, { method: "POST", body: JSON.stringify({ comments }) });
+      await api(`/api/meetings/${this._mid}/circulate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comments: comments || "" }),
+      });
+      showToast(this.t("✓ تم التعميم بنجاح — تم إشعار المعتمدين", "✓ Circulated — approvers have been notified"));
+      await this._loadDetail(this._mid, "approval");
+    } catch (e) { showToast(this.t("تعذّر التعميم: ", "Could not circulate: ") + e.message, "error"); }
+  },
+
+  async requestRevision() {
+    const comments = prompt(this.t("سبب طلب المراجعة:", "Reason for requesting revision:"));
+    if (comments === null) return; // user pressed Cancel
+    if (!comments.trim()) {
+      showToast(this.t("يرجى إدخال سبب المراجعة", "Please enter a reason for revision"), "error");
+      return;
+    }
+    try {
+      await api(`/api/meetings/${this._mid}/request-revision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comments }),
+      });
+      showToast(this.t("✓ تم طلب المراجعة — أُعيد المحضر للمسودة", "✓ Revision requested — minutes returned to draft"));
+      await this._loadDetail(this._mid, "approval");
+    } catch (e) { showToast(this.t("خطأ: ", "Error: ") + e.message, "error"); }
+  },
+
+  async approveMinutes(isFinal) {
+    const m = this._d && this._d.meeting;
+    const ms = m && (m.minutes_status || "draft");
+    const required = isFinal ? "approved" : "circulated";
+    if (ms !== required) {
+      showToast(this.t("حالة المحضر غير مناسبة لهذا الإجراء", "Minutes status does not match this action"), "error");
+      return;
+    }
+    const comments = prompt(this.t("تعليق (اختياري):", "Comment (optional):")) ?? null;
+    if (comments === null) return;
+    try {
+      await api(`/api/meetings/${this._mid}/${isFinal ? "final-approve" : "approve"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comments: comments || "" }),
+      });
       showToast(this.t("✓ تم الاعتماد بنجاح", "✓ Approved successfully"));
-      await this._refreshDetail();
+      await this._loadDetail(this._mid, "approval");
     } catch (e) { showToast(this.t("تعذّر الاعتماد: ", "Could not approve: ") + e.message, "error"); }
   },
 
