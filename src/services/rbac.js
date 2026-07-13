@@ -127,8 +127,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
   // tasks only in GET /tasks, matching current behavior exactly.
   'Employee':           ['meetings.view', 'meetings.create', 'minutes.view', 'actions.update', 'ai.ask'],
   'Auditor':            ['meetings.view', 'meetings.create', 'minutes.view', 'actions.view', 'series.view', 'calendar.view', 'documents.download', 'reports.view', 'reports.export'],
-  'Guest':              ['meetings.view', 'meetings.create', 'minutes.view', 'calendar.view'],
-  'Observer':           ['meetings.view', 'meetings.create', 'minutes.view'],
+  'Guest':              ['meetings.view', 'meetings.create', 'minutes.view', 'calendar.view', 'actions.update'],
+  'Observer':           ['meetings.view', 'meetings.create', 'minutes.view', 'actions.update'],
 };
 
 const ROLE_KEYS = Object.keys(ROLE_META);

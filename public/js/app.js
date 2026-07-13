@@ -304,7 +304,7 @@ const ROLE_ACCESS = {
     "analytics", "activity",
   ]),
   Employee: new Set(["overview", "create-meeting", "scheduled", "live", "transcripts", "history", "tasks", "ask"]),
-  Observer: new Set(["transcripts", "history", "lastmeeting", "overview"]),
+  Observer: new Set(["transcripts", "history", "lastmeeting", "overview", "tasks"]),
   // ── Phase 4 enterprise RBAC roles ──────────────────────────────────────────
   "Super Admin": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
@@ -325,7 +325,7 @@ const ROLE_ACCESS = {
     "series", "overview", "governance", "boards",
   ]),
   Auditor: new Set(["transcripts", "history", "lastmeeting", "tasks", "overview", "analytics", "activity"]),
-  Guest: new Set(["overview", "transcripts", "history", "lastmeeting"]),
+  Guest: new Set(["overview", "transcripts", "history", "lastmeeting", "tasks"]),
 };
 // Policies & Resolutions live in the Governance sidebar section — mirror the
 // "documents" visibility so every role that can browse documents can also
@@ -5680,7 +5680,12 @@ async function renderTasks() {
     const ar = (a, e) => l === "ar" ? a : e;
 
     const pendingReviewTasks = tasksRaw.filter(t => t.review_status === "pending");
-    const tasks = tasksRaw.filter(t => t.review_status !== "pending" && t.review_status !== "rejected");
+    // Always show a task to its assignee regardless of review_status so they
+    // can see work assigned to them even before a secretary approves the AI batch.
+    const tasks = tasksRaw.filter(t => {
+      if (App.user && t.owner_id === App.user.id) return true;
+      return t.review_status !== "pending" && t.review_status !== "rejected";
+    });
 
     const canFullyManage = App.can("actions.assign");
     const ownerDept = {};
