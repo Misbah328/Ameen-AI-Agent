@@ -1441,4 +1441,22 @@ db.exec(`
   )
 `);
 
+// ── Lifecycle stage rename migration (Draft→Review→Approval→Archived cycle) ──
+// Maps old 3-step approval stages to the new simplified 2-step model.
+// Idempotent: runs every startup, only touches rows that still carry old names.
+db.exec(`
+  UPDATE meetings SET lifecycle_stage = 'review'
+    WHERE lifecycle_stage IN ('secretary_review');
+  UPDATE meetings SET lifecycle_stage = 'approval'
+    WHERE lifecycle_stage IN ('chairman_approval', 'board_approval');
+  UPDATE meeting_lifecycle_log SET from_stage = 'review'
+    WHERE from_stage = 'secretary_review';
+  UPDATE meeting_lifecycle_log SET from_stage = 'approval'
+    WHERE from_stage IN ('chairman_approval', 'board_approval');
+  UPDATE meeting_lifecycle_log SET to_stage = 'review'
+    WHERE to_stage = 'secretary_review';
+  UPDATE meeting_lifecycle_log SET to_stage = 'approval'
+    WHERE to_stage IN ('chairman_approval', 'board_approval');
+`);
+
 module.exports = db;

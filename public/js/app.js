@@ -3132,23 +3132,23 @@ function emptyStateCard(opts) {
 }
 
 // Canonical order — must mirror LIFECYCLE_STAGES in src/routes/api.js.
+// Approval cycle: Draft → Review → Approval → Archived
 const LIFECYCLE_STAGE_ORDER = [
   'created', 'invited', 'scheduled', 'recording', 'uploaded',
-  'transcript_generated', 'ai_minutes_generated', 'secretary_review',
-  'chairman_approval', 'board_approval', 'archived',
+  'transcript_generated', 'ai_minutes_generated', 'review',
+  'approval', 'archived',
 ];
 const LIFECYCLE_STAGE_META = {
-  created:               { ar: 'إنشاء',       en: 'Created',       icon: '🏗' },
-  invited:               { ar: 'الدعوات',     en: 'Invited',       icon: '📧' },
-  scheduled:             { ar: 'مجدول',       en: 'Scheduled',     icon: '📅' },
-  recording:             { ar: 'التسجيل',     en: 'Recording',     icon: '🎙' },
-  uploaded:              { ar: 'تم الرفع',    en: 'Uploaded',      icon: '⬆️' },
-  transcript_generated:  { ar: 'النص',        en: 'Transcript',    icon: '📝' },
-  ai_minutes_generated:  { ar: 'محضر AI',     en: 'AI Minutes',    icon: '🤖' },
-  secretary_review:      { ar: 'مراجعة السكرتير', en: 'Secretary Review', icon: '🗂️' },
-  chairman_approval:     { ar: 'اعتماد الرئيس',   en: 'Chairman Approval', icon: '✅' },
-  board_approval:        { ar: 'اعتماد المجلس',   en: 'Board Approval',    icon: '🏛️' },
-  archived:              { ar: 'أرشفة',       en: 'Archived',      icon: '🗄' },
+  created:               { ar: 'مسودة',          en: 'Draft',         icon: '🏗' },
+  invited:               { ar: 'الدعوات',         en: 'Invited',       icon: '📧' },
+  scheduled:             { ar: 'مجدول',           en: 'Scheduled',     icon: '📅' },
+  recording:             { ar: 'التسجيل',         en: 'Recording',     icon: '🎙' },
+  uploaded:              { ar: 'تم الرفع',        en: 'Uploaded',      icon: '⬆️' },
+  transcript_generated:  { ar: 'النص',            en: 'Transcript',    icon: '📝' },
+  ai_minutes_generated:  { ar: 'محضر AI',         en: 'AI Minutes',    icon: '🤖' },
+  review:                { ar: 'قيد المراجعة',    en: 'Review',        icon: '🗂️' },
+  approval:              { ar: 'الاعتماد',        en: 'Approval',      icon: '✅' },
+  archived:              { ar: 'أرشفة',           en: 'Archived',      icon: '🗄' },
 };
 
 // Renders the meeting lifecycle strip. For a real `meetings` row (which carries
@@ -3855,7 +3855,7 @@ async function renderTranscripts() {
             if (mStatus !== 'draft') {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:11px">📋 ${l==='ar'?'سجل الاعتماد':'Approval Log'}</button>`);
             }
-            if (lcStage === 'board_approval') {
+            if (lcStage === 'approval') {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'archive')" style="color:var(--text3);border-color:var(--text3)">🗄️ ${l==='ar'?'أرشفة':'Archive'}</button>`);
             }
             return btns.join('');
@@ -4522,7 +4522,7 @@ const MeetingHistory = {
       if (mStatus !== "draft") {
         btns.push(`<button class="btn-ghost btn-sm" onclick="minutesShowLog(${m.id})" style="font-size:11px">📋 ${l === "ar" ? "سجل الاعتماد" : "Approval Log"}</button>`);
       }
-      if (lcStage === "board_approval") {
+      if (lcStage === "approval") {
         btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'archive')" style="color:var(--text3);border-color:var(--text3)">🗄️ ${l === "ar" ? "أرشفة" : "Archive"}</button>`);
       }
       return btns.join("");
@@ -9481,9 +9481,9 @@ const ScheduledPanel = {
       const stage = m.lifecycle_stage || "created";
       const ms = m.minutes_status || "draft";
       if (stage === "archived") return `<span class="mt2-pill" style="background:rgba(130,130,130,.15);color:#888">🗄 ${l==="ar"?"مؤرشف":"Archived"}</span>`;
-      if (stage === "board_approval" || ms === "final_approved" || ms === "approved")
+      if (stage === "approval" || stage === "board_approval" || ms === "final_approved" || ms === "approved")
         return `<span class="mt2-pill" style="background:rgba(40,120,220,.15);color:#2878dc">✅ ${l==="ar"?"معتمد":"Approved"}</span>`;
-      if (["ai_minutes_generated","secretary_review","chairman_approval"].includes(stage) || ms === "circulated")
+      if (["ai_minutes_generated","review","secretary_review","chairman_approval"].includes(stage) || ms === "circulated")
         return `<span class="mt2-pill mt2-p-amber">📝 ${l==="ar"?"المحضر قيد المراجعة":"Minutes In Review"}</span>`;
       if (["transcript_generated","uploaded"].includes(stage))
         return `<span class="mt2-pill mt2-p-blue">⚙️ ${l==="ar"?"قيد التحضير":"In Preparation"}</span>`;
@@ -9765,8 +9765,8 @@ const ScheduledPanel = {
           const stage = m.lifecycle_stage || "created";
           const ms = m.minutes_status || "draft";
           if (stage === "archived") return `<span class="mt2-pill" style="background:rgba(130,130,130,.15);color:#888">🗄 ${t("مؤرشف","Archived")}</span>`;
-          if (stage === "board_approval" || ms === "final_approved" || ms === "approved") return `<span class="mt2-pill" style="background:rgba(40,120,220,.15);color:#2878dc">✅ ${t("معتمد","Approved")}</span>`;
-          if (["ai_minutes_generated","secretary_review","chairman_approval"].includes(stage) || ms === "circulated") return `<span class="mt2-pill mt2-p-amber">📝 ${t("المحضر قيد المراجعة","Minutes In Review")}</span>`;
+          if (stage === "approval" || stage === "board_approval" || ms === "final_approved" || ms === "approved") return `<span class="mt2-pill" style="background:rgba(40,120,220,.15);color:#2878dc">✅ ${t("معتمد","Approved")}</span>`;
+          if (["ai_minutes_generated","review","secretary_review","chairman_approval"].includes(stage) || ms === "circulated") return `<span class="mt2-pill mt2-p-amber">📝 ${t("المحضر قيد المراجعة","Minutes In Review")}</span>`;
           if (["transcript_generated","uploaded"].includes(stage)) return `<span class="mt2-pill mt2-p-blue">⚙️ ${t("قيد التحضير","In Preparation")}</span>`;
           if (stage === "recording") return `<span class="mt2-pill mt2-p-amber">● ${t("مباشر","Live")}</span>`;
           return `<span class="mt2-pill mt2-p-green">✓ ${t("مكتمل","Completed")}</span>`;
@@ -10301,7 +10301,7 @@ const CalendarPanel = {
     meetings.forEach((m) => {
       if (linkedIds.has(m.id)) return;
       const d = (m.meeting_date || "").substring(0, 10);
-      const liveStages = ["recording", "uploaded", "ai_minutes_generated", "secretary_review", "chairman_approval", "archived"];
+      const liveStages = ["recording", "uploaded", "ai_minutes_generated", "review", "approval", "archived"];
       if (d && liveStages.includes(m.lifecycle_stage))
         (byDate[d] = byDate[d] || []).push({ ...m, _kind: "held", _color: calTypeColor(m.meeting_type) });
     });

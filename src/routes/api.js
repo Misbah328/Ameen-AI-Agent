@@ -159,13 +159,14 @@ const { isValidEmail, isValidPhone, splitRecipients, partition } = require('../u
 
 // ── Meeting lifecycle state machine ───────────────────────────────────────────
 // created → invited → scheduled → recording → uploaded → transcript_generated →
-// ai_minutes_generated → secretary_review → chairman_approval → board_approval →
-// archived. Every transition is persisted to meeting_lifecycle_log so the UI can
-// render a real, auditable timeline instead of a decorative status label.
+// ai_minutes_generated → review → approval → archived.
+// (Approval cycle = Draft → Review → Approval → Archived)
+// Every transition is persisted to meeting_lifecycle_log so the UI can render a
+// real, auditable timeline instead of a decorative status label.
 const LIFECYCLE_STAGES = [
   'created', 'invited', 'scheduled', 'recording', 'uploaded',
-  'transcript_generated', 'ai_minutes_generated', 'secretary_review',
-  'chairman_approval', 'board_approval', 'archived',
+  'transcript_generated', 'ai_minutes_generated', 'review',
+  'approval', 'archived',
 ];
 
 // req.user only carries { id, email, system_role } (see src/middleware/auth.js) —
@@ -179,9 +180,9 @@ function resolveActor(userId) {
 }
 
 // Advances a meeting to `toStage` and logs the transition. Forward-only, except
-// the one legitimate backward loop in the process: chairman_approval →
-// secretary_review when a revision is requested. No-ops (returns the current
-// stage, does not log) if the meeting is already at or past `toStage`.
+// the one legitimate backward loop in the process: approval → review when a
+// revision is requested. No-ops (returns the current stage, does not log) if
+// the meeting is already at or past `toStage`.
 function transitionMeeting(meetingId, toStage, userId, note) {
   if (!LIFECYCLE_STAGES.includes(toStage)) throw new Error(`Unknown lifecycle stage: ${toStage}`);
   const meeting = db.prepare('SELECT lifecycle_stage FROM meetings WHERE id=?').get(meetingId);
@@ -189,7 +190,7 @@ function transitionMeeting(meetingId, toStage, userId, note) {
   const fromStage = meeting.lifecycle_stage || 'created';
   const fromIdx = LIFECYCLE_STAGES.indexOf(fromStage);
   const toIdx = LIFECYCLE_STAGES.indexOf(toStage);
-  const isRevisionLoop = fromStage === 'chairman_approval' && toStage === 'secretary_review';
+  const isRevisionLoop = fromStage === 'approval' && toStage === 'review';
   if (toIdx <= fromIdx && !isRevisionLoop) return fromStage;
   db.prepare('UPDATE meetings SET lifecycle_stage=?, lifecycle_updated_at=CURRENT_TIMESTAMP WHERE id=?').run(toStage, meetingId);
   const actor = resolveActor(userId);
@@ -3607,7 +3608,7 @@ router.post('/meetings/:id/circulate', auth, requirePermission('minutes.publish'
     `UPDATE meetings SET minutes_status='circulated', circulated_at=CURRENT_TIMESTAMP, circulated_by=?, approval_comments=? WHERE id=?`
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'circulated', req.user, comments, version);
-  transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Minutes circulated for review');
+  transitionMeeting(meeting.id, 'review', req.user && req.user.id, 'Minutes circulated for review');
   // Notify all attendees + approvers that minutes are ready for review
   try {
     const mtTitle = meeting.title_ar || meeting.title_en || '';
@@ -3637,7 +3638,7 @@ router.post('/meetings/:id/approve', auth, requirePermission('minutes.approve'),
     `UPDATE meetings SET minutes_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP, approval_comments=? WHERE id=?`
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'approved', req.user, comments, version);
-  transitionMeeting(meeting.id, 'chairman_approval', req.user && req.user.id, 'Minutes approved by chairman');
+  transitionMeeting(meeting.id, 'approval', req.user && req.user.id, 'Minutes approved');
   try {
     const mtTitle = meeting.title_ar || meeting.title_en || '';
     const actorId = req.user ? req.user.id : null;
@@ -3665,7 +3666,7 @@ router.post('/meetings/:id/request-revision', auth, requirePermission('minutes.a
     `UPDATE meetings SET minutes_status='revision_requested', minutes_version=?, approval_comments=? WHERE id=?`
   ).run(version + 1, comments, meeting.id);
   logApprovalAction(meeting.id, 'revision_requested', req.user, comments, version);
-  transitionMeeting(meeting.id, 'secretary_review', req.user && req.user.id, 'Revision requested — back to secretary review');
+  transitionMeeting(meeting.id, 'review', req.user && req.user.id, 'Revision requested — back to review');
   // Notify secretary (recorded_by) that a revision was requested
   try {
     if (meeting.recorded_by && meeting.recorded_by !== (req.user ? req.user.id : null)) {
@@ -3696,7 +3697,7 @@ router.post('/meetings/:id/final-approve', auth, requirePermission('minutes.appr
     `UPDATE meetings SET minutes_status='final_approved', final_approved_by=?, final_approved_at=CURRENT_TIMESTAMP, approval_comments=? WHERE id=?`
   ).run(req.user ? req.user.id : null, comments, meeting.id);
   logApprovalAction(meeting.id, 'final_approved', req.user, comments, version);
-  transitionMeeting(meeting.id, 'board_approval', req.user && req.user.id, 'Minutes given final board approval');
+  transitionMeeting(meeting.id, 'approval', req.user && req.user.id, 'Minutes given final approval');
   // Notify all attendees + approvers of final approval
   try {
     const mtTitle = meeting.title_ar || meeting.title_en || '';
@@ -3721,8 +3722,8 @@ router.post('/meetings/:id/archive', auth, requirePermission('meetings.archive')
   const meeting = db.prepare('SELECT id, lifecycle_stage FROM meetings WHERE id=?').get(req.params.id);
   if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
   if (meeting.lifecycle_stage === 'archived') return res.json({ success: true, lifecycle_stage: 'archived' });
-  if (meeting.lifecycle_stage !== 'board_approval') {
-    return res.status(400).json({ error: 'Meeting must reach Board Approval before it can be archived' });
+  if (meeting.lifecycle_stage !== 'approval') {
+    return res.status(400).json({ error: 'Meeting must reach Approval before it can be archived' });
   }
   const comments = (req.body.comments || '').toString().slice(0, 2000) || null;
   transitionMeeting(meeting.id, 'archived', req.user && req.user.id, comments || 'Meeting archived');
@@ -3990,9 +3991,8 @@ const MEETING_STAGE_LABELS = {
   uploaded: { ar: 'تم رفع التسجيل/النص', en: 'Recording/transcript uploaded' },
   transcript_generated: { ar: 'تم توليد النص الحرفي', en: 'Transcript generated' },
   ai_minutes_generated: { ar: 'تم توليد ملخص الذكاء الاصطناعي', en: 'AI summary generated' },
-  secretary_review: { ar: 'قيد مراجعة الأمانة', en: 'Under secretary review' },
-  chairman_approval: { ar: 'اعتماد الرئيس', en: 'Chairman approval' },
-  board_approval: { ar: 'الاعتماد النهائي للمجلس', en: 'Final board approval' },
+  review:   { ar: 'قيد المراجعة', en: 'Under review' },
+  approval: { ar: 'الاعتماد',     en: 'Approval' },
   archived: { ar: 'تمت أرشفة الاجتماع', en: 'Meeting archived' },
 };
 

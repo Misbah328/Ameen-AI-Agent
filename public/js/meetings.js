@@ -208,7 +208,7 @@ const MT = {
       return `<span class="mx-live-pill"><span class="rdot"></span>${t("مباشر", "Live")}</span>`;
     if (m.minutes_status === "final_approved" || m.lifecycle_stage === "archived")
       return `<span class="mt2-pill mt2-p-green">✓ ${t("مكتمل", "Completed")}</span>`;
-    if (["secretary_review", "chairman_approval", "ai_minutes_generated"].includes(m.lifecycle_stage))
+    if (["review", "approval", "secretary_review", "chairman_approval", "ai_minutes_generated"].includes(m.lifecycle_stage))
       return `<span class="mt2-pill mt2-p-amber">${t("قيد المراجعة", "In Review")}</span>`;
     if (m.lifecycle_stage === "recording")
       return `<span class="mt2-pill mt2-p-red">${t("جارٍ الآن", "In Progress")}</span>`;
@@ -326,16 +326,16 @@ const MT = {
         ${fact("آخر تحديث", "Last Updated", this._fmtDT(m.lifecycle_updated_at || m.created_at))}
       </div></div>`;
 
-    // progress stepper from lifecycle_stage
+    // progress stepper from lifecycle_stage — Draft → Review → Approval → Archived
     const steps = [
-      { k: "created", ar: "تم الإنشاء", en: "Created" },
-      { k: "recording", ar: "جارٍ الاجتماع", en: "In Progress" },
+      { k: "created",              ar: "مسودة",          en: "Draft"    },
+      { k: "recording",            ar: "جارٍ الاجتماع",  en: "In Progress" },
       { k: "ai_minutes_generated", ar: "محضر الذكاء الاصطناعي", en: "AI Minutes" },
-      { k: "secretary_review", ar: "مراجعة أمين السر", en: "Secretary Review" },
-      { k: "chairman_approval", ar: "اعتماد الرئيس", en: "Chairman Approval" },
-      { k: "archived", ar: "مغلق", en: "Closed" },
+      { k: "review",               ar: "قيد المراجعة",  en: "Review"   },
+      { k: "approval",             ar: "الاعتماد",       en: "Approval" },
+      { k: "archived",             ar: "مغلق",           en: "Closed"   },
     ];
-    const stageIdx = { created: 0, recording: 1, uploaded: 1, processing: 1, ai_minutes_generated: 2, secretary_review: 3, chairman_approval: 4, archived: 5 };
+    const stageIdx = { created: 0, recording: 1, uploaded: 1, processing: 1, ai_minutes_generated: 2, secretary_review: 3, review: 3, chairman_approval: 4, board_approval: 4, approval: 4, archived: 5 };
     const cur = stageIdx[m.lifecycle_stage] != null ? stageIdx[m.lifecycle_stage] : 0;
     const lcByStage = {};
     d.lifecycle.forEach((e) => { lcByStage[e.to_stage] = e; });
@@ -437,7 +437,7 @@ const MT = {
     const l = App.lang;
     const live = m.recording_status === "recording";
     const canRec = App.can("meetings.create") || App.can("meetings.edit");
-    const endedStages = ["uploaded", "transcript_generated", "ai_minutes_generated", "secretary_review", "chairman_approval", "archived"];
+    const endedStages = ["uploaded", "transcript_generated", "ai_minutes_generated", "review", "approval", "archived"];
 
     // ── Pre-start idle state ──────────────────────────────────
     if (!live && !endedStages.includes(m.lifecycle_stage)) {
