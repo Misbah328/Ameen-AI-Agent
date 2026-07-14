@@ -9575,12 +9575,14 @@ const ScheduledPanel = {
       ${aboutRow("الموقع", "Location", s.meeting_location || "")}
     </div>`;
 
+    const isDraft = s.status === "draft";
     const qa = [];
+    if (isDraft) qa.push({ ico: "✏️", ar: "متابعة التحرير", en: "Continue Editing", on: `ScheduledPanel.editDraft(${s.id})` });
     if (linked) qa.push({ ico: "📦", ar: "فتح صفحة الاجتماع", en: "Open Meeting Page", on: `MT.openDetail(${linked.id})` });
     if (s.meeting_join_url) qa.push({ ico: "🎥", ar: "الانضمام للاجتماع", en: "Join Meeting", on: `ScheduledPanel.openJoinUrl(${s.id})` });
-    if (eligible && !live) qa.push({ ico: "🔴", ar: "بدء الاجتماع والتسجيل", en: "Start & Record Meeting", on: `ScheduledPanel.startMeeting(${s.id})` });
+    if (eligible && !live && !isDraft) qa.push({ ico: "🔴", ar: "بدء الاجتماع والتسجيل", en: "Start & Record Meeting", on: `ScheduledPanel.startMeeting(${s.id})` });
     if (live && linked) qa.push({ ico: "▶", ar: "متابعة الاجتماع المباشر", en: "Rejoin Live Meeting", on: `MT.openDetail(${linked.id},'live')` });
-    qa.push({ ico: "📆", ar: "إعادة جدولة", en: "Reschedule", on: `ScheduledPanel.reschedule(${s.id})` });
+    if (!isDraft) qa.push({ ico: "📆", ar: "إعادة جدولة", en: "Reschedule", on: `ScheduledPanel.reschedule(${s.id})` });
     if (linked) qa.push({ ico: "📄", ar: "المستندات", en: "Documents", on: `MT.openDetail(${linked.id},'documents')` });
     qa.push({ ico: "📅", ar: "عرض في التقويم", en: "View in Calendar", on: `Panels.load('calendar')` });
     const quick = `<div class="mt2-card"><div class="mt2-card-t">${t("إجراءات سريعة", "Quick Actions")}</div>
@@ -9596,8 +9598,9 @@ const ScheduledPanel = {
           <div style="position:relative">
             <button class="btn-ghost btn-sm" onclick="RowMenu.toggle('${menuId}', event)">⋮</button>
             <div class="row-menu" id="${menuId}">
-              ${eligible && !live ? `<button onclick="RowMenu.closeAll();ScheduledPanel.startMeeting(${s.id})">▶ ${t("بدء الاجتماع", "Start Meeting")}</button>` : ""}
-              <button onclick="RowMenu.closeAll();ScheduledPanel.reschedule(${s.id})">📆 ${t("إعادة جدولة", "Reschedule")}</button>
+              ${isDraft ? `<button onclick="RowMenu.closeAll();ScheduledPanel.editDraft(${s.id})">✏️ ${t("متابعة التحرير", "Continue Editing")}</button>` : ""}
+              ${eligible && !live && !isDraft ? `<button onclick="RowMenu.closeAll();ScheduledPanel.startMeeting(${s.id})">▶ ${t("بدء الاجتماع", "Start Meeting")}</button>` : ""}
+              ${!isDraft ? `<button onclick="RowMenu.closeAll();ScheduledPanel.reschedule(${s.id})">📆 ${t("إعادة جدولة", "Reschedule")}</button>` : ""}
               ${linked ? `<button onclick="RowMenu.closeAll();ScheduledPanel.openWorkspace(${linked.id})">🗃 ${t("فتح مساحة العمل", "Open Workspace")}</button>` : ""}
               <button onclick="RowMenu.closeAll();ScheduledPanel.delete(${s.id})">✕ ${t("حذف", "Delete")}</button>
             </div>
@@ -9684,6 +9687,19 @@ const ScheduledPanel = {
       return;
     }
     window.open(url, "_blank", "noopener");
+  },
+
+  // Open the schedule form pre-filled with a draft's data so the user can
+  // continue editing and confirm or re-save it.
+  async editDraft(scheduleId) {
+    // Navigate to the scheduled panel (where the nm-* form lives), wait one
+    // animation frame for the DOM to render, then pre-fill via Schedule.edit().
+    Panels.load("scheduled");
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await Schedule.edit(scheduleId);
+    // Scroll the form title into view
+    const el = $("nm-form-title");
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
   },
 
   async reschedule(scheduleId) {
