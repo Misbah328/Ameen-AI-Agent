@@ -86,6 +86,82 @@ const MT = {
     Panels.load("scheduled");
   },
 
+  // Open the Create Meeting form pre-filled with a draft schedule row so the
+  // user can complete and confirm it (or re-save as draft).
+  async editDraft(scheduleId) {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+
+    // Get draft data — use already-loaded list or fall back to the API
+    let s = (ScheduledPanel._all || []).find(x => x.id === scheduleId);
+    if (!s) {
+      try {
+        const items = await api("/api/schedule");
+        s = items.find(x => x.id === scheduleId);
+      } catch (_) {}
+    }
+    if (!s) { showToast(t("تعذّر تحميل المسودة", "Could not load draft"), "error"); return; }
+
+    this._editingDraftScheduleId = scheduleId;
+
+    // Navigate to the create view
+    if (Panels.current === "scheduled") {
+      await this._renderCreate(true);
+    } else {
+      this._pending = { view: "create" };
+      Panels.load("scheduled");
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    // Parse date / time / duration
+    const datePart = (s.meeting_date || "").substring(0, 10);
+    const rawTime = s.meeting_time || (s.meeting_date || "").substring(11, 16) || "09:00";
+    const timePart = rawTime.substring(0, 5);
+    const dur = parseInt(s.duration_mins) || 60;
+    const [hh, mm] = timePart.split(":").map(Number);
+    const endMins = hh * 60 + (mm || 0) + dur;
+    const endTime = `${String(Math.floor(endMins / 60) % 24).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`;
+
+    // Map provider → format toggle
+    const provMap = { virtual: "virtual", hybrid: "hybrid", online: "virtual", zoom: "virtual", teams: "virtual", google_meet: "virtual" };
+    const fmt = provMap[(s.meeting_provider || "").toLowerCase()] || "inperson";
+
+    // Update _cs so _paintCreate renders the right attendees / agenda / format
+    if (this._cs) {
+      this._cs.format = fmt;
+      const agLines = (s.agenda_ar || "").split("\n").map(l => l.trim()).filter(Boolean);
+      this._cs.agenda = agLines.length ? agLines.map(line => ({ title: line, mins: 15 })) : [{ title: "", mins: 15 }];
+      if (s.attendees) {
+        const names = s.attendees.split(/[\n,]/).map(n => n.trim()).filter(Boolean);
+        this._cs.members = names.map(name => ({ name, role: "" }));
+      }
+      this._paintCreate();
+      await new Promise(r => setTimeout(r, 30));
+    }
+
+    // Pre-fill mxc-* inputs (after paintCreate re-renders the DOM)
+    if ($("mxc-title")) $("mxc-title").value = s.title_ar || s.title_en || "";
+    if ($("mxc-type")) {
+      const sel = $("mxc-type");
+      const opt = Array.from(sel.options).find(o => o.value === s.meeting_type);
+      if (opt) sel.value = opt.value;
+    }
+    if ($("mxc-board")) $("mxc-board").value = s.board_id || "";
+    if ($("mxc-committee")) $("mxc-committee").value = s.committee_id || "";
+    if ($("mxc-date")) $("mxc-date").value = datePart;
+    if ($("mxc-start")) $("mxc-start").value = timePart;
+    if ($("mxc-end")) $("mxc-end").value = endTime;
+    if ($("mxc-purpose")) $("mxc-purpose").value = s.agenda_ar || s.agenda_en || "";
+    if ($("mxc-venue")) $("mxc-venue").value = s.meeting_location || "";
+    if ($("mxc-joinurl")) $("mxc-joinurl").value = s.meeting_join_url || "";
+
+    // Refresh the live preview
+    const prev = $("mxc-preview");
+    if (prev) prev.innerHTML = this._createPreviewHtml();
+
+    showToast(t("جارٍ تحرير المسودة…", "Resuming draft edit…"));
+  },
+
   openDetail(meetingId, tab) {
     if (Panels.current === "scheduled") { this._loadDetail(meetingId, tab); return; }
     this._pending = { view: "detail", id: meetingId, tab: tab };
@@ -1792,6 +1868,43 @@ const MT = {
     const allBtns = ["mxc-draft-btn","mxc-submit-btn","mxc-bottom-draft","mxc-bottom-submit","mxc-bottom-cancel"];
     const draftBtn = $("mxc-draft-btn"), subBtn = $("mxc-submit-btn");
     allBtns.forEach((id) => { const b = $(id); if (b) b.disabled = true; });
+
+    // ── If re-saving an existing draft schedule row, just PATCH it ────────────
+    if (isDraft && this._editingDraftScheduleId) {
+      try {
+        await api(`/api/schedule/${this._editingDraftScheduleId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title_ar: title, title_en: title,
+            meeting_type: v("mxc-type"),
+            meeting_date: date, meeting_time: start,
+            duration_mins: durationMins,
+            meeting_provider: cs.format === "virtual" ? "virtual" : cs.format === "hybrid" ? "hybrid" : "physical",
+            meeting_join_url: (cs.format === "virtual" || cs.format === "hybrid") ? v("mxc-joinurl") : "",
+            meeting_location: v("mxc-venue"),
+            attendees: allAttendees.join(", "),
+            agenda_ar: agendaItems.map(a => a.title_ar).join("\n"),
+            agenda_en: agendaItems.map(a => a.title_en).join("\n"),
+            board_id: parseInt(v("mxc-board")) || null,
+            committee_id: parseInt(v("mxc-committee")) || null,
+            status: "draft",
+          }),
+        });
+        showToast(t("✓ تم تحديث المسودة", "✓ Draft updated"));
+        this._editingDraftScheduleId = null;
+        this._cs = null;
+        this._createRendered = false;
+        this.showList();
+        await ScheduledPanel.refresh();
+        if (typeof loadBadges === "function") await loadBadges();
+      } catch (e) {
+        showToast(t("تعذّر حفظ المسودة: ", "Could not save draft: ") + e.message, "error");
+      } finally {
+        this._submittingCreate = false;
+        allBtns.forEach(id => { const b = $(id); if (b) b.disabled = false; });
+      }
+      return;
+    }
     try {
       const meeting = await api("/api/meetings", {
         method: "POST",
@@ -1858,6 +1971,12 @@ const MT = {
           const j = await schedRes.json().catch(() => ({}));
           throw new Error(j.message || j.error || `HTTP ${schedRes.status}`);
         }
+      }
+
+      // Clean up the old draft schedule row that was being edited
+      if (this._editingDraftScheduleId) {
+        try { await api(`/api/schedule/${this._editingDraftScheduleId}`, { method: "DELETE" }); } catch (_) {}
+        this._editingDraftScheduleId = null;
       }
 
       showToast(isDraft ? t("✓ تم حفظ الاجتماع كمسودة", "✓ Meeting saved as draft") : t("✓ تم إنشاء الاجتماع وجدولته", "✓ Meeting created and scheduled"));

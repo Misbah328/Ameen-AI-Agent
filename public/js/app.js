@@ -9693,17 +9693,19 @@ const ScheduledPanel = {
     window.open(url, "_blank", "noopener");
   },
 
-  // Open the schedule form pre-filled with a draft's data so the user can
-  // continue editing and confirm or re-save it.
+  // Open the Create Meeting form pre-filled with a draft's data so the user
+  // can complete and confirm it (or re-save as draft).
   async editDraft(scheduleId) {
-    // Navigate to the scheduled panel (where the nm-* form lives), wait one
-    // animation frame for the DOM to render, then pre-fill via Schedule.edit().
-    Panels.load("scheduled");
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await Schedule.edit(scheduleId);
-    // Scroll the form title into view
-    const el = $("nm-form-title");
-    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (window.MT) {
+      MT.editDraft(scheduleId);
+    } else {
+      // Fallback: use the quick schedule form
+      Panels.load("scheduled");
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await Schedule.edit(scheduleId);
+      const el = $("nm-form-title");
+      if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   },
 
   async reschedule(scheduleId) {
