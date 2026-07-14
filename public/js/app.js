@@ -9262,12 +9262,15 @@ const ScheduledPanel = {
     };
     const upcoming = [];
     const inprog = [];
+    const drafts = [];
     this._all.forEach((s) => {
       if (this._isPastLive(s)) return;
       if (!match(s.title_ar, s.title_en, s.meeting_type)) return;
+      if (s.status === "draft") { drafts.push(s); return; }
       (this._isLive(s) ? inprog : upcoming).push(s);
     });
     upcoming.sort(sortFn);
+    drafts.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
     const doneStages = new Set(["processing", "minutes", "approval", "closed", "completed"]);
     const completed = Object.values(this._meetingsById)
       .filter((m) => {
@@ -9280,7 +9283,7 @@ const ScheduledPanel = {
         if (sort === "updated_desc") return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
         return String(b.meeting_date || b.created_at || "").localeCompare(String(a.meeting_date || a.created_at || ""));
       });
-    this._groups = { upcoming, inprog, completed };
+    this._groups = { upcoming, inprog, completed, drafts };
 
     // keep selection if still visible, else select the first visible item
     const visible = this._visibleItems();
@@ -9298,6 +9301,7 @@ const ScheduledPanel = {
     const g = this._groups;
     const items = [];
     if (this._tab === "all" || this._tab === "inprog") g.inprog.forEach((s) => items.push({ kind: "sched", id: s.id }));
+    if (this._tab === "all" || this._tab === "draft") (g.drafts || []).forEach((s) => items.push({ kind: "sched", id: s.id }));
     if (this._tab === "all" || this._tab === "upcoming") g.upcoming.forEach((s) => items.push({ kind: "sched", id: s.id }));
     if (this._tab === "all" || this._tab === "completed") g.completed.forEach((m) => items.push({ kind: "meeting", id: m.id }));
     return items;
@@ -9312,6 +9316,7 @@ const ScheduledPanel = {
       ${l === "ar" ? ar : en}${count !== null ? ` <span class="mt2-tab-n">${count}</span>` : ""}</button>`;
     box.innerHTML =
       tab("all", "كل الاجتماعات", "All Meetings", null) +
+      tab("draft", "المسودات", "Draft", (g.drafts || []).length) +
       tab("upcoming", "القادمة", "Upcoming", g.upcoming.length) +
       tab("inprog", "الجارية", "In Progress", g.inprog.length) +
       tab("completed", "المكتملة", "Completed", g.completed.length);
@@ -9419,9 +9424,12 @@ const ScheduledPanel = {
       </div>`;
     };
 
+    const pillDraft = `<span class="mt2-pill mt2-p-gray">${l === "ar" ? "مسودة" : "Draft"}</span>`;
     let html = "";
     if ((this._tab === "all" || this._tab === "inprog") && g.inprog.length)
       html += sec("جارية الآن", "In Progress") + g.inprog.map((s) => schedRow(s, pillLive)).join("");
+    if ((this._tab === "all" || this._tab === "draft") && (g.drafts || []).length)
+      html += sec("المسودات", "Drafts") + g.drafts.map((s) => schedRow(s, pillDraft)).join("");
     if ((this._tab === "all" || this._tab === "upcoming") && g.upcoming.length)
       html += sec("القادمة", "Upcoming") + g.upcoming.map((s) => schedRow(s, pillSched(s))).join("");
     if ((this._tab === "all" || this._tab === "completed") && g.completed.length)
