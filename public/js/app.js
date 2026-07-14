@@ -9468,17 +9468,23 @@ const ScheduledPanel = {
       }
     }
 
-    if (openFn) {
+    // Always highlight the panel whenever content is shown — regardless of
+    // whether there is a linked meeting record to navigate into.
+    if (box.innerHTML) {
       box.classList.add("sp-detail--active");
-      box.style.cursor = "pointer";
-      box.onclick = (e) => {
-        if (e.target.closest("button,a,input,select,textarea,[role='button']")) return;
-        openFn();
-      };
-      // Prepend the "click to open" hint banner
+      if (openFn) {
+        box.style.cursor = "pointer";
+        box.onclick = (e) => {
+          if (e.target.closest("button,a,input,select,textarea,[role='button']")) return;
+          openFn();
+        };
+      }
+      // Hint banner — navigable or informational
       const hint = document.createElement("div");
       hint.className = "sp-detail-hint";
-      hint.innerHTML = `<span>☰ ${l === "ar" ? "انقر لفتح الصفحة الكاملة" : "Click to open full meeting page"}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span>`;
+      hint.innerHTML = openFn
+        ? `<span>☰ ${l === "ar" ? "انقر لفتح الصفحة الكاملة" : "Click to open full meeting page"}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span>`
+        : `<span>☰ ${l === "ar" ? "نظرة عامة على الاجتماع" : "Meeting Overview"}</span>`;
       box.insertBefore(hint, box.firstChild);
     }
   },
