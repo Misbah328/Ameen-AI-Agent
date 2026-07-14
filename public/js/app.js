@@ -9200,12 +9200,12 @@ const ActivityLog = {
     if (!body) return;
     body.innerHTML = `<div class="es"><div class="loading"></div></div>`;
     try {
-      this._data = await api("/api/activity-log");
+      const raw = await api("/api/activity-log");
+      this._data = Array.isArray(raw) ? raw : [];
+      this._render();
     } catch (e) {
       body.innerHTML = `<div class="es"><div class="ic">⚠️</div><div class="t">${App.lang === "ar" ? "تعذّر تحميل السجلات" : "Could not load logs"}</div></div>`;
-      return;
     }
-    this._render();
   },
 
   _render() {
