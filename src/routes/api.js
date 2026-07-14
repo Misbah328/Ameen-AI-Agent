@@ -4187,6 +4187,89 @@ router.patch('/settings/org', auth, requirePermission('admin.settings'), (req, r
   res.json({ success: true });
 });
 
+// ── Aggregated activity log ────────────────────────────────────────────────────
+// Unions all audit / event tables and returns rows newest-first.
+router.get('/activity-log', auth, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 500, 2000);
+  try {
+    const rows = db.prepare(`
+      SELECT
+        'reschedule'  AS source_type,
+        srl.actor_name,
+        srl.actor_role,
+        s.title_ar    AS entity_ar,
+        COALESCE(s.title_en, s.title_ar) AS entity_en,
+        (srl.old_date || ' ' || srl.old_time || ' → ' || srl.new_date || ' ' || srl.new_time) AS detail,
+        srl.reason,
+        srl.created_at
+      FROM schedule_reschedule_log srl
+      LEFT JOIN schedule s ON s.id = srl.schedule_id
+
+      UNION ALL
+
+      SELECT
+        'lifecycle'   AS source_type,
+        mll.actor_name,
+        NULL          AS actor_role,
+        m.title_ar    AS entity_ar,
+        COALESCE(m.title_en, m.title_ar) AS entity_en,
+        COALESCE(mll.from_stage, '—') || ' → ' || mll.to_stage AS detail,
+        mll.note      AS reason,
+        mll.created_at
+      FROM meeting_lifecycle_log mll
+      LEFT JOIN meetings m ON m.id = mll.meeting_id
+
+      UNION ALL
+
+      SELECT
+        'minutes'     AS source_type,
+        mal.actor_name,
+        mal.actor_role,
+        m.title_ar    AS entity_ar,
+        COALESCE(m.title_en, m.title_ar) AS entity_en,
+        mal.action    AS detail,
+        mal.comments  AS reason,
+        mal.created_at
+      FROM minutes_approval_log mal
+      LEFT JOIN meetings m ON m.id = mal.meeting_id
+
+      UNION ALL
+
+      SELECT
+        'permission'  AS source_type,
+        pal.actor_name,
+        NULL          AS actor_role,
+        pal.role_key  AS entity_ar,
+        pal.role_key  AS entity_en,
+        pal.action    AS detail,
+        NULL          AS reason,
+        pal.created_at
+      FROM permission_audit_log pal
+
+      UNION ALL
+
+      SELECT
+        'event'       AS source_type,
+        me.actor_name,
+        NULL          AS actor_role,
+        m.title_ar    AS entity_ar,
+        COALESCE(m.title_en, m.title_ar) AS entity_en,
+        me.event_type AS detail,
+        me.new_value  AS reason,
+        me.created_at
+      FROM meeting_events me
+      LEFT JOIN meetings m ON m.id = me.meeting_id
+      WHERE me.source = 'user' OR me.event_type NOT IN ('heartbeat','ping')
+
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(limit);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Integration credentials ───────────────────────────────────────────────────
 const ALLOWED_PROVIDERS = ['zoom','teams','google_meet'];
 router.post('/settings/integration/:provider', auth, requirePermission('admin.settings'), (req, res) => {

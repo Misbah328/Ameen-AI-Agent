@@ -1735,3 +1735,18 @@ button.mt2-chev-open:hover{background:#F2F4F7;color:#A8842C}
   .nm-ab-cancel{margin-inline-end:0;width:100%;text-align:center}
   .nm-ab-draft,.nm-ab-primary{width:100%}
 }
+
+
+/* ══ Activity Log panel ═══════════════════════════════════════════════════════ */
+.al-list{display:flex;flex-direction:column;gap:8px}
+.al-row{display:flex;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--border3);border-radius:10px;transition:box-shadow .15s}
+.al-row:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.al-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.al-body{flex:1;min-width:0}
+.al-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.al-actor{font-size:13px;font-weight:600;color:var(--text)}
+.al-badge{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.al-time{font-size:11px;color:var(--text3);margin-inline-start:auto;white-space:nowrap}
+.al-entity{font-size:12px;color:var(--text2);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-detail{font-size:12.5px;color:var(--text2)}
+.al-reason{font-size:11.5px;color:var(--text3);margin-top:3px;font-style:italic}

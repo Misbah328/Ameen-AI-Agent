@@ -61,7 +61,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/css/app.css?v=20260713m"/>
+<link rel="stylesheet" href="/css/app.css?v=20260714g"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713m"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
 </head>
@@ -160,6 +160,10 @@
   </button>
 
   <div style="height:10px"></div>
+  <button class="nb" data-p="logs">
+    <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+    <span class="nb-label" data-ar="سجل النشاط" data-en="Activity Log">سجل النشاط</span>
+  </button>
   <button class="nb" data-p="integrations">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg></span>
     <span class="nb-label" data-ar="الإعدادات" data-en="Settings">الإعدادات</span>
@@ -1873,7 +1877,7 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260714f"></script>
+<script src="/js/app.js?v=20260714g"></script>
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260713e"></script>
 <script src="/js/meetings.js?v=20260714a"></script>
@@ -1919,6 +1923,24 @@
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
   <span class="ask-fab-label" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</span>
 </button>
+
+<!-- ══ ACTIVITY LOG ═══════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-logs">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="سجل النشاط" data-en="Activity Log">سجل النشاط</div>
+        <div class="ptitle-sub" data-ar="جميع التغييرات — من قام بها ومتى" data-en="All changes — who made them and when">جميع التغييرات — من قام بها ومتى</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="ActivityLog.refresh()">
+        <span data-ar="↺ تحديث" data-en="↺ Refresh">↺ تحديث</span>
+      </button>
+    </div>
+  </div>
+  <div class="pbody" id="activity-log-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
 
 <!-- ══ MOBILE BOTTOM NAVIGATION ══════════════════════════════════════════ -->
 <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation">

@@ -1010,6 +1010,9 @@ const Panels = {
       case "resolutions":
         if (window.MT) await MT.renderResolutions();
         break;
+      case "logs":
+        await ActivityLog.refresh();
+        break;
       case "live":
         await LiveMeetingsPanel.refresh();
         break;
@@ -9146,6 +9149,101 @@ const CreateMeetingWizard = {
       this._setSubmitting(false, isDraft);
     }
   },
+};
+
+// ══ Activity Log panel ────────────────────────────────────────────────────────
+const ActivityLog = {
+  _data: [],
+  _filter: "all",
+  _search: "",
+
+  async refresh() {
+    const body = $("activity-log-body");
+    if (!body) return;
+    body.innerHTML = `<div class="es"><div class="loading"></div></div>`;
+    try {
+      this._data = await api("/api/activity-log");
+    } catch (e) {
+      body.innerHTML = `<div class="es"><div class="ic">⚠️</div><div class="t">${App.lang === "ar" ? "تعذّر تحميل السجلات" : "Could not load logs"}</div></div>`;
+      return;
+    }
+    this._render();
+  },
+
+  _render() {
+    const body = $("activity-log-body");
+    if (!body) return;
+    const l = App.lang;
+    const t = (ar, en) => l === "ar" ? ar : en;
+
+    const TYPE_LABELS = {
+      reschedule:  { ar: "إعادة جدولة",   en: "Reschedule",       ico: "📆", color: "#C9860A" },
+      lifecycle:   { ar: "مرحلة الاجتماع", en: "Meeting Stage",    ico: "🔄", color: "#1a7f4b" },
+      minutes:     { ar: "محضر الاجتماع",  en: "Meeting Minutes",  ico: "📄", color: "#5b6fe6" },
+      permission:  { ar: "صلاحيات",        en: "Permissions",      ico: "🛡️", color: "#8b5cf6" },
+      event:       { ar: "حدث مباشر",      en: "Live Event",       ico: "⚡", color: "#e03e3e" },
+    };
+    const FILTERS = [
+      { key: "all",        ar: "الكل",         en: "All"         },
+      { key: "reschedule", ar: "إعادة جدولة",   en: "Reschedule"  },
+      { key: "lifecycle",  ar: "مراحل الاجتماع",en: "Meeting Stages"},
+      { key: "minutes",    ar: "المحاضر",       en: "Minutes"     },
+      { key: "permission", ar: "الصلاحيات",     en: "Permissions" },
+      { key: "event",      ar: "الأحداث",       en: "Live Events" },
+    ];
+
+    const visible = this._data.filter(r => {
+      if (this._filter !== "all" && r.source_type !== this._filter) return false;
+      if (this._search) {
+        const q = this._search.toLowerCase();
+        return (r.actor_name || "").toLowerCase().includes(q)
+            || (r.entity_ar  || "").toLowerCase().includes(q)
+            || (r.entity_en  || "").toLowerCase().includes(q)
+            || (r.detail     || "").toLowerCase().includes(q)
+            || (r.reason     || "").toLowerCase().includes(q);
+      }
+      return true;
+    });
+
+    const filterBtns = FILTERS.map(f =>
+      `<button class="btn-ghost btn-sm${this._filter === f.key ? " btn-active" : ""}"
+        style="font-size:11.5px;${this._filter === f.key ? "background:var(--amber,#C9860A);color:#fff;border-color:var(--amber,#C9860A);" : ""}"
+        onclick="ActivityLog._setFilter('${f.key}')">${t(f.ar, f.en)}</button>`
+    ).join("");
+
+    const rows = visible.length ? visible.map(r => {
+      const type = TYPE_LABELS[r.source_type] || { ico: "📋", color: "#888", ar: r.source_type, en: r.source_type };
+      const entity = (l === "ar" ? r.entity_ar : r.entity_en) || r.entity_ar || "";
+      const when = (r.created_at || "").substring(0, 16).replace("T", " ");
+      const initials = (r.actor_name || "?").trim().split(/\s+/).map(w => w[0]).join("").substring(0, 2).toUpperCase();
+      return `
+        <div class="al-row">
+          <div class="al-av" style="background:${type.color}22;color:${type.color}">${initials}</div>
+          <div class="al-body">
+            <div class="al-top">
+              <span class="al-actor">${esc(r.actor_name || t("النظام","System"))}</span>
+              <span class="al-badge" style="background:${type.color}22;color:${type.color}">${type.ico} ${t(type.ar, type.en)}</span>
+              <span class="al-time">${when}</span>
+            </div>
+            ${entity ? `<div class="al-entity">📋 ${esc(entity)}</div>` : ""}
+            <div class="al-detail">${esc(r.detail || "")}</div>
+            ${r.reason ? `<div class="al-reason">💬 ${esc(r.reason)}</div>` : ""}
+          </div>
+        </div>`;
+    }).join("") : `<div class="es" style="min-height:160px"><div class="ic">🗂️</div><div class="t">${t("لا توجد سجلات مطابقة", "No matching log entries")}</div></div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <input class="fi" style="flex:1;min-width:180px;max-width:300px;font-size:12.5px" placeholder="${t("بحث باسم الشخص أو الحدث…", "Search by person or event…")}"
+          value="${esc(this._search)}" oninput="ActivityLog._setSearch(this.value)"/>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${filterBtns}</div>
+        <span style="font-size:11px;color:var(--text3);margin-inline-start:auto">${visible.length} ${t("نتيجة", "results")}</span>
+      </div>
+      <div class="al-list">${rows}</div>`;
+  },
+
+  _setFilter(f) { this._filter = f; this._render(); },
+  _setSearch(v) { this._search = v; this._render(); },
 };
 
 // ══ Generic row action menu (⋮) — minimal popover toggle used by the new
