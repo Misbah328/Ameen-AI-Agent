@@ -1271,8 +1271,70 @@ async function notifyTaskAssigned(task, actorUserId) {
       phone: owner.phone || undefined,
       subject, text: body,
     });
-  } catch (_) {
-    // best-effort only — never block the task write
+  } catch (e) {
+    console.error('[notifyTaskAssigned] email failed for task', task.id, e.message);
+  }
+}
+
+// ── Meeting invite emails ─────────────────────────────────────────────────────
+// Sends email (+ in-app notification if the attendee is a registered user) to
+// every attendee in the list.  Never throws — a delivery failure must never
+// block the meeting write that triggered it.
+//
+// attendees: Array of { name, email, phone } — external rows from
+//   meeting_attendees, or plain objects built from a raw "attendees" string.
+// meeting: Object with id (may be null for /schedule rows), title_ar,
+//   title_en, meeting_date, meeting_time.
+async function notifyMeetingInvite(meeting, attendees, actorUserId) {
+  const actor   = resolveActor(actorUserId);
+  const actorName = actor.name || 'Ameen';
+  const titleAr = meeting.title_ar || 'اجتماع';
+  const titleEn = meeting.title_en || meeting.title_ar || 'Meeting';
+  const dateStr = [meeting.meeting_date, meeting.meeting_time].filter(Boolean).join(' الساعة ');
+  const dateStrEn = [meeting.meeting_date, meeting.meeting_time].filter(Boolean).join(' at ');
+
+  for (const att of attendees) {
+    if (!att.email) continue;
+
+    // In-app notification if the attendee has a registered account
+    try {
+      const user = db.prepare('SELECT id FROM users WHERE LOWER(email)=LOWER(?)').get(att.email);
+      if (user && user.id !== actorUserId) {
+        createNotification(db, {
+          userId: user.id,
+          type: 'meeting_invited',
+          titleAr: 'تمت دعوتك لحضور اجتماع',
+          titleEn: 'You have been invited to a meeting',
+          bodyAr: `"${titleAr}"${dateStr ? ` — ${dateStr}` : ''}`,
+          bodyEn: `"${titleEn}"${dateStrEn ? ` — ${dateStrEn}` : ''}`,
+          sourceType: 'meeting', sourceId: meeting.id || null, deepLink: 'scheduled',
+        });
+      }
+    } catch (e) {
+      console.error('[notifyMeetingInvite] in-app failed', att.email, e.message);
+    }
+
+    // Email (and WhatsApp if phone present)
+    try {
+      const subject = `دعوة اجتماع: ${titleAr} / Meeting Invitation: ${titleEn}`;
+      const text =
+        `${actorName} دعاك لحضور الاجتماع التالي:\n\n"${titleAr}"` +
+        (dateStr ? `\nالموعد: ${dateStr}` : '') +
+        `\n\nيرجى تأكيد حضورك.\n\n` +
+        `———\n\n` +
+        `${actorName} has invited you to the following meeting:\n\n"${titleEn}"` +
+        (dateStrEn ? `\nDate & Time: ${dateStrEn}` : '') +
+        `\n\nPlease confirm your attendance.`;
+      await notify.notify({
+        channel: att.phone ? 'both' : 'email',
+        email: att.email,
+        phone: att.phone || undefined,
+        subject,
+        text,
+      });
+    } catch (e) {
+      console.error('[notifyMeetingInvite] email failed for', att.email, e.message);
+    }
   }
 }
 
@@ -1996,6 +2058,13 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
         bodyEn: `"${title_en || title_ar}" — ${effectiveDate} at ${effectiveTime}`,
         sourceType: 'schedule', sourceId: row.lastInsertRowid, deepLink: 'schedule',
       }, req.user.id);
+      // Also send email invitations to every attendee address
+      const attendeeList = attendeeEmails.map(e => ({ email: e, phone: null }));
+      notifyMeetingInvite(
+        { id: null, title_ar, title_en: title_en || title_ar, meeting_date: effectiveDate, meeting_time: effectiveTime },
+        attendeeList,
+        req.user.id
+      );
     }
   }
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(row.lastInsertRowid));
@@ -2686,6 +2755,12 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
     // meeting record itself rather than a separate calendar-confirmation step.
     transitionMeeting(meetingId, 'invited', req.user.id, `${list.length} attendee(s) invited`);
     transitionMeeting(meetingId, 'scheduled', req.user.id, 'Meeting date/time confirmed');
+    // Send email invitations to every attendee with an email address.
+    const mtg = db.prepare('SELECT id, title_ar, title_en, meeting_date, meeting_time FROM meetings WHERE id=?').get(meetingId);
+    if (mtg) {
+      const invitees = list.filter(a => a.email);
+      notifyMeetingInvite(mtg, invitees, req.user.id);
+    }
   }
   res.json(db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC').all(meetingId));
 });
@@ -2693,7 +2768,7 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
 // Add a single attendee to an existing meeting without replacing others.
 router.post('/meetings/:id/attendees/add', auth, (req, res) => {
   const meetingId = req.params.id;
-  const meeting = db.prepare('SELECT id FROM meetings WHERE id=?').get(meetingId);
+  const meeting = db.prepare('SELECT id, title_ar, title_en, meeting_date, meeting_time FROM meetings WHERE id=?').get(meetingId);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
   const { name, email, phone } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
@@ -2704,6 +2779,8 @@ router.post('/meetings/:id/attendees/add', auth, (req, res) => {
   db.prepare(`INSERT INTO meeting_attendees (meeting_id, name, email, phone, share_token, shared, confirmed) VALUES (?, ?, ?, ?, ?, 0, 0)`)
     .run(meetingId, name.trim(), email || '', phone || '', tok);
   const attendee = db.prepare('SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id DESC LIMIT 1').get(meetingId);
+  // Send email invitation to the newly added attendee
+  if (email) notifyMeetingInvite(meeting, [{ name: name.trim(), email, phone: phone || null }], req.user.id);
   res.json(attendee);
 });
 
