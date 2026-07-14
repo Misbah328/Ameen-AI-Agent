@@ -55,7 +55,7 @@ body{font-family:'Inter','Segoe UI',Tahoma,Arial,sans-serif;font-size:15px;line-
 .lang-toggle{display:flex;align-items:center;border:1px solid var(--border3);border-radius:10px;overflow:hidden;background:#fff}
 .lb{padding:6px 11px;font-size:12.5px;cursor:pointer;background:transparent;color:var(--text3);border:none;font-family:inherit;font-weight:600;transition:var(--t)}
 .lb.active{background:var(--navy4);color:var(--text);border-radius:8px;margin:2px}
-.theme-toggle{display:flex;align-items:center;gap:5px;font-size:14px;width:34px;height:34px;justify-content:center;border-radius:10px;background:#fff;color:var(--text2);border:1px solid var(--border3);cursor:pointer;font-family:inherit;font-weight:500;transition:var(--t)}
+.theme-toggle{display:flex;align-items:center;gap:5px;font-size:14px;width:36px;height:36px;justify-content:center;border-radius:10px;background:#fff;color:var(--text2);border:1px solid var(--border3);cursor:pointer;font-family:inherit;font-weight:500;transition:var(--t)}
 .theme-toggle:hover{background:var(--navy3);color:var(--text)}
 .ai-key-btn{display:flex;align-items:center;gap:5px;font-size:12px;padding:6px 11px;border-radius:10px;background:#fff;color:var(--text2);border:1px solid var(--border3);cursor:pointer;font-family:inherit;font-weight:600;transition:var(--t)}
 .ai-key-btn:hover{background:var(--navy3);color:var(--text)}
