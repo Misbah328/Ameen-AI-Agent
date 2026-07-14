@@ -648,6 +648,7 @@ const MT = {
         ${approver ? `<div style="font-size:11px;font-weight:800;color:#697386;margin-bottom:6px">${t("اعتمده", "Approved By")}</div>
           <div class="mx-person"><span class="mx-av">${esc(this._initials(approver.actor_name))}</span><div><div class="mx-person-n">${esc(approver.actor_name || "")}</div><div class="mx-person-r">${esc(approver.actor_role || "")}</div></div></div>` : ""}
         <button class="mt2-qa-btn" style="margin-top:10px" onclick="MT.setTab('approval')"><span>${t("عرض سجل الاعتماد", "View Approval History")}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>
+        <button id="min-dl-btn-${m.id}" class="btn-ghost btn-sm" style="width:100%;margin-top:8px;justify-content:center;gap:6px" onclick="MinutesDownload.download(${m.id},'${l}')">📥 ${t("تنزيل المحضر PDF", "Download Minutes PDF")}</button>
       </div>
       <div class="mx-card" style="margin-top:14px"><div class="mx-card-t">${t("ملخص الاجتماع", "Meeting Summary")}</div>
         ${m.duration ? `<div class="mx-statrow"><span class="k">🕐 ${t("المدة", "Duration")}</span><span class="v">${Math.round((parseInt(m.duration, 10) || 0) / 60)} ${t("د", "min")}</span></div>` : ""}

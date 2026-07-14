@@ -3716,6 +3716,133 @@ router.post('/meetings/:id/final-approve', auth, requirePermission('minutes.appr
   res.json({ success: true, minutes_status: 'final_approved' });
 });
 
+// GET /api/meetings/:id/minutes/download — generates a formatted PDF of the
+// meeting minutes, decisions, and actions. Available as soon as the meeting has
+// minutes content (ai_minutes_ar/en or manual minutes). lang param defaults to
+// the language the minutes were generated in; pass ?lang=en to force English.
+router.get('/meetings/:id/minutes/download', auth, requirePermission('minutes.view'), async (req, res) => {
+  const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'NOT_FOUND' });
+
+  const forceLang = (req.query.lang || '').toLowerCase();
+  const hasEn = !!(meeting.ai_minutes_en || meeting.ai_summary_en);
+  const isAr = forceLang === 'en' ? false : forceLang === 'ar' ? true : !(hasEn && !meeting.ai_minutes_ar);
+  const lang = isAr ? 'ar' : 'en';
+
+  const t = (ar, en) => isAr ? ar : en;
+  const mtTitle = (isAr ? meeting.title_ar : (meeting.title_en || meeting.title_ar)) || t('اجتماع', 'Meeting');
+
+  const sections = [];
+
+  // Approval status banner
+  const statusMap = {
+    draft: t('مسودة', 'Draft'),
+    circulated: t('قيد المراجعة', 'Under Review'),
+    approved: t('معتمد', 'Approved'),
+    revision_requested: t('يحتاج تعديل', 'Revision Needed'),
+    final_approved: t('معتمد نهائياً', 'Final Approved'),
+  };
+  const approvalLines = [
+    `${t('الحالة', 'Status')}: ${statusMap[meeting.minutes_status] || (meeting.minutes_status || t('مسودة','Draft'))}`,
+    meeting.circulated_at ? `${t('تاريخ التعميم','Circulated')}: ${String(meeting.circulated_at).substring(0,16)}` : '',
+    meeting.approved_at   ? `${t('تاريخ الاعتماد','Approved')}: ${String(meeting.approved_at).substring(0,16)}` : '',
+    meeting.final_approved_at ? `${t('الاعتماد النهائي','Final Approval')}: ${String(meeting.final_approved_at).substring(0,16)}` : '',
+  ].filter(Boolean);
+  sections.push({ title: t('حالة المحضر', 'Minutes Status'), text: approvalLines.join('  |  ') });
+
+  // Meeting info
+  const attendees = db.prepare('SELECT name FROM meeting_attendees WHERE meeting_id=? ORDER BY id').all(meeting.id);
+  const infoLines = [
+    meeting.meeting_date ? `${t('التاريخ','Date')}: ${String(meeting.meeting_date).substring(0,10)}` : '',
+    meeting.meeting_time ? `${t('الوقت','Time')}: ${meeting.meeting_time}` : '',
+    meeting.platform     ? `${t('المنصة','Platform')}: ${meeting.platform}` : '',
+    meeting.location     ? `${t('المكان','Location')}: ${meeting.location}` : '',
+  ].filter(Boolean);
+  if (infoLines.length) sections.push({ title: t('معلومات الاجتماع', 'Meeting Information'), text: infoLines.join('  |  ') });
+
+  if (attendees.length) {
+    sections.push({
+      title: t('المشاركون', 'Attendees'),
+      items: attendees.map(a => a.name).filter(Boolean),
+    });
+  }
+
+  // Summary
+  const summary = (isAr ? meeting.ai_summary_ar : meeting.ai_summary_en) || meeting.ai_summary_ar;
+  if (summary) sections.push({ title: t('الملخص التنفيذي', 'Executive Summary'), text: summary });
+
+  // Minutes body (structured v1 or legacy markdown)
+  const minutesRaw = isAr ? meeting.ai_minutes_ar : (meeting.ai_minutes_en || meeting.ai_minutes_ar);
+  let minutesDoc = null;
+  try {
+    const parsed = minutesRaw ? JSON.parse(minutesRaw) : null;
+    if (parsed && parsed.format === 'structured_v1') minutesDoc = parsed;
+  } catch (_) {}
+
+  if (minutesDoc) {
+    if ((minutesDoc.agenda || []).length)
+      sections.push({ title: t('جدول الأعمال', 'Agenda'), items: minutesDoc.agenda });
+    if ((minutesDoc.discussion || []).length)
+      sections.push({ title: t('المناقشات', 'Discussion'), text: minutesDoc.discussion.map(d => `${d.topic}\n${d.narrative}`).join('\n\n') });
+    if (minutesDoc.next_meeting_note)
+      sections.push({ title: t('الاجتماع القادم', 'Next Meeting'), text: minutesDoc.next_meeting_note });
+  } else if (minutesRaw) {
+    const plain = String(minutesRaw)
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/^[-*]\s+/gm, '• ')
+      .trim();
+    if (plain) sections.push({ title: t('محضر الاجتماع', 'Meeting Minutes'), text: plain });
+  }
+
+  // Decisions from DB (real rows, excluding AI drafts)
+  const decisions = db.prepare(
+    `SELECT text_ar, text_en, status FROM decisions WHERE meeting_id=? AND (ai_status IS NULL OR ai_status != 'ai_draft') ORDER BY id`
+  ).all(meeting.id);
+  if (decisions.length) {
+    sections.push({
+      title: t('القرارات', 'Decisions'),
+      items: decisions.map((d, i) => {
+        const txt = (isAr ? (d.text_ar || d.text_en) : (d.text_en || d.text_ar)) || '';
+        return `${i + 1}. ${txt.trim()}`;
+      }).filter(Boolean),
+    });
+  }
+
+  // Tasks from DB — note: tasks reference meetings via source_meeting_id
+  const tasks = db.prepare(
+    `SELECT text_ar, text_en, owner_name_ar, owner_name_en, due_date, status FROM tasks WHERE source_meeting_id=? AND (ai_status IS NULL OR ai_status != 'ai_draft') ORDER BY id`
+  ).all(meeting.id);
+  if (tasks.length) {
+    sections.push({
+      title: t('الإجراءات والمهام', 'Actions & Tasks'),
+      items: tasks.map((tk, i) => {
+        const txt = (isAr ? (tk.text_ar || tk.text_en) : (tk.text_en || tk.text_ar)) || '';
+        const owner = (isAr ? tk.owner_name_ar : (tk.owner_name_en || tk.owner_name_ar)) || '';
+        const due = tk.due_date ? ` · ${t('الاستحقاق','Due')}: ${String(tk.due_date).substring(0,10)}` : '';
+        return `${i + 1}. ${txt.trim()}${owner ? ' — ' + owner : ''}${due}`;
+      }).filter(Boolean),
+    });
+  }
+
+  if (!sections.length || sections.length <= 1) {
+    return res.status(400).json({ error: 'NO_MINUTES', message: t('لا يوجد محتوى للمحضر بعد', 'No minutes content available yet') });
+  }
+
+  try {
+    const docTitle = `${t('محضر اجتماع', 'Meeting Minutes')} — ${mtTitle}`;
+    const pdfBuf = await buildPdf({ title: docTitle, lang, sections });
+    const ascii = mtTitle.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-') || `meeting-${meeting.id}`;
+    const encoded = encodeURIComponent(docTitle.trim());
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="minutes-${ascii}.pdf"; filename*=UTF-8''${encoded}.pdf`);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('Minutes PDF error:', e.message);
+    res.status(500).json({ error: 'PDF_FAILED', detail: e.message });
+  }
+});
+
 // POST /api/meetings/:id/archive — final step of the lifecycle, only reachable
 // once the board has given final approval.
 router.post('/meetings/:id/archive', auth, requirePermission('meetings.archive'), (req, res) => {

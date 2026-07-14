@@ -3858,6 +3858,7 @@ async function renderTranscripts() {
             if (lcStage === 'approval') {
               btns.push(`<button class="btn-ghost btn-sm" onclick="minutesApprovalAction(${m.id},'archive')" style="color:var(--text3);border-color:var(--text3)">🗄️ ${l==='ar'?'أرشفة':'Archive'}</button>`);
             }
+            btns.push(`<button id="min-dl-btn-${m.id}" class="btn-ghost btn-sm" onclick="MinutesDownload.download(${m.id},'${l}')">📥 ${l==='ar'?'تنزيل المحضر PDF':'Download Minutes PDF'}</button>`);
             return btns.join('');
           })();
           // Speaker count derived from the speaker_transcript segments
@@ -7832,6 +7833,41 @@ const RecentReports = {
       return JSON.parse(localStorage.getItem(this.key) || "[]");
     } catch (e) {
       return [];
+    }
+  },
+};
+
+const MinutesDownload = {
+  async download(meetingId, lang) {
+    const l = lang || App.lang;
+    const btnId = `min-dl-btn-${meetingId}`;
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${l === "ar" ? "جارٍ التوليد..." : "Generating PDF..."}`; }
+    try {
+      const resp = await fetch(`/api/meetings/${meetingId}/minutes/download?lang=${l}`, {
+        credentials: "include",
+        headers: authHeaders(),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        if (err.error === "NO_MINUTES") {
+          showToast(l === "ar" ? "⚠️ لا يوجد محتوى للمحضر بعد" : "⚠️ No minutes content yet");
+          return;
+        }
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `minutes-${meetingId}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast(l === "ar" ? "✓ تم تنزيل المحضر PDF" : "✓ Minutes PDF downloaded");
+    } catch (e) {
+      showToast((l === "ar" ? "خطأ: " : "Error: ") + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = `📥 ${l === "ar" ? "تنزيل المحضر PDF" : "Download Minutes PDF"}`; }
     }
   },
 };
