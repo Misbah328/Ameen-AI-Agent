@@ -9477,6 +9477,8 @@ const ScheduledPanel = {
         const linked = this._linked(s);
         if (linked) openFn = () => MT.openDetail(linked.id);
         box.innerHTML = this._schedDetailHtml(s, l);
+        // Async: load reschedule history into the placeholder card
+        if (s.status !== 'draft') this._loadRescheduleLog(s.id);
       }
     }
 
@@ -9594,6 +9596,20 @@ const ScheduledPanel = {
         .map((a) => `<button class="mt2-qa-btn" onclick="${a.on}"><span>${a.ico} ${t(a.ar, a.en)}</span><span class="mt2-chev">${l === "ar" ? "‹" : "›"}</span></button>`)
         .join("")}</div></div>`;
 
+    const rescheduleCard = isDraft ? "" : `
+      <div class="mt2-card" style="margin-top:0">
+        <div class="mt2-card-t" style="display:flex;align-items:center;gap:8px">
+          <span>${t("سجل إعادة الجدولة", "Reschedule History")}</span>
+          <span id="sched-rlog-badge-${s.id}" style="display:none;background:var(--amber,#C9860A);color:#fff;border-radius:99px;font-size:10.5px;font-weight:700;padding:1px 7px;line-height:1.6"></span>
+        </div>
+        <div id="sched-rlog-${s.id}" style="padding:2px 0">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:10px 0">
+            <div class="loading" style="width:16px;height:16px;margin:0 auto 4px"></div>
+            ${t("جارٍ التحميل…", "Loading…")}
+          </div>
+        </div>
+      </div>`;
+
     return `<div class="mt2-dhead">
       <div class="mt2-dhead-top">
         <span class="mt2-chip-type">📋 ${esc(typeLabel)}</span>
@@ -9623,7 +9639,8 @@ const ScheduledPanel = {
       ${tabs}
     </div>
     ${stepper}
-    <div class="mt2-2col">${about}${quick}</div>`;
+    <div class="mt2-2col">${about}${quick}</div>
+    ${rescheduleCard}`;
   },
 
   _meetingDetailHtml(m, l) {
@@ -9695,6 +9712,49 @@ const ScheduledPanel = {
 
   // Open the Create Meeting form pre-filled with a draft's data so the user
   // can complete and confirm it (or re-save as draft).
+  // Fetches and renders the reschedule history for a schedule item into the
+  // placeholder div injected by _schedDetailHtml.
+  async _loadRescheduleLog(scheduleId) {
+    const l = App.lang;
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const container = document.getElementById(`sched-rlog-${scheduleId}`);
+    if (!container) return;
+    try {
+      const log = await api(`/api/schedule/${scheduleId}/reschedule-log`);
+      const badge = document.getElementById(`sched-rlog-badge-${scheduleId}`);
+      if (badge) {
+        if (log.length) { badge.textContent = log.length; badge.style.display = ""; }
+        else { badge.style.display = "none"; }
+      }
+      if (!log.length) {
+        container.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px 0">${t("لا توجد إعادة جدولة سابقة", "No reschedule history yet")}</div>`;
+        return;
+      }
+      container.innerHTML = log.map((r, i) => {
+        const oldDT = [r.old_date, r.old_time].filter(Boolean).join(" ").trim();
+        const newDT = [r.new_date, r.new_time].filter(Boolean).join(" ").trim();
+        const when = (r.created_at || "").substring(0, 16).replace("T", " ");
+        return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;${i < log.length - 1 ? "border-bottom:1px solid var(--border,#eee)" : ""}">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--amber-bg,#FFF8E7);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">📆</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600">${esc(r.actor_name || "—")}</div>
+            ${r.actor_role ? `<div style="font-size:11px;color:var(--text3)">${esc(r.actor_role)}</div>` : ""}
+            <div style="font-size:12px;margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span style="color:var(--red,#c0392b);text-decoration:line-through">${esc(oldDT || "—")}</span>
+              <span style="color:var(--text3)">→</span>
+              <span style="color:var(--green,#1a7f4b);font-weight:600">${esc(newDT || "—")}</span>
+            </div>
+            ${r.reason ? `<div style="font-size:11.5px;color:var(--text3);margin-top:3px">📝 ${esc(r.reason)}</div>` : ""}
+            <div style="font-size:10.5px;color:var(--text4,#aaa);margin-top:3px">${when}</div>
+          </div>
+        </div>`;
+      }).join("");
+    } catch (_) {
+      const container2 = document.getElementById(`sched-rlog-${scheduleId}`);
+      if (container2) container2.innerHTML = "";
+    }
+  },
+
   async editDraft(scheduleId) {
     if (window.MT) {
       MT.editDraft(scheduleId);

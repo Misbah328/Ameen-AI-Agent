@@ -2182,7 +2182,33 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
   if (req.body.source_meeting_id !== undefined) {
     db.prepare('UPDATE schedule SET source_meeting_id=? WHERE id=?').run(req.body.source_meeting_id || null, req.params.id);
   }
+
+  // ── Reschedule audit log: record whenever date or time changes on a
+  // confirmed (non-draft) meeting so managers can see who rescheduled and why.
+  if (row.status !== 'draft' && (meeting_date !== undefined || meeting_time !== undefined)) {
+    const oldDate = (row.meeting_date || '').substring(0, 10);
+    const oldTime = (row.meeting_time || '').substring(0, 5);
+    const newDateVal = meeting_date !== undefined ? meeting_date.substring(0, 10) : oldDate;
+    const newTimeVal = meeting_time !== undefined ? meeting_time.substring(0, 5) : oldTime;
+    if (oldDate !== newDateVal || oldTime !== newTimeVal) {
+      const actor = resolveActor(req.user.id);
+      db.prepare(`INSERT INTO schedule_reschedule_log
+        (schedule_id, rescheduled_by, actor_name, actor_role, old_date, old_time, new_date, new_time, reason)
+        VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(req.params.id, req.user.id, actor.name || '', actor.role || '',
+             oldDate, oldTime, newDateVal, newTimeVal, req.body.note || '');
+    }
+  }
+
   res.json(db.prepare('SELECT * FROM schedule WHERE id=?').get(req.params.id));
+});
+
+// ── GET reschedule log for a schedule entry ──────────────────────────────────
+router.get('/schedule/:id/reschedule-log', auth, (req, res) => {
+  const rows = db.prepare(
+    'SELECT * FROM schedule_reschedule_log WHERE schedule_id=? ORDER BY created_at DESC'
+  ).all(req.params.id);
+  res.json(rows);
 });
 
 router.delete('/schedule/:id/series', auth, requirePermission('calendar.manage'), (req, res) => {

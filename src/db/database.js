@@ -1423,4 +1423,22 @@ if (!db.prepare("SELECT value FROM settings WHERE key='v_meetings_redesign_seede
   }
 })();
 
+// ── Reschedule audit log ───────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schedule_reschedule_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    schedule_id     INTEGER NOT NULL,
+    rescheduled_by  INTEGER NOT NULL,
+    actor_name      TEXT    DEFAULT '',
+    actor_role      TEXT    DEFAULT '',
+    old_date        TEXT    DEFAULT '',
+    old_time        TEXT    DEFAULT '',
+    new_date        TEXT    DEFAULT '',
+    new_time        TEXT    DEFAULT '',
+    reason          TEXT    DEFAULT '',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE CASCADE
+  )
+`);
+
 module.exports = db;
