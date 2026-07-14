@@ -1494,6 +1494,24 @@
   </div>
 </section>
 
+<!-- ══ ACTIVITY LOG ═══════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-logs">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="سجل النشاط" data-en="Activity Log">سجل النشاط</div>
+        <div class="ptitle-sub" data-ar="جميع التغييرات — من قام بها ومتى" data-en="All changes — who made them and when">جميع التغييرات — من قام بها ومتى</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="ActivityLog.refresh()">
+        <span data-ar="↺ تحديث" data-en="↺ Refresh">↺ تحديث</span>
+      </button>
+    </div>
+  </div>
+  <div class="pbody" id="activity-log-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
 </main>
 </div>
 
@@ -1923,24 +1941,6 @@
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
   <span class="ask-fab-label" data-ar="اسأل أمين" data-en="Ask Ameen">اسأل أمين</span>
 </button>
-
-<!-- ══ ACTIVITY LOG ═══════════════════════════════════════════════════════ -->
-<section class="panel" id="panel-logs">
-  <div class="ph">
-    <div class="ph-row">
-      <div>
-        <div class="ptitle" data-ar="سجل النشاط" data-en="Activity Log">سجل النشاط</div>
-        <div class="ptitle-sub" data-ar="جميع التغييرات — من قام بها ومتى" data-en="All changes — who made them and when">جميع التغييرات — من قام بها ومتى</div>
-      </div>
-      <button class="btn-ghost btn-sm" onclick="ActivityLog.refresh()">
-        <span data-ar="↺ تحديث" data-en="↺ Refresh">↺ تحديث</span>
-      </button>
-    </div>
-  </div>
-  <div class="pbody" id="activity-log-body">
-    <div class="es"><div class="loading"></div></div>
-  </div>
-</section>
 
 <!-- ══ MOBILE BOTTOM NAVIGATION ══════════════════════════════════════════ -->
 <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation">
