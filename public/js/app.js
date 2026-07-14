@@ -333,6 +333,8 @@ const ROLE_ACCESS = {
 Object.values(ROLE_ACCESS).forEach((set) => {
   if (set.has("documents")) { set.add("policies"); set.add("resolutions"); }
   if (set.has("scheduled") || set.has("tasks")) set.add("calendar");
+  // Activity Log sidebar entry mirrors the "activity" permission.
+  if (set.has("activity")) set.add("logs");
 });
 
 // ══ Executive Action taxonomy ══════════════════════════════════════════════
