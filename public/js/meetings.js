@@ -1895,6 +1895,7 @@ const MT = {
         this._editingDraftScheduleId = null;
         this._cs = null;
         this._createRendered = false;
+        if (window.ScheduledPanel) ScheduledPanel._tab = "draft";
         this.showList();
         await ScheduledPanel.refresh();
         if (typeof loadBadges === "function") await loadBadges();
@@ -1935,6 +1936,35 @@ const MT = {
       if (allAttendees.length)
         await api(`/api/meetings/${meeting.id}/attendees`, { method: "POST", body: JSON.stringify({ attendees: allAttendees.map((name) => ({ name })) }) });
 
+      // When saving a brand-new draft (no existing draft schedule row yet),
+      // create a draft schedule row so the meeting is visible in the "Draft" tab.
+      if (isDraft && !this._editingDraftScheduleId && App.can("calendar.manage")) {
+        try {
+          const draftRes = await fetch("/api/schedule", {
+            method: "POST", credentials: "include",
+            headers: authHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify({
+              title_ar: title, title_en: title, meeting_date: date, meeting_time: start,
+              duration_mins: durationMins, platform, attendees: allAttendees.join(", "),
+              agenda_ar: agendaItems.map((a) => a.title_ar).join("\n"),
+              agenda_en: agendaItems.map((a) => a.title_en).join("\n"),
+              meeting_type: v("mxc-type"),
+              board_id: parseInt(v("mxc-board")) || null,
+              committee_id: parseInt(v("mxc-committee")) || null,
+              series_id: meeting.series_id || null,
+              meeting_provider: cs.format === "virtual" ? "virtual" : cs.format === "hybrid" ? "hybrid" : "physical",
+              meeting_join_url: (cs.format === "virtual" || cs.format === "hybrid") ? v("mxc-joinurl") : "",
+              source_meeting_id: meeting.id,
+              draft: true,
+            }),
+          });
+          if (draftRes.ok) {
+            const draftRow = await draftRes.json();
+            this._editingDraftScheduleId = draftRow.id;
+          }
+        } catch (_) {}
+      }
+
       if (!isDraft && App.can("calendar.manage")) {
         const schedRes = await fetch("/api/schedule", {
           method: "POST", credentials: "include",
@@ -1974,11 +2004,14 @@ const MT = {
         }
       }
 
-      // Clean up the old draft schedule row that was being edited
-      if (this._editingDraftScheduleId) {
+      // Clean up the old draft schedule row only when confirming (scheduling), not when saving a draft.
+      if (!isDraft && this._editingDraftScheduleId) {
         try { await api(`/api/schedule/${this._editingDraftScheduleId}`, { method: "DELETE" }); } catch (_) {}
         this._editingDraftScheduleId = null;
       }
+
+      // Navigate to the appropriate tab so the user immediately sees their meeting.
+      if (window.ScheduledPanel) ScheduledPanel._tab = isDraft ? "draft" : "upcoming";
 
       showToast(isDraft ? t("✓ تم حفظ الاجتماع كمسودة", "✓ Meeting saved as draft") : t("✓ تم إنشاء الاجتماع وجدولته", "✓ Meeting created and scheduled"));
       this._cs = null;
