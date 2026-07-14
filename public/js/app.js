@@ -9260,6 +9260,7 @@ const ScheduledPanel = {
       // meeting_date and upcoming: sort by date+time ascending
       return ((a.meeting_date || "") + (a.meeting_time || "")).localeCompare((b.meeting_date || "") + (b.meeting_time || ""));
     };
+    const today = new Date().toISOString().substring(0, 10);
     const upcoming = [];
     const inprog = [];
     const drafts = [];
@@ -9267,6 +9268,9 @@ const ScheduledPanel = {
       if (this._isPastLive(s)) return;
       if (!match(s.title_ar, s.title_en, s.meeting_type)) return;
       if (s.status === "draft") { drafts.push(s); return; }
+      // Hide past-dated scheduled items that were never started — they should
+      // not clutter Upcoming / All Meetings; only show today and future.
+      if (s.meeting_date && s.meeting_date < today && !this._isLive(s)) return;
       (this._isLive(s) ? inprog : upcoming).push(s);
     });
     upcoming.sort(sortFn);
