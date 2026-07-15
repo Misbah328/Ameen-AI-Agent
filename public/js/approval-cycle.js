@@ -5357,104 +5357,167 @@ ${docBody ? docBody.innerHTML : ''}`;
     const l  = App.lang;
     const m  = this._meeting  || {};
     const d  = this._data     || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
 
-    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '15 May 2025';
-    const cycle   = d.cycle || {};
-
-    /* ── Mini stepper ─────────────────────────────────────────────── */
+    const meetingTitle = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || t('اجتماع مجلس الإدارة','Board Meeting');
+    const sentAt = cycle.circulated_at ? this._fmtDT(cycle.circulated_at) : (l==='ar'?'22 مايو 2025، 10:45 ص':'22 May 2025, 10:45 AM');
     const miniStepper = this._buildMiniStepper(cycle, 6, t, l);
 
-    /* ── Demo attendee rows ───────────────────────────────────────── */
-    const DEMO_ATTENDEES = l === 'ar' ? [
-      { name:'\u062f. \u0639\u0628\u062f\u0627\u0644\u0644\u0647 \u0627\u0644\u063a\u0627\u0645\u062f\u064a',  role:'\u0631\u0626\u064a\u0633 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629', status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 11:02 \u0635', sig:0 },
-      { name:'\u0645. \u062e\u0627\u0644\u062f \u0627\u0644\u0635\u0628\u064a\u0639\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 11:15 \u0635', sig:1 },
-      { name:'\u0623. \u0644\u064a\u0644\u0649 \u0627\u0644\u062a\u0645\u064a\u0645\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 12:01 \u0645', sig:2 },
-      { name:'\u0623. \u0641\u064a\u0635\u0644 \u0627\u0644\u0645\u0637\u064a\u0631\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 12:25 \u0645', sig:3 },
-      { name:'\u0623. \u0623\u062d\u0645\u062f \u0627\u0644\u062d\u0631\u0628\u064a',      role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'pending',      signedAt:'', sig:-1 },
-      { name:'\u0623. \u0646\u0648\u0631\u0629 \u0627\u0644\u0639\u062a\u064a\u0628\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'pending',      signedAt:'', sig:-1 },
-      { name:'\u0623. \u0633\u0644\u0637\u0627\u0646 \u0627\u0644\u0633\u0639\u0648\u062f',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'pending',      signedAt:'', sig:-1 },
-      { name:'\u062f. \u0645\u0647\u0627 \u0627\u0644\u062d\u0627\u0631\u062b\u064a',      role:'\u0639\u0636\u0648 \u0645\u0633\u062a\u0642\u0644',          status:'pending',      signedAt:'', sig:-1 },
-      { name:'\u0623. \u064a\u0627\u0633\u0631 \u0627\u0644\u0642\u062d\u0637\u0627\u0646\u064a',    role:'\u0636\u064a\u0641 \u0645\u062f\u0639\u0648',           status:'not_required', signedAt:'', sig:-1 },
-    ] : [
-      { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     status:'signed',       signedAt:'22 May 2025, 11:02 AM', sig:0 },
-      { name:'Eng. Khalid Alsubaie',   role:'Board Member',       status:'signed',       signedAt:'22 May 2025, 11:15 AM', sig:1 },
-      { name:'Ms. Laila Altamimi',     role:'Board Member',       status:'signed',       signedAt:'22 May 2025, 12:01 PM', sig:2 },
-      { name:'Mr. Faisal Almutairi',   role:'Board Member',       status:'signed',       signedAt:'22 May 2025, 12:25 PM', sig:3 },
-      { name:'Mr. Ahmed Alharbi',      role:'Board Member',       status:'pending',      signedAt:'', sig:-1 },
-      { name:'Ms. Noura Alotaibi',     role:'Board Member',       status:'pending',      signedAt:'', sig:-1 },
-      { name:'Mr. Sultan Alsaud',      role:'Board Member',       status:'pending',      signedAt:'', sig:-1 },
-      { name:'Dr. Maha Alhaarthy',     role:'Independent Member', status:'pending',      signedAt:'', sig:-1 },
-      { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      status:'not_required', signedAt:'', sig:-1 },
-    ];
-
-    const nTotal       = DEMO_ATTENDEES.length;
-    const nSigned      = DEMO_ATTENDEES.filter(a => a.status === 'signed').length;
-    const nPendingAtt  = DEMO_ATTENDEES.filter(a => a.status === 'pending').length;
-    const nNotRequired = DEMO_ATTENDEES.filter(a => a.status === 'not_required').length;
-
-    /* ── Donut SVG (signed / pending) ────────────────────────────── */
-    const R2 = 45, CX2 = 70, CY2 = 70, SW2 = 14;
-    const C2    = 2 * Math.PI * R2;
-    const gap2  = C2 * 0.02;
-    const sLen  = nSigned     / nTotal * C2;
-    const pLen2 = nPendingAtt / nTotal * C2;
-    const sOff  = C2 * 0.25;
-    const pOff2 = ((sOff - sLen - gap2) % C2 + C2) % C2;
-    const tf    = v => +v.toFixed(2);
-    const donutSVG = `<svg width="140" height="140" viewBox="0 0 140 140">
-  <circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#EAECF0" stroke-width="${SW2}"/>
-  ${nSigned > 0 ? `<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#0C7A3D" stroke-width="${SW2}" stroke-dasharray="${tf(sLen-gap2)} ${tf(C2-sLen+gap2)}" stroke-dashoffset="${tf(sOff)}" stroke-linecap="round"/>` : ''}
-  ${nPendingAtt > 0 ? `<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#E8821A" stroke-width="${SW2}" stroke-dasharray="${tf(pLen2-gap2)} ${tf(C2-pLen2+gap2)}" stroke-dashoffset="${tf(pOff2)}" stroke-linecap="round"/>` : ''}
-  <text x="${CX2}" y="${CY2 - 7}" text-anchor="middle" font-size="24" font-weight="800" fill="#15201A">${nSigned}/${nTotal}</text>
-  <text x="${CX2}" y="${CY2 + 11}" text-anchor="middle" font-size="11" fill="#8A948D">${t('\u0645\u0648\u0642\u0651\u0639','Signed')}</text>
-</svg>`;
-
-    /* ── Signature SVG paths ──────────────────────────────────────── */
+    /* ── Signature Paths (6 distinct) ─────────────────────────────── */
     const SIG_PATHS = [
       `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 17 Q9 9 13 14 L18 18 Q22 22 26 14 Q30 6 36 12 L42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
     ];
 
+    /* ── Presentation-quality attendee data ───────────────────────── */
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A6FA8','#6B4FA8','#2AA87A','#C47A3C','#5A8A4A'];
+    this._s7Attendees = l === 'ar' ? [
+      { name:'د. عبدالله الغامدي',  role:'رئيس مجلس الإدارة',  email:'a.alghamdi@ameen.sa',  status:'signed',       signedAt:'22 مايو 2025، 11:02 ص', reviewedAt:'22 مايو 2025، 10:55 ص', device:'iPhone 15 Pro', verify:'بصمة الوجه', ip:'192.168.1.40', hash:'A3F8C9', sig:0,  reviewPct:100, required:true },
+      { name:'م. خالد الصبيعي',     role:'عضو مجلس الإدارة',   email:'k.alsubaie@ameen.sa',  status:'signed',       signedAt:'22 مايو 2025، 11:18 ص', reviewedAt:'22 مايو 2025، 11:10 ص', device:'MacBook Pro',  verify:'كلمة مرور',  ip:'192.168.1.55', hash:'B7D2E1', sig:1,  reviewPct:100, required:true },
+      { name:'أ. ليلى التميمي',     role:'عضو مجلس الإدارة',   email:'l.altamimi@ameen.sa',  status:'signed',       signedAt:'22 مايو 2025، 11:52 ص', reviewedAt:'22 مايو 2025، 11:40 ص', device:'iPad Pro',     verify:'بصمة الإصبع', ip:'192.168.1.62', hash:'C5A3F7', sig:2,  reviewPct:100, required:true },
+      { name:'أ. فيصل المطيري',     role:'عضو مجلس الإدارة',   email:'f.almutairi@ameen.sa', status:'signed',       signedAt:'22 مايو 2025، 12:08 م', reviewedAt:'22 مايو 2025، 12:00 م', device:'Samsung S24',  verify:'رمز OTP',    ip:'192.168.2.10', hash:'D1B8C2', sig:3,  reviewPct:100, required:true },
+      { name:'أ. أحمد الحربي',      role:'عضو مجلس الإدارة',   email:'a.alharbi@ameen.sa',   status:'signed',       signedAt:'22 مايو 2025، 12:22 م', reviewedAt:'22 مايو 2025، 12:15 م', device:'MacBook Air',  verify:'كلمة مرور',  ip:'192.168.1.88', hash:'E4F9A6', sig:4,  reviewPct:100, required:true },
+      { name:'أ. نورة العتيبي',     role:'عضو مجلس الإدارة',   email:'n.alotaibi@ameen.sa',  status:'signed',       signedAt:'22 مايو 2025، 12:31 م', reviewedAt:'22 مايو 2025، 12:25 م', device:'iPhone 14',    verify:'بصمة الوجه', ip:'192.168.1.74', hash:'F2C7B3', sig:5,  reviewPct:100, required:true },
+      { name:'أ. سلطان السعود',     role:'عضو مجلس الإدارة',   email:'s.alsaud@ameen.sa',    status:'opened',       signedAt:'',                         reviewedAt:'22 مايو 2025، 13:10 م', device:'iPad Air',     verify:'-',          ip:'192.168.3.21', hash:'-',      sig:-1, reviewPct:72,  required:true },
+      { name:'د. مها الحارثي',      role:'عضو مستقل',           email:'m.alhaarthy@ameen.sa', status:'pending',      signedAt:'',                         reviewedAt:'',                         device:'-',            verify:'-',          ip:'-',            hash:'-',      sig:-1, reviewPct:0,   required:true },
+      { name:'أ. ياسر القحطاني',    role:'ضيف مدعو',            email:'y.alqahtani@ameen.sa', status:'not_required', signedAt:'',                         reviewedAt:'',                         device:'-',            verify:'-',          ip:'-',            hash:'-',      sig:-1, reviewPct:0,   required:false },
+    ] : [
+      { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     email:'a.alghamdi@ameen.sa',  status:'signed',       signedAt:'22 May 2025, 11:02 AM', reviewedAt:'22 May 2025, 10:55 AM', device:'iPhone 15 Pro', verify:'Face ID',     ip:'192.168.1.40', hash:'A3F8C9', sig:0,  reviewPct:100, required:true },
+      { name:'Eng. Khalid Alsubaie',   role:'Board Member',       email:'k.alsubaie@ameen.sa',  status:'signed',       signedAt:'22 May 2025, 11:18 AM', reviewedAt:'22 May 2025, 11:10 AM', device:'MacBook Pro',  verify:'Password',    ip:'192.168.1.55', hash:'B7D2E1', sig:1,  reviewPct:100, required:true },
+      { name:'Ms. Laila Altamimi',     role:'Board Member',       email:'l.altamimi@ameen.sa',  status:'signed',       signedAt:'22 May 2025, 11:52 AM', reviewedAt:'22 May 2025, 11:40 AM', device:'iPad Pro',     verify:'Fingerprint', ip:'192.168.1.62', hash:'C5A3F7', sig:2,  reviewPct:100, required:true },
+      { name:'Mr. Faisal Almutairi',   role:'Board Member',       email:'f.almutairi@ameen.sa', status:'signed',       signedAt:'22 May 2025, 12:08 PM', reviewedAt:'22 May 2025, 12:00 PM', device:'Samsung S24',  verify:'OTP Code',    ip:'192.168.2.10', hash:'D1B8C2', sig:3,  reviewPct:100, required:true },
+      { name:'Mr. Ahmed Alharbi',      role:'Board Member',       email:'a.alharbi@ameen.sa',   status:'signed',       signedAt:'22 May 2025, 12:22 PM', reviewedAt:'22 May 2025, 12:15 PM', device:'MacBook Air',  verify:'Password',    ip:'192.168.1.88', hash:'E4F9A6', sig:4,  reviewPct:100, required:true },
+      { name:'Ms. Noura Alotaibi',     role:'Board Member',       email:'n.alotaibi@ameen.sa',  status:'signed',       signedAt:'22 May 2025, 12:31 PM', reviewedAt:'22 May 2025, 12:25 PM', device:'iPhone 14',    verify:'Face ID',     ip:'192.168.1.74', hash:'F2C7B3', sig:5,  reviewPct:100, required:true },
+      { name:'Mr. Sultan Alsaud',      role:'Board Member',       email:'s.alsaud@ameen.sa',    status:'opened',       signedAt:'',                       reviewedAt:'22 May 2025, 1:10 PM',  device:'iPad Air',     verify:'-',          ip:'192.168.3.21', hash:'-',      sig:-1, reviewPct:72,  required:true },
+      { name:'Dr. Maha Alhaarthy',     role:'Independent Member', email:'m.alhaarthy@ameen.sa', status:'pending',      signedAt:'',                       reviewedAt:'',                      device:'-',            verify:'-',          ip:'-',            hash:'-',      sig:-1, reviewPct:0,   required:true },
+      { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      email:'y.alqahtani@ameen.sa', status:'not_required', signedAt:'',                       reviewedAt:'',                      device:'-',            verify:'-',          ip:'-',            hash:'-',      sig:-1, reviewPct:0,   required:false },
+    ];
+    const ATTS = this._s7Attendees;
+    const nTotal       = ATTS.length;
+    const nSigned      = ATTS.filter(a => a.status==='signed').length;
+    const nOpened      = ATTS.filter(a => a.status==='opened').length;
+    const nPendingAtt  = ATTS.filter(a => a.status==='pending').length;
+    const nNotRequired = ATTS.filter(a => a.status==='not_required').length;
+    const nRequired    = ATTS.filter(a => a.required).length;
+
+    /* ── Donut SVG ────────────────────────────────────────────────── */
+    const R2=45, CX2=70, CY2=70, SW2=13;
+    const C2 = 2*Math.PI*R2, gap2 = C2*0.018;
+    const sLen = nSigned/nTotal*C2, oLen = nOpened/nTotal*C2, pLen2 = nPendingAtt/nTotal*C2;
+    const sOff = C2*0.25;
+    const oOff = ((sOff - sLen - gap2) % C2 + C2) % C2;
+    const pOff2 = ((oOff - oLen - gap2) % C2 + C2) % C2;
+    const tf = v => +v.toFixed(2);
+    const donutSVG = `<svg width="140" height="140" viewBox="0 0 140 140">
+  <circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#EAECF0" stroke-width="${SW2}"/>
+  ${nSigned>0?`<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#0C7A3D" stroke-width="${SW2}" stroke-dasharray="${tf(sLen-gap2)} ${tf(C2-sLen+gap2)}" stroke-dashoffset="${tf(sOff)}" stroke-linecap="round"/>`:''}
+  ${nOpened>0?`<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#4A6FA8" stroke-width="${SW2}" stroke-dasharray="${tf(oLen-gap2)} ${tf(C2-oLen+gap2)}" stroke-dashoffset="${tf(oOff)}" stroke-linecap="round"/>`:''}
+  ${nPendingAtt>0?`<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#E8821A" stroke-width="${SW2}" stroke-dasharray="${tf(pLen2-gap2)} ${tf(C2-pLen2+gap2)}" stroke-dashoffset="${tf(pOff2)}" stroke-linecap="round"/>`:''}
+  <text x="${CX2}" y="${CY2-7}" text-anchor="middle" font-size="22" font-weight="900" fill="#15201A">${nSigned}/${nRequired}</text>
+  <text x="${CX2}" y="${CY2+11}" text-anchor="middle" font-size="10" fill="#8A948D">${t('مطلوب','required')}</text>
+</svg>`;
+
+    /* ── Progress bar ─────────────────────────────────────────────── */
+    const pct = Math.round(nSigned/nRequired*100);
+    const progressBar = `<div style="margin-top:8px">
+  <div style="display:flex;justify-content:space-between;font-size:11px;color:#8A948D;margin-bottom:4px">
+    <span>${t('التوقيعات المكتملة','Signatures complete')}</span><span style="font-weight:700;color:#15201A">${pct}%</span>
+  </div>
+  <div style="height:6px;background:#EAECF0;border-radius:3px;overflow:hidden">
+    <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#0C7A3D,#2AA87A);border-radius:3px;transition:width .6s"></div>
+  </div>
+</div>`;
+
+    /* ── Status badge helper ───────────────────────────────────────── */
     const getStatusBadge = status => {
-      if (status === 'signed')       return `<span class="s7-badge s7-badge-signed"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0C7A3D"/><path d="M2.5 5l2 2L7.5 3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> ${t('\u0648\u0642\u0651\u0639','Signed')}</span>`;
-      if (status === 'pending')      return `<span class="s7-badge s7-badge-pending">${t('\u0645\u0639\u0644\u0651\u0642','Pending')}</span>`;
-      if (status === 'not_required') return `<span class="s7-badge s7-badge-notrequired">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span>`;
+      if (status==='signed')       return `<span class="s7-badge s7-badge-signed"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0C7A3D"/><path d="M2.5 5l2 2L7.5 3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> ${t('وقّع','Signed')}</span>`;
+      if (status==='opened')       return `<span class="s7-badge s7-badge-opened">👁 ${t('مفتوح (لم يُوقَّع)','Opened (not signed)')}</span>`;
+      if (status==='pending')      return `<span class="s7-badge s7-badge-pending">⏳ ${t('معلّق','Pending')}</span>`;
+      if (status==='not_required') return `<span class="s7-badge s7-badge-notrequired">${t('غير مطلوب','Not Required')}</span>`;
       return '';
     };
 
-    const getSigCells = att => {
-      if (att.status === 'signed') return `
-        <td class="s7-sig-cell"><svg class="s7-sig-svg" width="80" height="28" viewBox="0 0 50 28">${SIG_PATHS[att.sig]}</svg></td>
-        <td class="s7-sig-action"><button class="s7-dl-btn" title="${t('\u062a\u0646\u0632\u064a\u0644','Download')}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M4 5.5l2.5 2.5 2.5-2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M1.5 10h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></td>`;
-      if (att.status === 'not_required') return `
-        <td class="s7-sig-cell"><span style="color:#9CA3AF">-</span></td>
-        <td class="s7-sig-action"><span class="s7-not-req-text">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span></td>`;
-      return `
-        <td class="s7-sig-cell"><span style="color:#9CA3AF">-</span></td>
-        <td class="s7-sig-action"><button class="s7-remind-btn" onclick="ApprovalCycle._s7SendReminder()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5a3.5 3.5 0 013.5 3.5v2l1 2H1.5l1-2V5A3.5 3.5 0 016 1.5z" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 10.5a1.2 1.2 0 002.4 0" stroke="currentColor" stroke-width="1.2"/></svg>${t('\u062a\u0630\u0643\u064a\u0631','Remind')}</button></td>`;
-    };
-
-    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
-    const attendeeRows = DEMO_ATTENDEES.map((att, i) => {
-      const initials = att.name.split(' ').filter(w => w.length > 1).slice(0,2).map(w => w[0]).join('').toUpperCase();
-      return `<tr>
+    /* ── Table rows ───────────────────────────────────────────────── */
+    const attendeeRows = ATTS.map((att, i) => {
+      const initials = att.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+      const attKey = JSON.stringify(att.name);
+      let sigCell = '';
+      if (att.status==='signed') {
+        sigCell = `<td class="s7-sig-cell"><svg class="s7-sig-svg" width="80" height="28" viewBox="0 0 50 28">${SIG_PATHS[att.sig]}</svg></td>
+          <td class="s7-sig-action" onclick="event.stopPropagation()">
+            <button class="s7-dl-btn" onclick="ApprovalCycle._s7DownloadSig(${attKey})" title="${t('تنزيل','Download')}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M4 5.5l2.5 2.5 2.5-2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M1.5 10h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+          </td>`;
+      } else if (att.status==='not_required') {
+        sigCell = `<td class="s7-sig-cell"><span style="color:#9CA3AF">—</span></td>
+          <td class="s7-sig-action"><span class="s7-not-req-text">${t('غير مطلوب','Not Required')}</span></td>`;
+      } else if (att.status==='opened') {
+        sigCell = `<td class="s7-sig-cell"><div class="s7-review-bar"><div class="s7-review-fill" style="width:${att.reviewPct}%"></div></div><span style="font-size:10px;color:#4A6FA8">${att.reviewPct}%</span></td>
+          <td class="s7-sig-action" onclick="event.stopPropagation()">
+            <button class="s7-remind-btn" onclick="ApprovalCycle._s7SendReminderTo(${attKey})"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5a3.5 3.5 0 013.5 3.5v2l1 2H1.5l1-2V5A3.5 3.5 0 016 1.5z" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 10.5a1.2 1.2 0 002.4 0" stroke="currentColor" stroke-width="1.2"/></svg>${t('تذكير','Remind')}</button>
+          </td>`;
+      } else {
+        sigCell = `<td class="s7-sig-cell"><span style="color:#9CA3AF">—</span></td>
+          <td class="s7-sig-action" onclick="event.stopPropagation()">
+            <button class="s7-remind-btn" onclick="ApprovalCycle._s7SendReminderTo(${attKey})"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5a3.5 3.5 0 013.5 3.5v2l1 2H1.5l1-2V5A3.5 3.5 0 016 1.5z" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 10.5a1.2 1.2 0 002.4 0" stroke="currentColor" stroke-width="1.2"/></svg>${t('تذكير','Remind')}</button>
+          </td>`;
+      }
+      return `<tr class="s7-sig-row-clickable" onclick="ApprovalCycle._s7AttendeeDetail(${attKey})">
         <td class="s7-col-num">${i+1}</td>
-        <td class="s7-col-attendee"><div class="s7-att-info"><div class="s7-att-av" style="background:${AV_COLORS[i%AV_COLORS.length]}">${initials}</div><span class="s7-att-name">${esc(att.name)}</span></div></td>
+        <td class="s7-col-attendee"><div class="s7-att-info"><div class="s7-att-av" style="background:${AV_COLORS[i%AV_COLORS.length]}">${initials}</div><div><div class="s7-att-name">${esc(att.name)}</div><div style="font-size:10.5px;color:#8A948D">${esc(att.email)}</div></div></div></td>
         <td class="s7-col-role">${esc(att.role)}</td>
         <td class="s7-col-status">${getStatusBadge(att.status)}</td>
-        <td class="s7-col-signedat">${att.signedAt || '-'}</td>
-        ${getSigCells(att)}
+        <td class="s7-col-signedat">${att.signedAt || '—'}</td>
+        ${sigCell}
       </tr>`;
     }).join('');
 
-    /* ── Audit trail ────────────────────────────────────────────── */
-    const sentAt = cycle.circulated_at ? this._fmtDT(cycle.circulated_at) : '22 May 2025, 10:45 AM';
-    const auditHTML = [
-      { icon:'📄', text:t('\u062a\u0645 \u0646\u0634\u0631 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629','Final version published'),      date:'22 May 2025, 10:45 AM', by:t('\u0628\u0648\u0627\u0633\u0637\u0629 \u0645\u062d\u0645\u062f \u0627\u0644\u0628\u0644\u0627\u0644\u064a','by Mohammad Albuali') },
-      { icon:'✍️', text:t('\u0623\u064f\u0631\u0633\u0644 \u0644\u0644\u062d\u0636\u0648\u0631 \u0644\u0644\u062a\u0648\u0642\u064a\u0639','Sent for attendee signatures'), date:'22 May 2025, 10:45 AM', by:t('\u0628\u0648\u0627\u0633\u0637\u0629 \u0645\u062d\u0645\u062f \u0627\u0644\u0628\u0644\u0627\u0644\u064a','by Mohammad Albuali') },
-    ].map(e => `<div class="s7-audit-row"><span class="s7-audit-ico">${e.icon}</span><div class="s7-audit-body"><div class="s7-audit-text">${e.text}</div><div class="s7-audit-meta">${e.date} · ${e.by}</div></div></div>`).join('');
+    /* ── Audit events ─────────────────────────────────────────────── */
+    const comments = (d.comments||[]);
+    const nAcc = comments.filter(c=>c.status==='accepted').length;
+    const nRej = comments.filter(c=>c.status==='rejected').length;
+    const auditEvents = [
+      { icon:'📄', text:t(`تم إصدار النسخة النهائية v1.${nAcc||6} — ${nAcc||6} تعديل مدمج`,`Final version v1.${nAcc||6} issued — ${nAcc||6} amendment(s) merged`), date:'22 May 2025, 10:45 AM' },
+      { icon:'✍️', text:t('أُرسل طلب التوقيع إلى 8 حضور','Signature request sent to 8 attendees'), date:'22 May 2025, 10:46 AM' },
+      { icon:'📧', text:t('تم إرسال إشعارات بريد إلكتروني للجميع','Email notifications delivered to all attendees'), date:'22 May 2025, 10:47 AM' },
+      { icon:'✅', text:t('وقّع د. عبدالله الغامدي (رئيس المجلس)','Dr. Abdullah Alghamdi signed (Board Chairman)'), date:'22 May 2025, 11:02 AM' },
+      { icon:'✅', text:t('وقّع م. خالد الصبيعي','Eng. Khalid Alsubaie signed'), date:'22 May 2025, 11:18 AM' },
+      { icon:'✅', text:t('وقّعت أ. ليلى التميمي','Ms. Laila Altamimi signed'), date:'22 May 2025, 11:52 AM' },
+      { icon:'✅', text:t('وقّع أ. فيصل المطيري','Mr. Faisal Almutairi signed'), date:'22 May 2025, 12:08 PM' },
+      { icon:'✅', text:t('وقّع أ. أحمد الحربي','Mr. Ahmed Alharbi signed'), date:'22 May 2025, 12:22 PM' },
+      { icon:'✅', text:t('وقّعت أ. نورة العتيبي','Ms. Noura Alotaibi signed'), date:'22 May 2025, 12:31 PM' },
+      { icon:'👁',  text:t('فتح أ. سلطان السعود المستند (قرأ 72%)','Mr. Sultan Alsaud opened the document (72% read)'), date:'22 May 2025, 1:10 PM' },
+      { icon:'🔔', text:t('أُرسل تذكير للحضور المعلّقين','Reminder sent to pending attendees'), date:'22 May 2025, 2:00 PM' },
+    ];
+    const auditHTML = auditEvents.slice(0,5).map(e => `
+<div class="s7-audit-row">
+  <span class="s7-audit-ico">${e.icon}</span>
+  <div class="s7-audit-body">
+    <div class="s7-audit-text">${e.text}</div>
+    <div class="s7-audit-meta">${e.date}</div>
+  </div>
+</div>`).join('');
+
+    /* ── Notification log ─────────────────────────────────────────── */
+    const notifRows = [
+      { via:'📧', to:t('جميع الحضور (8)','All attendees (8)'), type:t('طلب التوقيع الأولي','Initial signature request'), at:'22 May 2025, 10:46 AM', status:t('تم الإرسال','Delivered') },
+      { via:'📧', to:t('أ. سلطان السعود','Mr. Sultan Alsaud'), type:t('تذكير (اليوم الثاني)','Reminder (Day 2)'), at:'22 May 2025, 10:00 AM', status:t('تم الإرسال','Delivered') },
+      { via:'📧', to:t('د. مها الحارثي','Dr. Maha Alhaarthy'), type:t('تذكير (اليوم الثاني)','Reminder (Day 2)'), at:'22 May 2025, 10:00 AM', status:t('تم الإرسال','Delivered') },
+      { via:'📱', to:t('أ. سلطان السعود','Mr. Sultan Alsaud'), type:t('تذكير SMS','SMS Reminder'), at:'22 May 2025, 2:00 PM', status:t('تم الإرسال','Delivered') },
+    ].map(n=>`<div class="s7-notif-row"><span>${n.via}</span><div style="flex:1;min-width:0"><div style="font-size:11.5px;font-weight:600;color:#15201A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.to}</div><div style="font-size:10.5px;color:#8A948D">${n.type}</div></div><div style="text-align:${l==='ar'?'left':'right'};flex-shrink:0"><div style="font-size:10px;color:#8A948D">${n.at.slice(n.at.indexOf(',')+2)}</div><span style="font-size:10px;background:rgba(12,122,61,.1);color:#0C7A3D;border-radius:8px;padding:1px 6px">${n.status}</span></div></div>`).join('');
+
+    /* ── Validation panel ─────────────────────────────────────────── */
+    const validChecks = [
+      { ok:true,  label:t('المحضر النهائي مُعتمَد من السكرتير','Final minutes secretary-approved') },
+      { ok:true,  label:t(`6 من 8 توقيعات مطلوبة مكتملة`,'6 of 8 required signatures complete') },
+      { ok:false, label:t('توقيعان مطلوبان لا يزالان معلّقَين','2 required signatures still pending') },
+      { ok:true,  label:t('التحقق الإلكتروني مُفعَّل (OTP/Biometric)','Electronic verification enabled (OTP/Biometric)') },
+      { ok:true,  label:t('سجل التدقيق محفوظ ومؤمَّن','Audit trail recorded and tamper-proof') },
+    ];
 
     /* ── Render ─────────────────────────────────────────────────── */
     body.innerHTML = `
@@ -5465,26 +5528,26 @@ ${docBody ? docBody.innerHTML : ''}`;
     <div class="dm-page-hdr-left">
       <div class="dm-page-title-row">
         <h1 class="dm-page-title">
-          <span class="dm-pt-step">${t('\u0627\u0644\u062e\u0637\u0648\u0629 7 \u0645\u0646 9','Step 7 of 9')}</span>
-          <span class="dm-pt-name">${t('\u062a\u0648\u0642\u064a\u0639\u0627\u062a \u0627\u0644\u062d\u0636\u0648\u0631','Attendee Signatures')}</span>
+          <span class="dm-pt-step">${t('الخطوة 7 من 9','Step 7 of 9')}</span>
+          <span class="dm-pt-name">${t('توقيعات الحضور','Attendee Signatures')}</span>
         </h1>
-        <span class="dm-status-inprogress">${t('\u062c\u0627\u0631\u064d','In Progress')}</span>
+        <span class="dm-status-inprogress">⏳ ${t('جارٍ','In Progress')}</span>
       </div>
-      <p class="dm-page-sub">${t('\u064a\u062c\u0628 \u0639\u0644\u0649 \u062c\u0645\u064a\u0639 \u0627\u0644\u062d\u0636\u0648\u0631 \u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0648\u062a\u0642\u062f\u064a\u0645 \u062a\u0648\u0642\u064a\u0639\u0627\u062a\u0647\u0645 \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a\u0629.','All attendees must review the final minutes and provide their electronic signature. Once all required signatures are collected, the minutes will be ready for Final Approval.')}</p>
+      <p class="dm-page-sub">${t('يجب على جميع الحضور المطلوبين مراجعة المحضر النهائي وتقديم توقيعاتهم الإلكترونية. بعد اكتمال التوقيعات، يُرسَل المحضر إلى الاعتماد النهائي.','All required attendees must review the final minutes and provide their electronic signatures. Once complete, the minutes proceed to Final Approval.')}</p>
     </div>
     <div class="dm-page-hdr-right">
-      <button class="dm-btn ghost" onclick="ApprovalCycle._s7DownloadPDF()">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        ${t('\u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629 (PDF)','Download Final Version (PDF)')}
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s7ViewMinutes()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+        ${t('عرض المحضر النهائي','View Final Minutes')}
       </button>
-      <button class="dm-btn ghost">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s7HistoryModal()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        ${t('\u0627\u0644\u0633\u062c\u0644','History')}
+        ${t('السجل','History')}
       </button>
       <div class="s7-deadline-badge">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2" width="11" height="10" rx="1.5" stroke="#0C7A3D" stroke-width="1.2"/><path d="M4 1v2M9 1v2M1 5h11" stroke="#0C7A3D" stroke-width="1.2" stroke-linecap="round"/></svg>
         <div>
-          <div class="s7-dl-badge-label">${t('\u0627\u0644\u0645\u0648\u0639\u062f \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0644\u0644\u0645\u0631\u0627\u062c\u0639\u0629','Review Deadline')}</div>
+          <div class="s7-dl-badge-label">${t('الموعد النهائي للتوقيع','Signature Deadline')}</div>
           <div class="s7-dl-badge-date">25 May 2025, 11:59 PM</div>
         </div>
       </div>
@@ -5497,32 +5560,31 @@ ${docBody ? docBody.innerHTML : ''}`;
   <!-- Meta bar -->
   <div class="s7-meta-bar">
     <div class="s7-meta-item">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 1v2M10 1v2M1 5.5h12" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <div><div class="s7-meta-lbl">${t('\u0627\u0644\u0627\u062c\u062a\u0645\u0627\u0639','Meeting')}</div><div class="s7-meta-val">${t('\u0627\u062c\u062a\u0645\u0627\u0639 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629 \u2013 15 \u0645\u0627\u064a\u0648 2025','Board Meeting \u2013 15 May 2025')}</div></div>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><line x1="4.5" y1="9.5" x2="7" y2="9.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s7-meta-lbl">${t('إصدار المحضر','Minutes Version')}</div><div class="s7-meta-val"><span class="s7-version-badge">v1.${nAcc||6} Final</span></div></div>
     </div>
     <div class="s7-meta-sep"></div>
     <div class="s7-meta-item">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><line x1="4.5" y1="9.5" x2="7.5" y2="9.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <div><div class="s7-meta-lbl">${t('\u0625\u0635\u062f\u0627\u0631 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a','Final Minutes Version')}</div><div class="s7-meta-val"><span class="s7-version-badge">v2.0 (Final)</span></div></div>
-    </div>
-    <div class="s7-meta-sep"></div>
-    <div class="s7-meta-item">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h10v2H2zM3 4v8M11 4v8M2 12h10" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div><div class="s7-meta-lbl">${t('\u0623\u064f\u0631\u0633\u0644 \u0644\u0644\u062a\u0648\u0642\u064a\u0639','Sent for Signatures')}</div><div class="s7-meta-val">${sentAt}</div></div>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5a4.5 4.5 0 014.5 4.5v2.5l1 2H1.5l1-2.5V6A4.5 4.5 0 017 1.5z" stroke="#8A948D" stroke-width="1.2"/></svg>
+      <div><div class="s7-meta-lbl">${t('أُرسل للتوقيع','Sent for Signatures')}</div><div class="s7-meta-val">${sentAt}</div></div>
     </div>
     <div class="s7-meta-sep"></div>
     <div class="s7-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><circle cx="10" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><path d="M1 12a4 4 0 018 0" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><path d="M9.5 10.5a3.5 3.5 0 014.5 2.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <div><div class="s7-meta-lbl">${t('\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u062d\u0636\u0648\u0631','Total Attendees')}</div><div class="s7-meta-val">${nTotal}</div></div>
+      <div><div class="s7-meta-lbl">${t('إجمالي الحضور','Total Attendees')}</div><div class="s7-meta-val">${nTotal} <span style="font-size:10.5px;color:#8A948D">(${nRequired} ${t('مطلوب','required')})</span></div></div>
     </div>
     <div class="s7-meta-sep"></div>
     <div class="s7-meta-item">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 7l2.5 2.5L10 4.5" stroke="#8A948D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#8A948D" stroke-width="1.2"/></svg>
-      <div><div class="s7-meta-lbl">${t('\u0627\u0644\u062a\u0648\u0642\u064a\u0639\u0627\u062a \u0627\u0644\u0645\u064f\u0633\u062a\u0644\u064e\u0645\u064e\u0629','Signatures Received')}</div><div class="s7-meta-val"><strong>${nSigned} / ${nTotal}</strong></div></div>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 7l2.5 2.5L10 4.5" stroke="#0C7A3D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
+      <div><div class="s7-meta-lbl">${t('التوقيعات المستلمة','Signatures Received')}</div><div class="s7-meta-val"><strong style="color:#0C7A3D">${nSigned}</strong> / ${nRequired}</div></div>
     </div>
     <div class="s7-meta-sep"></div>
     <div class="s7-meta-item">
-      <div><div class="s7-meta-lbl">${t('\u0627\u0644\u062d\u0627\u0644\u0629','Status')}</div><div class="s7-meta-val"><span class="s7-status-inprogress">${t('\u062c\u0627\u0631\u064d','In Progress')}</span></div></div>
+      <div><div class="s7-meta-lbl">${t('مفتوح (لم يُوقَّع)','Opened (not signed)')}</div><div class="s7-meta-val" style="color:#4A6FA8">${nOpened}</div></div>
+    </div>
+    <div class="s7-meta-sep"></div>
+    <div class="s7-meta-item">
+      <div><div class="s7-meta-lbl">${t('الحالة','Status')}</div><div class="s7-meta-val"><span class="s7-status-inprogress">${t('جارٍ','In Progress')}</span></div></div>
     </div>
   </div>
 
@@ -5531,108 +5593,519 @@ ${docBody ? docBody.innerHTML : ''}`;
 
     <!-- LEFT: Signature Table -->
     <div class="s7-main-panel">
+
+      <!-- Table header with search/filter -->
       <div class="s7-table-hdr">
         <div>
-          <div class="s7-table-title">${t('\u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0648\u0642\u064a\u0639 \u0644\u0644\u062d\u0636\u0648\u0631','Attendee Signature Status')}</div>
-          <div class="s7-table-subtitle">${t('\u064a\u064f\u0631\u062c\u0649 \u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0648\u0627\u0644\u062a\u0648\u0642\u064a\u0639 \u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a\u064b\u0627.','Please review the final minutes and sign electronically.')}</div>
+          <div class="s7-table-title">${t('حالة توقيعات الحضور','Attendee Signature Status')}</div>
+          <div class="s7-table-subtitle">${t('انقر على أي صف للاطلاع على تفاصيل التوقيع والشهادة.','Click any row to view signature details and certificate.')}</div>
         </div>
         <div class="s7-table-actions">
-          <button class="dm-btn ghost s7-view-minutes-btn">
+          <div class="s7-search-wrap">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="5" cy="5" r="4" stroke="#8A948D" stroke-width="1.2"/><path d="M8.5 8.5l2 2" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <input id="s7-search" class="s7-search-input" placeholder="${t('بحث...','Search...')}" oninput="ApprovalCycle._s7Search(this.value)"/>
+          </div>
+          <button class="dm-btn ghost s7-view-minutes-btn" onclick="ApprovalCycle._s7ViewMinutes()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6.5" cy="6.5" r="2.2" stroke="currentColor" stroke-width="1.2"/></svg>
-            ${t('\u0639\u0631\u0636 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a','View Final Minutes')}
+            ${t('عرض المحضر','View Minutes')}
           </button>
-          <button class="s7-expand-btn" title="${t('\u062a\u0648\u0633\u064a\u0639','Expand')}">
+          <button class="s7-expand-btn" onclick="ApprovalCycle._s7ExpandTable()" title="${t('توسيع','Expand')}">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 4V1h3M10 1h3v3M1 10v3h3M10 13h3v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
       </div>
-      <table class="s7-sig-table">
-        <thead><tr>
-          <th class="s7-col-num">#</th>
-          <th>${t('\u0627\u0644\u062d\u0636\u0648\u0631','Attendee')}</th>
-          <th>${t('\u0627\u0644\u062f\u0648\u0631','Role')}</th>
-          <th>${t('\u0627\u0644\u062d\u0627\u0644\u0629','Status')}</th>
-          <th>${t('\u0648\u064f\u0642\u0651\u0639 \u0641\u064a','Signed On')}</th>
-          <th>${t('\u0627\u0644\u062a\u0648\u0642\u064a\u0639','Signature')}</th>
-          <th></th>
-        </tr></thead>
-        <tbody>${attendeeRows}</tbody>
-      </table>
+
+      <!-- Table -->
+      <div style="overflow-x:auto;flex:1">
+        <table class="s7-sig-table">
+          <thead><tr>
+            <th class="s7-col-num">#</th>
+            <th>${t('الحضور','Attendee')}</th>
+            <th>${t('الدور','Role')}</th>
+            <th>${t('الحالة','Status')}</th>
+            <th>${t('وُقِّع في','Signed On')}</th>
+            <th>${t('التوقيع / التقدم','Signature / Progress')}</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="s7-tbody">${attendeeRows}</tbody>
+        </table>
+      </div>
+
+      <!-- Table footer -->
       <div class="s7-table-footer">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2C6CA8" stroke-width="1.3"/><line x1="7" y1="6" x2="7" y2="10" stroke="#2C6CA8" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="#2C6CA8"/></svg>
-        ${t('\u0633\u064a\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0625\u0634\u0639\u0627\u0631 \u0644\u0644\u062d\u0636\u0648\u0631 \u0628\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a \u0644\u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0648\u0627\u0644\u062a\u0648\u0642\u064a\u0639.','Attendees will be notified via email to review and sign the final minutes.')}
+        ${t(`${nSigned} توقيع مكتمل من أصل ${nRequired} مطلوب · ${nOpened} مستند مفتوح لم يُوقَّع بعد · ${nPendingAtt} لم يُفتح المستند`,`${nSigned} of ${nRequired} required signatures complete · ${nOpened} document opened but not signed · ${nPendingAtt} not yet opened`)}
       </div>
     </div>
 
     <!-- RIGHT: Sidebar -->
     <div class="s7-sidebar">
 
-      <!-- Signature Progress -->
+      <!-- Signature Progress Donut -->
       <div class="rv-rpanel">
-        <div class="rv-rp-title">${t('\u062a\u0642\u062f\u0645 \u0627\u0644\u062a\u0648\u0642\u064a\u0639','Signature Progress')}</div>
+        <div class="rv-rp-title">${t('تقدم التوقيع','Signature Progress')}</div>
         <div class="s7-progress-wrap">
           ${donutSVG}
           <div class="s7-progress-legend">
-            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#0C7A3D"></span><span class="s7-leg-lbl">${t('\u0648\u0642\u0651\u0639','Signed')}</span><span class="s7-leg-val">${nSigned} <span class="s7-leg-pct">(${Math.round(nSigned/nTotal*100)}%)</span></span></div>
-            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#E8821A"></span><span class="s7-leg-lbl">${t('\u0645\u0639\u0644\u0651\u0642','Pending')}</span><span class="s7-leg-val">${nPendingAtt} <span class="s7-leg-pct">(${Math.round(nPendingAtt/nTotal*100)}%)</span></span></div>
-            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#D0D5DD"></span><span class="s7-leg-lbl">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span><span class="s7-leg-val">${nNotRequired} <span class="s7-leg-pct">(${Math.round(nNotRequired/nTotal*100)}%)</span></span></div>
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#0C7A3D"></span><span class="s7-leg-lbl">${t('وقّع','Signed')}</span><span class="s7-leg-val">${nSigned} <span class="s7-leg-pct">(${Math.round(nSigned/nTotal*100)}%)</span></span></div>
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#4A6FA8"></span><span class="s7-leg-lbl">${t('مفتوح (لم يُوقَّع)','Opened (not signed)')}</span><span class="s7-leg-val">${nOpened} <span class="s7-leg-pct">(${Math.round(nOpened/nTotal*100)}%)</span></span></div>
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#E8821A"></span><span class="s7-leg-lbl">${t('معلّق','Pending')}</span><span class="s7-leg-val">${nPendingAtt} <span class="s7-leg-pct">(${Math.round(nPendingAtt/nTotal*100)}%)</span></span></div>
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#D0D5DD"></span><span class="s7-leg-lbl">${t('غير مطلوب','Not Required')}</span><span class="s7-leg-val">${nNotRequired}</span></div>
+          </div>
+        </div>
+        ${progressBar}
+      </div>
+
+      <!-- Document Info (from Stage 6) -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">📄 ${t('معلومات المحضر','Document Info')}</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          ${[
+            [t('الاجتماع','Meeting'), esc(meetingTitle)],
+            [t('الإصدار','Version'), `v1.${nAcc||6} (${t('نسخة نهائية','Final')})`],
+            [t('التعديلات المدمجة','Amendments merged'), nAcc||6],
+            [t('التعليقات المرفوضة','Rejected comments'), nRej||2],
+            [t('المعتمَد من','Approved by'), t('الأمانة','Secretary')],
+            [t('تاريخ الإصدار','Issue date'), '22 May 2025'],
+          ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px"><span style="color:#8A948D">${k}</span><span style="font-weight:600;color:#15201A;text-align:${l==='ar'?'left':'right'}">${v}</span></div>`).join('')}
+          <div style="margin-top:6px">
+            <button onclick="ApprovalCycle._s7ViewMinutes()" style="width:100%;padding:8px;border:1px solid #E4E7EC;border-radius:7px;background:#F8F9FA;cursor:pointer;font-size:12.5px;font-weight:600;color:#15201A;display:flex;align-items:center;justify-content:center;gap:6px">
+              👁 ${t('معاينة المحضر الكامل','Preview Full Minutes')}
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- Important Notes -->
+      <!-- Validation & Compliance -->
       <div class="rv-rpanel">
-        <div class="rv-rp-title">${t('\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0645\u0647\u0645\u0629','Important Notes')}</div>
-        <div class="s7-notes-list">
-          <div class="s7-note-row"><span class="s7-note-dot"></span><span class="s7-note-txt">${t('\u064a\u062c\u0628 \u0639\u0644\u0649 \u062c\u0645\u064a\u0639 \u0627\u0644\u062d\u0636\u0648\u0631 \u0627\u0644\u0645\u0637\u0644\u0648\u0628\u064a\u0646 \u062a\u0648\u0642\u064a\u0639 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a.','All required attendees must sign the final minutes.')}</span></div>
-          <div class="s7-note-row"><span class="s7-note-dot"></span><span class="s7-note-txt">${t('\u0633\u062a\u062a\u0644\u0642\u0649 \u0625\u0634\u0639\u0627\u0631\u064b\u0627 \u0639\u0646\u062f \u062c\u0645\u0639 \u062c\u0645\u064a\u0639 \u0627\u0644\u062a\u0648\u0642\u064a\u0639\u0627\u062a.','You will be notified when all signatures are received.')}</span></div>
-          <div class="s7-note-row"><span class="s7-note-dot"></span><span class="s7-note-txt">${t('\u0628\u0645\u062c\u0631\u062f \u062c\u0645\u0639 \u062c\u0645\u064a\u0639 \u0627\u0644\u062a\u0648\u0642\u064a\u0639\u0627\u062a\u060c \u0633\u064a\u064f\u0631\u0633\u064e\u0644 \u0627\u0644\u0645\u062d\u0636\u0631 \u0644\u0644\u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0646\u0647\u0627\u0626\u064a.','Once all signatures are collected, the minutes will be sent for Final Approval.')}</span></div>
+        <div class="rv-rp-title">✅ ${t('التحقق والامتثال','Validation & Compliance')}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${validChecks.map(v=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px">
+            <span style="color:${v.ok?'#0C7A3D':'#E8821A'};flex-shrink:0;margin-top:1px">${v.ok?'✓':'⚠'}</span>
+            <span style="color:${v.ok?'#15201A':'#A8590A'};line-height:1.4">${v.label}</span>
+          </div>`).join('')}
         </div>
+      </div>
+
+      <!-- Notifications Sent -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title" style="display:flex;justify-content:space-between">
+          <span>🔔 ${t('الإشعارات المُرسَلة','Notifications Sent')}</span>
+          <button onclick="ApprovalCycle._s7NotificationsLog()" style="background:none;border:none;font-size:11px;color:#4A6FA8;cursor:pointer">${t('عرض الكل','View All')}</button>
+        </div>
+        <div class="s7-notif-list">${notifRows}</div>
       </div>
 
       <!-- Audit Trail -->
       <div class="rv-rpanel">
-        <div class="rv-rp-title">${t('\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642','Audit Trail')}</div>
+        <div class="rv-rp-title">🔍 ${t('سجل التدقيق','Audit Trail')}</div>
         <div class="s7-audit-list">${auditHTML}</div>
-        <button class="s7-view-audit-btn" onclick="ApprovalCycle._s9AuditTrail()">
+        <button class="s7-view-audit-btn" onclick="ApprovalCycle._s7AuditTrail()">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="9.5" x2="7" y2="9.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-          ${t('\u0639\u0631\u0636 \u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642 \u0627\u0644\u0643\u0627\u0645\u0644','View Full Audit Trail')}
+          ${t('عرض سجل التدقيق الكامل','View Full Audit Trail')}
         </button>
       </div>
+
     </div>
   </div>
 
   <!-- Bottom bar -->
-  <div class="dm-bottombar fm-bottombar">
-    <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(5)">← ${t('\u0627\u0644\u0639\u0648\u062f\u0629 \u0644\u0625\u0639\u062f\u0627\u062f \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629','Back to Final Version Preparation')}</button>
-    <div class="s7-bb-center">
+  <div class="dm-bottombar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(5)">← ${t('العودة للنسخة النهائية','Back to Final Version')}</button>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">
       <button class="dm-btn ghost" onclick="ApprovalCycle._s7SendReminder()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5a4.5 4.5 0 014.5 4.5v2.5l1 2H1.5l1-2.5V6A4.5 4.5 0 017 1.5z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 12.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3"/></svg>
-        ${t('\u0625\u0631\u0633\u0627\u0644 \u062a\u0630\u0643\u064a\u0631 \u0644\u0644\u0645\u0639\u0644\u0651\u0642\u064a\u0646','Send Reminder to Pending')}
+        ${t('إرسال تذكير للمعلّقين','Send Reminder to Pending')}
       </button>
-    </div>
-    <div class="s7-bb-right">
       <button class="dm-btn ghost" onclick="ApprovalCycle._s7DownloadPDF()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        ${t('\u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629 (PDF)','Download Final Version (PDF)')}
+        ${t('تنزيل المحضر (PDF)','Download Minutes (PDF)')}
+      </button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s7SignNow()">
+        ✍️ ${t('التوقيع الآن (تجريبي)','Sign Now (Demo)')}
       </button>
     </div>
+    <button class="dm-btn primary" onclick="ApprovalCycle._s7AdvanceToApproval()">
+      ${t('الاعتماد النهائي →','→ Final Approval')}
+    </button>
   </div>
 
 </div>`;
+    // cache audit events for modal
+    this._s7AuditEvents = auditEvents;
   },
 
-  /* ── Step 7 helpers ─────────────────────────────────────────────────── */
-  _s7DownloadPDF() { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+  /* ── Step 7 helpers ──────────────────────────────────────────────────── */
+
+  _s7DownloadPDF() {
+    showToast(this.t('⏳ جارٍ تحضير ملف PDF...','⏳ Preparing PDF...'), 'info');
+    setTimeout(() => showToast(this.t('✅ تم تنزيل المحضر النهائي','✅ Final minutes downloaded'), 'success'), 1800);
+  },
+
+  _s7ViewMinutes() { this._fmPreview(); },
+
+  _s7HistoryModal() { this._fmHistory(); },
+
+  _s7Search(val) {
+    const v = val.toLowerCase();
+    const rows = document.querySelectorAll('#s7-tbody tr');
+    rows.forEach(tr => {
+      tr.style.display = !v || tr.textContent.toLowerCase().includes(v) ? '' : 'none';
+    });
+  },
+
+  _s7ExpandTable() {
+    const t = (ar,en) => this.t(ar,en);
+    const tbody = document.getElementById('s7-tbody');
+    if (!tbody) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:6000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 16px;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;width:900px;max-width:98vw;box-shadow:0 24px 80px rgba(0,0,0,.3);overflow:hidden;">
+  <div style="background:#0F1728;padding:16px 24px;display:flex;justify-content:space-between;align-items:center">
+    <div style="color:#fff;font-size:14px;font-weight:800">📋 ${t('جدول التوقيعات — عرض موسّع','Signature Table — Expanded View')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕ ${t('إغلاق','Close')}</button>
+  </div>
+  <div style="overflow-x:auto;padding:0">
+    <table class="s7-sig-table" style="font-size:12.5px">
+      <thead><tr style="background:#F8F9FA">
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">#</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('الحضور','Attendee')}</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('الدور','Role')}</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('الحالة','Status')}</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('وُقِّع في','Signed On')}</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('الجهاز','Device')}</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('التحقق','Verify')}</th>
+        <th style="padding:10px 14px;font-weight:600;color:#8A948D">${t('تجزئة الشهادة','Cert Hash')}</th>
+      </tr></thead>
+      <tbody>${(this._s7Attendees||[]).map((att,i)=>{
+        const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A6FA8','#6B4FA8','#2AA87A','#C47A3C','#5A8A4A'];
+        const initials = att.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+        const stColor = att.status==='signed'?'#0C7A3D':att.status==='opened'?'#4A6FA8':att.status==='pending'?'#E8821A':'#8A948D';
+        const stLabel = att.status==='signed'?t('وقّع','Signed'):att.status==='opened'?t('مفتوح','Opened'):att.status==='pending'?t('معلّق','Pending'):t('غير مطلوب','Not Required');
+        return `<tr style="border-bottom:1px solid #F2F3F5;cursor:pointer" onclick="ApprovalCycle._s7AttendeeDetail(${JSON.stringify(att.name)})">
+          <td style="padding:10px 14px;color:#8A948D;font-size:11.5px">${i+1}</td>
+          <td style="padding:10px 14px"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:${AV_COLORS[i%AV_COLORS.length]};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${initials}</div><div><div style="font-weight:600;color:#15201A">${esc(att.name)}</div><div style="font-size:10.5px;color:#8A948D">${esc(att.email)}</div></div></div></td>
+          <td style="padding:10px 14px;color:#6B7280;font-size:12px">${esc(att.role)}</td>
+          <td style="padding:10px 14px"><span style="font-size:11.5px;background:${stColor}18;color:${stColor};border-radius:10px;padding:2px 9px;font-weight:700">${stLabel}</span></td>
+          <td style="padding:10px 14px;font-size:12px;color:#46514A;white-space:nowrap">${att.signedAt||'—'}</td>
+          <td style="padding:10px 14px;font-size:12px;color:#46514A">${esc(att.device)}</td>
+          <td style="padding:10px 14px;font-size:12px;color:#46514A">${esc(att.verify)}</td>
+          <td style="padding:10px 14px;font-size:11px;font-family:monospace;color:${att.hash!=='-'?'#0C7A3D':'#8A948D'}">${att.hash!=='-'?att.hash+'…':'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s7AttendeeDetail(attName) {
+    const t = (ar,en) => this.t(ar,en);
+    const l = App.lang;
+    const att = (this._s7Attendees||[]).find(a=>a.name===attName);
+    if (!att) return;
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A6FA8','#6B4FA8','#2AA87A','#C47A3C','#5A8A4A'];
+    const idx = (this._s7Attendees||[]).indexOf(att);
+    const initials = att.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    const bgColor = AV_COLORS[idx%AV_COLORS.length];
+    const SIG_PATHS = [
+      `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 17 Q9 9 13 14 L18 18 Q22 22 26 14 Q30 6 36 12 L42 16" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    ];
+
+    const stColor = att.status==='signed'?'#0C7A3D':att.status==='opened'?'#4A6FA8':att.status==='pending'?'#E8821A':'#8A948D';
+    const stLabel = att.status==='signed'?t('وقّع','Signed'):att.status==='opened'?t('مفتوح (لم يُوقَّع)','Opened (not signed)'):att.status==='pending'?t('معلّق','Pending'):t('غير مطلوب','Not Required');
+
+    const certHTML = att.hash !== '-' ? `
+<div style="background:#F0FDF4;border:1px solid #A7F3D0;border-radius:10px;padding:14px 16px;margin-top:4px">
+  <div style="font-size:12px;font-weight:800;color:#065F46;margin-bottom:10px">🏅 ${t('شهادة التوقيع الإلكتروني','Electronic Signature Certificate')}</div>
+  ${[
+    [t('معرّف الشهادة','Certificate ID'), `ESC-${att.hash}-2025`],
+    [t('خوارزمية التشفير','Algorithm'), 'SHA-256 / RSA-2048'],
+    [t('وقت التوقيع (UTC)','Signing Time (UTC)'), att.signedAt],
+    [t('عنوان IP','IP Address'), att.ip],
+    [t('الجهاز','Device'), att.device],
+    [t('طريقة التحقق','Verification'), att.verify],
+    [t('حالة الشهادة','Certificate Status'), `✅ ${t('سارية المفعول','Valid')}`],
+  ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:5px;font-size:11.5px"><span style="color:#047857">${k}</span><span style="font-weight:600;color:#065F46;text-align:end">${v}</span></div>`).join('')}
+  <div style="margin-top:8px;padding-top:8px;border-top:1px solid #A7F3D0;font-size:10.5px;color:#059669;font-family:monospace;word-break:break-all">
+    ${t('التجزئة الرقمية:','Digital Hash:')} SHA256:${att.hash}f3a8b7d2e1c4...
+  </div>
+</div>` : att.status==='opened' ? `
+<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px 14px;margin-top:4px">
+  <div style="font-size:12px;font-weight:700;color:#1D4ED8;margin-bottom:6px">👁 ${t('حالة المستند','Document Status')}</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <div style="flex:1;height:8px;background:#DBEAFE;border-radius:4px;overflow:hidden"><div style="height:100%;width:${att.reviewPct}%;background:#3B82F6;border-radius:4px"></div></div>
+    <span style="font-size:12px;font-weight:700;color:#1D4ED8">${att.reviewPct}%</span>
+  </div>
+  <div style="font-size:11.5px;color:#1D4ED8">${t(`قرأ ${att.reviewPct}% من المحضر`,`Read ${att.reviewPct}% of the minutes`)}</div>
+  <div style="font-size:10.5px;color:#60A5FA;margin-top:4px">${t('آخر نشاط:','Last activity:')} ${att.reviewedAt}</div>
+</div>` : `
+<div style="background:#FFF8F0;border:1px solid #FDE68A;border-radius:10px;padding:12px 14px;margin-top:4px">
+  <div style="font-size:12px;color:#92400E">⏳ ${t('لم يُفتَح المحضر بعد. أُرسل إشعار البريد الإلكتروني عند الإطلاق.','Document not yet opened. Email notification delivered on launch.')}</div>
+</div>`;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:540px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.3);">
+  <!-- Modal header -->
+  <div style="background:linear-gradient(135deg,#0F1728,#1a2d4a);padding:20px 24px;border-radius:16px 16px 0 0">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <div style="width:48px;height:48px;border-radius:50%;background:${bgColor};display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:800;border:2px solid rgba(255,255,255,.3)">${initials}</div>
+      <div>
+        <div style="color:#fff;font-size:15px;font-weight:800">${esc(att.name)}</div>
+        <div style="color:rgba(255,255,255,.65);font-size:12px">${esc(att.role)} · ${esc(att.email)}</div>
+      </div>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-right:auto;margin-left:0;background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:16px">×</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span style="background:${stColor}22;color:${stColor};border:1px solid ${stColor}44;border-radius:12px;padding:3px 12px;font-size:12px;font-weight:700">${stLabel}</span>
+      <span style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);border-radius:12px;padding:3px 10px;font-size:11.5px">${att.required?t('توقيع مطلوب','Signature required'):t('غير مطلوب','Not required')}</span>
+    </div>
+  </div>
+  <!-- Body -->
+  <div style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+    <!-- Signature display -->
+    ${att.status==='signed' ? `
+    <div style="border:1.5px solid #E5E9E7;border-radius:10px;padding:14px 16px">
+      <div style="font-size:11.5px;font-weight:700;color:#8A948D;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">${t('التوقيع الإلكتروني','Electronic Signature')}</div>
+      <div style="background:#F8FAFF;border-radius:8px;padding:12px;display:flex;justify-content:center;border:1px dashed #C7D4E8">
+        <svg width="200" height="60" viewBox="0 0 50 28">${SIG_PATHS[att.sig]}</svg>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#8A948D;text-align:center">${t('توقيع إلكتروني معتمد · موقّع في','Certified e-Signature · Signed on')} ${att.signedAt}</div>
+    </div>` : ''}
+    <!-- Info grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${[
+        [t('فُتح المستند في','Document opened'), att.reviewedAt||'—'],
+        [t('تقدم القراءة','Reading progress'), att.reviewPct>0?att.reviewPct+'%':'—'],
+        [t('الجهاز','Device'), att.device],
+        [t('التحقق','Verification'), att.verify],
+      ].map(([k,v])=>`<div style="background:#F8F9FA;border-radius:8px;padding:10px 12px"><div style="font-size:10.5px;color:#8A948D;margin-bottom:3px">${k}</div><div style="font-size:12.5px;font-weight:600;color:#15201A">${v}</div></div>`).join('')}
+    </div>
+    <!-- Certificate / status -->
+    ${certHTML}
+    <!-- Actions -->
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px">
+      ${att.status!=='signed'&&att.status!=='not_required' ? `<button onclick="ApprovalCycle._s7SendReminderTo(${JSON.stringify(att.name)});this.closest('div[style*=fixed]').remove()" style="padding:9px 16px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px">🔔 ${t('إرسال تذكير','Send Reminder')}</button>` : ''}
+      ${att.status==='signed' ? `<button onclick="ApprovalCycle._s7DownloadSig(${JSON.stringify(att.name)});this.closest('div[style*=fixed]').remove()" style="padding:9px 16px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:12.5px;font-weight:700">📥 ${t('تنزيل الشهادة','Download Certificate')}</button>` : ''}
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 16px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s7DownloadSig(attName) {
+    const t = (ar,en) => this.t(ar,en);
+    showToast(t(`⏳ جارٍ تحضير شهادة التوقيع لـ ${attName}...`,`⏳ Preparing signature certificate for ${attName}...`), 'info');
+    setTimeout(() => showToast(t('✅ تم تنزيل شهادة التوقيع الإلكتروني','✅ Electronic signature certificate downloaded'), 'success'), 1800);
+  },
+
   async _s7SendReminder() {
+    const t = (ar,en) => this.t(ar,en);
+    const ATTS = this._s7Attendees || [];
+    const pending = ATTS.filter(a => a.status === 'pending' || a.status === 'opened');
     try {
-      await api(`/api/meetings/${this._mid}/approval-cycle/remind`, { method: 'POST' });
-      showToast(this.t('تم إرسال التذكير للحضور المعلّقين 🔔','Reminder sent to pending attendees 🔔'), 'success');
-    } catch(e) {
-      showToast(this.t('تم إشعار الحضور المعلّقين 🔔','Pending attendees notified 🔔'), 'success');
+      await api(`/api/meetings/${this._mid}/approval-cycle/remind`, { method:'POST' });
+    } catch(e) {}
+    showToast(t(`✅ تم إرسال تذكير لـ ${pending.length} حضور معلّقين`,`✅ Reminder sent to ${pending.length} pending attendees`), 'success');
+    // Update audit
+    if (this._s7AuditEvents) {
+      this._s7AuditEvents.push({ icon:'🔔', text:t('أُرسل تذكير للحضور المعلّقين','Reminder sent to pending attendees'), date: new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) });
     }
   },
-  _s7Preview()  { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+
+  _s7SendReminderTo(attName) {
+    const t = (ar,en) => this.t(ar,en);
+    showToast(t(`🔔 تم إرسال تذكير شخصي لـ ${attName}`,`🔔 Personal reminder sent to ${attName}`), 'success');
+  },
+
+  _s7SignNow() {
+    const t = (ar,en) => this.t(ar,en);
+    let isDrawing = false, lastX = 0, lastY = 0;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:520px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3);">
+  <div style="background:#0F1728;padding:18px 24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:15px;font-weight:800">✍️ ${t('التوقيع الإلكتروني','Electronic Signature')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${t('ارسم توقيعك في المربع أدناه','Draw your signature in the box below')}</div>
+    </div>
+    <button id="s7-close-sign" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:16px">×</button>
+  </div>
+  <div style="padding:20px 24px">
+    <div style="font-size:12px;color:#8A948D;margin-bottom:8px">${t('يُرجى التوقيع باستخدام الماوس أو إصبعك:','Please sign using your mouse or finger:')}</div>
+    <canvas id="s7-sig-canvas" width="468" height="160" style="width:100%;height:160px;border:1.5px dashed #C7D4E8;border-radius:10px;background:#F8FAFF;cursor:crosshair;touch-action:none;display:block"></canvas>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <div style="flex:1;font-size:11px;color:#8A948D">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="s7-sign-consent" style="width:14px;height:14px;accent-color:#0F1728">
+          <span>${t('أوافق على أن هذا التوقيع ملزم قانونياً','I agree this signature is legally binding')}</span>
+        </label>
+      </div>
+      <button id="s7-clear-btn" style="background:#F2F3F5;border:none;border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer;color:#46514A">${t('مسح','Clear')}</button>
+    </div>
+    <div style="background:#FFF8F0;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:11.5px;color:#A8590A">
+      ⚠️ ${t('هذا وضع تجريبي. في بيئة الإنتاج سيتم توثيق التوقيع بشهادة رقمية معتمدة.','This is a demo mode. In production, the signature will be certified with an accredited digital certificate.')}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button id="s7-cancel-sign" style="padding:10px 20px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+      <button id="s7-submit-sign" style="padding:10px 22px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✅ ${t('تأكيد التوقيع','Confirm Signature')}</button>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    const canvas  = overlay.querySelector('#s7-sig-canvas');
+    const ctx     = canvas.getContext('2d');
+    ctx.strokeStyle = '#1a3a5c'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let hasDrawn = false;
+
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / r.width, scaleY = canvas.height / r.height;
+      if (e.touches) return [(e.touches[0].clientX-r.left)*scaleX, (e.touches[0].clientY-r.top)*scaleY];
+      return [(e.clientX-r.left)*scaleX, (e.clientY-r.top)*scaleY];
+    };
+    const start = e => { e.preventDefault(); isDrawing=true; [lastX,lastY]=getPos(e); hasDrawn=true; };
+    const draw  = e => { e.preventDefault(); if(!isDrawing) return; const [x,y]=getPos(e); ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke(); [lastX,lastY]=[x,y]; };
+    const stop  = e => { isDrawing=false; };
+    canvas.addEventListener('mousedown',start); canvas.addEventListener('mousemove',draw); canvas.addEventListener('mouseup',stop); canvas.addEventListener('mouseleave',stop);
+    canvas.addEventListener('touchstart',start); canvas.addEventListener('touchmove',draw); canvas.addEventListener('touchend',stop);
+
+    overlay.querySelector('#s7-clear-btn').onclick = () => { ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn=false; };
+    overlay.querySelector('#s7-close-sign').onclick = () => overlay.remove();
+    overlay.querySelector('#s7-cancel-sign').onclick = () => overlay.remove();
+    overlay.querySelector('#s7-submit-sign').onclick = () => {
+      if (!hasDrawn) { showToast(t('⚠️ يرجى رسم توقيعك أولاً','⚠️ Please draw your signature first'), 'warning'); return; }
+      if (!overlay.querySelector('#s7-sign-consent').checked) { showToast(t('⚠️ يرجى الموافقة على الشروط','⚠️ Please accept the terms'), 'warning'); return; }
+      overlay.remove();
+      showToast(t('⏳ جارٍ تسجيل توقيعك الإلكتروني...','⏳ Recording your electronic signature...'), 'info');
+      setTimeout(() => showToast(t('✅ تم تسجيل توقيعك بنجاح · رقم الشهادة: ESC-D9F2A1-2025','✅ Signature recorded successfully · Certificate: ESC-D9F2A1-2025'), 'success'), 1800);
+    };
+  },
+
+  _s7AuditTrail() {
+    const t = (ar,en) => this.t(ar,en);
+    const events = this._s7AuditEvents || [];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:580px;max-width:96vw;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:#0F1728;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="color:#fff;font-size:15px;font-weight:800">🔍 ${t('سجل التدقيق الكامل','Full Audit Trail')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${t('جميع الأحداث محفوظة ومؤمّنة · غير قابلة للتعديل','All events recorded and tamper-proof')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕</button>
+  </div>
+  <div style="overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;gap:0">
+    ${events.map((e,i)=>`
+<div style="display:flex;gap:14px;align-items:flex-start;padding:12px 0;${i<events.length-1?'border-bottom:1px solid #F2F3F5':''}">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
+    <div style="width:34px;height:34px;border-radius:50%;background:#F5F5F1;display:flex;align-items:center;justify-content:center;font-size:15px">${e.icon}</div>
+    ${i<events.length-1?`<div style="width:1px;height:100%;min-height:16px;background:#E5E9E7;margin-top:4px"></div>`:''}
+  </div>
+  <div style="flex:1;padding-top:4px">
+    <div style="font-size:12.5px;font-weight:600;color:#15201A;margin-bottom:3px">${e.text}</div>
+    <div style="font-size:11px;color:#8A948D;display:flex;align-items:center;gap:8px">
+      <span>🕐 ${e.date}</span>
+      <span>· ${t('النظام / محمد البلالي','System / Mohammad Albuali')}</span>
+    </div>
+  </div>
+</div>`).join('')}
+  </div>
+  <div style="padding:14px 24px;border-top:1px solid #F2F3F5;background:#F8F9FA;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11.5px;color:#8A948D">🔒 ${t('مؤمَّن بتشفير SHA-256','Secured with SHA-256 encryption')}</span>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 18px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s7NotificationsLog() {
+    const t = (ar,en) => this.t(ar,en);
+    const notifs = [
+      { via:'📧', to:t('جميع الحضور (8 أشخاص)','All attendees (8 people)'), type:t('طلب التوقيع الأولي','Initial signature request'), at:'22 May 2025, 10:46 AM', status:t('تم الإرسال','Delivered'), opens:7 },
+      { via:'📧', to:t('أ. سلطان السعود','Mr. Sultan Alsaud'), type:t('تذكير (اليوم الثاني)','Reminder (Day 2)'), at:'23 May 2025, 10:00 AM', status:t('تم الإرسال','Delivered'), opens:1 },
+      { via:'📧', to:t('د. مها الحارثي','Dr. Maha Alhaarthy'), type:t('تذكير (اليوم الثاني)','Reminder (Day 2)'), at:'23 May 2025, 10:00 AM', status:t('تم الإرسال','Delivered'), opens:0 },
+      { via:'📱', to:t('أ. سلطان السعود','Mr. Sultan Alsaud'), type:t('رسالة SMS تذكيرية','SMS Reminder'), at:'23 May 2025, 2:00 PM', status:t('تم الإرسال','Delivered'), opens:1 },
+      { via:'📧', to:t('أ. سلطان السعود · د. مها الحارثي','Mr. Sultan Alsaud · Dr. Maha Alhaarthy'), type:t('تذكير أخير (اليوم الثالث)','Final reminder (Day 3)'), at:'24 May 2025, 9:00 AM', status:t('تم الإرسال','Delivered'), opens:0 },
+    ];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:560px;max-width:96vw;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="padding:18px 24px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A">🔔 ${t('سجل الإشعارات','Notifications Log')}</div>
+      <div style="font-size:12px;color:#8A948D;margin-top:2px">${notifs.length} ${t('إشعار أُرسل','notifications sent')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="overflow-y:auto;padding:14px 24px;display:flex;flex-direction:column;gap:10px">
+    ${notifs.map(n=>`
+<div style="border:1px solid #F2F3F5;border-radius:10px;padding:12px 14px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">${n.via}</span>
+      <div>
+        <div style="font-size:12.5px;font-weight:700;color:#15201A">${n.type}</div>
+        <div style="font-size:11px;color:#8A948D">${n.to}</div>
+      </div>
+    </div>
+    <div style="text-align:end;flex-shrink:0">
+      <div style="font-size:10.5px;color:#8A948D">${n.at}</div>
+      <span style="font-size:10.5px;background:rgba(12,122,61,.1);color:#0C7A3D;border-radius:8px;padding:1px 7px;font-weight:600">${n.status}</span>
+    </div>
+  </div>
+  <div style="font-size:11px;color:#8A948D">${t('تم الفتح','Opens:')} ${n.opens > 0 ? `<span style="color:#0C7A3D;font-weight:600">${n.opens}x ✓</span>` : `<span style="color:#C4453C">0</span>`}</div>
+</div>`).join('')}
+  </div>
+  <div style="padding:12px 24px;border-top:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;background:#F8F9FA">
+    <button onclick="ApprovalCycle._s7SendReminder();this.closest('div[style*=fixed]').remove()" style="padding:8px 16px;border:none;border-radius:7px;background:#0F1728;color:#fff;cursor:pointer;font-size:12.5px;font-weight:700">🔔 ${t('إرسال تذكير جديد','Send New Reminder')}</button>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 16px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  async _s7AdvanceToApproval() {
+    const t = (ar,en) => this.t(ar,en);
+    const ATTS = this._s7Attendees || [];
+    const nPending = ATTS.filter(a => a.required && a.status !== 'signed' && a.status !== 'not_required').length;
+    if (nPending > 0) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px';
+      overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;padding:26px;width:440px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.22)">
+  <div style="font-size:15px;font-weight:800;color:#15201A;margin-bottom:6px">⚠️ ${t('توقيعات غير مكتملة','Incomplete Signatures')}</div>
+  <div style="font-size:12.5px;color:#8A948D;margin-bottom:14px">${t(`لا تزال هناك ${nPending} توقيعات مطلوبة غير مكتملة. هل تريد المتابعة إلى الاعتماد النهائي على أي حال؟`,`There are still ${nPending} required signatures incomplete. Proceed to Final Approval anyway?`)}</div>
+  <div style="background:#FFF8F0;border-radius:9px;padding:12px;margin-bottom:16px;font-size:12px;color:#A8590A">⚠️ ${t('يُوصى باكتمال جميع التوقيعات قبل الاعتماد النهائي لضمان قانونية المحضر.','Completing all signatures before final approval is recommended to ensure the minutes are legally valid.')}</div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove();ApprovalCycle._s7SendReminder()" style="padding:9px 14px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:12.5px">🔔 ${t('إرسال تذكيرات','Send Reminders')}</button>
+    <button onclick="this.closest('div[style*=fixed]').remove();ApprovalCycle._onStepClick(7)" style="padding:9px 16px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:12.5px;font-weight:700">→ ${t('المتابعة للاعتماد','Proceed to Approval')}</button>
+  </div>
+</div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+    } else {
+      this._onStepClick(7);
+    }
+  },
+
+  _s7Preview() { this._fmPreview(); },
 
   /* ═══════════════════════════════════════════════════════════════════════
      STEP 8 — FINAL APPROVAL

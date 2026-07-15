@@ -2346,6 +2346,34 @@
 }
 .s7-view-audit-btn:hover { background:#EAECE8; }
 
+/* ── Clickable rows ────────────────────────────────────────────────────── */
+.s7-sig-row-clickable { cursor:pointer; transition:background .12s; }
+.s7-sig-row-clickable:hover { background:#F5F7F8 !important; }
+
+/* ── Opened status badge ───────────────────────────────────────────────── */
+.s7-badge-opened { background:rgba(74,111,168,.12); color:#4A6FA8; }
+
+/* ── Review progress bar (in table) ───────────────────────────────────── */
+.s7-review-bar  { width:60px; height:6px; background:#E0E7F0; border-radius:3px; overflow:hidden; display:inline-block; margin-right:4px; vertical-align:middle; }
+.s7-review-fill { height:100%; background:#4A6FA8; border-radius:3px; }
+
+/* ── Search bar ────────────────────────────────────────────────────────── */
+.s7-search-wrap {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 10px; border:1.5px solid #E5E9E7; border-radius:7px;
+  background:#fff; transition:border-color .15s;
+}
+.s7-search-wrap:focus-within { border-color:#A8842C; }
+.s7-search-input {
+  border:none; outline:none; font-size:12px; color:#15201A;
+  width:130px; background:transparent; font-family:inherit;
+}
+.s7-search-input::placeholder { color:#B0B8B4; }
+
+/* ── Notification list ─────────────────────────────────────────────────── */
+.s7-notif-list { display:flex; flex-direction:column; gap:8px; }
+.s7-notif-row  { display:flex; align-items:flex-start; gap:8px; font-size:12px; }
+
 /* ── Bottom bar ────────────────────────────────────────────────────────── */
 .s7-bb-center { flex:1; display:flex; justify-content:center; }
 .s7-bb-right  { display:flex; align-items:center; gap:8px; }
