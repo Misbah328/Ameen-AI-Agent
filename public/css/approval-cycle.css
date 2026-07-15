@@ -1192,7 +1192,9 @@
 .rv-tl-ico  { font-size: 14px; flex-shrink: 0; margin-top: 2px; }
 .rv-tl-label { font-size: 10.5px; color: #8A948D; font-weight: 600; margin-bottom: 1px; }
 .rv-tl-val   { font-size: 12px; font-weight: 700; color: #15201A; }
-.rv-tl-rem   { font-size: 10.5px; color: #A8842C; font-weight: 700; margin-top: 2px; }
+.rv-tl-rem      { font-size: 10.5px; color: #A8842C; font-weight: 700; margin-top: 2px; }
+.rv-tl-warn     { color: #C4453C; }
+.rv-att-toolbar { display: flex; align-items: center; gap: 8px; margin: 12px 0 10px; flex-wrap: wrap; }
 
 /* ── CENTER column ────────────────────────────────────────────────────────── */
 .rv-center {

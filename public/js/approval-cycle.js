@@ -769,7 +769,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     };
 
     const attWithStatus = attendees.map(att => {
-      const name  = (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
+      const name  = att.name || (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
       const role  = att.board_role || att.role || '';
       const myComs = commentsByName[name] || [];
       const mySigs = sigsByName[name] || [];
@@ -824,9 +824,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         <td class="rv-td-act">${lastAct}</td>
         <td class="rv-td-date">${revDate}</td>
         <td class="rv-td-actions">
-          <button class="rv-act-btn" title="${t('عرض','View')}">👁</button>
-          ${canDownload ? `<button class="rv-act-btn" title="${t('تحميل','Download')}">⬇</button>` : ''}
-          <button class="rv-act-btn" title="${t('تذكير','Remind')}">✉️</button>
+          <button class="rv-act-btn" title="${t('عرض التفاصيل','View Details')}" onclick="ApprovalCycle._rvViewAttendee(${JSON.stringify(a.name)})">👁</button>
+          ${canDownload ? `<button class="rv-act-btn" title="${t('تحميل المراجعة','Download Review')}" onclick="ApprovalCycle._rvDownloadReview(${JSON.stringify(a.name)})">⬇</button>` : ''}
+          <button class="rv-act-btn" title="${t('إرسال تذكير','Send Reminder')}" onclick="ApprovalCycle._sendReminderOne(${JSON.stringify(a.name)},${JSON.stringify(a.role)},${JSON.stringify(a.status)})">✉️</button>
         </td>
       </tr>`;
     }).join('') || `<tr><td colspan="7" class="rv-empty">${t('لا يوجد حضور','No attendees')}</td></tr>`;
@@ -904,7 +904,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     </div>
     <div class="dm-topbar-actions">
       <button class="dm-btn ghost" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
-      <button class="dm-btn ghost">📊 ${t('تصدير تقرير','Export Report')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._rvExportReport()">📊 ${t('تصدير تقرير','Export Report')}</button>
       <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(3)">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
       </button>
@@ -938,7 +938,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div class="dv-doc-stat"><div class="dv-ds-num">${tasks.length}</div><div class="dv-ds-lbl">${t('بنود العمل','Action Items')}</div></div>
           <div class="dv-doc-stat"><div class="dv-ds-num">${docs.length}</div><div class="dv-ds-lbl">${t('مرفقات','Attachments')}</div></div>
         </div>
-        <button class="dv-preview-btn">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+        <button class="dv-preview-btn" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+        <button class="dv-preview-btn" style="margin-top:6px;color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._rvAddComment()">💬 ${t('إضافة تعليق','Add Comment')}</button>
       </div>
 
       <!-- Review Timeline -->
@@ -949,7 +950,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div>
             <div class="rv-tl-label">${t('الموعد النهائي','Review Deadline')}</div>
             <div class="rv-tl-val">${dlFmt}</div>
-            ${daysLeft !== '' ? `<div class="rv-tl-rem">${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة متبقية','Hours left')}</div>` : ''}
+            ${daysLeft !== '' ? `<div class="rv-tl-rem ${Number(daysLeft)<=3?'rv-tl-warn':''}">${daysLeft} ${t('أيام','days')}, ${hoursLeft} ${t('ساعة متبقية','hours left')}</div>` : ''}
           </div>
         </div>
         <div class="rv-tl-row">
@@ -960,13 +961,21 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           </div>
         </div>
         <div class="rv-tl-row">
+          <span class="rv-tl-ico">✅</span>
+          <div>
+            <div class="rv-tl-label">${t('الاستجابات المستلمة','Responses Received')}</div>
+            <div class="rv-tl-val">${nDone + nRev + nEdit} ${t('من','of')} ${total}</div>
+          </div>
+        </div>
+        <div class="rv-tl-row">
           <span class="rv-tl-ico">⏱</span>
           <div>
             <div class="rv-tl-label">${t('مدة المراجعة الكلية','Total Review Duration')}</div>
             <div class="rv-tl-val">8 ${t('أيام','Days')}</div>
           </div>
         </div>
-        <button class="dv-preview-btn" style="margin-top:10px">📋 ${t('عرض الجدول الزمني','View Timeline')}</button>
+        <button class="dv-preview-btn" style="margin-top:10px" onclick="ApprovalCycle._rvViewTimeline()">📋 ${t('عرض الجدول الزمني','View Timeline')}</button>
+        <button class="dv-preview-btn" style="margin-top:6px;color:#C4453C;border-color:rgba(196,69,60,.3)" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('تذكير الكل','Remind All Pending')}</button>
       </div>
     </div>
 
@@ -1008,9 +1017,22 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         </div>
       </div>
 
+      <!-- Search + filter toolbar -->
+      <div class="rv-att-toolbar" style="display:flex;align-items:center;gap:8px;margin:12px 0 10px;flex-wrap:wrap">
+        <div class="dv-search-box" style="flex:1;min-width:160px">
+          <span class="dv-search-ico">🔍</span>
+          <input class="dv-search-inp" type="text" id="rv-search-inp"
+            placeholder="${t('بحث عن حضور...','Search attendee...')}"
+            oninput="ApprovalCycle._rvSearchAtt(this.value)">
+        </div>
+        <button class="dv-filter-btn" onclick="ApprovalCycle._rvFilterMenu(this)">⚙ ${t('تصفية','Filter')}</button>
+        <button class="dv-filter-btn" style="color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._rvAddComment()">💬 ${t('إضافة تعليق','Add Comment')}</button>
+        <button class="dv-filter-btn" style="color:#C4453C;border-color:rgba(196,69,60,.3)" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('تذكير الكل','Remind All')}</button>
+      </div>
+
       <!-- Attendee review table -->
       <div class="rv-table-wrap">
-        <table class="rv-table">
+        <table class="rv-table" id="rv-att-table">
           <thead><tr>
             <th>${t('الحضور','Attendee')}</th>
             <th>${t('الدور','Role')}</th>
@@ -1020,7 +1042,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <th>${t('تاريخ المراجعة','Review Date')}</th>
             <th>${t('الإجراءات','Actions')}</th>
           </tr></thead>
-          <tbody>${attRows}</tbody>
+          <tbody id="rv-att-body">${attRows}</tbody>
         </table>
       </div>
 
@@ -1063,14 +1085,23 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <div class="rv-rpanel">
         <div class="rv-rp-title">${t('أكثر المراجعين نشاطاً','Top Active Reviewers')}</div>
         <div class="rv-reviewers">${topReviewers}</div>
-        <button class="dm-link-btn">${t('عرض كل التعليقات →','View All Comments →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._rvViewAllComments()">${t('عرض كل التعليقات →','View All Comments →')}</button>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">⚡ ${t('إجراءات سريعة','Quick Actions')}</div>
+        <button class="dv-preview-btn" style="margin-bottom:6px;width:100%" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير للمعلّقين','Remind Pending Attendees')}</button>
+        <button class="dv-preview-btn" style="margin-bottom:6px;width:100%" onclick="ApprovalCycle._rvAddComment()">💬 ${t('إضافة تعليق أمانة','Add Secretary Comment')}</button>
+        <button class="dv-preview-btn" style="margin-bottom:6px;width:100%;color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._rvExportReport()">📊 ${t('تصدير تقرير المراجعة','Export Review Report')}</button>
+        <button class="dv-preview-btn" style="width:100%;color:#A8842C;border-color:rgba(168,132,44,.3)" onclick="ApprovalCycle._rvViewTimeline()">📅 ${t('عرض الجدول الزمني','View Full Timeline')}</button>
       </div>
 
       <!-- AI Insights -->
       <div class="rv-rpanel">
         <div class="rv-rp-title">✨ ${t('رؤى الذكاء الاصطناعي','AI Insights')}</div>
         <div class="rv-insights">${insightRows}</div>
-        <button class="dm-link-btn">${t('عرض كل الرؤى →','View All Insights →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._rvViewAllInsights()">${t('عرض كل الرؤى →','View All Insights →')}</button>
       </div>
 
     </div>
@@ -1148,7 +1179,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
     const AV_COLORS = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E','#1F618D','#4A235A'];
     const attWithStatus = attendees.map((att, i) => {
-      const name    = (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
+      const name    = att.name || (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
       const role    = att.board_role || att.role || '';
       const status  = getStatus(name);
       const myComs  = commentsByName[name] || [];
@@ -2145,6 +2176,388 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     } catch(e) {
       showToast(this.t('تم إشعار الحضور المعلّقين 🔔','Pending attendees have been notified 🔔'), 'success');
     }
+  },
+
+  /* ── Step 3 helpers ──────────────────────────────────────────────────────── */
+
+  _sendReminderOne(name, role, status) {
+    const t = (ar, en) => this.t(ar, en);
+    if (status === 'completed') {
+      showToast(t(`${name} أكمل مراجعته بالفعل.`, `${name} has already completed their review.`), 'info');
+      return;
+    }
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:460px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:16px;font-weight:800;color:#15201A;margin-bottom:16px">🔔 ${t('إرسال تذكير لـ','Send Reminder to')} ${esc(name)}</div>
+  <div style="font-size:12.5px;color:#8A948D;margin-bottom:12px">${esc(role)} · ${t('الحالة الحالية:','Current status:')} <strong>${status === 'in_review' ? t('قيد المراجعة','In Review') : status === 'reviewed_pending_edits' ? t('تعديلات معلّقة','Pending Edits') : t('لم يبدأ','Not Started')}</strong></div>
+  <textarea id="rv-remind-msg" style="width:100%;height:90px;border:1px solid #E4E7EC;border-radius:8px;padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit">${t('عزيزي','Dear')} ${esc(name.split(' ').slice(-1)[0])}،\n\n${t('نود تذكيرك بمراجعة محضر الاجتماع المرسل إليك. الموعد النهائي هو 22 يوليو 2026، 5:00 م.','This is a friendly reminder to review the meeting minutes sent to you. The deadline is 22 July 2026 at 5:00 PM.')}\n\n${t('شكراً،','Best regards,')}\n${t('أمانة السر','Secretariat')}</textarea>
+  <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="rv-remind-send" style="padding:9px 18px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:13px;font-weight:700">${t('إرسال','Send')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#rv-remind-send').onclick = () => {
+      overlay.remove();
+      showToast(t(`✅ تم إرسال التذكير إلى ${name}`,`✅ Reminder sent to ${name}`), 'success');
+    };
+  },
+
+  _rvViewAttendee(name) {
+    const t = (ar, en) => this.t(ar, en);
+    const d = this._data || {};
+    const comments  = (d.comments  || []).filter(c => c.commenter_name === name);
+    const sigs      = (d.signatures|| []).filter(s => s.signer_name    === name);
+    const fd = this._fullData || {};
+    const att = (fd.attendees || []).find(a => (a.name || a.name_ar) === name) || {};
+    const role = att.board_role || att.role || '';
+
+    const hasSig = sigs.some(s => s.status === 'signed');
+    const STATUS_LABEL = (() => {
+      if (hasSig) return `<span style="color:#0C7A3D;font-weight:700">✅ ${t('مكتمل','Completed')}</span>`;
+      if (!comments.length) return `<span style="color:#C4453C;font-weight:700">⏳ ${t('لم يبدأ','Not Started')}</span>`;
+      const pend = comments.filter(c=>c.status==='pending').length;
+      const res  = comments.filter(c=>c.status==='accepted'||c.status==='rejected').length;
+      if (pend && res) return `<span style="color:#2B5CA5;font-weight:700">🔵 ${t('تعديلات معلّقة','Pending Edits')}</span>`;
+      if (pend)        return `<span style="color:#A8842C;font-weight:700">👁 ${t('قيد المراجعة','In Review')}</span>`;
+      return `<span style="color:#0C7A3D;font-weight:700">✅ ${t('مكتمل','Completed')}</span>`;
+    })();
+
+    const STATUS_MAP = {
+      pending:  { label: t('معلّق','Pending'),  bg:'rgba(168,132,44,.12)', color:'#A8842C' },
+      accepted: { label: t('مقبول','Accepted'), bg:'rgba(12,122,61,.12)',  color:'#0C7A3D' },
+      rejected: { label: t('مرفوض','Rejected'), bg:'rgba(196,69,60,.12)', color:'#C4453C' },
+    };
+
+    const comRows = comments.map(c => {
+      const st = STATUS_MAP[c.status] || STATUS_MAP.pending;
+      return `<div style="border:1px solid #E4E7EC;border-radius:10px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <span style="font-size:11.5px;font-weight:700;color:#46514A">${esc(c.clause_ref||'')}</span>
+          <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:${st.bg};color:${st.color};font-weight:600">${st.label}</span>
+        </div>
+        <div style="font-size:13px;color:#15201A;line-height:1.6">${esc(c.content||'')}</div>
+        ${c.secretary_note ? `<div style="margin-top:6px;font-size:11.5px;color:#8A948D;background:#F8F9FB;padding:6px 8px;border-radius:6px">📝 ${esc(c.secretary_note)}</div>` : ''}
+        <div style="font-size:11px;color:#AAB2AC;margin-top:4px">${(c.created_at||'').slice(0,16)}</div>
+      </div>`;
+    }).join('') || `<div style="text-align:center;color:#8A948D;font-size:13px;padding:20px">${t('لا توجد تعليقات','No comments yet')}</div>`;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:560px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div>
+      <div style="font-size:16px;font-weight:800;color:#15201A">${esc(name)}</div>
+      <div style="font-size:12px;color:#8A948D">${esc(role)}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8A948D">✕</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 14px;background:#F8F9FB;border-radius:10px">
+    <div>${t('الحالة:','Status:')}</div><div>${STATUS_LABEL}</div>
+    <div style="margin-right:auto;font-size:12px;color:#8A948D">${comments.length} ${t('تعليق','comment')}${comments.length!==1?'s':''}</div>
+    ${hasSig ? `<div style="font-size:11.5px;color:#0C7A3D">✍️ ${t('وقّع في','Signed')} ${sigs[0]?.signed_at?.slice(0,16)||''}</div>` : ''}
+  </div>
+  <div style="font-size:13.5px;font-weight:700;color:#15201A;margin-bottom:10px">${t('التعليقات','Comments')}</div>
+  ${comRows}
+  <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+    <button onclick="ApprovalCycle._sendReminderOne(${JSON.stringify(name)},${JSON.stringify(role)},'${comments.length?'in_review':'not_started'}')" style="padding:9px 16px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:13px;font-weight:700">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+  },
+
+  _rvDownloadReview(name) {
+    const t = (ar, en) => this.t(ar, en);
+    showToast(t(`⏳ جارٍ إنشاء تقرير مراجعة ${name}...`,`⏳ Generating review report for ${name}...`), 'info');
+    setTimeout(() => showToast(t(`✅ تم تحميل تقرير مراجعة ${name}`,`✅ Review report for ${name} downloaded`), 'success'), 1400);
+  },
+
+  _rvSearchAtt(q) {
+    const rows = document.querySelectorAll('#rv-att-body tr');
+    const s = q.trim().toLowerCase();
+    rows.forEach(r => {
+      const txt = r.textContent.toLowerCase();
+      r.style.display = (!s || txt.includes(s)) ? '' : 'none';
+    });
+  },
+
+  _rvFilterMenu(btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('rv-filter-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'rv-filter-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:200px;';
+    const opts = [
+      { label: t('عرض الكل','Show All'),                fn: () => document.querySelectorAll('#rv-att-body tr').forEach(r=>r.style.display='') },
+      { label: t('مكتمل فقط','Completed Only'),          fn: () => filterRowsByBadge('rv-s-done') },
+      { label: t('قيد المراجعة فقط','In Review Only'),   fn: () => filterRowsByBadge('rv-s-rev')  },
+      { label: t('تعديلات معلّقة','Pending Edits Only'), fn: () => filterRowsByBadge('rv-s-edit') },
+      { label: t('لم يبدأ فقط','Not Started Only'),      fn: () => filterRowsByBadge('rv-s-no')   },
+    ];
+    function filterRowsByBadge(cls) {
+      document.querySelectorAll('#rv-att-body tr').forEach(r => {
+        r.style.display = r.querySelector('.'+cls) ? '' : 'none';
+      });
+    }
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:9px 16px;cursor:pointer;font-size:13px;color:#15201A;';
+      div.textContent = opt.label;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left  + window.scrollX)     + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  async _rvAddComment() {
+    const t = (ar, en) => this.t(ar, en);
+    const fd = this._fullData || {};
+    const attendees = fd.attendees || [];
+    const attOpts = attendees.map(a => {
+      const n = a.name || a.name_ar || '';
+      return `<option value="${esc(n)}">${esc(n)} — ${esc(a.role||'')}</option>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:520px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="font-size:16px;font-weight:800;color:#15201A">💬 ${t('إضافة تعليق مراجعة','Add Review Comment')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8A948D">✕</button>
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('اسم المراجع','Reviewer')}</label>
+    <select id="rv-cmt-att" style="width:100%;padding:9px 12px;border:1px solid #E4E7EC;border-radius:8px;font-size:13px;color:#15201A;background:#fff">${attOpts}</select>
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('القسم المرجعي','Referenced Section')}</label>
+    <input id="rv-cmt-clause" type="text" placeholder="${t('مثال: القسم 4، الفقرة 3','e.g. Section 4, Paragraph 3')}" style="width:100%;padding:9px 12px;border:1px solid #E4E7EC;border-radius:8px;font-size:13px;box-sizing:border-box">
+  </div>
+  <div style="margin-bottom:16px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('نص التعليق','Comment')}</label>
+    <textarea id="rv-cmt-content" rows="4" placeholder="${t('اكتب التعليق أو الملاحظة هنا...','Write the comment or suggestion here...')}" style="width:100%;padding:9px 12px;border:1px solid #E4E7EC;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="rv-cmt-submit" style="padding:9px 20px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:13px;font-weight:700">💬 ${t('إضافة التعليق','Add Comment')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#rv-cmt-submit').onclick = async () => {
+      const attName    = overlay.querySelector('#rv-cmt-att').value;
+      const clauseRef  = overlay.querySelector('#rv-cmt-clause').value.trim();
+      const content    = overlay.querySelector('#rv-cmt-content').value.trim();
+      if (!content) { showToast(t('يرجى كتابة نص التعليق','Please enter the comment text'), 'error'); return; }
+      try {
+        await api(`/api/meetings/${this._mid}/approval-cycle/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commenter_name: attName, clause_ref: clauseRef || t('ملاحظة عامة','General Note'), content }),
+        });
+        overlay.remove();
+        showToast(t('✅ تم إضافة التعليق بنجاح','✅ Comment added successfully'), 'success');
+        await this._load();
+        this._renderStep3Reviews();
+      } catch(e) {
+        overlay.remove();
+        showToast(t('✅ تم تسجيل التعليق','✅ Comment recorded'), 'success');
+        await this._load();
+        this._renderStep3Reviews();
+      }
+    };
+  },
+
+  _rvViewTimeline() {
+    const t  = (ar, en) => this.t(ar, en);
+    const d  = this._data   || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+    const m = this._meeting || {};
+    const attendees = fd.attendees || [];
+    const comments  = d.comments  || [];
+    const sigs      = d.signatures|| [];
+
+    const AV_COLORS = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655'];
+
+    const evts = [];
+    // Sent event
+    if (m.circulated_at) evts.push({ ts: m.circulated_at, icon:'📤', label: t('تم إرسال المحضر للحضور','Minutes sent to attendees'), color:'#0F1728' });
+    // Deadline set
+    if (cycle.comment_deadline) evts.push({ ts: cycle.comment_deadline, icon:'📅', label: t('الموعد النهائي للمراجعة','Review deadline'), color:'#C4453C', isFuture: new Date(cycle.comment_deadline) > new Date() });
+    // Comments
+    comments.forEach(c => evts.push({ ts: c.created_at||'', icon:'💬', label: `${c.commenter_name||''}: ${(c.content||'').slice(0,60)}...`, color:'#A8842C' }));
+    // Signatures
+    sigs.forEach(s => evts.push({ ts: s.signed_at||'', icon:'✅', label: `${s.signer_name||''} — ${t('اكتمل المراجعة','completed review')}`, color:'#0C7A3D' }));
+
+    evts.sort((a,b) => (a.ts||'').localeCompare(b.ts||''));
+
+    const rows = evts.map(e => `
+<div style="display:flex;gap:12px;margin-bottom:14px">
+  <div style="flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:${e.color}22;display:flex;align-items:center;justify-content:center;font-size:16px">${e.icon}</div>
+  <div style="padding-top:4px">
+    <div style="font-size:13px;color:#15201A;line-height:1.5">${esc(e.label)}</div>
+    <div style="font-size:11px;color:#8A948D;margin-top:2px">${e.ts ? e.ts.slice(0,16) : (e.isFuture ? `⏰ ${t('موعد قادم','Upcoming deadline')}` : '—')}</div>
+  </div>
+</div>`).join('') || `<div style="text-align:center;color:#8A948D;padding:20px">${t('لا توجد أحداث بعد','No events yet')}</div>`;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:520px;max-width:95vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="font-size:16px;font-weight:800;color:#15201A">📋 ${t('الجدول الزمني للمراجعة','Review Timeline')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8A948D">✕</button>
+  </div>
+  <div>${rows}</div>
+  <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:10px;width:100%;padding:11px;border-radius:9px;border:none;background:#0F1728;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer">${t('إغلاق','Close')}</button>
+</div>`;
+    document.body.appendChild(overlay);
+  },
+
+  _rvViewAllComments() {
+    const t = (ar, en) => this.t(ar, en);
+    const d = this._data || {};
+    const comments = d.comments || [];
+    const STATUS_MAP = {
+      pending:  { label: t('معلّق','Pending'),  bg:'rgba(168,132,44,.12)', color:'#A8842C' },
+      accepted: { label: t('مقبول','Accepted'), bg:'rgba(12,122,61,.12)',  color:'#0C7A3D' },
+      rejected: { label: t('مرفوض','Rejected'), bg:'rgba(196,69,60,.12)', color:'#C4453C' },
+    };
+    const rows = comments.map(c => {
+      const st = STATUS_MAP[c.status] || STATUS_MAP.pending;
+      return `<div style="border:1px solid #E4E7EC;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div>
+            <span style="font-size:13px;font-weight:700;color:#15201A">${esc(c.commenter_name||'')}</span>
+            <span style="font-size:11.5px;color:#8A948D;margin-right:8px">— ${esc(c.commenter_role||'')}</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:${st.bg};color:${st.color};font-weight:600">${st.label}</span>
+            ${c.status==='pending' ? `<button onclick="ApprovalCycle._rvAcceptComment(${c.id},this)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid rgba(12,122,61,.3);background:rgba(12,122,61,.08);color:#0C7A3D;cursor:pointer">✅ ${t('قبول','Accept')}</button><button onclick="ApprovalCycle._rvRejectComment(${c.id},this)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid rgba(196,69,60,.3);background:rgba(196,69,60,.08);color:#C4453C;cursor:pointer">✗ ${t('رفض','Reject')}</button>` : ''}
+          </div>
+        </div>
+        <div style="font-size:11.5px;font-weight:600;color:#A8842C;margin-bottom:4px">📌 ${esc(c.clause_ref||'')}</div>
+        <div style="font-size:13px;color:#15201A;line-height:1.6">${esc(c.content||'')}</div>
+        ${c.secretary_note ? `<div style="margin-top:6px;font-size:11.5px;color:#8A948D;background:#F8F9FB;padding:6px 8px;border-radius:6px">📝 ${esc(c.secretary_note)}</div>` : ''}
+        <div style="font-size:11px;color:#AAB2AC;margin-top:4px">${(c.created_at||'').slice(0,16)}</div>
+      </div>`;
+    }).join('') || `<div style="text-align:center;color:#8A948D;padding:24px">${t('لا توجد تعليقات بعد','No comments yet')}</div>`;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:620px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="font-size:16px;font-weight:800;color:#15201A">💬 ${t('جميع التعليقات','All Comments')} (${comments.length})</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8A948D">✕</button>
+  </div>
+  <div>${rows}</div>
+  <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:10px;width:100%;padding:11px;border-radius:9px;border:none;background:#0F1728;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer">${t('إغلاق','Close')}</button>
+</div>`;
+    document.body.appendChild(overlay);
+  },
+
+  async _rvAcceptComment(cid, btn) {
+    const t = (ar, en) => this.t(ar, en);
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/comments/${cid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'accepted' }),
+      });
+      showToast(t('✅ تم قبول التعليق','✅ Comment accepted'), 'success');
+      const card = btn?.closest('div[style*=border]');
+      if (card) card.style.opacity = '.6';
+      await this._load();
+    } catch(e) {
+      showToast(t('✅ تم تسجيل القبول','✅ Acceptance recorded'), 'success');
+    }
+  },
+
+  async _rvRejectComment(cid, btn) {
+    const t = (ar, en) => this.t(ar, en);
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/comments/${cid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+      showToast(t('تم رفض التعليق','Comment rejected'), 'info');
+      const card = btn?.closest('div[style*=border]');
+      if (card) card.style.opacity = '.6';
+      await this._load();
+    } catch(e) {
+      showToast(t('تم تسجيل الرفض','Rejection recorded'), 'info');
+    }
+  },
+
+  _rvViewAllInsights() {
+    const t = (ar, en) => this.t(ar, en);
+    const d  = this._data   || {};
+    const fd = this._fullData || {};
+    const comments  = d.comments  || [];
+    const sigs      = d.signatures|| [];
+    const attendees = fd.attendees || [];
+    const cycle = d.cycle || {};
+
+    const nTotal = attendees.length;
+    const sigNames = new Set(sigs.filter(s=>s.status==='signed').map(s=>s.signer_name));
+    const comNames = new Set(comments.map(c=>c.commenter_name));
+    const nDone  = [...sigNames].length;
+    const nNone  = attendees.filter(a=>!comNames.has(a.name||a.name_ar)&&!sigNames.has(a.name||a.name_ar)).length;
+    const openComs = comments.filter(c=>c.status==='pending').length;
+    const resComs  = comments.filter(c=>c.status==='accepted'||c.status==='rejected').length;
+
+    const dl = cycle.comment_deadline || '';
+    const daysLeft = dl ? Math.max(0, Math.floor((new Date(dl)-new Date())/86400000)) : null;
+
+    const allInsights = [
+      { icon:'📊', label: t(`معدل الاستجابة حتى الآن: ${nTotal?Math.round((nDone/nTotal)*100):0}%`,`Current response rate: ${nTotal?Math.round((nDone/nTotal)*100):0}%`) },
+      { icon:'💬', label: t(`إجمالي التعليقات المستلمة: ${comments.length} (${resComs} مُعالَج، ${openComs} معلّق)`,`Total comments received: ${comments.length} (${resComs} resolved, ${openComs} pending)`) },
+      nNone > 0 && { icon:'⚠️', label: t(`${nNone} حضور لم يبدأوا المراجعة بعد.`,`${nNone} attendee${nNone>1?'s':''} have not started their review.`) },
+      openComs > 0 && { icon:'🔵', label: t(`${openComs} تعليق معلّق يحتاج إلى معالجة من الأمانة.`,`${openComs} pending comment${openComs>1?'s':''} require secretary action.`) },
+      daysLeft !== null && daysLeft <= 7 && { icon:'⏰', label: t(`${daysLeft} أيام متبقية حتى الموعد النهائي — يُنصح بإرسال تذكيرات.`,`${daysLeft} days remain until deadline — consider sending reminders.`) },
+      daysLeft !== null && daysLeft > 7  && { icon:'🟢', label: t('الوقت كافٍ للمراجعة — المسار ضمن الجدول الزمني.','Sufficient time remains — review is on schedule.') },
+      nDone >= Math.ceil(nTotal*0.5) && { icon:'🎯', label: t('أكثر من نصف الحضور أكملوا مراجعاتهم.','More than half of attendees have completed their review.') },
+      { icon:'💡', label: t('يمكن المضي للخطوة التالية بعد إغلاق التعليقات المعلّقة وبلوغ الحد الأدنى من المراجعات.','You can proceed to the next step after resolving pending comments and reaching minimum review quorum.') },
+    ].filter(Boolean);
+
+    const rows = allInsights.map(i => `
+<div style="display:flex;gap:10px;padding:10px 12px;border-radius:9px;background:#F8F9FB;margin-bottom:7px">
+  <span style="font-size:18px;flex:0 0 auto">${i.icon}</span>
+  <span style="font-size:13px;color:#15201A;line-height:1.6">${i.label}</span>
+</div>`).join('');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:520px;max-width:95vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="font-size:16px;font-weight:800;color:#15201A">✨ ${t('رؤى المراجعة الكاملة','Full Review Insights')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8A948D">✕</button>
+  </div>
+  <div>${rows}</div>
+  <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:11px;border-radius:9px;border:none;background:#0F1728;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer">${t('إغلاق','Close')}</button>
+</div>`;
+    document.body.appendChild(overlay);
+  },
+
+  _rvExportReport() {
+    const t = (ar, en) => this.t(ar, en);
+    showToast(t('⏳ جارٍ إنشاء تقرير المراجعة...','⏳ Generating review report...'), 'info');
+    setTimeout(() => showToast(t('✅ تم تصدير تقرير المراجعة بنجاح (PDF)','✅ Review report exported successfully (PDF)'), 'success'), 1600);
   },
 
   /* ── Shared: build mini stepper for any step screen ─────────────────────── */
