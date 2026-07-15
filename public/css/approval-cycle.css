@@ -2168,3 +2168,85 @@
 .fm-bottombar { gap:8px; flex-wrap:wrap; }
 .fm-bb-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .fm-bb-btn     { font-size:12px !important; padding:8px 12px !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STEP 7 — Attendee Signatures
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* Doc status bar */
+.s7-doc-status-bar {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:9px 16px; border-top:1px solid #E5E9E7;
+  font-size:11.5px; color:#8A948D; background:#FAFBF9;
+  flex-shrink:0;
+}
+.s7-stat-item  { display:flex; align-items:center; gap:3px; }
+.s7-stat-num   { font-weight:700; color:#15201A; }
+.s7-stat-sep   { color:#D0D5DD; }
+.s7-stat-acc .s7-stat-num { color:#0C7A3D; }
+.s7-stat-rej .s7-stat-num { color:#C4453C; }
+.s7-stat-pnd .s7-stat-num { color:#A8842C; }
+.s7-stat-saved { margin-inline-start:auto; color:#0C7A3D; font-weight:700; font-size:11px; }
+
+/* Section annotation icons */
+.s7-ann-ico {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:18px; height:18px; border-radius:50%;
+  background:#0C7A3D; color:#fff;
+  font-size:9px; font-weight:800; flex-shrink:0;
+  margin-inline-start:4px;
+}
+.s7-ann-ico-clarif { background:#2C6CA8; }
+
+/* ── RIGHT: Review Summary donut ─────────────────────────────────────────── */
+.s7-donut-svg { display:block; flex-shrink:0; }
+.s7-donut-wrap  { display:flex; align-items:center; gap:16px; }
+.s7-donut-legend { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.s7-legend-row {
+  display:flex; align-items:center; gap:7px;
+  font-size:12px; color:#46514A;
+}
+.s7-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.s7-legend-lbl { flex:1; font-size:11.5px; }
+.s7-legend-val { font-size:13px; font-weight:800; color:#15201A; display:flex; align-items:center; gap:4px; }
+.s7-legend-pct { font-size:10.5px; font-weight:400; color:#8A948D; }
+
+/* ── RIGHT: Changes by Type ───────────────────────────────────────────────── */
+.s7-ct-rows  { display:flex; flex-direction:column; gap:0; }
+.s7-ct-row {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 0; border-bottom:1px solid #F2F3F5;
+}
+.s7-ct-row:last-child { border-bottom:none; }
+.s7-ct-ico {
+  width:24px; height:24px; border-radius:6px; background:#F2F3F5;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; color:#46514A;
+}
+.s7-ct-lbl { flex:1; font-size:12px; color:#46514A; }
+.s7-ct-val { font-size:14px; font-weight:800; color:#15201A; }
+
+/* ── RIGHT: Attendee Response Summary ────────────────────────────────────── */
+.s7-att-rows { display:flex; flex-direction:column; gap:0; margin-bottom:12px; }
+.s7-att-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:9px 0; border-bottom:1px solid #F2F3F5;
+}
+.s7-att-row:last-child { border-bottom:none; }
+.s7-att-lbl { font-size:12px; color:#46514A; }
+.s7-att-val { font-size:14px; font-weight:800; color:#15201A; }
+.s7-att-pend { color:#A8842C; }
+
+.s7-view-pending-btn {
+  width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
+  padding:9px 12px; border:1.5px solid #D0D5DD; border-radius:8px;
+  background:#F8F9FA; font-size:12px; font-weight:700; color:#15201A;
+  cursor:pointer; transition:background .15s;
+}
+.s7-view-pending-btn:hover { background:#E8EAE6; border-color:#C0C5CC; }
+
+/* ── RIGHT: Info callout ─────────────────────────────────────────────────── */
+.s7-callout-panel { background:rgba(168,132,44,.05) !important; border-color:rgba(168,132,44,.3) !important; }
+.s7-callout-body { display:flex; gap:10px; align-items:flex-start; }
+.s7-callout-ico  { font-size:15px; flex-shrink:0; margin-top:1px; }
+.s7-callout-txt  { font-size:11.5px; color:#7A5A1A; line-height:1.55; margin:0; }

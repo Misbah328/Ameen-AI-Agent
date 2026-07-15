@@ -7,3 +7,4 @@
 - [Dual-side audio capture](dual-audio-capture.md) — getDisplayMedia captures both sides of browser video calls; SpeechRecognition reads mic only (browser API limitation); blob download shown in renderResult when Rec._dualAudioUrl is set.
 - [Meeting provider integrations](meeting-provider-integrations.md) — Zoom/Teams/Meet are UI-only manual-URL; never label "Connected" without real API wiring.
 - [Button wiring & "do nothing" audits](button-wiring-audit.md) — inline onclick resolves top-level const; nav is delegated & downloads are <a> — both false-positive onclick-only audits; full audit found 0 broken buttons.
+- [AC step renderer body element](ac-step-body.md) — all AC step renderers must use `document.getElementById('ac-page-body')`, never `this.main` (undefined); wrong reference silently exits and leaves the AC overview visible.
