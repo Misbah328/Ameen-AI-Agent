@@ -239,6 +239,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     if (i === 5) { this._renderStep6FinalVersion();       return; }
     if (i === 6) { this._renderStep7AttendeeSignatures(); return; }
     if (i === 7) { this._renderStep8FinalApproval();       return; }
+    if (i === 8) { this._renderStep9ArchiveActivate();     return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -4174,6 +4175,351 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   _s8DownloadPDF()    { showToast(this.t('جارٍ تنزيل النسخة النهائية...','Downloading final version PDF...'), 'info'); },
   _s8Preview()        { showToast(this.t('جارٍ فتح المعاينة...','Opening document preview...'), 'info'); },
   _s8ViewAll()        { showToast(this.t('جارٍ عرض جميع التوقيعات...','Loading all signatures...'), 'info'); },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 9 — ARCHIVE & ACTIVATE
+  ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep9ArchiveActivate() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const m  = this._meeting  || {};
+    const d  = this._data     || {};
+    const cycle = d.cycle || {};
+
+    const miniStepper = this._buildMiniStepper(cycle, 8, t, l);
+
+    /* ── Demo attendees (all signed) ─────────────────────────────── */
+    const SIG_PATHS = [
+      `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    ];
+    const ATTENDEES = l === 'ar' ? [
+      { name:'د. عبدالله الغامدي', role:'رئيس مجلس الإدارة', at:'22 مايو 2025، 11:02 ص', sig:0 },
+      { name:'م. خالد الصبيعي',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 11:15 ص', sig:1 },
+      { name:'أ. ليلى التميمي',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:01 م', sig:2 },
+      { name:'أ. فيصل المطيري',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:25 م', sig:3 },
+      { name:'أ. أحمد الحربي',     role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:28 م', sig:4 },
+      { name:'أ. نورة العتيبي',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:31 م', sig:0 },
+      { name:'أ. سلطان السعود',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:33 م', sig:1 },
+      { name:'د. مها الحارثي',     role:'عضو مستقل',          at:'22 مايو 2025، 12:35 م', sig:2 },
+      { name:'أ. ياسر القحطاني',   role:'ضيف مدعو',           at:'22 مايو 2025، 12:40 م', sig:3 },
+    ] : [
+      { name:'Dr. Abdullah Alghamdi', role:'Board Chairman',     at:'22 May 2025, 11:02 AM', sig:0 },
+      { name:'Eng. Khalid Alsubaie',  role:'Board Member',       at:'22 May 2025, 11:15 AM', sig:1 },
+      { name:'Ms. Laila Altamimi',    role:'Board Member',       at:'22 May 2025, 12:01 PM', sig:2 },
+      { name:'Mr. Faisal Almutairi',  role:'Board Member',       at:'22 May 2025, 12:25 PM', sig:3 },
+      { name:'Mr. Ahmed Alharbi',     role:'Board Member',       at:'22 May 2025, 12:28 PM', sig:4 },
+      { name:'Ms. Noura Alotaibi',    role:'Board Member',       at:'22 May 2025, 12:31 PM', sig:0 },
+      { name:'Mr. Sultan Alsaud',     role:'Board Member',       at:'22 May 2025, 12:33 PM', sig:1 },
+      { name:'Dr. Maha Alhaarthy',    role:'Independent Member', at:'22 May 2025, 12:35 PM', sig:2 },
+      { name:'Mr. Yasser Alqahtani',  role:'Invited Guest',      at:'22 May 2025, 12:40 PM', sig:3 },
+    ];
+    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
+
+    /* ── Attendee table rows (show rows 1-3 + row 9) ─────────────── */
+    const makeAttRow = (a, i) => {
+      const initials = a.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+      return `<tr>
+        <td class="s9-col-num">${i+1}</td>
+        <td class="s9-col-att"><div class="s9-att-info"><div class="s9-av" style="background:${AV_COLORS[i%AV_COLORS.length]}">${initials}</div><span>${esc(a.name)}</span></div></td>
+        <td class="s9-col-role">${esc(a.role)}</td>
+        <td class="s9-col-status"><span class="s9-signed-badge"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0C7A3D"/><path d="M2.5 5l2 2L7.5 3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('وقّع','Signed')}</span></td>
+        <td class="s9-col-at">${a.at}</td>
+      </tr>`;
+    };
+    const attRows = [0,1,2,8].map(i => makeAttRow(ATTENDEES[i], i)).join('');
+
+    /* ── Audit trail rows ─────────────────────────────────────────── */
+    const auditEntries = [
+      { label:t('إنشاء المسودة','Draft created'),                   date:'15 May 2025, 10:15 AM', highlight:false },
+      { label:t('أُرسل للحضور','Sent to attendees'),                date:'16 May 2025, 09:00 AM', highlight:false },
+      { label:t('جُمعت كل التوقيعات','All signatures collected'),   date:'22 May 2025, 12:35 PM', highlight:false },
+      { label:t('اعتمده الرئيس','Final approved by Chairman'),      date:'22 May 2025, 01:05 PM', highlight:false },
+      { label:t('أُرشف وفُعِّل','Archived & activated'),           date:'22 May 2025, 01:06 PM', highlight:true  },
+    ].map(e=>`<div class="s9-audit-row ${e.highlight?'s9-audit-highlight':''}">
+      <span class="s9-audit-lbl">${e.label}</span>
+      <span class="s9-audit-date">${e.date}</span>
+    </div>`).join('');
+
+    /* ── Render ─────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-step-page" id="ac-step9-page">
+
+  <!-- Header -->
+  <div class="dm-page-hdr">
+    <div class="dm-page-hdr-left">
+      <div class="dm-page-title-row">
+        <h1 class="dm-page-title">
+          <span class="dm-pt-step">${t('الخطوة 9 من 9','Step 9 of 9')}</span>
+          <span class="dm-pt-name">${t('الأرشفة والتفعيل','Archive & Activate')}</span>
+        </h1>
+        <span class="s9-completed-badge">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="5.5" fill="#0C7A3D"/><path d="M3 5.5l2 2L8 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ${t('مكتمل','Completed')}
+        </span>
+      </div>
+      <p class="dm-page-sub">${t('اعتمد الرئيس المحضر وأصبح مؤرشفاً بوصفه السجل الرسمي.','The minutes have been approved by the Chairman and are now archived as the official record.')}</p>
+    </div>
+    <div class="dm-page-hdr-right">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s9Download()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${t('تنزيل المحضر الرسمي (PDF)','Download Official Minutes (PDF)')}
+      </button>
+      <button class="dm-btn ghost">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        ${t('السجل','History')}
+      </button>
+    </div>
+  </div>
+
+  <!-- Mini stepper -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- Meta bar -->
+  <div class="s9-meta-bar">
+    <div class="s9-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 1v2M10 1v2M1 5.5h12" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s9-meta-lbl">${t('الاجتماع','Meeting')}</div><div class="s9-meta-val">${t('اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting – 15 May 2025')}</div></div>
+    </div>
+    <div class="s9-meta-sep"></div>
+    <div class="s9-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/></svg>
+      <div><div class="s9-meta-lbl">${t('إصدار المحضر الرسمي','Official Minutes Version')}</div><div class="s9-meta-val"><span class="s9-version-badge">v2.0 (Final)</span></div></div>
+    </div>
+    <div class="s9-meta-sep"></div>
+    <div class="s9-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
+      <div><div class="s9-meta-lbl">${t('اعتُمد في','Approved On')}</div><div class="s9-meta-val">22 May 2025, 01:05 PM</div></div>
+    </div>
+    <div class="s9-meta-sep"></div>
+    <div class="s9-meta-item">
+      <div class="s9-meta-av">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3.5" stroke="#8A948D" stroke-width="1.3"/><path d="M2 14a6 6 0 0112 0" stroke="#8A948D" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="s9-meta-lbl">${t('اعتمده','Approved By')}</div>
+        <div class="s9-meta-val" style="font-weight:700">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
+        <div class="s9-meta-sub">${t('رئيس مجلس الإدارة','Board Chairman')}</div>
+      </div>
+    </div>
+    <div class="s9-meta-sep"></div>
+    <div class="s9-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#8A948D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><div class="s9-meta-lbl">${t('جميع التوقيعات','All Signatures')}</div><div class="s9-meta-val"><strong>9 / 9 ${t('مُجمَّعة','Collected')}</strong></div></div>
+    </div>
+    <div class="s9-meta-sep"></div>
+    <div class="s9-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
+      <div>
+        <div class="s9-meta-lbl">${t('الحالة','Status')}</div>
+        <div class="s9-meta-val s9-archived-status">${t('مؤرشف ومفعَّل','Archived & Activated')}</div>
+        <div class="s9-meta-sub">${t('السجل الرسمي','Official Record')}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-column body -->
+  <div class="s9-body">
+
+    <!-- ── LEFT ───────────────────────────────────────────────────── -->
+    <div class="s9-left">
+
+      <!-- Archive info card -->
+      <div class="s9-archive-card">
+        <div class="s9-archive-stamp">
+          <svg width="56" height="68" viewBox="0 0 56 68" fill="none">
+            <rect width="56" height="68" rx="4" fill="#ECFDF5"/>
+            <rect x="8" y="8" width="40" height="52" rx="2" fill="white" stroke="#D1FAE5" stroke-width="1"/>
+            <rect x="12" y="14" width="32" height="3" rx="1" fill="#D1FAE5"/>
+            <rect x="12" y="20" width="26" height="2" rx="1" fill="#EAECE8"/>
+            <rect x="12" y="25" width="28" height="2" rx="1" fill="#EAECE8"/>
+            <rect x="12" y="30" width="22" height="2" rx="1" fill="#EAECE8"/>
+            <circle cx="28" cy="46" r="12" fill="#0C7A3D"/>
+            <path d="M22 46l4 4 8-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="s9-stamp-label">${t('مؤرشف','ARCHIVED')}</span>
+        </div>
+        <div class="s9-archive-info">
+          <div class="s9-archive-title">${t('محضر الاجتماع المؤرشف','Archived Meeting Minutes')}</div>
+          <div class="s9-archive-desc">${t('اعتمد الرئيس هذا المحضر وأصبح مؤرشفاً بوصفه السجل الرسمي للاجتماع.','These minutes have been approved by the Chairman and are now archived as the official record of the meeting.')}</div>
+          <div class="s9-kv-grid">
+            <div class="s9-kv-row"><span class="s9-kk">${t('عنوان الاجتماع','Meeting Title')}</span><span class="s9-kv">${t('اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting – 15 May 2025')}</span></div>
+            <div class="s9-kv-row"><span class="s9-kk">${t('إصدار المحضر','Minutes Version')}</span><span class="s9-kv">v2.0 (Final)</span></div>
+            <div class="s9-kv-row"><span class="s9-kk">${t('أُرشف في','Archived On')}</span><span class="s9-kv">22 May 2025, 01:06 PM</span></div>
+            <div class="s9-kv-row"><span class="s9-kk">${t('أُرشف بواسطة','Archived By')}</span><span class="s9-kv">${t('محمد البلالي (أمين السر)','Mohammad Albuali (Meeting Secretary)')}</span></div>
+            <div class="s9-kv-row"><span class="s9-kk">${t('رقم السجل','Record ID')}</span><span class="s9-kv s9-record-id">MM-2025-05-15-001</span></div>
+            <div class="s9-kv-row"><span class="s9-kk">${t('مكان التخزين','Storage Location')}</span><span class="s9-kv">${t('أرشيف أمين الحوكمة الآمن','Ameen Governance Secure Archive')}</span></div>
+            <div class="s9-kv-row"><span class="s9-kk">${t('سياسة الاحتفاظ','Retention Policy')}</span><span class="s9-kv">7 ${t('سنوات','Years')}</span></div>
+          </div>
+          <div class="s9-lock-alert">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="#0C7A3D" stroke-width="1.2"/><path d="M2.5 6.5l2.5 2.5 5-5" stroke="#0C7A3D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>${t('هذا السجل مقفل وآمن من التلاعب. أي تغييرات مستقبلية ستُسجَّل كتعديل.','This record is locked and tamper-proof. Any future changes will be recorded as an amendment.')}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- All Attendees table -->
+      <div class="s9-att-section">
+        <div class="s9-att-title">${t('جميع الحضور (9 من 9 وقّعوا)','All Attendees (9 of 9 Signed)')}</div>
+        <table class="s9-att-table">
+          <thead><tr>
+            <th class="s9-col-num">#</th>
+            <th>${t('الحضور','Attendee')}</th>
+            <th>${t('الدور','Role')}</th>
+            <th>${t('حالة التوقيع','Signature Status')}</th>
+            <th>${t('وقّع في','Signed On')}</th>
+          </tr></thead>
+          <tbody>${attRows}</tbody>
+        </table>
+        <button class="s9-view-sigs-btn" onclick="ApprovalCycle._s9ViewSigs()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
+          ${t('عرض جميع التوقيعات','View All Signatures')}
+        </button>
+      </div>
+    </div>
+
+    <!-- ── CENTER ─────────────────────────────────────────────────── -->
+    <div class="s9-center">
+
+      <!-- Minutes Document preview -->
+      <div class="s9-panel">
+        <div class="s9-panel-title">${t('وثيقة المحضر','Minutes Document')}</div>
+        <div class="s9-doc-preview">
+          <div class="s9-doc-thumb">
+            <div class="s9-doc-thumb-inner">
+              <div class="s9-thumb-logo">
+                <svg width="40" height="22" viewBox="0 0 40 22" fill="none">
+                  <text x="0" y="17" font-size="15" font-weight="800" fill="#A8842C" font-family="serif">AMEEN</text>
+                </svg>
+              </div>
+              <div class="s9-thumb-title">${t('محضر اجتماع مجلس الإدارة','Board Meeting Minutes')}</div>
+              <div class="s9-thumb-date">15 May 2025</div>
+              <div class="s9-approved-stamp">${t('معتمد','APPROVED')}</div>
+            </div>
+            <div class="s9-doc-badge-corner">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><path d="M0 0h36v36L0 0z" fill="#0C7A3D"/><path d="M10 18l5 5 11-11" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+          <div class="s9-doc-meta-row">
+            <span class="s9-doc-meta-item">${t('الحجم: 245 كيلوبايت','Size: 245 KB')}</span>
+            <span class="s9-doc-meta-sep">|</span>
+            <span class="s9-doc-meta-item">${t('الصفحات: 12','Pages: 12')}</span>
+          </div>
+          <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download()">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
+            ${t('عرض / تنزيل (PDF)','View / Download (PDF)')}
+          </button>
+        </div>
+      </div>
+
+      <!-- Related Records & Links -->
+      <div class="s9-panel">
+        <div class="s9-panel-title">${t('السجلات والروابط ذات الصلة','Related Records & Links')}</div>
+        <div class="s9-links-list">
+          <div class="s9-link-row">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><line x1="4" y1="5" x2="9" y2="5" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="9" x2="7" y2="9" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/></svg>
+            <span class="s9-link-lbl">${t('القرارات المرتبطة (4)','Associated Decisions (4)')}</span>
+            <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('decisions')">${t('عرض','View')}</button>
+          </div>
+          <div class="s9-link-row">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 5h5M4 7h5M4 9h3" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/></svg>
+            <span class="s9-link-lbl">${t('بنود الإجراءات (7)','Action Items (7)')}</span>
+            <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('actions')">${t('عرض','View')}</button>
+          </div>
+          <div class="s9-link-row">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 7.5a3.5 3.5 0 016 0" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.5" cy="4.5" r="1.8" stroke="#8A948D" stroke-width="1.2"/></svg>
+            <span class="s9-link-lbl">${t('قيد سجل القرارات','Decision Registry Entry')}</span>
+            <a class="s9-link-anchor" href="#" onclick="return false">DR-2025-05-15-001</a>
+          </div>
+          <div class="s9-link-row">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2" width="11" height="10" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M1 5h11" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><path d="M4 1v2M9 1v2" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <span class="s9-link-lbl">${t('كشف الحضور','Meeting Attendance Sheet')}</span>
+            <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('attendance')">${t('عرض','View')}</button>
+          </div>
+          <div class="s9-link-row">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="8.5" y2="4.5" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="8.5" y2="7" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/></svg>
+            <span class="s9-link-lbl">${t('المستندات الداعمة (3)','Supporting Documents (3)')}</span>
+            <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('supporting')">${t('عرض','View')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT sidebar ──────────────────────────────────────────── -->
+    <div class="s9-sidebar">
+
+      <!-- Approval Confirmation -->
+      <div class="s9-panel">
+        <div class="s9-panel-hdr">
+          <span class="s9-panel-title">${t('تأكيد الاعتماد','Approval Confirmation')}</span>
+          <span class="s9-confirm-ico">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#ECFDF5"/><path d="M5 10l4 4 7-7" stroke="#0C7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+        <p class="s9-confirm-text">${t('أؤكد أنني راجعت المحضر النهائي وأعتمده بوصفه سجلاً صحيحاً ودقيقاً.','I confirm that I have reviewed the final minutes and approve them as a true and accurate record.')}</p>
+        <div class="s9-sig-box">
+          <svg width="140" height="40" viewBox="0 0 140 40">
+            <path d="M10 28 C20 18 30 14 45 22 C55 28 60 22 75 18 C88 14 100 18 115 22 L130 20" stroke="#1a3a5c" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="s9-approver-row">
+          <div class="s9-approver-name">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
+          <div class="s9-approver-role">${t('رئيس مجلس الإدارة','Board Chairman')}</div>
+          <div class="s9-approver-date">22 May 2025, 01:05 PM</div>
+        </div>
+        <span class="s9-final-badge">${t('اعتماد نهائي','Final Approval')}</span>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="s9-panel">
+        <div class="s9-panel-title">${t('الخطوات التالية','Next Steps')}</div>
+        <div class="s9-nextsteps">
+          <div class="s9-ns-row"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${t('المحضر أصبح جزءاً من السجل الرسمي','Minutes are now part of the official record')}</span></div>
+          <div class="s9-ns-row"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${t('سُجِّلت القرارات في سجل القرارات','Decisions have been recorded in the Decision Registry')}</span></div>
+          <div class="s9-ns-row"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${t('بنود الإجراءات متاحة في المتابعة والتنفيذ','Action Items are available in Follow-Up & Execution')}</span></div>
+        </div>
+      </div>
+
+      <!-- Audit Trail Summary -->
+      <div class="s9-panel">
+        <div class="s9-panel-title">${t('سجل التدقيق (ملخص)','Audit Trail (Summary)')}</div>
+        <div class="s9-audit-table">${auditEntries}</div>
+        <button class="s9-audit-full-btn" onclick="ApprovalCycle._s9AuditTrail()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="9.5" x2="7" y2="9.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          ${t('عرض سجل التدقيق الكامل','View Full Audit Trail')}
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="dm-bottombar fm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(7)">← ${t('العودة للاعتماد النهائي','Back to Final Approval')}</button>
+    <div class="s9-bb-info">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2C6CA8" stroke-width="1.3"/><line x1="7" y1="6" x2="7" y2="10" stroke="#2C6CA8" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="#2C6CA8"/></svg>
+      <span>${t('تم أرشفة المحضر وتفعيله بوصفه السجل الرسمي.','The minutes are archived and activated as the official record.')}</span>
+    </div>
+    <button class="dm-btn primary s9-archive-cta" onclick="ApprovalCycle._s9GoToArchive()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="9" rx="1.5" stroke="white" stroke-width="1.4"/><path d="M1 7h12" stroke="white" stroke-width="1.2"/><path d="M5 1h4" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M7 1v3" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+      ${t('الانتقال إلى أرشيف الاجتماعات','Go to Meeting Archive')}
+    </button>
+  </div>
+
+</div>`;
+  },
+
+  /* ── Step 9 helpers ─────────────────────────────────────────────────── */
+  _s9Download()   { showToast(this.t('جارٍ تنزيل المحضر الرسمي...','Downloading official minutes PDF...'), 'info'); },
+  _s9ViewSigs()   { showToast(this.t('جارٍ عرض جميع التوقيعات...','Loading all signatures...'), 'info'); },
+  _s9ViewLink(type) { showToast(this.t('جارٍ فتح السجل...','Opening linked record...'), 'info'); },
+  _s9AuditTrail() { showToast(this.t('جارٍ فتح سجل التدقيق الكامل...','Loading full audit trail...'), 'info'); },
+  _s9GoToArchive(){ showToast(this.t('الانتقال إلى أرشيف الاجتماعات...','Navigating to Meeting Archive...'), 'success'); },
 
   _bindCanvas() { this._initCanvas(); },
 };
