@@ -238,6 +238,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     if (i === 4) { this._renderStep5Resolve();  return; }
     if (i === 5) { this._renderStep6FinalVersion();       return; }
     if (i === 6) { this._renderStep7AttendeeSignatures(); return; }
+    if (i === 7) { this._renderStep8FinalApproval();       return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -3827,6 +3828,352 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   _s7DownloadPDF() { showToast(this.t('\u062c\u0627\u0631\u064d \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629...','Downloading final version PDF...'), 'info'); },
   _s7SendReminder() { showToast(this.t('\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0630\u0643\u064a\u0631 \u0644\u0644\u062d\u0636\u0648\u0631 \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u064a\u0646','Reminder sent to pending attendees'), 'success'); },
   _s7Preview()  { showToast(this.t('\u062c\u0627\u0631\u064d \u0641\u062a\u062d \u0627\u0644\u0645\u0639\u0627\u064a\u0646\u0629...','Opening preview...'), 'info'); },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 8 — FINAL APPROVAL
+  ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep8FinalApproval() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const m = this._meeting  || {};
+    const d = this._data     || {};
+    const cycle = d.cycle || {};
+
+    const dateStr   = m.meeting_date ? fmtDate(m.meeting_date) : '15 May 2025';
+    const miniStepper = this._buildMiniStepper(cycle, 7, t, l);
+
+    /* ── Demo attendees (all signed for Step 8) ──────────────────────── */
+    const SIG_PATHS = [
+      `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    ];
+    const ATTENDEES = l === 'ar' ? [
+      { name:'د. عبدالله الغامدي',  role:'رئيس مجلس الإدارة',  at:'22 مايو 2025، 11:02 ص', sig:0 },
+      { name:'م. خالد الصبيعي',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 11:15 ص', sig:1 },
+      { name:'أ. ليلى التميمي',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:01 م', sig:2 },
+      { name:'أ. فيصل المطيري',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:25 م', sig:3 },
+      { name:'أ. أحمد الحربي',      role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:28 م', sig:4 },
+      { name:'أ. نورة العتيبي',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:31 م', sig:0 },
+      { name:'أ. سلطان السعود',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:33 م', sig:1 },
+      { name:'د. مها الحارثي',      role:'عضو مستقل',           at:'22 مايو 2025، 12:35 م', sig:2 },
+      { name:'أ. ياسر القحطاني',    role:'ضيف مدعو',            at:'22 مايو 2025، 12:35 م', sig:3 },
+    ] : [
+      { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     at:'22 May 2025, 11:02 AM', sig:0 },
+      { name:'Eng. Khalid Alsubaie',   role:'Board Member',       at:'22 May 2025, 11:15 AM', sig:1 },
+      { name:'Ms. Laila Altamimi',     role:'Board Member',       at:'22 May 2025, 12:01 PM', sig:2 },
+      { name:'Mr. Faisal Almutairi',   role:'Board Member',       at:'22 May 2025, 12:25 PM', sig:3 },
+      { name:'Mr. Ahmed Alharbi',      role:'Board Member',       at:'22 May 2025, 12:28 PM', sig:4 },
+      { name:'Ms. Noura Alotaibi',     role:'Board Member',       at:'22 May 2025, 12:31 PM', sig:0 },
+      { name:'Mr. Sultan Alsaud',      role:'Board Member',       at:'22 May 2025, 12:33 PM', sig:1 },
+      { name:'Dr. Maha Alhaarthy',     role:'Independent Member', at:'22 May 2025, 12:35 PM', sig:2 },
+      { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      at:'22 May 2025, 12:35 PM', sig:3 },
+    ];
+    const nTotal = ATTENDEES.length;
+    const nSigned = ATTENDEES.filter(a => a.sig >= 0).length;
+
+    /* ── Donut (fully signed → all green) ──────────────────────────── */
+    const R = 52, CX = 80, CY = 80, SW = 16;
+    const donutSVG = `<svg width="160" height="160" viewBox="0 0 160 160">
+  <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#0C7A3D" stroke-width="${SW}"/>
+  <text x="${CX}" y="${CY - 8}" text-anchor="middle" font-size="26" font-weight="800" fill="#15201A">${nSigned}/${nTotal}</text>
+  <text x="${CX}" y="${CY + 13}" text-anchor="middle" font-size="12" fill="#8A948D">${t('وقّع','Signed')}</text>
+</svg>`;
+
+    /* ── Attendee rows (first 5 visible) ─────────────────────────── */
+    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
+    const attRows = ATTENDEES.slice(0,5).map((a,i) => {
+      const initials = a.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+      const sigCell = a.sig >= 0
+        ? `<svg width="80" height="28" viewBox="0 0 50 28">${SIG_PATHS[a.sig]}</svg>`
+        : `<span style="color:#9CA3AF">-</span>`;
+      return `<tr>
+        <td class="s8-col-num">${i+1}</td>
+        <td class="s8-col-att"><div class="s8-att-info"><div class="s8-av" style="background:${AV_COLORS[i]}">${initials}</div><span>${esc(a.name)}</span></div></td>
+        <td class="s8-col-role">${esc(a.role)}</td>
+        <td class="s8-col-at">${a.at}</td>
+        <td class="s8-col-sig">${sigCell}</td>
+      </tr>`;
+    }).join('');
+
+    /* ── Audit trail ────────────────────────────────────────────────── */
+    const auditRows = [
+      { ico:'✅', green:true,  text:t('تم جمع جميع توقيعات الحضور','All attendee signatures collected'), date:'22 May 2025, 12:35 PM' },
+      { ico:'⏳', green:false, text:t('في انتظار الاعتماد النهائي','Pending final approval'),             date:'22 May 2025, 12:36 PM' },
+    ].map(e=>`<div class="s8-audit-row">
+      <span class="s8-audit-ico ${e.green?'s8-ico-green':'s8-ico-amber'}">${e.ico}</span>
+      <div class="s8-audit-body">
+        <div class="s8-audit-text">${e.text}</div>
+        <div class="s8-audit-meta">${e.date} · ${t('بواسطة النظام','by System')}</div>
+      </div>
+    </div>`).join('');
+
+    /* ── Render ─────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-step-page" id="ac-step8-page">
+
+  <!-- Header -->
+  <div class="dm-page-hdr">
+    <div class="dm-page-hdr-left">
+      <div class="dm-page-title-row">
+        <h1 class="dm-page-title">
+          <span class="dm-pt-step">${t('الخطوة 8 من 9','Step 8 of 9')}</span>
+          <span class="dm-pt-name">${t('الاعتماد النهائي','Final Approval')}</span>
+        </h1>
+        <span class="s8-badge-pending-approval">${t('في انتظار الاعتماد','Pending Approval')}</span>
+      </div>
+      <p class="dm-page-sub">${t('تم جمع جميع توقيعات الحضور. المحضر النهائي جاهز للرئيس (المُعتمِد النهائي) لمراجعته وإصدار الاعتماد.','All attendee signatures have been collected. The final minutes are now ready for the Chairman (Final Approver) to review and provide final approval.')}</p>
+    </div>
+    <div class="dm-page-hdr-right">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s8DownloadSigned()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${t('تنزيل المحضر الموقّع','Download Signed Minutes')}
+      </button>
+      <button class="dm-btn ghost">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        ${t('السجل','History')}
+      </button>
+      <button class="dm-btn primary s8-approve-btn-top" onclick="ApprovalCycle._s8Approve()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${t('اعتماد المحضر','Approve Minutes')}
+      </button>
+    </div>
+  </div>
+
+  <!-- Mini stepper -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- Meta bar -->
+  <div class="s8-meta-bar">
+    <div class="s8-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 1v2M10 1v2M1 5.5h12" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s8-meta-lbl">${t('الاجتماع','Meeting')}</div><div class="s8-meta-val">${t('اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting – 15 May 2025')}</div></div>
+    </div>
+    <div class="s8-meta-sep"></div>
+    <div class="s8-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/></svg>
+      <div><div class="s8-meta-lbl">${t('إصدار المحضر النهائي','Final Minutes Version')}</div><div class="s8-meta-val"><span class="s8-version-badge">v2.0 (Final)</span></div></div>
+    </div>
+    <div class="s8-meta-sep"></div>
+    <div class="s8-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
+      <div><div class="s8-meta-lbl">${t('جُمعت كل التوقيعات','All Signatures Collected')}</div><div class="s8-meta-val">22 May 2025, 12:35 PM</div></div>
+    </div>
+    <div class="s8-meta-sep"></div>
+    <div class="s8-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><circle cx="9.5" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><path d="M1 12a4 4 0 018 0" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s8-meta-lbl">${t('إجمالي الحضور','Total Attendees')}</div><div class="s8-meta-val">${nTotal}</div></div>
+    </div>
+    <div class="s8-meta-sep"></div>
+    <div class="s8-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#8A948D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><div class="s8-meta-lbl">${t('وقّع','Signed')}</div><div class="s8-meta-val"><strong>${nSigned} / ${nTotal}</strong></div></div>
+    </div>
+    <div class="s8-meta-sep"></div>
+    <div class="s8-meta-item">
+      <div><div class="s8-meta-lbl">${t('الحالة','Status')}</div><div class="s8-meta-val"><span class="s8-status-pending">${t('في انتظار الاعتماد النهائي','Pending Final Approval')}</span></div></div>
+    </div>
+  </div>
+
+  <!-- Body: 3-column -->
+  <div class="s8-body">
+
+    <!-- ── LEFT: Document + Attendee Signatures ───────────────────── -->
+    <div class="s8-left">
+
+      <div class="s8-section-title">${t('المحضر النهائي (موقّع من جميع الحضور)','Final Minutes (Signed by All Attendees)')}</div>
+      <div class="s8-section-sub">${t('تمت مراجعة المحضر النهائي والتوقيع عليه من قِبَل جميع الحضور.','The final minutes have been reviewed and signed by all attendees.')}</div>
+
+      <!-- Document card -->
+      <div class="s8-doc-card">
+        <div class="s8-doc-card-left">
+          <div class="s8-doc-icon">
+            <svg width="28" height="36" viewBox="0 0 28 36" fill="none"><rect width="28" height="36" rx="3" fill="#1B4B9A"/><rect x="4" y="6" width="20" height="2.5" rx="1" fill="white" opacity=".9"/><rect x="4" y="11" width="16" height="2" rx="1" fill="white" opacity=".7"/><rect x="4" y="15" width="18" height="2" rx="1" fill="white" opacity=".7"/><rect x="4" y="19" width="13" height="2" rx="1" fill="white" opacity=".5"/><text x="4" y="31" font-size="7" font-weight="800" fill="white" opacity=".95">W</text></svg>
+          </div>
+          <div>
+            <div class="s8-doc-name">${t('محضر اجتماع مجلس الإدارة','Board Meeting Minutes')}</div>
+            <div class="s8-doc-date">15 May 2025</div>
+            <span class="s8-final-badge">${t('نهائي وموقّع','Final &amp; Signed')}</span>
+            <div class="s8-doc-meta-small">${t('الحجم: 245 كيلوبايت','Size: 245 KB')} &nbsp;·&nbsp; ${t('الصفحات: 12','Pages: 12')}</div>
+          </div>
+        </div>
+        <div class="s8-doc-card-right">
+          <div class="s8-doc-kv"><span class="s8-dk">${t('الإصدار','Version')}</span><span class="s8-dv">v2.0 (Final)</span></div>
+          <div class="s8-doc-kv"><span class="s8-dk">${t('أُعدَّ بواسطة','Prepared by')}</span><span class="s8-dv">${t('محمد البلالي (أمين السر)','Mohammad Albuali (Meeting Secretary)')}</span></div>
+          <div class="s8-doc-kv"><span class="s8-dk">${t('أُعدَّ في','Prepared on')}</span><span class="s8-dv">22 May 2025, 10:45 AM</span></div>
+          <div class="s8-doc-kv"><span class="s8-dk">${t('جُمعت كل التوقيعات','All Signatures Collected')}</span><span class="s8-dv">22 May 2025, 12:35 PM</span></div>
+          <div class="s8-doc-kv"><span class="s8-dk">${t('جاهز للاعتماد النهائي','Ready for Final Approval')}</span><span class="s8-dv">22 May 2025, 12:36 PM</span></div>
+        </div>
+      </div>
+      <button class="s8-preview-btn" onclick="ApprovalCycle._s8Preview()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.4"/><ellipse cx="7" cy="7" rx="6" ry="4" stroke="currentColor" stroke-width="1.4"/></svg>
+        ${t('معاينة المستند','Preview Document')}
+      </button>
+
+      <!-- Success alert -->
+      <div class="s8-success-alert">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="#0C7A3D"/><path d="M4 8l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div>
+          <div class="s8-success-title">${t('تم جمع جميع توقيعات الحضور (9 توقيعات).','All 9 attendee signatures have been collected.')}</div>
+          <div class="s8-success-sub">${t('المحضر جاهز للاعتماد النهائي.','The minutes are ready for final approval.')}</div>
+        </div>
+      </div>
+
+      <!-- Attendee Signatures table -->
+      <div class="s8-att-section-title">${t('توقيعات الحضور (9 من أصل 9 وقّعوا)','Attendee Signatures (9 of 9 Signed)')}</div>
+      <table class="s8-att-table">
+        <thead><tr>
+          <th class="s8-col-num">#</th>
+          <th>${t('الحضور','Attendee')}</th>
+          <th>${t('الدور','Role')}</th>
+          <th>${t('وقّع في','Signed On')}</th>
+          <th>${t('التوقيع','Signature')}</th>
+        </tr></thead>
+        <tbody>${attRows}</tbody>
+      </table>
+      <button class="s8-view-all-btn" onclick="ApprovalCycle._s8ViewAll()">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
+        ${t('عرض جميع التوقيعات التسعة','View All 9 Signatures')}
+      </button>
+    </div>
+
+    <!-- ── CENTER: Summary + Changes ───────────────────────────────── -->
+    <div class="s8-center">
+
+      <!-- Signature summary -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('ملخص توقيعات الحضور','Summary of Attendee Signatures')}</div>
+        <div class="s8-donut-wrap">
+          ${donutSVG}
+          <div class="s8-donut-legend">
+            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#0C7A3D"></span><span class="s8-leg-lbl">${t('وقّع','Signed')}</span><span class="s8-leg-val">${nSigned} <span class="s8-leg-pct">(100%)</span></span></div>
+            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#E8821A"></span><span class="s8-leg-lbl">${t('معلّق','Pending')}</span><span class="s8-leg-val">0 <span class="s8-leg-pct">(0%)</span></span></div>
+            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#D0D5DD"></span><span class="s8-leg-lbl">${t('غير مطلوب','Not Required')}</span><span class="s8-leg-val">0 <span class="s8-leg-pct">(0%)</span></span></div>
+          </div>
+        </div>
+        <button class="s8-view-sigs-btn" onclick="ApprovalCycle._s8ViewAll()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
+          ${t('عرض جميع التوقيعات','View All Signatures')}
+        </button>
+      </div>
+
+      <!-- Changes summary -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('ملخص التغييرات (نهائي)','Changes Summary (Final)')}</div>
+        <div class="s8-changes-list">
+          <div class="s8-chg-row">
+            <span class="s8-chg-ico s8-chg-green"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#0C7A3D"/><path d="M3 6l2 2 4-4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="s8-chg-lbl">${t('التغييرات المقبولة','Accepted Changes')}</span>
+            <span class="s8-chg-val">9</span>
+          </div>
+          <div class="s8-chg-row">
+            <span class="s8-chg-ico s8-chg-red"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#C4453C"/><path d="M4 4l4 4M8 4l-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <span class="s8-chg-lbl">${t('التغييرات المرفوضة','Rejected Changes')}</span>
+            <span class="s8-chg-val">6</span>
+          </div>
+          <div class="s8-chg-row">
+            <span class="s8-chg-ico s8-chg-amber"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#E8821A"/><path d="M6 3v3.5l2 1.5" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+            <span class="s8-chg-lbl">${t('التغييرات المعلّقة','Pending Changes')}</span>
+            <span class="s8-chg-val">0</span>
+          </div>
+          <div class="s8-chg-divider"></div>
+          <div class="s8-chg-row s8-chg-total-row">
+            <span class="s8-chg-ico s8-chg-blue"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="1" width="8" height="10" rx="1" stroke="#2C6CA8" stroke-width="1.2"/><line x1="4" y1="4" x2="8" y2="4" stroke="#2C6CA8" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="6" x2="8" y2="6" stroke="#2C6CA8" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="7" y2="8" stroke="#2C6CA8" stroke-width="1" stroke-linecap="round"/></svg></span>
+            <span class="s8-chg-lbl s8-chg-total-lbl">${t('إجمالي التغييرات','Total Changes')}</span>
+            <span class="s8-chg-val s8-chg-total-val">15</span>
+          </div>
+        </div>
+        <div class="s8-changes-info">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="#2C6CA8" stroke-width="1.2"/><line x1="6.5" y1="5.5" x2="6.5" y2="9.5" stroke="#2C6CA8" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="3.8" r=".7" fill="#2C6CA8"/></svg>
+          <span>${t('تم حل جميع التغييرات وإعداد النسخة النهائية.','All changes have been resolved and the final version is complete.')}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Approver + Actions + Notes + Audit ────────────────── -->
+    <div class="s8-sidebar">
+
+      <!-- Approver Information -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('معلومات المُعتمِد','Approver Information')}</div>
+        <div class="s8-approver-card">
+          <div class="s8-approver-av">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="10" r="6" stroke="#5A6A5C" stroke-width="1.8"/><path d="M3 24a10 10 0 0120 0" stroke="#5A6A5C" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div class="s8-approver-info">
+            <div class="s8-approver-name">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
+            <span class="s8-approver-role-badge">${t('رئيس مجلس الإدارة','Board Chairman')}</span>
+            <div class="s8-approver-label">${t('المُعتمِد النهائي','Final Approver')}</div>
+          </div>
+        </div>
+        <div class="s8-approver-note">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="#2C6CA8" stroke-width="1.2"/><line x1="6.5" y1="5.5" x2="6.5" y2="9" stroke="#2C6CA8" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="3.8" r=".7" fill="#2C6CA8"/></svg>
+          <span>${t('بصفتك الرئيس، فأنت المُعتمِد النهائي لهذا الاجتماع.','As the Chairman, you are the final approver for this meeting.')}</span>
+        </div>
+      </div>
+
+      <!-- Approval Actions -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('إجراءات الاعتماد','Approval Actions')}</div>
+        <p class="s8-panel-sub">${t('يُرجى مراجعة المحضر النهائي وتقديم اعتمادك.','Please review the final minutes and provide your approval.')}</p>
+        <button class="s8-approve-action-btn" onclick="ApprovalCycle._s8Approve()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ${t('اعتماد المحضر','Approve Minutes')}
+        </button>
+        <button class="s8-request-changes-btn" onclick="ApprovalCycle._s8RequestChanges()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7a4 4 0 017.5-2M11 7a4 4 0 01-7.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 5l1 2-2 .5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ${t('طلب تعديلات','Request Changes')}
+        </button>
+      </div>
+
+      <!-- Notes -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('ملاحظات (اختياري)','Notes (Optional)')}</div>
+        <textarea class="s8-notes-ta" id="s8-notes-ta" maxlength="500"
+          placeholder="${t('أضف تعليقاً أو ملاحظة للسجل...','Add any comments or notes for the record...')}"
+          oninput="document.getElementById('s8-char-count').textContent=this.value.length"></textarea>
+        <div class="s8-char-count"><span id="s8-char-count">0</span>/500</div>
+      </div>
+
+      <!-- Audit Trail -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('سجل التدقيق','Audit Trail')}</div>
+        <div class="s8-audit-trail">${auditRows}</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="dm-bottombar fm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(6)">← ${t('العودة لتوقيعات الحضور','Back to Attendee Signatures')}</button>
+    <div class="s8-bb-info">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2C6CA8" stroke-width="1.3"/><line x1="7" y1="6" x2="7" y2="10" stroke="#2C6CA8" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="#2C6CA8"/></svg>
+      <span>${t('بمجرد اعتمادك، سيُحوَّل المحضر إلى الأرشفة والتفعيل (الخطوة 9) ليصبح السجل الرسمي.','Once you approve, the minutes will move to Archive &amp; Activate (Step 9) and become the official record.')}</span>
+    </div>
+    <button class="dm-btn ghost" onclick="ApprovalCycle._s8DownloadPDF()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      ${t('تنزيل النسخة النهائية (PDF)','Download Final Version (PDF)')}
+    </button>
+  </div>
+
+</div>`;
+  },
+
+  /* ── Step 8 helpers ─────────────────────────────────────────────────── */
+  _s8Approve() {
+    showToast(this.t('جارٍ تنفيذ الاعتماد النهائي...','Processing final approval...'), 'success');
+    setTimeout(() => showToast(this.t('تم اعتماد المحضر بنجاح. سيُنقل إلى مرحلة الأرشفة.','Minutes approved! Moving to Archive & Activate.'), 'success'), 1500);
+  },
+  _s8RequestChanges() { showToast(this.t('جارٍ فتح نموذج طلب التعديلات...','Opening change request form...'), 'info'); },
+  _s8DownloadSigned() { showToast(this.t('جارٍ تنزيل المحضر الموقّع...','Downloading signed minutes...'), 'info'); },
+  _s8DownloadPDF()    { showToast(this.t('جارٍ تنزيل النسخة النهائية...','Downloading final version PDF...'), 'info'); },
+  _s8Preview()        { showToast(this.t('جارٍ فتح المعاينة...','Opening document preview...'), 'info'); },
+  _s8ViewAll()        { showToast(this.t('جارٍ عرض جميع التوقيعات...','Loading all signatures...'), 'info'); },
 
   _bindCanvas() { this._initCanvas(); },
 };
