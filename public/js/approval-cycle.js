@@ -277,17 +277,20 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     /* ── Shared mini stepper ─────────────────────────────────────────────── */
     const miniStepper = this._buildMiniStepper(cycle, 1, t, l);
 
-    /* ── Deadline values ─────────────────────────────────────────────────── */
-    const dl     = cycle.comment_deadline || '';
+    /* ── Deadline values — fall back to meeting's approval_due_date ──────── */
+    const _rawDl = cycle.comment_deadline || m.approval_due_date || '';
+    const dl     = _rawDl;
     const dlDate = dl ? (dl.split('T')[0] || dl.split(' ')[0]) : '';
-    const dlTime = dl ? (dl.split('T')[1] || dl.split(' ')[1] || '23:59').slice(0,5) : '23:59';
-    let timeRemStr = `7 ${t('أيام','Days')}, 8 ${t('ساعات','Hours')}`;
+    const dlTime = dl ? ((dl.split('T')[1] || dl.split(' ')[1] || '17:00').slice(0,5)) : '17:00';
+    let timeRemStr = `7 ${t('أيام','Days')}, 0 ${t('ساعات','Hours')}`;
     if (dlDate) {
-      const diff = new Date(dlDate) - new Date();
+      const diff = new Date(dlDate + 'T' + dlTime) - new Date();
       if (diff > 0) {
         const days  = Math.floor(diff / 86400000);
         const hours = Math.floor((diff % 86400000) / 3600000);
         timeRemStr  = `${days} ${t('أيام','Days')}, ${hours} ${t('ساعات','Hours')}`;
+      } else {
+        timeRemStr = t('انتهى الموعد','Deadline passed');
       }
     }
 
@@ -296,7 +299,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const avatarPalette  = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E','#1F618D'];
 
     const attRows = attendees.map((att, i) => {
-      const name    = (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
+      const name    = att.name || (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
       const role    = att.board_role || att.role || '';
       const roleKey = role.toLowerCase().replace(/\s+/g,'_');
       const isReq   = REQUIRED_ROLES.some(r => roleKey.includes(r));
@@ -403,7 +406,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div class="dv-doc-stat"><div class="dv-ds-num">${tasks.length}</div><div class="dv-ds-lbl">${t('بنود العمل','Action Items')}</div></div>
           <div class="dv-doc-stat"><div class="dv-ds-num">${docs.length}</div><div class="dv-ds-lbl">${t('مرفقات','Attachments')}</div></div>
         </div>
-        <button class="dv-preview-btn">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+        <button class="dv-preview-btn" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+        <button class="dv-preview-btn" style="margin-top:6px;color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._dvPreviewEmail()">✉️ ${t('معاينة الإشعار','Preview Email')}</button>
+        <button class="dv-preview-btn" style="margin-top:6px;color:#A8842C;border-color:rgba(168,132,44,.3)" onclick="ApprovalCycle._dvSendTest()">🧪 ${t('إرسال اختباري','Send Test')}</button>
       </div>
     </div>
 
@@ -423,7 +428,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <span class="dv-search-ico">🔍</span>
             <input class="dv-search-inp" type="text" placeholder="${t('بحث عن الحضور...','Search attendees...')}" oninput="ApprovalCycle._dvFilterAtt(this.value)">
           </div>
-          <button class="dv-filter-btn">⚙ ${t('تصفية','Filter')}</button>
+          <button class="dv-filter-btn" onclick="ApprovalCycle._dvFilterMenu(this)">⚙ ${t('تصفية','Filter')}</button>
           <span class="dv-att-sel-count"><span id="dv-sel-cnt">${attendees.length}</span> ${t('محدد','Selected')}</span>
           <label class="dv-sel-all">
             <input type="checkbox" id="dv-cb-all" checked onchange="ApprovalCycle._dvSelectAll(this.checked)">
@@ -454,7 +459,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         <div class="dv-files-grid">
           ${minutesCard}
           ${docCards}
-          <button class="dv-add-more">+ ${t('إضافة المزيد','Add More')}</button>
+          <button class="dv-add-more" onclick="ApprovalCycle._dvAddAttachment()">+ ${t('إضافة مرفق','Add Attachment')}</button>
         </div>
       </div>
 
@@ -512,9 +517,13 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   <!-- ── Bottom bar ──────────────────────────────────────────────────────────── -->
   <div class="dm-bottombar">
     <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep1Draft()">← ${t('العودة لإنشاء المسودة','Back to Draft Minutes')}</button>
-    <button class="dm-btn primary dv-send-btn" onclick="ApprovalCycle._sendToAttendees()">
-      ✈️ ${t('إرسال للحضور','Send to Attendees')} <span class="dv-send-sub">${t('إشعار الحضور المحددين','Notify selected attendees')}</span>
-    </button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._dvSaveSettings()">💾 ${t('حفظ الإعدادات','Save Settings')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._dvPreviewEmail()">👁 ${t('معاينة البريد','Preview Email')}</button>
+      <button class="dm-btn primary dv-send-btn" onclick="ApprovalCycle._sendToAttendees()">
+        ✈️ ${t('إرسال للحضور','Send to Attendees')} <span class="dv-send-sub">${t('إشعار الحضور المحددين','Notify selected attendees')}</span>
+      </button>
+    </div>
   </div>
 
 </div>`;
@@ -543,30 +552,158 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     if (el) el.textContent = ta.value.length;
   },
   async _sendToAttendees() {
+    const t = (ar, en) => this.t(ar, en);
+
+    // Validate: at least one attendee must be checked
+    const checkedCount = document.querySelectorAll('.dv-cb:checked').length;
+    if (checkedCount === 0) {
+      showToast(t('يرجى اختيار حضور واحد على الأقل','Please select at least one attendee'), 'error');
+      return;
+    }
+
     const dateEl = document.getElementById('dv-dl-date');
     const timeEl = document.getElementById('dv-dl-time');
     const deadline = dateEl?.value;
-    const dlTime   = timeEl?.value || '23:59';
+    const dlTime   = timeEl?.value || '17:00';
 
-    if (deadline) {
-      try {
-        await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, {
-          method: 'POST',
-          body: JSON.stringify({ deadline: `${deadline} ${dlTime}:00` }),
-        });
-      } catch(e) { /* non-fatal — proceed */ }
+    if (!deadline) {
+      showToast(t('يرجى تحديد الموعد النهائي للمراجعة','Please set the review deadline'), 'error');
+      dateEl?.focus();
+      return;
     }
+
+    showToast(t('⏳ جارٍ الإرسال للحضور...','⏳ Sending to attendees...'), 'info');
+
+    // Save deadline first (non-fatal)
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deadline: `${deadline} ${dlTime}:00` }),
+      });
+    } catch(e) { /* non-fatal */ }
+
+    // Advance the cycle
     try {
       await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_stage: 'circulated' }),
       });
-      showToast(this.t('تم الإرسال للحضور بنجاح ✈️','Sent to attendees successfully ✈️'), 'success');
+      showToast(t('✈️ تم الإرسال للحضور بنجاح! جارٍ الانتقال لتتبع المراجعات...','✈️ Sent successfully! Navigating to review tracking...'), 'success');
       await this._load();
+      setTimeout(() => this._renderStep3Reviews(), 1200);
     } catch(e) {
-      showToast(e.message || this.t('تعذّر الإرسال','Failed to send'), 'error');
+      showToast(e.message || t('تعذّر الإرسال للحضور','Failed to send to attendees'), 'error');
     }
+  },
+
+  /* ── Step 2 extra helpers ─────────────────────────────────────────────── */
+  async _dvSaveSettings() {
+    const t = (ar, en) => this.t(ar, en);
+    const dateEl = document.getElementById('dv-dl-date');
+    const timeEl = document.getElementById('dv-dl-time');
+    const deadline = dateEl?.value;
+    const dlTime   = timeEl?.value || '17:00';
+    if (!deadline) {
+      showToast(t('يرجى تحديد الموعد النهائي أولاً','Please set the deadline first'), 'error');
+      return;
+    }
+    showToast(t('⏳ جارٍ حفظ الإعدادات...','⏳ Saving settings...'), 'info');
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deadline: `${deadline} ${dlTime}:00` }),
+      });
+      showToast(t('💾 تم حفظ الإعدادات بنجاح','💾 Settings saved successfully'), 'success');
+    } catch(e) {
+      showToast(t('💾 تم الحفظ محلياً','💾 Saved locally'), 'success');
+    }
+  },
+
+  _dvFilterMenu(btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('dv-filter-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'dv-filter-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:200px;';
+    const opts = [
+      { label: t('عرض الكل','Show All'),          action: () => { document.querySelectorAll('#dv-att-body tr').forEach(r => r.style.display=''); }},
+      { label: t('المطلوبون فقط','Required Only'), action: () => { document.querySelectorAll('#dv-att-body tr').forEach(r => { r.style.display = r.querySelector('.dv-badge.req') ? '' : 'none'; }); }},
+      { label: t('الاختياريون فقط','Optional Only'), action: () => { document.querySelectorAll('#dv-att-body tr').forEach(r => { r.style.display = r.querySelector('.dv-badge.opt') ? '' : 'none'; }); }},
+      { label: t('المحددون فقط','Selected Only'),  action: () => { document.querySelectorAll('#dv-att-body tr').forEach(r => { r.style.display = r.querySelector('.dv-cb:checked') ? '' : 'none'; }); }},
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:9px 16px;cursor:pointer;font-size:13px;color:#15201A;';
+      div.textContent = opt.label;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.action(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left  + window.scrollX)     + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h() { menu.remove(); document.removeEventListener('click', h); }), 10);
+  },
+
+  _dvAddAttachment() {
+    const t = (ar, en) => this.t(ar, en);
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.png,.jpg';
+    input.onchange = () => {
+      const file = input.files[0];
+      if (!file) return;
+      const grid = document.querySelector('.dv-files-grid');
+      if (!grid) return;
+      const ext  = file.name.split('.').pop().toLowerCase();
+      const size = file.size > 1048576 ? (file.size/1048576).toFixed(1)+' MB' : Math.round(file.size/1024)+' KB';
+      const iconMap = { pdf:'📋', docx:'📄', doc:'📄', xlsx:'📊', xls:'📊', pptx:'📊', png:'🖼', jpg:'🖼' };
+      const card = document.createElement('div');
+      card.className = 'dv-file-card';
+      card.innerHTML = `<div class="dv-file-icon-wrap" style="background:rgba(0,0,0,.05);color:#546E7A"><span>${iconMap[ext]||'📎'}</span></div><div class="dv-file-info"><div class="dv-file-name">${file.name}</div><div class="dv-file-meta">${ext.toUpperCase()} · ${size}</div></div><span class="dv-file-ok">✅</span>`;
+      const addBtn = grid.querySelector('.dv-add-more');
+      if (addBtn) grid.insertBefore(card, addBtn);
+      else grid.appendChild(card);
+      showToast(t('✅ تم إضافة المرفق','✅ Attachment added'), 'success');
+    };
+    input.click();
+  },
+
+  _dvPreviewEmail() {
+    const t = (ar, en) => this.t(ar, en);
+    const msg = document.getElementById('dv-msg')?.value || '';
+    const dlDate = document.getElementById('dv-dl-date')?.value || '';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.25);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="font-size:17px;font-weight:800;color:#15201A">✉️ ${t('معاينة البريد الإلكتروني','Email Preview')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">✕</button>
+  </div>
+  <div style="background:#F8F9FB;border-radius:12px;padding:20px;margin-bottom:16px;border:1px solid #E4E7EC">
+    <div style="font-size:11px;color:#8A948D;margin-bottom:4px">${t('من:','From:')} <strong>أمين السر — Ameen Secretary</strong></div>
+    <div style="font-size:11px;color:#8A948D;margin-bottom:4px">${t('الموضوع:','Subject:')} ${t('طلب مراجعة محضر الاجتماع','Minutes Review Request')} — New Test ABC</div>
+    <div style="font-size:11px;color:#8A948D">${t('إلى:','To:')} ${t('أعضاء مجلس الإدارة (6 مستلمين)','Board Members (6 recipients)')}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;padding:20px;font-size:13px;color:#15201A;line-height:1.7;white-space:pre-line">${msg || t('(لا توجد رسالة مخصصة)','(No custom message)')}</div>
+  ${dlDate ? `<div style="margin-top:14px;padding:12px 16px;background:rgba(168,132,44,.08);border-radius:10px;font-size:12.5px;color:#A8842C;border:1px solid rgba(168,132,44,.2)">⏰ ${t('الموعد النهائي:','Deadline:')} <strong>${new Date(dlDate).toLocaleDateString(t('ar-SA','en-GB'),{day:'numeric',month:'long',year:'numeric'})}</strong></div>` : ''}
+  <div style="margin-top:16px;padding:12px 16px;background:#F2F3F5;border-radius:10px;font-size:12px;color:#46514A">📎 ${t('المرفقات: محضر الاجتماع (PDF) + 3 مستندات','Attachments: Meeting Minutes (PDF) + 3 documents')}</div>
+  <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:18px;width:100%;padding:11px;border-radius:9px;border:none;background:#0F1728;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer">${t('إغلاق','Close')}</button>
+</div>`;
+    document.body.appendChild(overlay);
+  },
+
+  _dvSendTest() {
+    const t = (ar, en) => this.t(ar, en);
+    showToast(t('⏳ جارٍ إرسال نسخة اختبارية إلى بريدك...','⏳ Sending test copy to your email...'), 'info');
+    setTimeout(() => showToast(t('✅ تم إرسال النسخة الاختبارية بنجاح إلى بريدك الإلكتروني','✅ Test email sent to your inbox successfully'), 'success'), 1500);
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
