@@ -231,7 +231,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   /* ─── Step click handler ─────────────────────────────────────────────── */
   _onStepClick(i) {
-    if (i === 0) { this._renderStep1Draft(); return; }
+    if (i === 0) { this._renderStep1Draft();   return; }
+    if (i === 1) { this._renderStep2Deliver(); return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -240,6 +241,347 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     document.querySelectorAll('.ac-step').forEach((el, idx) => {
       el.classList.toggle('ac-step-focus', idx === i);
     });
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 2 — DELIVER TO ATTENDEES SCREEN
+     ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep2Deliver() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t  = (ar, en) => this.t(ar, en);
+    const l  = App.lang;
+    const m  = this._meeting || {};
+    const d  = this._data   || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+
+    const attendees = fd.attendees || [];
+    const agenda    = fd.agenda    || [];
+    const decisions = fd.decisions || [];
+    const tasks     = fd.tasks     || [];
+    const docs      = fd.documents || [];
+
+    const title   = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || '';
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const mType   = m.meeting_type || '';
+    const sectionCount = 2 + agenda.length + 3;
+
+    /* ── Shared mini stepper ─────────────────────────────────────────────── */
+    const miniStepper = this._buildMiniStepper(cycle, 1, t, l);
+
+    /* ── Deadline values ─────────────────────────────────────────────────── */
+    const dl     = cycle.comment_deadline || '';
+    const dlDate = dl ? (dl.split('T')[0] || dl.split(' ')[0]) : '';
+    const dlTime = dl ? (dl.split('T')[1] || dl.split(' ')[1] || '23:59').slice(0,5) : '23:59';
+    let timeRemStr = `7 ${t('أيام','Days')}, 8 ${t('ساعات','Hours')}`;
+    if (dlDate) {
+      const diff = new Date(dlDate) - new Date();
+      if (diff > 0) {
+        const days  = Math.floor(diff / 86400000);
+        const hours = Math.floor((diff % 86400000) / 3600000);
+        timeRemStr  = `${days} ${t('أيام','Days')}, ${hours} ${t('ساعات','Hours')}`;
+      }
+    }
+
+    /* ── Attendee rows ───────────────────────────────────────────────────── */
+    const REQUIRED_ROLES = ['chairman','board_chairman','board_member','vice_chairman','member'];
+    const avatarPalette  = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E','#1F618D'];
+
+    const attRows = attendees.map((att, i) => {
+      const name    = (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
+      const role    = att.board_role || att.role || '';
+      const roleKey = role.toLowerCase().replace(/\s+/g,'_');
+      const isReq   = REQUIRED_ROLES.some(r => roleKey.includes(r));
+      const email   = att.email || '';
+      const initials = name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+      const bg = avatarPalette[i % avatarPalette.length];
+      return `<tr class="dv-att-row" data-att-name="${esc(name.toLowerCase())}">
+        <td class="dv-td-check"><input type="checkbox" class="dv-cb" checked onchange="ApprovalCycle._dvUpdateCount()"></td>
+        <td class="dv-td-att">
+          <div class="dv-av" style="background:${bg}">${initials}</div>
+          <div class="dv-att-info"><div class="dv-att-name">${esc(name)}</div><div class="dv-att-subrole">${esc(role)}</div></div>
+        </td>
+        <td class="dv-td-role">${esc(role)}</td>
+        <td class="dv-td-email">${esc(email)}</td>
+        <td class="dv-td-status"><span class="dv-badge ${isReq?'req':'opt'}">${isReq ? t('مطلوب','Required') : t('اختياري','Optional')}</span></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="5" class="dv-empty-row">${t('لا يوجد حضور','No attendees found')}</td></tr>`;
+
+    /* ── Attachment cards ────────────────────────────────────────────────── */
+    const FILE_ICON  = { docx:'📄', doc:'📄', pdf:'📋', xlsx:'📊', xls:'📊', pptx:'📊', ppt:'📊', png:'🖼', jpg:'🖼', mp4:'🎥' };
+    const FILE_COLOR = { docx:'#2B5CA5', doc:'#2B5CA5', pdf:'#C13333', xlsx:'#1D7A3C', xls:'#1D7A3C', pptx:'#C25125', default:'#546E7A' };
+
+    // Always include the minutes as first attachment
+    const minutesCard = `<div class="dv-file-card">
+      <div class="dv-file-icon-wrap" style="background:rgba(43,92,165,.1);color:#2B5CA5">
+        <span>W</span>
+      </div>
+      <div class="dv-file-info">
+        <div class="dv-file-name">${t('محضر الاجتماع','Draft Minutes')} (v1.0)</div>
+        <div class="dv-file-meta">DOCX · 245 KB</div>
+      </div>
+      <span class="dv-file-ok">✅</span>
+    </div>`;
+
+    const docCards = docs.slice(0,3).map(doc => {
+      const name = doc.name || doc.title || t('مستند','Document');
+      const ext  = (doc.file_type || (doc.name||'').split('.').pop() || 'pdf').toLowerCase();
+      const icon = FILE_ICON[ext]  || '📎';
+      const clr  = FILE_COLOR[ext] || FILE_COLOR.default;
+      const size = doc.file_size
+        ? (doc.file_size > 1048576 ? (doc.file_size/1048576).toFixed(1)+' MB' : Math.round(doc.file_size/1024)+' KB')
+        : '—';
+      return `<div class="dv-file-card">
+        <div class="dv-file-icon-wrap" style="background:rgba(0,0,0,.05);color:${clr}"><span>${icon}</span></div>
+        <div class="dv-file-info"><div class="dv-file-name">${esc(name)}</div><div class="dv-file-meta">${ext.toUpperCase()} · ${size}</div></div>
+        <span class="dv-file-ok">✅</span>
+      </div>`;
+    }).join('');
+
+    /* ── Default message ─────────────────────────────────────────────────── */
+    const defaultMsg = t(
+      `السادة أعضاء مجلس الإدارة الكرام،\n\nيرجى مراجعة محاضر الاجتماع المرفقة وتقديم ملاحظاتكم أو التعديلات المقترحة بحلول الموعد النهائي. ملاحظاتكم مهمة لضمان دقة واكتمال المحضر.\n\nشكراً لكم`,
+      `Dear Board Members,\n\nPlease review the attached minutes and provide your comments or suggested changes by the deadline. Your feedback is important to ensure the accuracy and completeness of the record.\n\nThank you.`
+    );
+    const msgLen = defaultMsg.length;
+
+    /* ── Render ──────────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-wrap">
+
+  <!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+  <div class="dm-topbar">
+    <div class="dm-breadcrumb">
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('الاجتماعات','Meetings')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item">${esc(mType||title)}</span>
+      <span class="dm-bc-sep">›</span>
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('دورة الاعتماد','Approval Cycle')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item dm-bc-active">${t('تسليم للحضور','Deliver to Attendees')}</span>
+    </div>
+    <div class="dm-topbar-actions">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep1Draft()">← ${t('العودة للمسودة','Back to Draft Minutes')}</button>
+      <button class="dm-btn ghost">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      <a class="dm-btn ghost" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تحميل المسودة','Download Draft')}</a>
+      <button class="dm-btn primary" onclick="ApprovalCycle._sendToAttendees()">✈️ ${t('إرسال للحضور','Send to Attendees')}</button>
+    </div>
+  </div>
+
+  <!-- ── Title bar ─────────────────────────────────────────────────────────── -->
+  <div class="dm-titlebar">
+    <div class="dm-page-h1">${t('تسليم للحضور','Deliver to Attendees')} <span class="dm-badge-prog">${t('قيد التنفيذ','In Progress')}</span></div>
+    <div class="dm-page-sub">${t('راجع المحضر وأرسله للحضور للمراجعة والتعليق.','Review the draft minutes and send them to attendees for review and comments.')}</div>
+  </div>
+
+  <!-- ── Mini stepper ──────────────────────────────────────────────────────── -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- ── 3-column body ─────────────────────────────────────────────────────── -->
+  <div class="dv-body">
+
+    <!-- LEFT: Minutes Summary -->
+    <div class="dv-sidebar">
+      <div class="dm-sidebar-head">${t('ملخص المحضر','Minutes Summary')}</div>
+      <div class="dv-doc-card">
+        <div class="dv-doc-word-icon">W</div>
+        <div class="dv-doc-title">${t('محضر الاجتماع','Board Meeting Minutes')}</div>
+        <div class="dv-doc-ver">${dateStr} (v1.0)</div>
+        <div class="dv-doc-gen">${t('أُنشئ في','Generated on')} ${dateStr}</div>
+        <div class="dv-doc-by">${t('بواسطة AI Secretary','By AI Secretary')}</div>
+        <div class="dv-doc-stats">
+          <div class="dv-doc-stat"><div class="dv-ds-num">${sectionCount}</div><div class="dv-ds-lbl">${t('أقسام','Sections')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${decisions.length}</div><div class="dv-ds-lbl">${t('قرارات','Decisions')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${tasks.length}</div><div class="dv-ds-lbl">${t('بنود العمل','Action Items')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${docs.length}</div><div class="dv-ds-lbl">${t('مرفقات','Attachments')}</div></div>
+        </div>
+        <button class="dv-preview-btn">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      </div>
+    </div>
+
+    <!-- CENTER: Attendees + Attachments -->
+    <div class="dv-center">
+
+      <!-- Select Attendees card -->
+      <div class="dv-card">
+        <div class="dv-card-head">
+          <div>
+            <div class="dv-card-title">${t('اختيار الحضور','Select Attendees')}</div>
+            <div class="dv-card-sub">${t('جميع أعضاء المجلس والمشاركين سيتلقون المحضر للمراجعة.','All board members and relevant participants will receive the minutes for review.')}</div>
+          </div>
+        </div>
+        <div class="dv-att-toolbar">
+          <div class="dv-search-box">
+            <span class="dv-search-ico">🔍</span>
+            <input class="dv-search-inp" type="text" placeholder="${t('بحث عن الحضور...','Search attendees...')}" oninput="ApprovalCycle._dvFilterAtt(this.value)">
+          </div>
+          <button class="dv-filter-btn">⚙ ${t('تصفية','Filter')}</button>
+          <span class="dv-att-sel-count"><span id="dv-sel-cnt">${attendees.length}</span> ${t('محدد','Selected')}</span>
+          <label class="dv-sel-all">
+            <input type="checkbox" id="dv-cb-all" checked onchange="ApprovalCycle._dvSelectAll(this.checked)">
+            <span>${t('تحديد الكل','Select All')}</span>
+          </label>
+        </div>
+        <div class="dv-table-wrap">
+          <table class="dv-table">
+            <thead><tr>
+              <th class="dv-th-chk"></th>
+              <th>${t('الحضور','Attendee')}</th>
+              <th>${t('الدور','Role')}</th>
+              <th>${t('البريد الإلكتروني','Email')}</th>
+              <th>${t('الحالة','Status')}</th>
+            </tr></thead>
+            <tbody id="dv-att-body">${attRows}</tbody>
+          </table>
+        </div>
+        <div class="dv-att-note">ℹ️ ${t('سيتم إشعار الحضور عبر البريد الإلكتروني برابط آمن للمراجعة والتعليق.','Attendees will be notified via email with a secure link to review and comment.')}</div>
+      </div>
+
+      <!-- Attachments card -->
+      <div class="dv-card">
+        <div class="dv-card-head">
+          <div class="dv-card-title">${t('المرفقات المُدرجة','Attachments to Include')}</div>
+          <div class="dv-card-sub">${t('ستُشارَك هذه المرفقات مع المحضر.','These attachments will be shared along with the minutes.')}</div>
+        </div>
+        <div class="dv-files-grid">
+          ${minutesCard}
+          ${docCards}
+          <button class="dv-add-more">+ ${t('إضافة المزيد','Add More')}</button>
+        </div>
+      </div>
+
+    </div><!-- /dv-center -->
+
+    <!-- RIGHT: Deadline + Reminders + Message -->
+    <div class="dv-right">
+
+      <!-- Review Deadline -->
+      <div class="dv-rpanel">
+        <div class="dv-rp-title">⏰ ${t('الموعد النهائي للمراجعة','Review Deadline')}</div>
+        <div class="dv-rp-sub">${t('حدد الموعد النهائي الذي يجب على الحضور تقديم ملاحظاتهم بحلوله.','Set the deadline by which attendees must review and submit their comments.')}</div>
+        <div class="dv-dl-grid">
+          <div class="dv-dl-field">
+            <label class="dv-label">${t('تاريخ الموعد','Deadline Date')}</label>
+            <input type="date" class="dv-input" id="dv-dl-date" value="${dlDate}">
+          </div>
+          <div class="dv-dl-field">
+            <label class="dv-label">${t('وقت الموعد','Deadline Time')}</label>
+            <input type="time" class="dv-input" id="dv-dl-time" value="${dlTime}">
+          </div>
+        </div>
+        <div class="dv-time-rem">🕐 ${t('الوقت المتبقي بعد الإرسال:','Time remaining after sending:')} <strong>${timeRemStr}</strong></div>
+      </div>
+
+      <!-- Reminder Settings -->
+      <div class="dv-rpanel">
+        <div class="dv-rp-title">🔔 ${t('إعدادات التذكير','Reminder Settings')}</div>
+        <div class="dv-rp-sub">${t('قم بإعداد التذكيرات لمساعدة الحضور.','Configure reminders to help attendees complete their review on time.')}</div>
+        <div class="dv-rem-row">
+          <span class="dv-rem-lbl">${t('التذكير الأول','First Reminder')}</span>
+          <select class="dv-rem-sel"><option>${t('قبل يومين من الموعد','2 days before deadline')}</option><option>${t('قبل 3 أيام','3 days before deadline')}</option><option>${t('قبل أسبوع','1 week before deadline')}</option></select>
+        </div>
+        <div class="dv-rem-row">
+          <span class="dv-rem-lbl">${t('التذكير الثاني','Second Reminder')}</span>
+          <select class="dv-rem-sel"><option>${t('قبل يوم من الموعد','1 day before deadline')}</option><option>${t('قبل يومين','2 days before deadline')}</option></select>
+        </div>
+        <div class="dv-rem-row">
+          <span class="dv-rem-lbl">${t('التذكير النهائي','Final Reminder')}</span>
+          <select class="dv-rem-sel"><option>${t('يوم الموعد الساعة 9:00 ص','On deadline day at 9:00 AM')}</option><option>${t('يوم الموعد الساعة 12:00 م','On deadline day at 12:00 PM')}</option></select>
+        </div>
+      </div>
+
+      <!-- Custom Message -->
+      <div class="dv-rpanel">
+        <div class="dv-rp-title">✉️ ${t('رسالة مخصصة (اختياري)','Custom Message (Optional)')}</div>
+        <div class="dv-rp-sub">${t('أضف رسالة للحضور.','Add a message for attendees.')}</div>
+        <textarea class="dv-msg-area" id="dv-msg" maxlength="500" oninput="ApprovalCycle._dvUpdateCounter(this)">${defaultMsg}</textarea>
+        <div class="dv-msg-counter"><span id="dv-msg-cnt">${msgLen}</span> / 500</div>
+      </div>
+
+    </div><!-- /dv-right -->
+  </div><!-- /dv-body -->
+
+  <!-- ── Bottom bar ──────────────────────────────────────────────────────────── -->
+  <div class="dm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep1Draft()">← ${t('العودة لإنشاء المسودة','Back to Draft Minutes')}</button>
+    <button class="dm-btn primary dv-send-btn" onclick="ApprovalCycle._sendToAttendees()">
+      ✈️ ${t('إرسال للحضور','Send to Attendees')} <span class="dv-send-sub">${t('إشعار الحضور المحددين','Notify selected attendees')}</span>
+    </button>
+  </div>
+
+</div>`;
+  },
+
+  /* ── Step 2 helpers ──────────────────────────────────────────────────────── */
+  _dvFilterAtt(q) {
+    const lc = q.toLowerCase();
+    document.querySelectorAll('#dv-att-body tr.dv-att-row').forEach(row => {
+      row.style.display = row.dataset.attName.includes(lc) ? '' : 'none';
+    });
+  },
+  _dvSelectAll(checked) {
+    document.querySelectorAll('.dv-cb').forEach(cb => { cb.checked = checked; });
+    this._dvUpdateCount();
+  },
+  _dvUpdateCount() {
+    const n = document.querySelectorAll('.dv-cb:checked').length;
+    const el = document.getElementById('dv-sel-cnt');
+    if (el) el.textContent = n;
+    const all = document.getElementById('dv-cb-all');
+    if (all) all.indeterminate = (n > 0 && n < document.querySelectorAll('.dv-cb').length);
+  },
+  _dvUpdateCounter(ta) {
+    const el = document.getElementById('dv-msg-cnt');
+    if (el) el.textContent = ta.value.length;
+  },
+  async _sendToAttendees() {
+    const dateEl = document.getElementById('dv-dl-date');
+    const timeEl = document.getElementById('dv-dl-time');
+    const deadline = dateEl?.value;
+    const dlTime   = timeEl?.value || '23:59';
+
+    if (deadline) {
+      try {
+        await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, {
+          method: 'POST',
+          body: JSON.stringify({ deadline: `${deadline} ${dlTime}:00` }),
+        });
+      } catch(e) { /* non-fatal — proceed */ }
+    }
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
+        method: 'POST',
+        body: JSON.stringify({ to: 'circulated' }),
+      });
+      showToast(this.t('تم الإرسال للحضور بنجاح ✈️','Sent to attendees successfully ✈️'), 'success');
+      await this._load();
+    } catch(e) {
+      showToast(e.message || this.t('تعذّر الإرسال','Failed to send'), 'error');
+    }
+  },
+
+  /* ── Shared: build mini stepper for any step screen ─────────────────────── */
+  _buildMiniStepper(cycle, activeIdx, t, l) {
+    const EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
+    const AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
+    const STAGE_IDX = { draft:0, circulated:1, comments_open:2, deadline_closed:3, review_resolve:4, final_version:5, attendee_sign:6, final_approver:7, archived:8 };
+    const curStage = STAGE_IDX[cycle.cycle_stage] ?? 0;
+    const STATUS_EN = ['Completed','In Progress','Pending'];
+    const STATUS_AR = ['مكتمل','قيد التنفيذ','معلّق'];
+
+    return EN.map((en, i) => {
+      const lbl    = l==='ar' ? AR[i] : en;
+      const done   = i < activeIdx || i < curStage;
+      const active = i === activeIdx;
+      const cls    = done ? 'done' : active ? 'cur' : '';
+      const subLbl = done ? (l==='ar'?STATUS_AR[0]:STATUS_EN[0]) : active ? (l==='ar'?STATUS_AR[1]:STATUS_EN[1]) : (l==='ar'?STATUS_AR[2]:STATUS_EN[2]);
+      const subClr = done ? '#0C7A3D' : active ? '#A8842C' : '#8A948D';
+      return `<div class="dm-mstep ${cls}" onclick="ApprovalCycle._onStepClick(${i})">
+        <div class="dm-mstep-dot">${done ? '✓' : i+1}</div>
+        <div class="dm-mstep-label">${esc(lbl)}<br><span style="font-size:8.5px;color:${subClr}">${subLbl}</span></div>
+      </div>${i<8?'<div class="dm-mstep-line '+(done?'done':'')+'"></div>':''}`;
+    }).join('');
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
