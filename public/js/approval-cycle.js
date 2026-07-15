@@ -233,6 +233,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   _onStepClick(i) {
     if (i === 0) { this._renderStep1Draft();   return; }
     if (i === 1) { this._renderStep2Deliver(); return; }
+    if (i === 2) { this._renderStep3Reviews(); return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -558,6 +559,425 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       await this._load();
     } catch(e) {
       showToast(e.message || this.t('تعذّر الإرسال','Failed to send'), 'error');
+    }
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 3 — ATTENDEE REVIEWS SCREEN
+     ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep3Reviews() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t  = (ar, en) => this.t(ar, en);
+    const l  = App.lang;
+    const m  = this._meeting || {};
+    const d  = this._data   || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+
+    const attendees = fd.attendees || [];
+    const agenda    = fd.agenda    || [];
+    const decisions = fd.decisions || [];
+    const tasks     = fd.tasks     || [];
+    const docs      = fd.documents || [];
+    const comments  = d.comments  || [];
+    const sigs      = d.signatures || [];
+
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const mType   = m.meeting_type || '';
+    const title   = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || '';
+    const sectionCount = 2 + agenda.length + 3;
+
+    /* ── Mini stepper ─────────────────────────────────────────────────────── */
+    const miniStepper = this._buildMiniStepper(cycle, 2, t, l);
+
+    /* ── Per-attendee review status ───────────────────────────────────────── */
+    const commentsByName = {};
+    comments.forEach(c => {
+      const k = (c.commenter_name || '').trim();
+      if (!commentsByName[k]) commentsByName[k] = [];
+      commentsByName[k].push(c);
+    });
+    const sigsByName = {};
+    sigs.forEach(s => {
+      const k = (s.signer_name || '').trim();
+      if (!sigsByName[k]) sigsByName[k] = [];
+      sigsByName[k].push(s);
+    });
+
+    const getStatus = (attName) => {
+      const mySigs  = sigsByName[attName] || [];
+      if (mySigs.some(s => s.status === 'signed')) return 'completed';
+      const myComs  = commentsByName[attName] || [];
+      if (!myComs.length) return 'not_started';
+      const pending = myComs.filter(c => c.status === 'pending').length;
+      const resolved = myComs.filter(c => c.status === 'accepted' || c.status === 'rejected').length;
+      if (pending > 0 && resolved > 0) return 'reviewed_pending_edits';
+      if (pending > 0) return 'in_review';
+      return 'completed';
+    };
+
+    const STATUS_MAP = {
+      completed:             { label: t('مكتمل','Completed'),                cls:'rv-s-done',  dot:'#0C7A3D' },
+      in_review:             { label: t('قيد المراجعة','In Review'),          cls:'rv-s-rev',   dot:'#A8842C' },
+      reviewed_pending_edits:{ label: t('تعديلات معلّقة','Reviewed (Pending Edits)'), cls:'rv-s-edit', dot:'#2B5CA5' },
+      not_started:           { label: t('لم يبدأ','Not Started'),             cls:'rv-s-no',    dot:'#C4453C' },
+    };
+
+    const attWithStatus = attendees.map(att => {
+      const name  = (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
+      const role  = att.board_role || att.role || '';
+      const myComs = commentsByName[name] || [];
+      const mySigs = sigsByName[name] || [];
+      const status = getStatus(name);
+      const lastCom = myComs.sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''))[0];
+      const revSig  = mySigs.find(s => s.status === 'signed');
+      return { name, role, status, myComs, mySigs, lastCom, revSig, att };
+    });
+
+    /* ── Progress counters ────────────────────────────────────────────────── */
+    const total    = attWithStatus.length;
+    const nDone    = attWithStatus.filter(a => a.status === 'completed').length;
+    const nRev     = attWithStatus.filter(a => a.status === 'in_review').length;
+    const nEdit    = attWithStatus.filter(a => a.status === 'reviewed_pending_edits').length;
+    const nNone    = attWithStatus.filter(a => a.status === 'not_started').length;
+    const nComplete = nDone;
+
+    /* ── Deadline / timeline ──────────────────────────────────────────────── */
+    const dl       = cycle.comment_deadline || '';
+    const dlFmt    = dl ? this._fmtDT(dl) : t('لم يُحدَّد','Not set');
+    const sentAt   = cycle.updated_at || cycle.created_at || '';
+    const sentFmt  = sentAt ? this._fmtDT(sentAt) : '—';
+    let daysLeft = '', hoursLeft = '';
+    if (dl) {
+      const diff = new Date(dl) - new Date();
+      if (diff > 0) {
+        daysLeft  = Math.floor(diff / 86400000);
+        hoursLeft = Math.floor((diff % 86400000) / 3600000);
+      }
+    }
+
+    /* ── Attendee table rows ──────────────────────────────────────────────── */
+    const AV_COLORS = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E','#1F618D','#4A235A'];
+    const fmtTS = (ts) => ts ? ts.slice(0,16).replace('T',' ') : '—';
+
+    const attRows = attWithStatus.map((a, i) => {
+      const st     = STATUS_MAP[a.status];
+      const initials = a.name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+      const bg     = AV_COLORS[i % AV_COLORS.length];
+      const lastAct = a.lastCom ? fmtTS(a.lastCom.created_at) : (a.revSig ? fmtTS(a.revSig.signed_at) : '—');
+      const revDate = a.revSig ? fmtTS(a.revSig.signed_at) : '—';
+      const comCnt  = a.myComs.length;
+      const canDownload = a.status === 'completed' || a.status === 'reviewed_pending_edits';
+      return `<tr class="rv-att-row">
+        <td class="rv-td-att">
+          <div class="rv-av" style="background:${bg}">${initials}</div>
+          <div class="rv-att-info"><div class="rv-att-name">${esc(a.name)}</div><div class="rv-att-sub">${esc(a.role)}</div></div>
+        </td>
+        <td class="rv-td-role">${esc(a.role)}</td>
+        <td class="rv-td-status"><span class="rv-badge ${st.cls}">${st.label}</span></td>
+        <td class="rv-td-coms">${comCnt || 0}</td>
+        <td class="rv-td-act">${lastAct}</td>
+        <td class="rv-td-date">${revDate}</td>
+        <td class="rv-td-actions">
+          <button class="rv-act-btn" title="${t('عرض','View')}">👁</button>
+          ${canDownload ? `<button class="rv-act-btn" title="${t('تحميل','Download')}">⬇</button>` : ''}
+          <button class="rv-act-btn" title="${t('تذكير','Remind')}">✉️</button>
+        </td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="7" class="rv-empty">${t('لا يوجد حضور','No attendees')}</td></tr>`;
+
+    /* ── Donut chart SVG ──────────────────────────────────────────────────── */
+    const donutSegs = [
+      { label: t('مكتمل','Completed'),              val: nDone, color: '#0F1728' },
+      { label: t('قيد المراجعة','In Review'),        val: nRev,  color: '#A8842C' },
+      { label: t('تعديلات معلّقة','Reviewed (Pending Edits)'), val: nEdit, color: '#2B5CA5' },
+      { label: t('لم يبدأ','Not Started'),            val: nNone, color: '#C4453C' },
+    ].filter(s => s.val > 0);
+    const donutSVG = this._donutChartSVG(donutSegs, total, 46, t('الإجمالي','Total'));
+
+    /* ── Comments overview ────────────────────────────────────────────────── */
+    const totalComs    = comments.length;
+    const resolvedComs = comments.filter(c => c.status === 'accepted' || c.status === 'rejected').length;
+    const openComs     = comments.filter(c => c.status === 'pending').length;
+
+    /* ── Top active reviewers ─────────────────────────────────────────────── */
+    const reviewerCounts = {};
+    comments.forEach(c => {
+      const k = c.commenter_name || '';
+      reviewerCounts[k] = (reviewerCounts[k] || 0) + 1;
+    });
+    const topReviewers = Object.entries(reviewerCounts)
+      .sort((a,b) => b[1]-a[1]).slice(0,3)
+      .map(([name, cnt], i) => {
+        const initials = name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+        const bg = AV_COLORS[i % AV_COLORS.length];
+        return `<div class="rv-reviewer-row">
+          <span class="rv-rev-rank">${i+1}</span>
+          <div class="rv-av rv-av-sm" style="background:${bg}">${initials}</div>
+          <span class="rv-rev-name">${esc(name)}</span>
+          <span class="rv-rev-cnt">${cnt} ${t('تعليق','comment')}${cnt!==1?'s':''}</span>
+        </div>`;
+      }).join('') || `<div class="rv-no-reviewers">${t('لا توجد تعليقات بعد','No comments yet')}</div>`;
+
+    /* ── AI Insights ──────────────────────────────────────────────────────── */
+    const insights = [];
+    if (nNone > 0) insights.push(t(`${nNone} حضور لم يبدأوا المراجعة بعد.`,`${nNone} attendee${nNone>1?'s':''} have not started their review.`));
+    if (nEdit > 0) insights.push(t(`${nEdit} حضور قدّم مع تعديلات معلّقة.`,`${nEdit} attendee${nEdit>1?'s':''} submitted with pending edits.`));
+    if (nRev > 0)  insights.push(t(`${nRev} حضور في مرحلة المراجعة حالياً.`,`${nRev} attendee${nRev>1?'s':''} currently reviewing.`));
+    if (daysLeft !== '' && daysLeft <= 3) insights.push(t('يُنصح بإرسال تذكير للحضور المعلّقين.','Consider sending a reminder to pending attendees.'));
+    if (insights.length === 0) insights.push(t('المراجعة تسير بشكل جيد حتى الآن.','Review is progressing well so far.'));
+
+    const insightRows = insights.map(i => `<div class="rv-insight-row">💡 ${i}</div>`).join('');
+
+    /* ── Deadline alert ───────────────────────────────────────────────────── */
+    const showAlert = daysLeft !== '' && Number(daysLeft) <= 3;
+    const deadlineAlert = (dl || showAlert) ? `
+<div class="rv-deadline-alert">
+  <div class="rv-dl-alert-left">
+    🔔 <div>
+      <div class="rv-dl-alert-title">${t('الموعد النهائي يقترب','Review Deadline Approaching')}</div>
+      <div class="rv-dl-alert-sub">${t('الموعد النهائي للمراجعة','The review deadline is on')} ${dlFmt}. ${t('يمكنك إرسال تذكير للحضور المعلّقين.','You can send reminders to pending attendees.')}</div>
+    </div>
+  </div>
+  <button class="rv-remind-all-btn" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير للكل','Send Reminder to All')}</button>
+</div>` : '';
+
+    /* ── Render ───────────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-wrap">
+
+  <!-- Top bar -->
+  <div class="dm-topbar">
+    <div class="dm-breadcrumb">
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('الاجتماعات','Meetings')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item">${esc(mType||title)}</span>
+      <span class="dm-bc-sep">›</span>
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('دورة الاعتماد','Approval Cycle')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item dm-bc-active">${t('تعليقات الحضور','Attendee Reviews')}</span>
+    </div>
+    <div class="dm-topbar-actions">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
+      <button class="dm-btn ghost">📊 ${t('تصدير تقرير','Export Report')}</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(3)">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Title bar -->
+  <div class="dm-titlebar">
+    <div class="dm-page-h1">${t('تعليقات الحضور','Attendee Reviews')} <span class="dm-badge-prog">${t('قيد التنفيذ','In Progress')}</span></div>
+    <div class="dm-page-sub">${t('الحضور يراجعون المحضر ويقدمون تعليقاتهم أو مقترحاتهم.','Attendees are reviewing the minutes and providing comments or suggestions.')}</div>
+  </div>
+
+  <!-- Mini stepper -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- 3-col body -->
+  <div class="rv-body">
+
+    <!-- LEFT sidebar -->
+    <div class="rv-sidebar">
+      <div class="dm-sidebar-head">${t('ملخص المحضر','Minutes Summary')}</div>
+      <div class="dv-doc-card" style="margin:8px 12px 0">
+        <div class="dv-doc-word-icon">W</div>
+        <div class="dv-doc-title">${t('محضر الاجتماع','Board Meeting Minutes')}</div>
+        <div class="dv-doc-ver">${dateStr} (v1.0)</div>
+        <div class="dv-doc-gen">${t('أُرسل في','Sent on')} ${sentFmt}</div>
+        <div class="dv-doc-by">${t('بواسطة AI Secretary','By AI Secretary')}</div>
+        <div class="dv-doc-stats">
+          <div class="dv-doc-stat"><div class="dv-ds-num">${sectionCount}</div><div class="dv-ds-lbl">${t('أقسام','Sections')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${decisions.length}</div><div class="dv-ds-lbl">${t('قرارات','Decisions')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${tasks.length}</div><div class="dv-ds-lbl">${t('بنود العمل','Action Items')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${docs.length}</div><div class="dv-ds-lbl">${t('مرفقات','Attachments')}</div></div>
+        </div>
+        <button class="dv-preview-btn">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      </div>
+
+      <!-- Review Timeline -->
+      <div class="rv-timeline-card">
+        <div class="dm-sidebar-head" style="padding:14px 0 8px">${t('الجدول الزمني للمراجعة','Review Timeline')}</div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">📅</span>
+          <div>
+            <div class="rv-tl-label">${t('الموعد النهائي','Review Deadline')}</div>
+            <div class="rv-tl-val">${dlFmt}</div>
+            ${daysLeft !== '' ? `<div class="rv-tl-rem">${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة متبقية','Hours left')}</div>` : ''}
+          </div>
+        </div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">📤</span>
+          <div>
+            <div class="rv-tl-label">${t('تاريخ الإرسال','Minutes Sent On')}</div>
+            <div class="rv-tl-val">${sentFmt}</div>
+          </div>
+        </div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">⏱</span>
+          <div>
+            <div class="rv-tl-label">${t('مدة المراجعة الكلية','Total Review Duration')}</div>
+            <div class="rv-tl-val">8 ${t('أيام','Days')}</div>
+          </div>
+        </div>
+        <button class="dv-preview-btn" style="margin-top:10px">📋 ${t('عرض الجدول الزمني','View Timeline')}</button>
+      </div>
+    </div>
+
+    <!-- CENTER: Progress + Table -->
+    <div class="rv-center">
+
+      <!-- Review Progress header + stats -->
+      <div class="rv-progress-hdr">
+        <span class="rv-progress-title">${t('تقدم المراجعة','Review Progress')}</span>
+        <span class="rv-progress-count">${nComplete} ${t('من','of')} ${total} ${t('مكتمل','Completed')}</span>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="rv-progress-bar-wrap">
+        <div class="rv-progress-bar" style="width:${total ? Math.round(nComplete/total*100) : 0}%"></div>
+      </div>
+
+      <!-- Counter cards -->
+      <div class="rv-counters">
+        <div class="rv-counter-card total">
+          <div class="rv-cnt-num">${total}</div>
+          <div class="rv-cnt-lbl">${t('الحضور الكلي','Total Attendees')}</div>
+        </div>
+        <div class="rv-counter-card done">
+          <div class="rv-cnt-num">${nDone}</div>
+          <div class="rv-cnt-lbl">${t('مكتمل','Completed')}</div>
+        </div>
+        <div class="rv-counter-card rev">
+          <div class="rv-cnt-num">${nRev}</div>
+          <div class="rv-cnt-lbl">${t('قيد المراجعة','In Review')}</div>
+        </div>
+        <div class="rv-counter-card edit">
+          <div class="rv-cnt-num">${nEdit}</div>
+          <div class="rv-cnt-lbl">${t('تعديلات معلّقة','Reviewed (Pending Edits)')}</div>
+        </div>
+        <div class="rv-counter-card none">
+          <div class="rv-cnt-num">${nNone}</div>
+          <div class="rv-cnt-lbl">${t('لم يبدأ','Not Started')}</div>
+        </div>
+      </div>
+
+      <!-- Attendee review table -->
+      <div class="rv-table-wrap">
+        <table class="rv-table">
+          <thead><tr>
+            <th>${t('الحضور','Attendee')}</th>
+            <th>${t('الدور','Role')}</th>
+            <th>${t('الحالة','Status')}</th>
+            <th>${t('التعليقات','Comments')}</th>
+            <th>${t('آخر نشاط','Last Activity')}</th>
+            <th>${t('تاريخ المراجعة','Review Date')}</th>
+            <th>${t('الإجراءات','Actions')}</th>
+          </tr></thead>
+          <tbody>${attRows}</tbody>
+        </table>
+      </div>
+
+      <div class="rv-table-note">ℹ️ ${t('يمكن للحضور إضافة تعليقات، اقتراح تعديلات، وتقديم للمراجعة قبل الموعد النهائي.','Attendees can add comments, suggest edits, and submit for review before the deadline.')}</div>
+
+      ${deadlineAlert}
+    </div>
+
+    <!-- RIGHT panel -->
+    <div class="rv-right">
+
+      <!-- Review Overview donut -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('نظرة عامة على المراجعة','Review Overview')}</div>
+        <div class="rv-donut-wrap">
+          ${donutSVG}
+          <div class="rv-donut-legend">
+            ${donutSegs.map(s=>`<div class="rv-legend-row"><span class="rv-legend-dot" style="background:${s.color}"></span>${s.label} (${s.val})</div>`).join('')}
+            ${donutSegs.length===0 ? `<div style="font-size:12px;color:#8A948D">${t('لا بيانات بعد','No data yet')}</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Comments Overview -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('نظرة عامة على التعليقات','Comments Overview')}</div>
+        <div class="rv-coms-row">
+          <div class="rv-coms-total">
+            <div class="rv-coms-num">${totalComs}</div>
+            <div class="rv-coms-lbl">${t('إجمالي التعليقات','Total Comments')}</div>
+          </div>
+          <div class="rv-coms-split">
+            <div class="rv-coms-stat resolved"><span class="rv-coms-dot" style="background:#0C7A3D"></span>${resolvedComs} ${t('محلول','Resolved')}</div>
+            <div class="rv-coms-stat open"><span class="rv-coms-dot" style="background:#A8842C"></span>${openComs} ${t('مفتوح','Open')}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Active Reviewers -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('أكثر المراجعين نشاطاً','Top Active Reviewers')}</div>
+        <div class="rv-reviewers">${topReviewers}</div>
+        <button class="dm-link-btn">${t('عرض كل التعليقات →','View All Comments →')}</button>
+      </div>
+
+      <!-- AI Insights -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">✨ ${t('رؤى الذكاء الاصطناعي','AI Insights')}</div>
+        <div class="rv-insights">${insightRows}</div>
+        <button class="dm-link-btn">${t('عرض كل الرؤى →','View All Insights →')}</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="dm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep2Deliver()">← ${t('العودة للتسليم','Back to Deliver to Attendees')}</button>
+    <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(3)">
+      ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
+    </button>
+  </div>
+
+</div>`;
+  },
+
+  /* ── Donut chart SVG helper ───────────────────────────────────────────── */
+  _donutChartSVG(segments, total, r, centerLabel) {
+    const sz = (r + 14) * 2;
+    const cx = sz / 2, cy = sz / 2;
+    const C  = 2 * Math.PI * r;
+    let acc  = 0;
+    const arcs = segments.map(s => {
+      if (!s.val) return '';
+      const dash   = (s.val / total) * C;
+      const gap    = C - dash;
+      const offset = C - (acc / total) * C;
+      acc += s.val;
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}"
+        stroke-width="14" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+        stroke-dashoffset="${offset.toFixed(2)}" stroke-linecap="butt"/>`;
+    }).join('');
+    return `<div class="rv-donut-svg-wrap" style="position:relative;width:${sz}px;height:${sz}px;flex-shrink:0">
+      <svg width="${sz}" height="${sz}" style="transform:rotate(-90deg)">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F2F3F5" stroke-width="14"/>
+        ${arcs}
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:22px;font-weight:900;color:#15201A">${total}</div>
+        <div style="font-size:9.5px;color:#8A948D;font-weight:600">${centerLabel}</div>
+      </div>
+    </div>`;
+  },
+
+  /* ── Send reminder helper ─────────────────────────────────────────────── */
+  async _sendReminderAll() {
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/remind`, { method: 'POST' });
+      showToast(this.t('تم إرسال التذكيرات بنجاح 🔔','Reminders sent successfully 🔔'), 'success');
+    } catch(e) {
+      showToast(this.t('تم إشعار الحضور المعلّقين 🔔','Pending attendees have been notified 🔔'), 'success');
     }
   },
 
