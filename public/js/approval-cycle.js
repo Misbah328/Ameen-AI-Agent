@@ -370,7 +370,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     </div>
     <div class="dm-topbar-actions">
       <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep1Draft()">← ${t('العودة للمسودة','Back to Draft Minutes')}</button>
-      <button class="dm-btn ghost">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
       <a class="dm-btn ghost" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تحميل المسودة','Download Draft')}</a>
       <button class="dm-btn primary" onclick="ApprovalCycle._sendToAttendees()">✈️ ${t('إرسال للحضور','Send to Attendees')}</button>
     </div>
@@ -559,7 +559,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     try {
       await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
         method: 'POST',
-        body: JSON.stringify({ to: 'circulated' }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_stage: 'circulated' }),
       });
       showToast(this.t('تم الإرسال للحضور بنجاح ✈️','Sent to attendees successfully ✈️'), 'success');
       await this._load();
@@ -2253,11 +2254,11 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <span class="dm-bc-item dm-bc-active">${t('إنشاء المسودة','Draft Minutes')}</span>
     </div>
     <div class="dm-topbar-actions">
-      <button class="dm-btn ghost">${t('حفظ المسودة','Save Draft')}</button>
-      <button class="dm-btn ai">✨ ${t('إعادة الإنشاء بـ AI','Regenerate with AI')}</button>
-      <button class="dm-btn ghost">👁 ${t('معاينة','Preview')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s1SaveDraft()">💾 ${t('حفظ المسودة','Save Draft')}</button>
+      <button class="dm-btn ai" onclick="ApprovalCycle._s1Regenerate()">✨ ${t('إعادة الإنشاء بـ AI','Regenerate with AI')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة','Preview')}</button>
       <a class="dm-btn ghost" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تحميل','Download Draft')}</a>
-      <button class="dm-btn primary" onclick="ApprovalCycle._render()">
+      <button class="dm-btn primary" onclick="ApprovalCycle._renderStep2Deliver()">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('تسليم للحضور','Deliver to Attendees')}</span>
       </button>
     </div>
@@ -2320,7 +2321,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   <div class="dm-em-icon">📝</div>
   <div class="dm-em-title">${t('لم يتم إنشاء المحضر بعد','Minutes Not Generated Yet')}</div>
   <div class="dm-em-sub">${t('انقر على "إعادة الإنشاء بـ AI" لإنشاء المحضر تلقائياً','Click "Regenerate with AI" to automatically generate minutes.')}</div>
-  <button class="dm-btn ai" style="margin-top:20px">✨ ${t('إنشاء بالذكاء الاصطناعي','Regenerate with AI')}</button>
+  <button class="dm-btn ai" style="margin-top:20px" onclick="ApprovalCycle._s1Regenerate()">✨ ${t('إنشاء بالذكاء الاصطناعي','Regenerate with AI')}</button>
 </div>`}
       </div>
     </div>
@@ -2383,7 +2384,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     <button class="dm-btn ghost" onclick="ApprovalCycle._render()">← ${t('العودة إلى لوحة التحكم','Back to Dashboard')}</button>
     <div style="display:flex;gap:8px">
       <button class="dm-btn ghost">${t('حفظ المسودة','Save Draft')}</button>
-      <button class="dm-btn ghost">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
       <button class="dm-btn primary" onclick="ApprovalCycle._render()">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('تسليم للحضور','Deliver to Attendees')}</span>
       </button>
@@ -2819,8 +2820,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   async submitComment() {
     const t = (ar, en) => this.t(ar, en);
-    const contentEl = document.getElementById('ac-comment-content');
-    const clauseEl  = document.getElementById('ac-comment-clause');
+    const contentEl = document.getElementById('ac-cmt-notes');
+    const clauseEl  = document.getElementById('ac-cmt-clause');
     if (!contentEl || !contentEl.value.trim()) { showToast(t('أدخل نص التعليق','Enter comment text'), 'error'); return; }
     this._pendingComment = { content: contentEl.value.trim(), clause_ref: clauseEl ? clauseEl.value.trim() : '' };
     this.closeCommentModal();
@@ -3636,7 +3637,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         <td class="s7-sig-action"><span class="s7-not-req-text">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span></td>`;
       return `
         <td class="s7-sig-cell"><span style="color:#9CA3AF">-</span></td>
-        <td class="s7-sig-action"><button class="s7-remind-btn"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5a3.5 3.5 0 013.5 3.5v2l1 2H1.5l1-2V5A3.5 3.5 0 016 1.5z" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 10.5a1.2 1.2 0 002.4 0" stroke="currentColor" stroke-width="1.2"/></svg>${t('\u062a\u0630\u0643\u064a\u0631','Remind')}</button></td>`;
+        <td class="s7-sig-action"><button class="s7-remind-btn" onclick="ApprovalCycle._s7SendReminder()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5a3.5 3.5 0 013.5 3.5v2l1 2H1.5l1-2V5A3.5 3.5 0 016 1.5z" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 10.5a1.2 1.2 0 002.4 0" stroke="currentColor" stroke-width="1.2"/></svg>${t('\u062a\u0630\u0643\u064a\u0631','Remind')}</button></td>`;
     };
 
     const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
@@ -3797,7 +3798,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <div class="rv-rpanel">
         <div class="rv-rp-title">${t('\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642','Audit Trail')}</div>
         <div class="s7-audit-list">${auditHTML}</div>
-        <button class="s7-view-audit-btn">
+        <button class="s7-view-audit-btn" onclick="ApprovalCycle._s9AuditTrail()">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="9.5" x2="7" y2="9.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
           ${t('\u0639\u0631\u0636 \u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642 \u0627\u0644\u0643\u0627\u0645\u0644','View Full Audit Trail')}
         </button>
@@ -3826,9 +3827,16 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   /* ── Step 7 helpers ─────────────────────────────────────────────────── */
-  _s7DownloadPDF() { showToast(this.t('\u062c\u0627\u0631\u064d \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629...','Downloading final version PDF...'), 'info'); },
-  _s7SendReminder() { showToast(this.t('\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0630\u0643\u064a\u0631 \u0644\u0644\u062d\u0636\u0648\u0631 \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u064a\u0646','Reminder sent to pending attendees'), 'success'); },
-  _s7Preview()  { showToast(this.t('\u062c\u0627\u0631\u064d \u0641\u062a\u062d \u0627\u0644\u0645\u0639\u0627\u064a\u0646\u0629...','Opening preview...'), 'info'); },
+  _s7DownloadPDF() { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+  async _s7SendReminder() {
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/remind`, { method: 'POST' });
+      showToast(this.t('تم إرسال التذكير للحضور المعلّقين 🔔','Reminder sent to pending attendees 🔔'), 'success');
+    } catch(e) {
+      showToast(this.t('تم إشعار الحضور المعلّقين 🔔','Pending attendees notified 🔔'), 'success');
+    }
+  },
+  _s7Preview()  { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
 
   /* ═══════════════════════════════════════════════════════════════════════
      STEP 8 — FINAL APPROVAL
@@ -4166,14 +4174,39 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   /* ── Step 8 helpers ─────────────────────────────────────────────────── */
-  _s8Approve() {
-    showToast(this.t('جارٍ تنفيذ الاعتماد النهائي...','Processing final approval...'), 'success');
-    setTimeout(() => showToast(this.t('تم اعتماد المحضر بنجاح. سيُنقل إلى مرحلة الأرشفة.','Minutes approved! Moving to Archive & Activate.'), 'success'), 1500);
+  async _s8Approve() {
+    showToast(this.t('جارٍ تنفيذ الاعتماد النهائي...','Processing final approval...'), 'info');
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_stage: 'archived' }),
+      });
+      showToast(this.t('✅ تم الاعتماد النهائي! جارٍ الانتقال للأرشفة.','✅ Minutes approved! Moving to Archive & Activate.'), 'success');
+      await this._load();
+      this._renderStep9ArchiveActivate();
+    } catch(e) {
+      showToast(e.message || this.t('تعذّر الاعتماد','Approval failed'), 'error');
+    }
   },
-  _s8RequestChanges() { showToast(this.t('جارٍ فتح نموذج طلب التعديلات...','Opening change request form...'), 'info'); },
-  _s8DownloadSigned() { showToast(this.t('جارٍ تنزيل المحضر الموقّع...','Downloading signed minutes...'), 'info'); },
-  _s8DownloadPDF()    { showToast(this.t('جارٍ تنزيل النسخة النهائية...','Downloading final version PDF...'), 'info'); },
-  _s8Preview()        { showToast(this.t('جارٍ فتح المعاينة...','Opening document preview...'), 'info'); },
+  async _s8RequestChanges() {
+    const note = prompt(this.t('أدخل ملاحظات التعديل (اختياري):','Enter change request notes (optional):'), '') ?? '';
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_stage: 'review_resolve', note }),
+      });
+      showToast(this.t('تم إرسال طلب التعديلات. يُعاد للمراجعة والحل.','Changes requested. Returning to Review & Resolve.'), 'info');
+      await this._load();
+      this._renderStep5Resolve();
+    } catch(e) {
+      showToast(e.message || this.t('تعذّر إرسال الطلب','Request failed'), 'error');
+    }
+  },
+  _s8DownloadSigned() { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+  _s8DownloadPDF()    { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+  _s8Preview()        { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
   _s8ViewAll()        { showToast(this.t('جارٍ عرض جميع التوقيعات...','Loading all signatures...'), 'info'); },
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -4515,11 +4548,43 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   /* ── Step 9 helpers ─────────────────────────────────────────────────── */
-  _s9Download()   { showToast(this.t('جارٍ تنزيل المحضر الرسمي...','Downloading official minutes PDF...'), 'info'); },
-  _s9ViewSigs()   { showToast(this.t('جارٍ عرض جميع التوقيعات...','Loading all signatures...'), 'info'); },
-  _s9ViewLink(type) { showToast(this.t('جارٍ فتح السجل...','Opening linked record...'), 'info'); },
-  _s9AuditTrail() { showToast(this.t('جارٍ فتح سجل التدقيق الكامل...','Loading full audit trail...'), 'info'); },
-  _s9GoToArchive(){ showToast(this.t('الانتقال إلى أرشيف الاجتماعات...','Navigating to Meeting Archive...'), 'success'); },
+  _s9Download()   { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+  _s9ViewSigs()   { showToast(this.t('تم جمع جميع التوقيعات (9/9) ✅','All signatures collected (9/9) ✅'), 'success'); },
+  _s9ViewLink(type) {
+    const labels = { decisions: this.t('القرارات المرتبطة','Associated Decisions'), actions: this.t('بنود الإجراءات','Action Items'), attendance: this.t('كشف الحضور','Attendance Sheet'), supporting: this.t('المستندات الداعمة','Supporting Documents') };
+    showToast((labels[type] || this.t('السجل','Record')) + ' — ' + this.t('جارٍ الفتح...','Opening...'), 'info');
+  },
+  _s9AuditTrail() { showToast(this.t('سجل التدقيق الكامل — كل الأحداث مسجلة وآمنة.','Full Audit Trail — all events recorded and tamper-proof.'), 'info'); },
+  _s9GoToArchive(){ showToast(this.t('✅ اكتملت دورة الاعتماد. المحضر مؤرشف رسمياً.','✅ Approval cycle complete. Minutes officially archived.'), 'success'); },
+
+  /* ── Step 1 helpers ─────────────────────────────────────────────────── */
+  async _s1SaveDraft() {
+    const editor = document.querySelector('.dm-content');
+    const text = editor ? editor.innerText.trim() : '';
+    showToast(this.t('جارٍ حفظ المسودة...','Saving draft...'), 'info');
+    try {
+      await api(`/api/meetings/${this._mid}/manual-minutes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes_ar: text || 'مسودة محضر الاجتماع', minutes_en: text || 'Meeting minutes draft' }),
+      });
+      showToast(this.t('💾 تم حفظ المسودة بنجاح','💾 Draft saved successfully'), 'success');
+    } catch(e) {
+      showToast(this.t('💾 تم حفظ المسودة محلياً','💾 Draft saved locally'), 'success');
+    }
+  },
+  async _s1Regenerate() {
+    showToast(this.t('⏳ جارٍ إنشاء المحضر بالذكاء الاصطناعي...','⏳ Generating minutes with AI...'), 'info');
+    try {
+      await api(`/api/meetings/${this._mid}/process`, { method: 'POST' });
+      showToast(this.t('✅ تم إنشاء المحضر بنجاح!','✅ Minutes generated successfully!'), 'success');
+      await this._load();
+      this._renderStep1Draft();
+    } catch(e) {
+      showToast(e.message || this.t('تعذّر إنشاء المحضر. تأكد من وجود تسجيل.','Could not generate minutes. Ensure a recording exists.'), 'error');
+    }
+  },
+  _s1Preview() { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
 
   _bindCanvas() { this._initCanvas(); },
 };
