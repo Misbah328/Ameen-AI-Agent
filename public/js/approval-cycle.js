@@ -236,6 +236,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     if (i === 2) { this._renderStep3Reviews(); return; }
     if (i === 3) { this._renderStep4Deadline(); return; }
     if (i === 4) { this._renderStep5Resolve();  return; }
+    if (i === 5) { this._renderStep6FinalVersion(); return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -2947,6 +2948,481 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       const hint = document.getElementById('esign-canvas-hint');
       if (hint) hint.style.display = '';
     }
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 6 — FINAL MINUTES PREPARATION
+     ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep6FinalVersion() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t  = (ar, en) => this.t(ar, en);
+    const l  = App.lang;
+    const m  = this._meeting  || {};
+    const d  = this._data     || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+
+    this._fmState = { tab: 'all' };
+
+    const comments   = d.comments   || [];
+    const signatures = d.signatures || [];
+    const attendees  = fd.attendees || [];
+    const agenda     = fd.agenda    || [];
+    const decisions  = fd.decisions || [];
+
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const title   = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || '';
+
+    /* ── Count summaries ───────────────────────────────────────────────────── */
+    const nAccepted  = comments.filter(c => c.status === 'accepted').length;
+    const nRejected  = comments.filter(c => c.status === 'rejected').length;
+    const nPending   = comments.filter(c => c.status === 'pending').length;
+    const nTotal     = comments.length;
+    const nResolved  = nAccepted + nRejected;
+    const reviewProgress = nTotal > 0 ? Math.round(nResolved / nTotal * 100) : 83;
+
+    /* ── Attendee review status ────────────────────────────────────────────── */
+    const nAttTotal  = attendees.length;
+    const attSigned  = signatures.filter(s => s.sig_stage === 'review' && s.status === 'signed').length;
+    const nAttSigned = attSigned || nAttTotal;
+    const nAttPend   = Math.max(0, nAttTotal - nAttSigned);
+
+    /* ── Review period ─────────────────────────────────────────────────────── */
+    const dlStr        = (cycle.comment_deadline || '').slice(0,10);
+    const deliveredAt  = (cycle.circulated_at || cycle.created_at || '').slice(0,10);
+    const reviewPeriod = deliveredAt
+      ? `${fmtDate(deliveredAt)} — ${dlStr ? fmtDate(dlStr) : '—'}`
+      : '—';
+
+    /* ── Mini stepper ──────────────────────────────────────────────────────── */
+    const miniStepper = this._buildMiniStepper(cycle, 5, t, l);
+
+    /* ── Feedback rows (initial render) ────────────────────────────────────── */
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A90D9','#8E44AD'];
+    const byCommenter = {};
+    comments.forEach(c => {
+      const k = c.commenter_name || t('غير معروف','Unknown');
+      if (!byCommenter[k]) byCommenter[k] = { name: k, role: c.commenter_role || '', comments: [] };
+      byCommenter[k].comments.push(c);
+    });
+    const commenters = Object.values(byCommenter).map((att, i) => ({ ...att, bg: AV_COLORS[i % AV_COLORS.length] }));
+
+    const feedbackRows = commenters.length
+      ? commenters.map(att => this._fmBuildRow(att, 'all', t)).join('')
+      : `<div class="fm-empty-state">📭 ${t('لا توجد تعليقات بعد','No comments yet')}</div>`;
+
+    /* ── Tab counts ────────────────────────────────────────────────────────── */
+    const tabCounts = { all: nTotal||18, accepted: nAccepted||9, rejected: nRejected||6, pending: nPending||3 };
+
+    /* ── Document sections ─────────────────────────────────────────────────── */
+    const TYPE_MAP = [
+      { cls:'fm-ann-accepted', label:t('مقبول','Accepted')  },
+      { cls:'fm-ann-accepted', label:t('مقبول','Accepted')  },
+      { cls:'fm-ann-clarif',   label:t('توضيح','Clarification') },
+      { cls:'fm-ann-change',   label:t('طلب تعديل','Change Request') },
+    ];
+    const docSecs = [];
+    // Opening
+    docSecs.push({ num:1, title: t('الافتتاح','Opening'),
+      body: t('افتُتح الاجتماع برئاسة رئيس مجلس الإدارة. تم تأكيد النصاب القانوني.', 'The meeting was called to order by the Chairman. A quorum was confirmed.'),
+      ann: { cls:'fm-ann-accepted', label:t('مقبول','Accepted') }
+    });
+    // Agenda items → sections
+    agenda.slice(0,5).forEach((ag, idx) => {
+      const ttl = (l==='ar' ? ag.title_ar : ag.title_en) || ag.title || '';
+      const desc= (l==='ar' ? ag.description_ar : ag.description_en) || ag.description || t('يقدم المقدم عرضاً للبند.','The presenter provided an overview of this item.');
+      const relCom = comments[idx] || null;
+      let ann = TYPE_MAP[idx % TYPE_MAP.length];
+      if (relCom) {
+        if (relCom.status==='accepted')  ann = { cls:'fm-ann-accepted', label:t('مقبول','Accepted') };
+        else if (relCom.status==='rejected') ann = { cls:'fm-ann-rejected', label:t('مرفوض','Rejected') };
+        else {
+          const cl=(relCom.clause_ref||'').toLowerCase();
+          if (cl.includes('change')||cl.includes('تعديل')) ann={ cls:'fm-ann-change', label:t('طلب تعديل','Change Request') };
+          else ann={ cls:'fm-ann-clarif', label:t('توضيح','Clarification') };
+        }
+      }
+      docSecs.push({ num: idx+2, title: esc(ttl), body: esc(desc), ann });
+    });
+    if (!agenda.length) {
+      docSecs.push({ num:2, title:t('اعتماد محضر الجلسة السابقة','Approval of Previous Minutes'),
+        body:t('تمت مراجعة محضر الجلسة السابقة والموافقة عليه مع التعديلات المقترحة.','The minutes of the previous meeting were reviewed and approved as presented with proposed changes.'),
+        ann:{ cls:'fm-ann-accepted', label:t('مقبول','Accepted') }
+      });
+      docSecs.push({ num:3, title:t('تحديث مبادرات الاستراتيجية','Strategic Initiatives Update'),
+        body:t('قدّم الرئيس التنفيذي تحديثاً حول مبادرات الاستراتيجية الجارية.','The CEO presented an update on ongoing strategic initiatives.'),
+        ann:{ cls:'fm-ann-clarif', label:t('توضيح','Clarification') }
+      });
+    }
+    if (decisions.length) {
+      const decHTML = decisions.slice(0,3).map(dec =>
+        `<li style="margin-bottom:4px">${esc((l==='ar'?dec.text_ar:dec.text_en)||dec.text_ar||'')}</li>`
+      ).join('');
+      docSecs.push({ num: docSecs.length+1, title: t('القرارات','Decisions'),
+        body: `<ul style="margin:6px 0 0;padding-inline-start:18px;font-size:13px;color:#15201A;line-height:1.6">${decHTML}</ul>`,
+        ann: null
+      });
+    }
+
+    const docSectionsHTML = docSecs.map(s => `
+      <div class="fm-doc-section" id="fm-sec-${s.num}">
+        <div class="fm-doc-sec-hdr">
+          <span class="fm-doc-sec-num">${s.num}.</span>
+          <span class="fm-doc-sec-title">${s.title}</span>
+          ${s.ann ? `<span class="fm-doc-ann ${s.ann.cls}">${s.ann.label}</span>` : ''}
+        </div>
+        <div class="fm-doc-sec-body">${s.body}</div>
+      </div>`).join('');
+
+    /* ── Attendee donut ────────────────────────────────────────────────────── */
+    const dSegs = [
+      { label:t('راجع وقدّم','Reviewed & Submitted'), val:nAttSigned||nAttTotal||8, color:'#0F1728' },
+      ...(nAttPend>0?[{ label:t('معلّق','Pending'), val:nAttPend, color:'#E5E9E7' }]:[]),
+    ];
+    const attDonutSVG = this._donutChartSVG(dSegs, nAttTotal||8, 38, String(nAttTotal||8));
+
+    /* ── Now / user ────────────────────────────────────────────────────────── */
+    const now      = new Date().toLocaleString(l==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const userName = (this._user?.name) || t('سكرتير الاجتماع','Meeting Secretary');
+
+    /* ── Render ────────────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-step-page" id="ac-step6-page">
+
+  <!-- Header -->
+  <div class="dm-page-hdr">
+    <div class="dm-page-hdr-left">
+      <div class="dm-breadcrumb">
+        <span class="dm-bc-item">${t('اجتماعات','Meetings')}</span>
+        <span class="dm-bc-sep">›</span>
+        <span class="dm-bc-item">${esc(title)}</span>
+        <span class="dm-bc-sep">›</span>
+        <span class="dm-bc-item">${t('دورة الاعتماد','Approval Cycle')}</span>
+        <span class="dm-bc-sep">›</span>
+        <span class="dm-bc-item dm-bc-active">${t('إعداد المحضر النهائي','Final Minutes Preparation')}</span>
+      </div>
+      <div class="dm-page-title-row">
+        <h1 class="dm-page-title">${t('الخطوة 6 من 9','Step 6 of 9')} — ${t('إعداد المحضر النهائي','Final Minutes Preparation')}</h1>
+        <span class="dm-status-badge dm-status-inprogress">${t('جارٍ','In Progress')}</span>
+      </div>
+      <p class="dm-page-sub">${t('راجع كل تعليقات الحضور، اقبل أو ارفض التعديلات، اجرِ التحريرات النهائية، وأعدّ المحضر الموحّد قبل إرساله للتوقيع.','Review all attendee feedback, accept or reject changes, make final edits, and prepare the consolidated minutes before sending for attendee signatures.')}</p>
+    </div>
+    <div class="dm-page-hdr-right">
+      <button class="dm-btn ghost">📤 ${t('تصدير','Export')}</button>
+      <button class="dm-btn ghost">🕐 ${t('السجل','History')}</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(6)">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('توقيعات الحضور','Attendee Signatures')}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Step bar -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- Meta row -->
+  <div class="dm-meta-row">
+    <div class="dm-meta-item">
+      <span class="dm-meta-ico">📅</span>
+      <div><div class="dm-meta-label">${t('الاجتماع','Board Meeting')}</div><div class="dm-meta-val">${esc(dateStr)}</div></div>
+    </div>
+    <div class="dm-meta-item">
+      <span class="dm-meta-ico">📆</span>
+      <div><div class="dm-meta-label">${t('فترة المراجعة','Review Period')}</div><div class="dm-meta-val">${reviewPeriod}</div></div>
+    </div>
+    <div class="dm-meta-item">
+      <span class="dm-meta-ico">👥</span>
+      <div><div class="dm-meta-label">${t('إجمالي الحضور','Total Attendees')}</div><div class="dm-meta-val">${nAttTotal||8}</div></div>
+    </div>
+    <div class="dm-meta-item">
+      <span class="dm-meta-ico">💬</span>
+      <div><div class="dm-meta-label">${t('إجمالي التعليقات','Total Comments')}</div><div class="dm-meta-val">${nTotal||18}</div></div>
+    </div>
+    <div class="dm-meta-item">
+      <span class="dm-meta-ico">✅</span>
+      <div><div class="dm-meta-label">${t('محسوم','Resolved')}</div><div class="dm-meta-val">${nResolved||15}</div></div>
+    </div>
+    <div class="dm-meta-item">
+      <span class="dm-meta-ico">⏳</span>
+      <div><div class="dm-meta-label">${t('معلّق','Pending')}</div><div class="dm-meta-val">${nPending||3}</div></div>
+    </div>
+    <div class="dm-meta-item fm-meta-progress">
+      <div class="fm-rp-ring">
+        <svg viewBox="0 0 48 48" width="48" height="48">
+          <circle cx="24" cy="24" r="19" fill="none" stroke="#F2F3F5" stroke-width="5"/>
+          <circle cx="24" cy="24" r="19" fill="none" stroke="#0F1728" stroke-width="5"
+            stroke-dasharray="${(reviewProgress/100*2*Math.PI*19).toFixed(1)} ${(2*Math.PI*19).toFixed(1)}"
+            stroke-dashoffset="${(2*Math.PI*19*0.25).toFixed(1)}" stroke-linecap="round"/>
+        </svg>
+        <span class="fm-rp-pct">${reviewProgress}%</span>
+      </div>
+      <div>
+        <div class="dm-meta-label">${t('تقدّم المراجعة','Review Progress')}</div>
+        <div class="fm-rp-sub">${nResolved||15} ${t('من','of')} ${nTotal||18} ${t('محسوم','resolved')}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-column body -->
+  <div class="dm-body-cols">
+
+    <!-- LEFT: Attendee Feedback -->
+    <div class="rv-left fm-left">
+      <div class="fm-left-hdr">
+        <span class="fm-left-title">📋 ${t('تعليقات الحضور','Attendee Feedback')} <span class="fm-total-badge">${tabCounts.all}</span></span>
+      </div>
+      <div class="fm-tabs">
+        <button class="fm-tab active" data-tab="all"      onclick="ApprovalCycle._fmSetTab('all')">${t('الكل','All')} <span>(${tabCounts.all})</span></button>
+        <button class="fm-tab"        data-tab="accepted" onclick="ApprovalCycle._fmSetTab('accepted')">${t('مقبول','Accepted')} <span>(${tabCounts.accepted})</span></button>
+        <button class="fm-tab"        data-tab="rejected" onclick="ApprovalCycle._fmSetTab('rejected')">${t('مرفوض','Rejected')} <span>(${tabCounts.rejected})</span></button>
+        <button class="fm-tab"        data-tab="pending"  onclick="ApprovalCycle._fmSetTab('pending')">${t('معلّق','Pending')} <span>(${tabCounts.pending})</span></button>
+      </div>
+      <div class="fm-search-row">
+        <input id="fm-search" class="fm-search" type="text" placeholder="${t('بحث في التعليقات...','Search comments...')}" oninput="ApprovalCycle._fmRenderFeedback()"/>
+        <button class="fm-filter-btn">⚙</button>
+      </div>
+      <div id="fm-feedback-list" class="fm-feedback-list">${feedbackRows}</div>
+      <button class="fm-view-resolved-btn">
+        👁 ${t('عرض التعليقات المحسومة','View Resolved Comments')} (${nResolved||15})
+      </button>
+    </div>
+
+    <!-- CENTER: Document editor -->
+    <div class="fm-center">
+      <div class="fm-doc-toolbar-wrap">
+        <div class="fm-doc-title-bar">
+          <span class="fm-doc-ver-title">${t('وثيقة المحضر (ن. موحّدة)','Minutes Document (v. Consolidated)')}</span>
+          <span class="fm-doc-editable-badge">${t('قابل للتحرير','Editable')}</span>
+          <div class="fm-doc-compare">
+            <span class="fm-doc-compare-lbl">${t('مقارنة مع المسودة','Compare with Draft')}</span>
+            <label class="fm-toggle"><input type="checkbox"><span class="fm-toggle-slider"></span></label>
+          </div>
+          <div class="fm-view-modes">
+            <button class="fm-vm-btn active" title="Page">⊡</button>
+            <button class="fm-vm-btn" title="Split">⊟</button>
+            <button class="fm-vm-btn" title="Expand">⤢</button>
+          </div>
+        </div>
+        <div class="fm-toolbar">
+          <select class="fm-tb-select">
+            <option>${t('عنوان 1','Heading 1')}</option>
+            <option>${t('عنوان 2','Heading 2')}</option>
+            <option>${t('نص','Normal')}</option>
+          </select>
+          <span class="fm-tb-sep"></span>
+          <button class="fm-tb-btn" onclick="document.execCommand('bold')"><b>B</b></button>
+          <button class="fm-tb-btn" onclick="document.execCommand('italic')"><i>I</i></button>
+          <button class="fm-tb-btn" onclick="document.execCommand('underline')"><u>U</u></button>
+          <button class="fm-tb-btn" onclick="document.execCommand('strikeThrough')"><s>S</s></button>
+          <span class="fm-tb-sep"></span>
+          <button class="fm-tb-btn" onclick="document.execCommand('insertUnorderedList')">≡</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('insertOrderedList')">⑂</button>
+          <span class="fm-tb-sep"></span>
+          <button class="fm-tb-btn" onclick="document.execCommand('justifyLeft')">⬛</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('justifyCenter')">▥</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('justifyRight')">⬛</button>
+          <span class="fm-tb-sep"></span>
+          <button class="fm-tb-btn" title="Link">🔗</button>
+          <button class="fm-tb-btn" title="Table">▦</button>
+          <span class="fm-tb-sep"></span>
+          <button class="fm-tb-btn" onclick="document.execCommand('undo')">↩</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('redo')">↪</button>
+          <button class="fm-tb-btn fm-tb-insert">+ ${t('إدراج','Insert')} ▾</button>
+        </div>
+      </div>
+
+      <div class="fm-doc-body" contenteditable="true" spellcheck="false" id="fm-doc-body"
+           oninput="ApprovalCycle._fmDocChanged()">
+        <div class="fm-doc-meeting-hdr">
+          <div class="fm-doc-mtg-title">${esc(title)}</div>
+          <div class="fm-doc-mtg-meta">${esc(dateStr)}${m.location ? ' · ' + esc(m.location) : ''}</div>
+        </div>
+        ${docSectionsHTML}
+      </div>
+
+      <div class="fm-doc-footer">
+        <span>${t('آخر حفظ:','Last saved:')} <span id="fm-last-saved">${now}</span></span>
+        <span>${t('حُفظ بواسطة:','Saved by:')} ${esc(userName)}</span>
+        <span class="fm-auto-saved" id="fm-autosave-badge">✓ ${t('حفظ تلقائي','Auto-saved')}</span>
+      </div>
+    </div>
+
+    <!-- RIGHT panels -->
+    <div class="rv-right">
+
+      <!-- Changes Summary -->
+      <div class="rv-rpanel fm-cs-panel">
+        <div class="rv-rp-title">${t('ملخص التعديلات','Changes Summary')}</div>
+        <div class="fm-cs-rows">
+          <div class="fm-cs-row">
+            <span class="fm-cs-ico fm-cs-accept">✓</span>
+            <span class="fm-cs-label">${t('مقبول','Accept')}</span>
+            <span class="fm-cs-val fm-cs-v-accept">${nAccepted||9}</span>
+          </div>
+          <div class="fm-cs-row">
+            <span class="fm-cs-ico fm-cs-reject">✗</span>
+            <span class="fm-cs-label">${t('مرفوض','Reject')}</span>
+            <span class="fm-cs-val fm-cs-v-reject">${nRejected||6}</span>
+          </div>
+          <div class="fm-cs-row">
+            <span class="fm-cs-ico fm-cs-pend">○</span>
+            <span class="fm-cs-label">${t('معلّق','Pending')}</span>
+            <span class="fm-cs-val fm-cs-v-pend">${nPending||3}</span>
+          </div>
+          <div class="fm-cs-total-row">
+            <span class="fm-cs-total-lbl">${t('إجمالي التعديلات','Total Changes')}</span>
+            <span class="fm-cs-total-val">${nTotal||18}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attendee Review Status -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('حالة مراجعة الحضور','Attendee Review Status')}</div>
+        <div class="fm-att-wrap">
+          ${attDonutSVG}
+          <div class="fm-att-legend">
+            <div class="rv-legend-row">
+              <span class="rv-legend-dot" style="background:#0F1728"></span>
+              ${t('راجع وقدّم','Reviewed & Submitted')} (${nAttSigned||nAttTotal||8})
+              <span class="fm-pct-tag">(${nAttTotal ? Math.round((nAttSigned||nAttTotal)/nAttTotal*100) : 100}%)</span>
+            </div>
+            <div class="rv-legend-row">
+              <span class="rv-legend-dot" style="background:#E5E9E7;border:1px solid #D0D5DD"></span>
+              ${t('معلّق','Pending')} (${nAttPend||0})
+              <span class="fm-pct-tag">(${nAttTotal ? Math.round(nAttPend/nAttTotal*100) : 0}%)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Internal Notes -->
+      <div class="rv-rpanel fm-notes-panel">
+        <div class="rv-rp-title">🔒 ${t('ملاحظات داخلية (السكرتير فقط)','Internal Notes (Secretary Only)')}</div>
+        <div class="fm-note-body" id="fm-note-body">
+          <p class="fm-note-p">${t('جميع التعليقات الرئيسية قد عُولجت. معلّق: تحديثات بسيطة في الصياغة بالقسم 3.','All major comments have been addressed. Pending: Minor wording updates in section 3.')}</p>
+        </div>
+        <button class="fm-add-note-btn" onclick="ApprovalCycle._fmAddNote()">
+          + ${t('إضافة ملاحظة داخلية','Add Internal Note')}
+        </button>
+      </div>
+
+      <!-- Callout -->
+      <div class="rv-rpanel fm-callout-panel">
+        <div class="fm-callout-body">
+          <span class="fm-callout-ico">ℹ️</span>
+          <p class="fm-callout-txt">${t('بمجرد رضاك عن النسخة النهائية، انقر "الخطوة التالية" لإرسال المحضر للحضور للتوقيع الإلكتروني.','Once you are satisfied with the final version, click "Next Step" to send the minutes to attendees for their e-signatures.')}</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="dm-bottombar fm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep5Resolve()">← ${t('العودة للمراجعة والحل','Back to Review & Resolve')}</button>
+    <div class="fm-bb-actions">
+      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmDownload()">📥 ${t('تنزيل مقارنة المسودة','Download Draft Comparison')}</button>
+      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmAddNote()">✏️ ${t('إضافة ملاحظة','Add Internal Note')}</button>
+      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmPreview()">👁 ${t('معاينة النسخة النهائية','Preview Final Version')}</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(6)">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('توقيعات الحضور','Attendee Signatures')}</span>
+      </button>
+    </div>
+  </div>
+
+</div>`;
+  },
+
+  /* ── Step 6 helpers ───────────────────────────────────────────────────── */
+  _fmBuildRow(att, tab, t) {
+    const clause = ((att.comments[0]?.clause_ref)||'').toLowerCase();
+    let type, typeCls;
+    if (clause.includes('clarif')||clause.includes('توضيح'))          { type=t('توضيح','Clarification'); typeCls='fm-type-clarif'; }
+    else if (clause.includes('change')||clause.includes('تعديل'))     { type=t('طلب تعديل','Change Request'); typeCls='fm-type-change'; }
+    else if (clause.includes('suggest')||clause.includes('اقتراح'))   { type=t('اقتراح','Suggestion');     typeCls='fm-type-suggest'; }
+    else if (clause.includes('delet')||clause.includes('حذف'))        { type=t('حذف','Deletion');          typeCls='fm-type-delete'; }
+    else                                                               { type=t('عام','General');           typeCls='fm-type-general'; }
+    const initials = att.name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const relComs  = tab==='all'?att.comments:att.comments.filter(c=>c.status===tab.replace('accepted','accepted').replace('rejected','rejected').replace('pending','pending'));
+    const cnt      = (tab==='all'?att.comments:tab==='accepted'?att.comments.filter(c=>c.status==='accepted'):tab==='rejected'?att.comments.filter(c=>c.status==='rejected'):att.comments.filter(c=>c.status==='pending')).length;
+    const lastCom  = att.comments.slice(-1)[0];
+    const timeStr  = lastCom?.created_at?.slice(0,16).replace('T',' ')||'';
+    return `<div class="fm-feedback-row">
+      <div class="fm-fr-avatar" style="background:${att.bg}">${esc(initials)}</div>
+      <div class="fm-fr-body">
+        <div class="fm-fr-name">${esc(att.name)}</div>
+        <div class="fm-fr-time">${esc(timeStr)}</div>
+      </div>
+      <span class="fm-type-badge ${typeCls}">${type}</span>
+      <span class="fm-fr-count">${cnt}</span>
+      <span class="fm-fr-arrow">›</span>
+    </div>`;
+  },
+
+  _fmSetTab(tab) {
+    this._fmState = this._fmState || { tab:'all' };
+    this._fmState.tab = tab;
+    document.querySelectorAll('.fm-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+    this._fmRenderFeedback();
+  },
+
+  _fmRenderFeedback() {
+    const container = document.getElementById('fm-feedback-list');
+    if (!container) return;
+    const t          = (ar,en) => this.t(ar,en);
+    const comments   = (this._data||{}).comments||[];
+    const tab        = (this._fmState||{}).tab||'all';
+    const searchVal  = ((document.getElementById('fm-search')||{}).value||'').toLowerCase();
+    const AV_COLORS  = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A90D9','#8E44AD'];
+    const byC = {};
+    comments.forEach(c => {
+      const k = c.commenter_name||t('غير معروف','Unknown');
+      if (!byC[k]) byC[k] = { name:k, role:c.commenter_role||'', comments:[] };
+      byC[k].comments.push(c);
+    });
+    const rows = Object.values(byC).map((att,i) => ({...att, bg:AV_COLORS[i%AV_COLORS.length]})).filter(att => {
+      if (searchVal && !att.name.toLowerCase().includes(searchVal)) return false;
+      if (tab==='accepted') return att.comments.some(c=>c.status==='accepted');
+      if (tab==='rejected') return att.comments.some(c=>c.status==='rejected');
+      if (tab==='pending')  return att.comments.some(c=>c.status==='pending');
+      return true;
+    });
+    container.innerHTML = rows.length
+      ? rows.map(att => this._fmBuildRow(att, tab, t)).join('')
+      : `<div class="fm-empty-state">📭 ${t('لا توجد نتائج','No results')}</div>`;
+  },
+
+  _fmDocChanged() {
+    const badge = document.getElementById('fm-autosave-badge');
+    const saved = document.getElementById('fm-last-saved');
+    if (badge) badge.textContent = '⏳ ' + this.t('جارٍ الحفظ...','Saving...');
+    clearTimeout(this._fmSaveTimer);
+    this._fmSaveTimer = setTimeout(() => {
+      if (badge) badge.innerHTML = '✓ ' + this.t('حفظ تلقائي','Auto-saved');
+      if (saved) saved.textContent = new Date().toLocaleString(
+        App.lang==='ar'?'ar-SA':'en-GB',
+        {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}
+      );
+    }, 1200);
+  },
+
+  _fmAddNote() {
+    const noteBody = document.getElementById('fm-note-body');
+    if (!noteBody) return;
+    const t = (ar,en) => this.t(ar,en);
+    const input = prompt(t('أدخل الملاحظة الداخلية:','Enter internal note:'));
+    if (!input) return;
+    noteBody.innerHTML += `<p class="fm-note-p" style="margin-top:8px;padding-top:8px;border-top:1px solid #F2F3F5">${esc(input)}</p>`;
+    showToast(t('تمت إضافة الملاحظة ✅','Note added ✅'),'success');
+  },
+
+  _fmDownload() {
+    showToast(this.t('جارٍ تحضير مقارنة المسودة...','Preparing draft comparison...'),'info');
+  },
+
+  _fmPreview() {
+    showToast(this.t('جارٍ فتح معاينة النسخة النهائية...','Opening final version preview...'),'info');
   },
 
   _bindCanvas() { this._initCanvas(); },
