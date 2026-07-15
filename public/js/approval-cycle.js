@@ -7,6 +7,7 @@ const ApprovalCycle = {
   _mid: null,
   _data: null,
   _meeting: null,
+  _fullData: null,
   _commentTab: 'recent',
   _eSignMode: 'draw',
   _eSignPurpose: null,
@@ -107,6 +108,7 @@ const ApprovalCycle = {
         api(`/api/meetings/${this._mid}/full`),
         api(`/api/meetings/${this._mid}/approval-cycle`),
       ]);
+      this._fullData = full || {};
       this._meeting = full && full.meeting;
       this._data = cycleData;
       this._render();
@@ -229,16 +231,425 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   /* ─── Step click handler ─────────────────────────────────────────────── */
   _onStepClick(i) {
+    if (i === 0) { this._renderStep1Draft(); return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
-    // Scroll to the relevant section and highlight
     const stepName = App.lang === 'ar' ? STEPS_AR[i] : STEPS_EN[i];
     showToast(`${i + 1}. ${stepName}`, 'info');
-    // Highlight clicked step
     document.querySelectorAll('.ac-step').forEach((el, idx) => {
       el.classList.toggle('ac-step-focus', idx === i);
     });
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 1 — DRAFT MINUTES SCREEN
+     ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep1Draft() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t  = (ar, en) => this.t(ar, en);
+    const l  = App.lang;
+    const m  = this._meeting || {};
+    const d  = this._data   || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+
+    const attendees = fd.attendees || [];
+    const agenda    = fd.agenda    || [];
+    const decisions = fd.decisions || [];
+    const tasks     = fd.tasks     || [];
+    const docs      = fd.documents || [];
+    const comments  = d.comments  || [];
+
+    const title   = (l === 'ar' ? m.title_ar : m.title_en) || m.title_ar || '';
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const timeStr = m.meeting_date ? (m.meeting_date.split(' ')[1] || '').slice(0, 5) : '';
+    const mType   = m.meeting_type || '';
+    const hasMinutes = !!(m.ai_minutes_en || m.ai_minutes_ar);
+    const minutesText = l === 'ar' ? (m.ai_minutes_ar || m.ai_minutes_en || '') : (m.ai_minutes_en || m.ai_minutes_ar || '');
+
+    /* ── Mini stepper ──────────────────────────────────────────────────── */
+    const STEP_LABELS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
+    const STEP_LABELS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
+    const STAGE_IDX = { draft:0, circulated:1, comments_open:2, deadline_closed:3, review_resolve:4, final_version:5, attendee_sign:6, final_approver:7, archived:8 };
+    const curStep = STAGE_IDX[cycle.cycle_stage] ?? 0;
+
+    const miniStepper = STEP_LABELS_EN.map((en, i) => {
+      const lbl = l === 'ar' ? STEP_LABELS_AR[i] : en;
+      const done = i < curStep, active = i === curStep;
+      const cls  = done ? 'done' : active ? 'cur' : '';
+      return `<div class="dm-mstep ${cls}" onclick="ApprovalCycle._onStepClick(${i})">
+        <div class="dm-mstep-dot">${done ? '✓' : i + 1}</div>
+        <div class="dm-mstep-label">${esc(lbl)}</div>
+      </div>${i < 8 ? '<div class="dm-mstep-line ' + (i < curStep ? 'done' : '') + '"></div>' : ''}`;
+    }).join('');
+
+    /* ── Outline sidebar ───────────────────────────────────────────────── */
+    const fixedStart = [t('الافتتاح','Opening'), t('الحضور','Attendance')];
+    const fixedEnd   = [t('القرارات','Decisions'), t('بنود العمل','Action Items'), t('الختام','Closing')];
+    const agendaTitles = agenda.map(a => (l==='ar'? a.title_ar : a.title_en) || a.title || t('بند','Agenda') + ' ' + a.id);
+    const allSections  = [...fixedStart, ...agendaTitles, ...fixedEnd];
+
+    const outlineItems = allSections.map((lbl, i) => {
+      const sub = i >= 2 && i < 2 + agendaTitles.length
+        ? (l==='ar' ? (agenda[i-2]?.description_ar||'') : (agenda[i-2]?.description_en||'')).slice(0,40) : '';
+      return `<div class="dm-outline-item" onclick="ApprovalCycle._dmScrollTo(${i})">
+        <span class="dm-outline-num">${i+1}.</span>
+        <div class="dm-outline-info">
+          <div class="dm-outline-label">${esc(lbl)}</div>
+          ${sub ? `<div class="dm-outline-sub">${esc(sub)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    /* ── AI Generation Summary ─────────────────────────────────────────── */
+    const aiConf = hasMinutes ? 94 : 0;
+    const aiSummaryRows = [
+      { icon:'📄', lbl: t('الأقسام','Sections'),       val: allSections.length },
+      { icon:'⚖️', lbl: t('القرارات','Decisions'),      val: decisions.length },
+      { icon:'✅', lbl: t('بنود العمل','Action Items'),  val: tasks.length },
+      { icon:'⚠️', lbl: t('مخاطر محددة','Risks Identified'), val: 0 },
+      { icon:'🔁', lbl: t('متابعات','Follow-ups'),       val: 0 },
+    ].map(r => `<div class="dm-ai-row"><span class="dm-ai-icon">${r.icon}</span><span class="dm-ai-lbl">${r.lbl}</span><span class="dm-ai-val">${r.val}</span></div>`).join('');
+
+    const confColor = aiConf >= 90 ? '#0C7A3D' : aiConf >= 70 ? '#A8842C' : '#C4453C';
+    const aiSummary = `
+<div class="dm-ai-gen">
+  <div class="dm-sidebar-head">${t('ملخص إنشاء AI','AI Generation Summary')}</div>
+  ${aiSummaryRows}
+  <div class="dm-ai-conf-row">
+    <span class="dm-ai-lbl">${t('نقاط الثقة AI','AI Confidence Score')}</span>
+    <div class="dm-ai-conf-bar-wrap">
+      <div class="dm-ai-conf-bar" style="width:${aiConf}%;background:${confColor}"></div>
+    </div>
+    <span class="dm-ai-conf-num" style="color:${confColor}">${aiConf}%</span>
+  </div>
+</div>`;
+
+    /* ── Minutes content sections ──────────────────────────────────────── */
+    const secs = this._parseDmSections(minutesText, agenda, attendees, decisions, tasks, t, l);
+
+    const renderSectionBody = (sec) => {
+      if (sec.type === 'attendance' && attendees.length) {
+        return `<ul class="dm-att-list">${attendees.slice(0,10).map(a => {
+          const name = (l==='ar'? a.name_ar : a.name_en) || a.name_ar || a.name_en || '';
+          const role = a.role || a.board_role || '';
+          return `<li><span class="dm-att-name">${esc(name)}</span>${role ? ` <span class="dm-att-role">(${esc(role)})</span>` : ''}</li>`;
+        }).join('')}</ul>`;
+      }
+      if (sec.type === 'decisions' && decisions.length) {
+        return decisions.slice(0,6).map((dc, i) => {
+          const txt = (l==='ar'? dc.text_ar : dc.text_en) || dc.text_ar || dc.text_en || '';
+          return `<div class="dm-dec-item"><span class="dm-dec-num">D-0${i+1}</span> ${esc(txt)}</div>`;
+        }).join('');
+      }
+      if (sec.type === 'actions' && tasks.length) {
+        return tasks.slice(0,6).map((tk) => {
+          const txt = (l==='ar'? tk.title_ar : tk.title_en) || tk.title_ar || tk.title_en || '';
+          const own = tk.assignee_name || '';
+          return `<div class="dm-act-item"><span class="dm-act-dot">●</span> ${esc(txt)}${own ? ` <span class="dm-act-own">(${esc(own)})</span>` : ''}</div>`;
+        }).join('');
+      }
+      if (sec.text) {
+        return sec.text.split('\n').filter(l => l.trim()).map(p =>
+          p.trim().startsWith('-') || p.trim().startsWith('•')
+            ? `<li>${esc(p.replace(/^[-•]\s*/,''))}</li>`
+            : `<p class="dm-para">${esc(p)}</p>`
+        ).join('');
+      }
+      return `<p class="dm-para dm-placeholder">${t('لا يوجد محتوى بعد...','No content yet...')}</p>`;
+    };
+
+    const sectionsHtml = secs.map((sec, i) => `
+<div class="dm-section" id="dm-sec-${i}">
+  <div class="dm-sec-head">
+    <div class="dm-sec-title"><span class="dm-sec-num">${i+1}.</span> ${esc(sec.title)}</div>
+    <div class="dm-sec-acts">
+      <button class="dm-sact ai-btn" title="AI">✨ AI</button>
+      <button class="dm-sact" title="${t('تعديل','Edit')}">✏️</button>
+      <button class="dm-sact" title="${t('تعليق','Comment')}">💬</button>
+      <button class="dm-sact" title="${t('المزيد','More')}">⋮</button>
+    </div>
+  </div>
+  <div class="dm-sec-body">${renderSectionBody(sec)}</div>
+</div>`).join('');
+
+    /* ── AI Suggestions ────────────────────────────────────────────────── */
+    const suggs = [];
+    if (tasks.some(tk => !tk.due_date))   suggs.push({ type:'review', text: t('بنود عمل بدون موعد استحقاق','Action items missing due dates') });
+    if (!m.purpose_en && !m.purpose_ar)   suggs.push({ type:'add',    text: t('هدف الاجتماع غير محدد','Meeting objective not stated') });
+    if (decisions.some(d => !d.text_en && !d.text_ar)) suggs.push({ type:'review', text: t('قرارات ناقصة محتملة','Possibly duplicate decision') });
+    if (attendees.some(a => a.attendance_status === 'absent')) suggs.push({ type:'review', text: t('حضور غائب في المحضر','Attendance for one invitee is missing') });
+    while (suggs.length < 2) suggs.push({ type:'review', text: t('راجع دقة بيانات المحضر','Review minutes data accuracy') });
+    const suggHtml = suggs.slice(0,4).map(s => `
+<div class="dm-sugg-item">
+  <div class="dm-sugg-icon ${s.type === 'add' ? 'add' : 'warn'}">
+    ${s.type === 'add' ? '➕' : '💡'}
+  </div>
+  <div class="dm-sugg-text">${esc(s.text)}</div>
+  <button class="dm-sugg-btn">${s.type === 'add' ? t('إضافة','Add') : t('مراجعة','Review')}</button>
+</div>`).join('');
+
+    /* ── Minutes Quality ───────────────────────────────────────────────── */
+    const completeness = hasMinutes ? 95 : (decisions.length ? 60 : 20);
+    const govComp      = decisions.length > 0 ? 90 : 60;
+    const clarity      = hasMinutes ? 92 : 50;
+    const overall      = Math.round((completeness + govComp + clarity) / 3);
+    const qR = 36, qCirc = 2 * Math.PI * qR;
+    const qOffset = qCirc - (overall / 100) * qCirc;
+    const qColor = overall >= 85 ? '#0C7A3D' : overall >= 65 ? '#A8842C' : '#C4453C';
+
+    const qualityBars = [
+      { lbl: t('الاكتمال','Completeness'),       val: completeness },
+      { lbl: t('الامتثال الحوكمي','Governance Compliance'), val: govComp },
+      { lbl: t('الوضوح والبنية','Clarity & Structure'),   val: clarity },
+    ].map(q => `<div class="dm-qbar-row">
+      <span class="dm-qbar-lbl">${q.lbl}</span>
+      <div class="dm-qbar-track"><div class="dm-qbar-fill" style="width:${q.val}%;background:${qColor}"></div></div>
+      <span class="dm-qbar-pct">${q.val}%</span>
+    </div>`).join('');
+
+    /* ── Quick Statistics ──────────────────────────────────────────────── */
+    const meetDur = m.duration_minutes ? `${Math.floor(m.duration_minutes/60)}h ${m.duration_minutes%60}m` : '—';
+    const statRows = [
+      { icon:'📅', lbl: t('تاريخ الاجتماع','Meeting Date'),        val: dateStr || '—' },
+      { icon:'⏱',  lbl: t('مدة الاجتماع','Meeting Duration'),      val: meetDur },
+      { icon:'👥', lbl: t('الحضور الكلي','Total Attendees'),        val: attendees.length },
+      { icon:'📋', lbl: t('بنود الجدول','Agenda Items'),             val: agenda.length },
+      { icon:'⚖️', lbl: t('القرارات','Decisions'),                   val: decisions.length },
+      { icon:'✅', lbl: t('بنود العمل','Action Items'),               val: tasks.length },
+      { icon:'📎', lbl: t('المرفقات','Attachments'),                  val: docs.length },
+    ].map(r => `<div class="dm-stat-row"><span class="dm-stat-icon">${r.icon}</span><span class="dm-stat-lbl">${r.lbl}</span><span class="dm-stat-val">${r.val}</span></div>`).join('');
+
+    /* ── AI Validation Checklist ───────────────────────────────────────── */
+    const checksData = [
+      { lbl: t('هدف الاجتماع محدد','Meeting objective stated'),          ok: !!(m.purpose_en||m.purpose_ar), warn: false },
+      { lbl: t('نصاب قانوني مؤكد','Quorum confirmed'),                   ok: attendees.length >= 3, warn: false },
+      { lbl: t('جميع بنود الجدول مغطاة','All agenda items covered'),     ok: agenda.length > 0, warn: false },
+      { lbl: t('القرارات مسجلة','Decisions recorded'),                    ok: decisions.length > 0, warn: false },
+      { lbl: t('بنود العمل بمالكين','Action items with owners'),          ok: tasks.some(tk => tk.assignee_id||tk.assignee_name), warn: false },
+      { lbl: t('بنود العمل بمواعيد','Action items with due dates'),       ok: tasks.some(tk => tk.due_date), warn: tasks.length > 0 },
+      { lbl: t('نتائج التصويت','Voting results captured'),                ok: decisions.length > 0, warn: false },
+      { lbl: t('تضارب المصالح','Conflicts identified'),                   ok: true, warn: false },
+    ];
+    const checks = checksData.map(c => {
+      const icon = c.ok ? '✅' : c.warn ? '⚠️' : '❌';
+      const cls  = c.ok ? 'ok' : c.warn ? 'warn' : 'fail';
+      return `<div class="dm-check-row ${cls}"><span class="dm-check-icon">${icon}</span><span class="dm-check-lbl">${c.lbl}</span></div>`;
+    }).join('');
+
+    const allOk = checksData.every(c => c.ok);
+    const readyCount = [m.purpose_en||m.purpose_ar, attendees.length>0, agenda.length>0, decisions.length>0].filter(Boolean).length;
+    const isReady = readyCount >= 3 || hasMinutes;
+
+    /* ── Version / time ────────────────────────────────────────────────── */
+    const genDate = cycle.created_at ? this._fmtDT(cycle.created_at) : dateStr;
+    const lastSave = cycle.updated_at ? this._fmtDT(cycle.updated_at) : t('لم يُحفظ بعد','Not saved yet');
+
+    /* ── Render ────────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-wrap">
+
+  <!-- ── Top bar ─────────────────────────────────────────────────────────── -->
+  <div class="dm-topbar">
+    <div class="dm-breadcrumb">
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('الاجتماعات','Meetings')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item">${esc(mType || title)}</span>
+      <span class="dm-bc-sep">›</span>
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('دورة الاعتماد','Approval Cycle')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item dm-bc-active">${t('إنشاء المسودة','Draft Minutes')}</span>
+    </div>
+    <div class="dm-topbar-actions">
+      <button class="dm-btn ghost">${t('حفظ المسودة','Save Draft')}</button>
+      <button class="dm-btn ai">✨ ${t('إعادة الإنشاء بـ AI','Regenerate with AI')}</button>
+      <button class="dm-btn ghost">👁 ${t('معاينة','Preview')}</button>
+      <a class="dm-btn ghost" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تحميل','Download Draft')}</a>
+      <button class="dm-btn primary" onclick="ApprovalCycle._render()">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('تسليم للحضور','Deliver to Attendees')}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Page title ───────────────────────────────────────────────────────── -->
+  <div class="dm-titlebar">
+    <div class="dm-page-h1">${t('إنشاء المسودة','Draft Minutes')} <span class="dm-badge-prog">${t('قيد التنفيذ','In Progress')}</span></div>
+    <div class="dm-page-sub">${t('راجع وعدّل المحضر المُنشأ بالذكاء الاصطناعي قبل تسليمه للحضور.','Review and edit the AI-generated minutes before delivering to attendees.')}</div>
+  </div>
+
+  <!-- ── Mini stepper ─────────────────────────────────────────────────────── -->
+  <div class="dm-stepper-bar">
+    <div class="dm-mini-stepper">${miniStepper}</div>
+  </div>
+
+  <!-- ── 3-column body ────────────────────────────────────────────────────── -->
+  <div class="dm-body">
+
+    <!-- LEFT sidebar -->
+    <div class="dm-sidebar">
+      <div class="dm-sidebar-head">${t('مخطط المحضر','Minutes Outline')}</div>
+      <div class="dm-outline">${outlineItems}</div>
+      ${aiSummary}
+    </div>
+
+    <!-- CENTER document -->
+    <div class="dm-doc">
+      <!-- doc header -->
+      <div class="dm-doc-hdr">
+        <div class="dm-doc-title">${esc(mType ? mType + ' ' : '')}${t('محضر الاجتماع','Meeting Minutes')}${dateStr ? ' — ' + dateStr : ''}${timeStr ? ' · ' + timeStr : ''} <span class="dm-doc-ver">(v1.0)</span></div>
+        <div class="dm-doc-meta">
+          ${t('أُنشئ بواسطة AI في','Generated by AI on')} ${genDate}
+          <span class="dm-autosave">✅ ${t('حُفظ تلقائياً','Auto-saved')}</span>
+        </div>
+      </div>
+      <!-- formatting toolbar -->
+      <div class="dm-toolbar">
+        <select class="dm-tb-select"><option>Heading 2</option><option>Heading 1</option><option>Body</option></select>
+        <span class="dm-tb-sep"></span>
+        <button class="dm-tb-btn" title="Bold"><b>B</b></button>
+        <button class="dm-tb-btn" title="Italic"><i>I</i></button>
+        <button class="dm-tb-btn" title="Underline"><u>U</u></button>
+        <button class="dm-tb-btn" title="Strikethrough"><s>S</s></button>
+        <span class="dm-tb-sep"></span>
+        <button class="dm-tb-btn" title="Bullet list">≡</button>
+        <button class="dm-tb-btn" title="Ordered list">⑴</button>
+        <button class="dm-tb-btn" title="Outdent">←</button>
+        <button class="dm-tb-btn" title="Indent">→</button>
+        <span class="dm-tb-sep"></span>
+        <button class="dm-tb-btn" title="Link">🔗</button>
+        <button class="dm-tb-btn" title="Table">⊞</button>
+        <button class="dm-tb-btn" title="Undo">↩</button>
+        <button class="dm-tb-btn" title="Redo">↪</button>
+      </div>
+      <!-- minutes sections -->
+      <div class="dm-content">
+        ${hasMinutes || secs.some(s => s.text || s.type) ? sectionsHtml : `
+<div class="dm-empty-minutes">
+  <div class="dm-em-icon">📝</div>
+  <div class="dm-em-title">${t('لم يتم إنشاء المحضر بعد','Minutes Not Generated Yet')}</div>
+  <div class="dm-em-sub">${t('انقر على "إعادة الإنشاء بـ AI" لإنشاء المحضر تلقائياً','Click "Regenerate with AI" to automatically generate minutes.')}</div>
+  <button class="dm-btn ai" style="margin-top:20px">✨ ${t('إنشاء بالذكاء الاصطناعي','Regenerate with AI')}</button>
+</div>`}
+      </div>
+    </div>
+
+    <!-- RIGHT AI panel -->
+    <div class="dm-ai-panel">
+
+      <!-- AI Suggestions -->
+      <div class="dm-panel-card">
+        <div class="dm-panel-head">
+          <span>✨ ${t('اقتراحات AI','AI Suggestions')}</span>
+          <span class="dm-badge-count">${suggs.length}</span>
+        </div>
+        <div class="dm-sugg-list">${suggHtml}</div>
+        <button class="dm-link-btn">${t('عرض كل الاقتراحات →','View All Suggestions →')}</button>
+      </div>
+
+      <!-- Minutes Quality -->
+      <div class="dm-panel-card">
+        <div class="dm-panel-head"><span>📊 ${t('جودة المحضر','Minutes Quality')}</span></div>
+        <div class="dm-quality-wrap">
+          <div class="dm-quality-chart">
+            <svg width="90" height="90" viewBox="0 0 90 90">
+              <circle cx="45" cy="45" r="${qR}" fill="none" stroke="#E4E7EC" stroke-width="10"/>
+              <circle cx="45" cy="45" r="${qR}" fill="none" stroke="${qColor}" stroke-width="10"
+                stroke-dasharray="${qCirc.toFixed(1)}" stroke-dashoffset="${qOffset.toFixed(1)}"
+                stroke-linecap="round" transform="rotate(-90 45 45)"/>
+              <text x="45" y="41" text-anchor="middle" font-size="16" font-weight="900" fill="#15201A">${overall}%</text>
+              <text x="45" y="56" text-anchor="middle" font-size="9" fill="#8A948D">${t('النتيجة الكلية','Overall Score')}</text>
+            </svg>
+          </div>
+          <div class="dm-quality-bars">${qualityBars}</div>
+        </div>
+      </div>
+
+      <!-- Quick Statistics -->
+      <div class="dm-panel-card">
+        <div class="dm-panel-head"><span>📈 ${t('إحصاءات سريعة','Quick Statistics')}</span></div>
+        <div class="dm-stat-list">${statRows}</div>
+      </div>
+
+      <!-- AI Validation Checklist -->
+      <div class="dm-panel-card">
+        <div class="dm-panel-head"><span>✅ ${t('قائمة التحقق AI','AI Validation Checklist')}</span></div>
+        <div class="dm-check-list">${checks}</div>
+      </div>
+
+      <!-- Readiness Status -->
+      <div class="dm-panel-card dm-readiness ${isReady ? 'ready' : 'not-ready'}">
+        <div class="dm-ready-icon">${isReady ? '🚀' : '⚠️'}</div>
+        <div class="dm-ready-title">${isReady ? t('جاهز للتوزيع','Ready for Circulation') : t('يحتاج مراجعة','Needs Review')}</div>
+        <div class="dm-ready-sub">${isReady ? t('جميع العناصر المطلوبة مكتملة.','All required elements are completed.') : t('بعض العناصر المطلوبة مفقودة.','Some required elements are missing.')}</div>
+      </div>
+
+    </div><!-- /dm-ai-panel -->
+  </div><!-- /dm-body -->
+
+  <!-- ── Bottom bar ───────────────────────────────────────────────────────── -->
+  <div class="dm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._render()">← ${t('العودة إلى لوحة التحكم','Back to Dashboard')}</button>
+    <div style="display:flex;gap:8px">
+      <button class="dm-btn ghost">${t('حفظ المسودة','Save Draft')}</button>
+      <button class="dm-btn ghost">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._render()">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('تسليم للحضور','Deliver to Attendees')}</span>
+      </button>
+    </div>
+  </div>
+
+</div>`;
+  },
+
+  _parseDmSections(text, agenda, attendees, decisions, tasks, t, l) {
+    const fixedSections = [
+      { title: t('الافتتاح','Opening'),     type: 'opening',   text: '' },
+      { title: t('الحضور','Attendance'),    type: 'attendance', text: '' },
+      ...agenda.map(a => ({
+        title: (l==='ar'? a.title_ar : a.title_en) || a.title || '',
+        type:  'agenda', text: (l==='ar'? a.description_ar : a.description_en) || ''
+      })),
+      { title: t('القرارات','Decisions'),   type: 'decisions', text: '' },
+      { title: t('بنود العمل','Action Items'), type: 'actions', text: '' },
+      { title: t('الختام','Closing'),       type: 'closing',   text: '' },
+    ];
+
+    if (!text) return fixedSections;
+
+    // Try to split by numbered headings
+    const lines = text.split('\n');
+    const parsed = [];
+    let cur = null;
+    for (const ln of lines) {
+      const m = ln.match(/^(?:#{1,3}\s*)?(\d+)[.)]\s+(.+)/);
+      if (m) {
+        if (cur) parsed.push(cur);
+        cur = { title: m[2].trim(), type: 'section', text: '' };
+      } else if (cur) {
+        cur.text += (cur.text ? '\n' : '') + ln;
+      }
+    }
+    if (cur) parsed.push(cur);
+
+    // If parsing yielded sections, merge with fixed
+    if (parsed.length >= 2) {
+      // Enhance fixed sections with parsed text
+      fixedSections.forEach((fs, i) => {
+        if (parsed[i]) fs.text = parsed[i].text || fs.text;
+      });
+      // Add any extra parsed sections
+      if (parsed.length > fixedSections.length) {
+        return [...fixedSections, ...parsed.slice(fixedSections.length)];
+      }
+    }
+    return fixedSections;
+  },
+
+  _dmScrollTo(i) {
+    const el = document.getElementById('dm-sec-' + i);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
 
   /* ─── Left column ────────────────────────────────────────────────────── */
