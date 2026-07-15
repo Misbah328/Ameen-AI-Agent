@@ -1,15 +1,16 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   APPROVAL CYCLE  —  Full Minutes Approval Cycle page (9-step workflow)
-   Entry: ApprovalCycle.open(meetingId)
+   MINUTES APPROVAL CYCLE  —  Full 9-step workflow dashboard
+   Entry:  ApprovalCycle.open(meetingId)   ← from meeting Approval tab
+           ApprovalCycle.refresh()         ← from sidebar (shows picker)
    ════════════════════════════════════════════════════════════════════════════ */
 const ApprovalCycle = {
   _mid: null,
   _data: null,
-  _meetingFull: null,
-  _commentTab: 'recent',   // 'recent' | 'all'
-  _eSignMode: 'draw',      // 'draw' | 'type'
-  _eSignPurpose: null,     // 'comment' | 'attendee_sign' | 'final_sign'
-  _eSignResolve: null,
+  _meeting: null,
+  _commentTab: 'recent',
+  _eSignMode: 'draw',
+  _eSignPurpose: null,
+  _pendingComment: null,
   _canvas: null,
   _ctx: null,
   _drawing: false,
@@ -17,526 +18,643 @@ const ApprovalCycle = {
 
   t(ar, en) { return App.lang === 'ar' ? ar : en; },
 
-  // ── Entry point ────────────────────────────────────────────────────────────
+  /* ─── Entry points ─────────────────────────────────────────────────────── */
   open(mid) {
     this._mid = mid;
     Panels.load('approval-cycle');
   },
 
-  // ── Called by Panels.load after panel is shown ────────────────────────────
   async refresh() {
-    if (!this._mid) { this._renderEmpty(); return; }
-    await this._load();
+    if (!this._mid) {
+      await this._renderLanding();
+    } else {
+      await this._load();
+    }
   },
 
+  /* ─── Landing: meeting picker ─────────────────────────────────────────── */
+  async _renderLanding() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t = (ar, en) => this.t(ar, en);
+
+    body.innerHTML = `
+<div class="ac-landing">
+  <div class="ac-landing-hero">
+    <div class="ac-landing-icon">📋</div>
+    <div class="ac-landing-title">${t('دورة اعتماد المحاضر', 'Minutes Approval Cycle')}</div>
+    <div class="ac-landing-sub">${t('اختر اجتماعاً لعرض دورة الاعتماد الخاصة به', 'Select a meeting to view its approval cycle')}</div>
+  </div>
+  <div id="ac-landing-list" class="ac-landing-list">
+    <div class="ac-spin-wrap"><div class="loading"></div></div>
+  </div>
+</div>`;
+
+    try {
+      const data = await api('/api/meetings');
+      const meetings = Array.isArray(data) ? data : (data.meetings || []);
+
+      const listEl = document.getElementById('ac-landing-list');
+      if (!listEl) return;
+
+      if (!meetings.length) {
+        listEl.innerHTML = `<div class="ac-empty"><div class="ac-empty-icon">📭</div><div>${t('لا توجد اجتماعات', 'No meetings found')}</div></div>`;
+        return;
+      }
+
+      listEl.innerHTML = meetings.map(m => {
+        const title = (App.lang === 'ar' ? m.title_ar : m.title_en) || m.title_ar || t('اجتماع', 'Meeting') + ' #' + m.id;
+        const date = m.meeting_date ? fmtDate(m.meeting_date) : '';
+        const stageMap = {
+          created: t('منشأ','Created'), recording: t('تسجيل','Recording'),
+          uploaded: t('مرفوع','Uploaded'), processing: t('معالجة','Processing'),
+          ai_minutes_generated: t('محضر AI','AI Minutes'), secretary_review: t('مراجعة أمين السر','Sec. Review'),
+          review: t('مراجعة','Review'), chairman_approval: t('موافقة الرئيس','Chairman Approval'),
+          board_approval: t('موافقة المجلس','Board Approval'), approval: t('الاعتماد','Approval'),
+          archived: t('مؤرشف','Archived'),
+        };
+        const stage = m.lifecycle_stage || 'created';
+        const stageLabel = stageMap[stage] || stage;
+        const hasMinutes = m.minutes_status || m.ai_minutes_text;
+        const dot = hasMinutes ? '#1a7f4b' : 'var(--text3)';
+
+        return `<div class="ac-landing-card" onclick="ApprovalCycle.open(${m.id})">
+          <div class="ac-landing-card-avatar">${(title[0] || 'M').toUpperCase()}</div>
+          <div class="ac-landing-card-info">
+            <div class="ac-landing-card-title">${esc(title)}</div>
+            <div class="ac-landing-card-meta">${[date, m.meeting_type].filter(Boolean).join(' · ')}</div>
+          </div>
+          <div class="ac-landing-card-right">
+            <span class="ac-landing-stage" style="background:${dot === '#1a7f4b' ? 'rgba(31,138,93,.1)' : 'rgba(0,0,0,.05)'};color:${dot}">${stageLabel}</span>
+          </div>
+          <div class="ac-landing-card-arrow">›</div>
+        </div>`;
+      }).join('');
+
+    } catch (e) {
+      const listEl = document.getElementById('ac-landing-list');
+      if (listEl) listEl.innerHTML = `<div class="ac-empty"><div class="ac-empty-icon">⚠️</div><div>${t('تعذّر التحميل','Load failed')}: ${esc(e.message)}</div></div>`;
+    }
+  },
+
+  /* ─── Load meeting + cycle data ───────────────────────────────────────── */
   async _load() {
     const body = document.getElementById('ac-page-body');
     if (!body) return;
-    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    body.innerHTML = '<div class="ac-spin-wrap" style="padding:80px 0"><div class="loading"></div></div>';
     try {
       const [full, cycleData] = await Promise.all([
         api(`/api/meetings/${this._mid}/full`),
         api(`/api/meetings/${this._mid}/approval-cycle`),
       ]);
-      this._meetingFull = full;
+      this._meeting = full && full.meeting;
       this._data = cycleData;
       this._render();
     } catch (e) {
-      body.innerHTML = `<div class="es"><div class="ic">⚠️</div><div class="t">${this.t('تعذّر تحميل البيانات', 'Could not load data')}</div><div class="s">${esc(e.message)}</div></div>`;
+      body.innerHTML = `<div class="ac-empty" style="padding:80px"><div class="ac-empty-icon">⚠️</div><div>${this.t('تعذّر تحميل البيانات','Could not load data')}</div><div style="font-size:11px;margin-top:6px;color:var(--text3)">${esc(e.message)}</div></div>`;
     }
   },
 
-  _renderEmpty() {
-    const body = document.getElementById('ac-page-body');
-    if (body) body.innerHTML = `<div class="ac-wrap"><div class="ac-empty"><div class="ac-empty-icon">📋</div><div>${this.t('اختر اجتماعاً لعرض دورة الاعتماد', 'Select a meeting to view the approval cycle')}</div><button class="btn-gold btn-sm" style="margin-top:14px" onclick="Panels.load('scheduled')">${this.t('الاجتماعات', 'Meetings')}</button></div></div>`;
-  },
-
-  // ── Main render ────────────────────────────────────────────────────────────
+  /* ─── Main dashboard render ───────────────────────────────────────────── */
   _render() {
     const body = document.getElementById('ac-page-body');
     if (!body) return;
-    const m = this._meetingFull && this._meetingFull.meeting;
-    if (!m) { this._renderEmpty(); return; }
     const t = (ar, en) => this.t(ar, en);
-    const l = App.lang;
-    const d = this._data;
-    const cycle = d.cycle || { cycle_stage: 'draft', comment_deadline: null };
-    const title = (l === 'ar' ? m.title_ar : m.title_en) || m.title_ar || '';
-    const dateStr = m.scheduled_date ? fmtDate(m.scheduled_date) : '';
-    const timeStr = m.scheduled_time ? m.scheduled_time.slice(0, 5) : '';
+    const m = this._meeting;
+    if (!m) { this._mid = null; this._renderLanding(); return; }
 
+    const d = this._data || {};
+    const cycle = d.cycle || { cycle_stage: 'draft' };
+    const l = App.lang;
+    const title = (l === 'ar' ? m.title_ar : m.title_en) || m.title_ar || '';
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const timeStr = m.meeting_date ? (m.meeting_date.split(' ')[1] || '').slice(0, 5) : '';
     const stageLabel = this._stageName(cycle.cycle_stage);
-    const isDone = cycle.cycle_stage === 'archived';
+    const lastUpdated = cycle.updated_at ? this._fmtDT(cycle.updated_at) : t('لم يُحدَّث بعد', 'Not updated yet');
 
     body.innerHTML = `
 <div class="ac-wrap">
-  <div class="ac-breadcrumb">
-    <button onclick="MT.openDetail(${this._mid},'overview')">← ${t('الاجتماع', 'Meeting')}</button>
-    <span class="sep">·</span>
-    <span>${esc(title)}</span>
-    ${dateStr ? `<span class="sep">·</span><span>${dateStr}</span>` : ''}
-    ${timeStr ? `<span class="sep">·</span><span>${timeStr}</span>` : ''}
-  </div>
-  <div class="ac-head">
-    <div class="ac-head-left">
-      <div class="ac-title">${t('دورة اعتماد المحضر', 'Minutes Approval Cycle')}</div>
+
+  <!-- ── Top bar ───────────────────────────────────────────────────────── -->
+  <div class="ac-topbar">
+    <div class="ac-topbar-left">
+      <button class="ac-back-btn" onclick="ApprovalCycle._mid=null;ApprovalCycle._renderLanding()">← ${t('كل الاجتماعات', 'All Meetings')}</button>
+      <span class="ac-topbar-sep">·</span>
+      <span class="ac-topbar-meeting">
+        ${m.meeting_type ? `<span class="ac-meeting-type">${esc(m.meeting_type)}</span>` : ''}
+        ${dateStr ? `<span class="ac-meta-dot"></span><span>${dateStr}</span>` : ''}
+        ${timeStr ? `<span class="ac-meta-dot"></span><span>${timeStr}</span>` : ''}
+      </span>
     </div>
-    <div class="ac-head-right">
-      <a class="btn-ghost btn-sm" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تنزيل المحضر', 'Download Minutes')}</a>
+    <div class="ac-topbar-right">
+      <a class="btn-ghost btn-sm" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تنزيل نسخة العمل', 'Download Working Copy')}</a>
       <button class="btn-ghost btn-sm" onclick="MT.openDetail(${this._mid},'overview')">📋 ${t('تفاصيل الاجتماع', 'Meeting Details')}</button>
     </div>
   </div>
-  <div class="ac-status-bar">
-    <span class="ac-stage-badge ${isDone ? 'done' : ''}">${stageLabel}</span>
-    ${m.scheduled_date ? `<span class="ac-status-time">📅 ${dateStr}</span>` : ''}
-    ${cycle.comment_deadline ? `<span class="ac-status-time">⏰ ${t('الموعد النهائي', 'Deadline')}: ${this._fmtDT(cycle.comment_deadline)}</span>` : ''}
+
+  <!-- ── Page title + status ───────────────────────────────────────────── -->
+  <div class="ac-page-head">
+    <h1 class="ac-page-title">${esc(title)}</h1>
+    <h2 class="ac-page-subtitle">${t('دورة اعتماد المحضر', 'Minutes Approval Cycle')}</h2>
+    <div class="ac-page-meta">
+      <span class="ac-stage-badge">${stageLabel}</span>
+      <span class="ac-page-updated">${t('آخر تحديث:', 'Last updated:')} ${lastUpdated}</span>
+    </div>
   </div>
-  ${this._renderStepper(cycle)}
+
+  <!-- ── 9-Step Stepper ────────────────────────────────────────────────── -->
+  ${this._renderStepper(cycle, d)}
+
+  <!-- ── 3-Column body ─────────────────────────────────────────────────── -->
   <div class="ac-cols">
     <div class="ac-col-l">${this._renderLeft(cycle, d)}</div>
     <div class="ac-col-c">${this._renderCenter(cycle, d)}</div>
     <div class="ac-col-r">${this._renderRight(cycle, d)}</div>
   </div>
+
 </div>`;
 
-    this._bindCanvas();
+    this._initCanvas();
   },
 
-  // ── 9-step Stepper ─────────────────────────────────────────────────────────
-  _renderStepper(cycle) {
+  /* ─── 9-Step Stepper ──────────────────────────────────────────────────── */
+  _renderStepper(cycle, d) {
     const t = (ar, en) => this.t(ar, en);
-    const d = this._data;
-    const comments = d.comments || [];
-    const sigs = d.signatures || [];
+    const comments = (d && d.comments) || [];
+    const sigs = (d && d.signatures) || [];
     const totalC = comments.length;
     const resolved = comments.filter(c => c.status !== 'pending').length;
-    const sigAttendee = sigs.filter(s => s.sig_stage === 'attendee');
-    const sigSigned = sigAttendee.filter(s => s.status === 'signed').length;
+    const attendeeSigs = sigs.filter(s => s.sig_stage === 'attendee');
+    const sigSigned = attendeeSigs.filter(s => s.status === 'signed').length;
+    const totalSig = attendeeSigs.length;
 
     const STAGES = [
-      { key: 'draft',          ar: 'إنشاء المسودة',        en: 'Draft Creation',         icon: '📄', sub: null },
-      { key: 'circulated',     ar: 'تعميم على الحضور',      en: 'Delivered to Attendees', icon: '📧', sub: null },
-      { key: 'comments_open',  ar: 'التعليقات',             en: 'Comments',               icon: '💬', sub: totalC ? `${totalC}` : null },
-      { key: 'deadline_closed',ar: 'موعد التعليقات',        en: 'Comment Deadline',       icon: '⏰', sub: null },
-      { key: 'review_resolve', ar: 'مراجعة وحل',            en: 'Review & Resolve',       icon: '🔍', sub: resolved ? `${resolved}/${totalC} ${t('محلول','resolved')}` : null },
-      { key: 'final_version',  ar: 'النسخة النهائية',       en: 'Final Version',          icon: '📋', sub: null },
-      { key: 'attendee_sign',  ar: 'توقيعات الحضور',        en: 'Attendee Signatures',    icon: '✍️', sub: sigAttendee.length ? `${sigSigned}/${sigAttendee.length} ${t('وقّعوا','signed')}` : null },
-      { key: 'final_approver', ar: 'المعتمد النهائي',       en: 'Final Approver',         icon: '👤', sub: null },
-      { key: 'archived',       ar: 'أرشفة وتفعيل',          en: 'Archive & Activate',     icon: '🗃️', sub: null },
+      { key: 'draft',           ar: 'إنشاء المسودة',      en: 'Draft Minutes',           icon: this._svgDoc(),       sub: null },
+      { key: 'circulated',      ar: 'تسليم للحضور',        en: 'Deliver to Attendees',    icon: this._svgEnvelope(),  sub: t('تم التسليم للجميع','All delivered') },
+      { key: 'comments_open',   ar: 'تعليقات الحضور',      en: 'Attendee Reviews',        icon: this._svgComment(),   sub: totalC ? `${totalC} ${t('تعليق','comments')}` : null },
+      { key: 'deadline_closed', ar: 'موعد المراجعة',       en: 'Review Deadline',         icon: this._svgClock(),     sub: t('مغلق','Closed') },
+      { key: 'review_resolve',  ar: 'مراجعة وحل',          en: 'Review & Resolve',        icon: this._svgResolve(),   sub: resolved && totalC ? `${resolved}/${totalC} ${t('محلول','resolved')}` : null },
+      { key: 'final_version',   ar: 'النسخة النهائية',     en: 'Final Version',           icon: this._svgFinal(),     sub: null },
+      { key: 'attendee_sign',   ar: 'توقيعات الحضور',      en: 'Attendee Signatures',     icon: this._svgSign(),      sub: totalSig ? `${sigSigned}/${totalSig} ${t('وقّعوا','signed')}` : null },
+      { key: 'final_approver',  ar: 'الاعتماد النهائي',    en: 'Final Approval',          icon: this._svgApprover(),  sub: t('معلّق','Pending') },
+      { key: 'archived',        ar: 'أرشفة وتفعيل',        en: 'Archive & Activate',      icon: this._svgArchive(),   sub: t('معلّق','Pending') },
     ];
-    const STAGE_IDX = { draft:0,circulated:1,comments_open:2,deadline_closed:3,review_resolve:4,final_version:5,attendee_sign:6,final_approver:7,archived:8 };
+
+    const STAGE_IDX = { draft:0, circulated:1, comments_open:2, deadline_closed:3, review_resolve:4, final_version:5, attendee_sign:6, final_approver:7, archived:8 };
     const cur = STAGE_IDX[cycle.cycle_stage] ?? 0;
 
-    return `<div class="ac-stepper">${STAGES.map((s, i) => {
-      const cls = i < cur ? 'done' : i === cur ? 'cur' : '';
-      const dotContent = i < cur ? '✓' : s.icon;
-      const subLabel = i < cur ? t('مكتمل','Done') : i === cur ? t('الآن','Current') : (s.sub || t('قيد الانتظار','Pending'));
-      return `<div class="ac-step ${cls}">
-        <div class="ac-step-dot"><span class="ac-step-num">${dotContent}</span></div>
-        <div class="ac-step-label">${t(s.ar, s.en)}</div>
-        <div class="ac-step-sub">${s.sub && i === cur ? s.sub : subLabel}</div>
-      </div>`;
-    }).join('')}</div>`;
+    const steps = STAGES.map((s, i) => {
+      const done = i < cur;
+      const active = i === cur;
+      const cls = done ? 'done' : active ? 'cur' : '';
+      const subLabel = done ? t('مكتمل ✓','Done ✓') : active ? (s.sub || t('الآن','Current')) : (s.sub || t('قيد الانتظار','Pending'));
+
+      return `
+<div class="ac-step ${cls}" onclick="ApprovalCycle._onStepClick(${i})" title="${t(s.ar, s.en)}">
+  <div class="ac-step-dot">
+    ${done ? `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+           : s.icon}
+  </div>
+  <div class="ac-step-num-label">${i + 1}</div>
+  <div class="ac-step-label">${t(s.ar, s.en)}</div>
+  <div class="ac-step-sub">${subLabel}</div>
+</div>
+${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' : ''}">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</div>` : ''}`;
+    }).join('');
+
+    return `<div class="ac-stepper-wrap"><div class="ac-stepper">${steps}</div></div>`;
   },
 
-  // ── Left column: Deadline + Signatures + Document ─────────────────────────
+  /* ─── Step click handler ─────────────────────────────────────────────── */
+  _onStepClick(i) {
+    const t = (ar, en) => this.t(ar, en);
+    const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
+    const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
+    // Scroll to the relevant section and highlight
+    const stepName = App.lang === 'ar' ? STEPS_AR[i] : STEPS_EN[i];
+    showToast(`${i + 1}. ${stepName}`, 'info');
+    // Highlight clicked step
+    document.querySelectorAll('.ac-step').forEach((el, idx) => {
+      el.classList.toggle('ac-step-focus', idx === i);
+    });
+  },
+
+  /* ─── Left column ────────────────────────────────────────────────────── */
   _renderLeft(cycle, d) {
     const t = (ar, en) => this.t(ar, en);
-    const canPublish = App.can('minutes.publish');
-    const canApprove = App.can('minutes.approve');
-    const canDecide = canPublish || canApprove;
+    const canDecide = App.can('minutes.publish') || App.can('minutes.approve');
 
-    // Deadline card
+    /* Deadline card */
     const deadline = cycle.comment_deadline;
-    const deadlineExpired = deadline && new Date(deadline) < new Date();
-    const deadlineCard = `<div class="ac-card">
-      <div class="ac-card-t">⏰ ${t('الموعد النهائي للتعليقات', 'Comment Deadline')}</div>
-      <div class="ac-deadline-box">
-        <div class="ac-deadline-icon">${deadlineExpired ? '🔒' : deadline ? '⏳' : '📅'}</div>
-        <div class="ac-deadline-info">
-          <div class="ac-deadline-label">${deadline ? t('موعد الإغلاق', 'Closes') : t('لم يُحدَّد بعد', 'Not set yet')}</div>
-          ${deadline ? `<div class="ac-deadline-val">${this._fmtDT(deadline)}</div>` : ''}
-          ${deadline ? `<span class="ac-deadline-status ${deadlineExpired ? 'closed' : 'open'}">${deadlineExpired ? t('🔒 مغلق','🔒 Closed') : t('⏳ مفتوح','⏳ Open')}</span>` : ''}
-        </div>
-      </div>
-      ${canDecide && !deadlineExpired ? `<div style="margin-top:10px">
-        <div style="font-size:11.5px;color:var(--text3);margin-bottom:6px">${t('تحديد الموعد النهائي', 'Set Deadline')}</div>
-        <div style="display:flex;gap:6px">
-          <input type="datetime-local" id="ac-deadline-input" class="fi" style="flex:1;font-size:12px" ${deadline ? `value="${deadline.replace(' ','T').slice(0,16)}"` : ''}>
-          <button class="btn-gold btn-sm" onclick="ApprovalCycle.setDeadline()">${t('حفظ', 'Save')}</button>
-        </div>
-      </div>` : ''}
-    </div>`;
+    const deadlineClosed = deadline && new Date(deadline) < new Date();
+    const deadlineCard = `
+<div class="ac-card">
+  <div class="ac-card-title">⏰ ${t('الموعد النهائي للتعليقات', 'Comment Deadline')}</div>
+  <div class="ac-deadline-box">
+    <div class="ac-deadline-lock">${deadlineClosed ? '🔒' : deadline ? '⏳' : '📅'}</div>
+    <div>
+      ${deadline ? `<div class="ac-deadline-date">${t('الموعد: ', 'Deadline: ')}${this._fmtDT(deadline)}</div>` : `<div class="ac-deadline-date" style="color:var(--text3)">${t('لم يُحدَّد بعد','Not set yet')}</div>`}
+      ${deadline ? `<span class="ac-dl-badge ${deadlineClosed ? 'closed' : 'open'}">${deadlineClosed ? t('🔒 مغلق','🔒 Closed') : t('⏳ مفتوح','⏳ Open')}</span>` : ''}
+      ${deadlineClosed ? `<div class="ac-deadline-note">${t('لا يمكن تقديم المزيد من التعليقات.','No further comments can be submitted.')}</div>` : ''}
+    </div>
+  </div>
+  ${canDecide ? `
+  <div class="ac-deadline-set">
+    <div class="ac-deadline-set-label">${t('تحديد الموعد النهائي','Set Deadline')}</div>
+    <div style="display:flex;gap:6px">
+      <input type="datetime-local" id="ac-deadline-input" class="fi" style="flex:1;font-size:12px" ${deadline ? `value="${deadline.replace(' ','T').slice(0,16)}"` : ''}>
+      <button class="btn-gold btn-sm" onclick="ApprovalCycle.setDeadline()">${t('حفظ','Save')}</button>
+    </div>
+  </div>` : ''}
+</div>`;
 
-    // Attendee signatures card
-    const sigs = d.signatures || [];
-    const attendees = d.attendees || [];
+    /* Signatures card */
+    const sigs = (d && d.signatures) || [];
+    const attendees = (d && d.attendees) || [];
     const attendeeSigs = sigs.filter(s => s.sig_stage === 'attendee');
-    const signedCount = attendeeSigs.filter(s => s.status === 'signed').length;
+    const sigSigned = attendeeSigs.filter(s => s.status === 'signed').length;
+    const sigPending = attendeeSigs.filter(s => s.status === 'pending').length;
+    const sigNotOpened = attendeeSigs.filter(s => s.status === 'not_opened').length;
     const totalSig = attendeeSigs.length || attendees.length;
-    const sigPct = totalSig ? Math.round(signedCount / totalSig * 100) : 0;
+    const sigPct = totalSig ? Math.round(sigSigned / totalSig * 100) : 0;
     const r = 28, circ = 2 * Math.PI * r;
     const offset = circ - (sigPct / 100) * circ;
-    const finalSig = sigs.filter(s => s.sig_stage === 'final_approver');
-    const isAttendeeSignStage = cycle.cycle_stage === 'attendee_sign';
-    const isFinalSignStage = cycle.cycle_stage === 'final_approver';
-
+    const isAttSig = cycle.cycle_stage === 'attendee_sign';
     const myName = App.user ? (App.user.name_en || App.user.name_ar || '') : '';
-    const mySig = attendeeSigs.find(s => s.signer_name === myName);
-    const myFinalSig = finalSig.find(s => s.signer_name === myName);
 
-    const sigListItems = (attendeeSigs.length ? attendeeSigs : attendees.slice(0,8)).map(s => {
+    const sigRows = (attendeeSigs.length ? attendeeSigs : attendees.slice(0, 9)).map(s => {
       const name = s.signer_name || s.name || '';
       const role = s.signer_role || s.role || '';
-      const status = s.status;
-      const initials = name.split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
+      const status = s.status || 'pending';
+      const initials = name.split(/\s+/).map(x => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
       const isMe = name === myName;
+      const statusEl = status === 'signed'
+        ? `<div class="ac-sig-status signed">● ${t('وقّع','Signed')}</div><div class="ac-sig-date">${s.signed_at ? this._fmtDT(s.signed_at) : ''}</div>`
+        : (isAttSig && isMe)
+          ? `<button class="ac-sig-btn" onclick="ApprovalCycle.openSignModal('attendee')">✍️ ${t('وقّع','Sign')}</button>`
+          : `<div class="ac-sig-status pending">● ${t('معلّق','Pending')}</div><div class="ac-sig-date">—</div>`;
       return `<div class="ac-sig-row">
-        <div class="ac-sig-avatar">${initials || '?'}</div>
-        <div style="flex:1;min-width:0">
+        <div class="ac-sig-av">${initials}</div>
+        <div class="ac-sig-info">
           <div class="ac-sig-name">${esc(name)}</div>
           <div class="ac-sig-role">${esc(role)}</div>
         </div>
-        ${status === 'signed' ? `<span class="ac-sig-status signed">✓ ${this.t('وقّع','Signed')}</span>` :
-          (isAttendeeSignStage && isMe && !mySig)
-            ? `<button class="ac-sig-btn" onclick="ApprovalCycle.openSignModal('attendee')">✍️ ${this.t('وقّع','Sign')}</button>`
-            : `<span class="ac-sig-status pending">${this.t('معلّق','Pending')}</span>`}
+        <div class="ac-sig-right">${statusEl}</div>
       </div>`;
     }).join('');
 
-    const signaturesCard = `<div class="ac-card">
-      <div class="ac-card-t">✍️ ${t('توقيعات الحضور', 'Attendee Signatures')}
-        <span class="ac-card-sub">${signedCount}/${totalSig}</span>
+    const sigsCard = `
+<div class="ac-card">
+  <div class="ac-card-title">✍️ ${t('توقيعات الحضور','Attendee Signatures')}</div>
+  <div class="ac-sig-summary">
+    <div class="ac-sig-donut-wrap">
+      <svg width="80" height="80" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="${r}" fill="none" stroke="var(--border3)" stroke-width="9"/>
+        <circle cx="40" cy="40" r="${r}" fill="none" stroke="var(--gold)" stroke-width="9"
+          stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+          stroke-linecap="round" transform="rotate(-90 40 40)"/>
+      </svg>
+      <div class="ac-sig-donut-text">
+        <div class="ac-sig-donut-num">${sigSigned}/${totalSig}</div>
+        <div class="ac-sig-donut-sub">${t('وقّعوا','Signed')}</div>
       </div>
-      <div class="ac-sig-progress">
-        <div class="ac-sig-donut">
-          <svg class="ac-sig-donut-svg" width="72" height="72" viewBox="0 0 72 72">
-            <circle cx="36" cy="36" r="${r}" fill="none" stroke="var(--border3)" stroke-width="8"/>
-            <circle cx="36" cy="36" r="${r}" fill="none" stroke="var(--gold)" stroke-width="8"
-              stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
-          </svg>
-          <div class="ac-sig-donut-label">${sigPct}%<span>${t('وقّعوا','Signed')}</span></div>
-        </div>
-        <div class="ac-sig-legend">
-          <div class="ac-sig-leg-item"><div class="ac-sig-leg-dot" style="background:var(--gold)"></div> ${signedCount} ${t('وقّعوا','Signed')}</div>
-          <div class="ac-sig-leg-item"><div class="ac-sig-leg-dot" style="background:var(--border3)"></div> ${totalSig - signedCount} ${t('معلّق','Pending')}</div>
-        </div>
-      </div>
-      <div class="ac-sig-list">${sigListItems || `<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px">${t('لم يبدأ التوقيع بعد.','No signatures yet.')}</div>`}</div>
-      ${canDecide && isAttendeeSignStage && signedCount < totalSig ? `<div class="ac-advance-bar"><button class="btn-ghost btn-sm" onclick="ApprovalCycle.sendReminder()">🔔 ${t('تذكير المعلّقين','Remind Pending')}</button></div>` : ''}
-    </div>`;
+    </div>
+    <div class="ac-sig-legend">
+      <div class="ac-sig-leg"><span class="ac-leg-dot" style="background:var(--gold)"></span>${sigSigned} ${t('وقّعوا','Signed')}</div>
+      <div class="ac-sig-leg"><span class="ac-leg-dot" style="background:#e8a000"></span>${sigPending} ${t('معلّق','Pending')}</div>
+      <div class="ac-sig-leg"><span class="ac-leg-dot" style="background:var(--text3)"></span>${sigNotOpened} ${t('لم يفتح','Not opened')}</div>
+    </div>
+  </div>
+  <div class="ac-sig-table-head">
+    <span>${t('الحضور','Attendee')}</span>
+    <span>${t('الحالة','Status')}</span>
+    <span>${t('وقت التوقيع','Signed At')}</span>
+  </div>
+  <div class="ac-sig-list">${sigRows || `<div class="ac-sig-empty">${t('لا توجد توقيعات بعد.','No signatures yet.')}</div>`}</div>
+  ${canDecide && isAttSig && sigPending > 0 ? `
+  <div class="ac-remind-bar">
+    <button class="btn-ghost btn-sm" onclick="ApprovalCycle.sendReminder()">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
+    <span class="ac-remind-note">${t('إلى','To')} ${sigPending} ${t('معلّقين','pending attendees')}</span>
+  </div>` : ''}
+</div>`;
 
-    // Final approver card (shown from final_approver stage onwards)
-    let finalCard = '';
-    if (['final_approver','archived'].includes(cycle.cycle_stage) || finalSig.length > 0) {
-      const fa = finalSig[0];
-      finalCard = `<div class="ac-card">
-        <div class="ac-card-t">👤 ${t('المعتمد النهائي', 'Final Approver')}</div>
-        ${fa ? `<div class="ac-sig-row">
-          <div class="ac-sig-avatar">${(fa.signer_name||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase()}</div>
-          <div style="flex:1;min-width:0">
-            <div class="ac-sig-name">${esc(fa.signer_name)}</div>
-            <div class="ac-sig-role">${esc(fa.signer_role||'')}</div>
-          </div>
-          ${fa.status === 'signed'
-            ? `<span class="ac-sig-status signed">✓ ${t('وقّع','Signed')}</span>`
-            : (isFinalSignStage && fa.signer_name === myName)
-              ? `<button class="ac-sig-btn" onclick="ApprovalCycle.openSignModal('final_approver')">✍️ ${t('وقّع','Sign')}</button>`
-              : `<span class="ac-sig-status pending">${t('معلّق','Pending')}</span>`}
-        </div>` : `<div style="font-size:12px;color:var(--text3)">${t('لم يُعيَّن بعد.','Not assigned yet.')}</div>`}
-      </div>`;
-    }
+    /* Minutes document card */
+    const docCard = `
+<div class="ac-card">
+  <div class="ac-card-title">📄 ${t('وثيقة المحضر','Minutes Document')}</div>
+  <div class="ac-doc-row">
+    <div class="ac-doc-icon-wrap"><span class="ac-doc-icon">📋</span></div>
+    <div class="ac-doc-details">
+      <div class="ac-doc-name">${t('محضر اجتماع مجلس الإدارة','Board Meeting Minutes')} ${this._meeting ? '- ' + ((App.lang==='ar'?this._meeting.title_ar:this._meeting.title_en)||'') : ''}</div>
+      <div class="ac-doc-meta">${t('النسخة','Version')} ${(this._meeting && this._meeting.minutes_version) || 3.0} · ${t('محدَّث','Updated')} ${(cycle.updated_at ? this._fmtDT(cycle.updated_at) : t('للتوقيع النهائي','for signatures'))}</div>
+    </div>
+  </div>
+  <div class="ac-doc-btns">
+    <button class="btn-ghost btn-sm" onclick="MT.openDetail(${this._mid},'minutes')">👁 ${t('معاينة','Preview')}</button>
+    <a class="btn-gold btn-sm" href="/api/meetings/${this._mid}/export-minutes" target="_blank">⬇ ${t('تنزيل نسخة العمل','Download Working Copy')}</a>
+  </div>
+</div>`;
 
-    // Minutes document card
-    const docCard = `<div class="ac-card">
-      <div class="ac-card-t">📄 ${t('وثيقة المحضر', 'Minutes Document')}</div>
-      <div class="ac-doc-box">
-        <div class="ac-doc-icon">📋</div>
-        <div class="ac-doc-info">
-          <div class="ac-doc-name">${t('محضر الاجتماع', 'Meeting Minutes')}</div>
-          <div class="ac-doc-meta">${t('النسخة', 'Version')} ${(this._meetingFull && this._meetingFull.meeting.minutes_version) || 1}</div>
-        </div>
-      </div>
-      <div class="ac-doc-actions">
-        <button class="btn-ghost btn-sm" onclick="MT.openDetail(${this._mid},'minutes')">📝 ${t('عرض المحضر','View Minutes')}</button>
-      </div>
-    </div>`;
-
-    return deadlineCard + signaturesCard + finalCard + docCard;
+    return deadlineCard + sigsCard + docCard;
   },
 
-  // ── Center column: Comments Overview ─────────────────────────────────────
+  /* ─── Center column: Comments ─────────────────────────────────────────── */
   _renderCenter(cycle, d) {
     const t = (ar, en) => this.t(ar, en);
-    const comments = d.comments || [];
-    const total = comments.length;
+    const comments = (d && d.comments) || [];
+    const total    = comments.length;
     const accepted = comments.filter(c => c.status === 'accepted').length;
     const rejected = comments.filter(c => c.status === 'rejected').length;
     const pending  = comments.filter(c => c.status === 'pending').length;
-    const canDecide = App.can('minutes.publish') || App.can('minutes.approve');
-    const canComment = App.can('minutes.view') && ['comments_open','deadline_closed','review_resolve'].includes(cycle.cycle_stage) && cycle.cycle_stage !== 'deadline_closed';
-    const myName = App.user ? (App.user.name_en || App.user.name_ar || '') : '';
+    const canDecide  = App.can('minutes.publish') || App.can('minutes.approve');
+    const canComment = App.can('minutes.view') && cycle.cycle_stage === 'comments_open';
+    const myName   = App.user ? (App.user.name_en || App.user.name_ar || '') : '';
     const myComment = comments.find(c => c.commenter_name === myName);
-    const showComments = this._commentTab === 'all' ? comments : comments.slice(0, 10);
+    const shown = this._commentTab === 'all' ? comments : comments.slice(0, 10);
 
-    const commentItems = showComments.length ? showComments.map(c => {
-      const isMe = c.commenter_name === myName;
-      return `<div class="ac-comment-item ${c.status}">
+    const commentItems = shown.length ? shown.map(c => {
+      const badgeCls = c.status === 'accepted' ? 'accepted' : c.status === 'rejected' ? 'rejected' : 'pending';
+      const badgeTxt = c.status === 'accepted' ? t('مقبول','Accepted') : c.status === 'rejected' ? t('مرفوض','Rejected') : t('قيد المراجعة','Under Review');
+      const decidedBy = c.decided_by ? `${t('بواسطة','by')} ${esc(c.decided_by)}` : '';
+      const decidedAt = c.decided_at ? this._fmtDT(c.decided_at) : '';
+      return `<div class="ac-comment-item ${badgeCls}">
         <div class="ac-comment-top">
-          <span class="ac-comment-badge ${c.status}">${c.status === 'accepted' ? `✓ ${t('مقبول','Accepted')}` : c.status === 'rejected' ? `✕ ${t('مرفوض','Rejected')}` : t('قيد المراجعة','Under Review')}</span>
+          <span class="ac-comment-badge ${badgeCls}">${badgeTxt}</span>
           ${c.clause_ref ? `<span class="ac-comment-clause">${esc(c.clause_ref)}</span>` : ''}
-          <span class="ac-comment-actor">👤 ${esc(c.commenter_name)}</span>
-          <span class="ac-comment-time">${this._fmtDT(c.created_at)}</span>
+          <span class="ac-comment-body-text">${esc(c.content)}</span>
         </div>
-        <div class="ac-comment-body">${esc(c.content)}</div>
-        ${c.secretary_note ? `<div class="ac-comment-decided">${t('ملاحظة أمين السر','Secretary note')}: "${esc(c.secretary_note)}"</div>` : ''}
+        <div class="ac-comment-footer">
+          <span class="ac-comment-by">${t('بواسطة','By')} ${esc(c.commenter_name)}</span>
+          <span class="ac-comment-at">${this._fmtDT(c.created_at)}</span>
+          ${c.decided_by && c.status !== 'pending' ? `<span class="ac-comment-decided">${c.status === 'accepted' ? t('قُبل','Accepted') : t('رُفض','Rejected')} ${decidedBy} ${decidedAt}</span>` : ''}
+        </div>
+        ${c.secretary_note ? `<div class="ac-comment-note">${esc(c.secretary_note)}</div>` : ''}
         ${c.status === 'pending' && canDecide ? `<div class="ac-comment-actions">
-          <input class="fi" id="ac-snote-${c.id}" placeholder="${t('ملاحظة (اختياري)…','Note (optional)…')}" style="flex:1;font-size:12px;padding:6px 10px"/>
+          <input class="fi" id="ac-snote-${c.id}" placeholder="${t('ملاحظة أمين السر (اختياري)…','Secretary note (optional)…')}" style="font-size:12px;padding:6px 10px;margin-bottom:6px;width:100%"/>
           <button class="btn-gold btn-sm" onclick="ApprovalCycle.decideComment(${c.id},'accepted')">✓ ${t('قبول','Accept')}</button>
-          <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ApprovalCycle.decideComment(${c.id},'rejected')">✕ ${t('رفض','Reject')}</button>
+          <button class="ac-reject-btn" onclick="ApprovalCycle.decideComment(${c.id},'rejected')">✕ ${t('رفض','Reject')}</button>
         </div>` : ''}
       </div>`;
-    }).join('') : `<div class="ac-empty"><div class="ac-empty-icon">💬</div><div>${t('لا توجد تعليقات بعد.','No comments yet.')}</div></div>`;
+    }).join('') : `<div class="ac-empty" style="padding:32px 0"><div class="ac-empty-icon">💬</div><div>${t('لا توجد تعليقات بعد.','No comments yet.')}</div></div>`;
 
-    return `<div class="ac-card" style="min-height:400px">
-      <div class="ac-card-t" style="margin-bottom:8px">💬 ${t('التعليقات والملاحظات', 'Comments & Notes')}
-        ${canComment && !myComment ? `<button class="btn-gold btn-sm" style="margin-inline-start:auto" onclick="ApprovalCycle.openCommentModal()">+ ${t('إضافة تعليق','Add Comment')}</button>` : ''}
-      </div>
-      <div class="ac-kpis">
-        <div class="ac-kpi"><div class="ac-kpi-n">${total}</div><div class="ac-kpi-l">${t('الإجمالي','Total')}</div></div>
-        <div class="ac-kpi accepted"><div class="ac-kpi-n">${accepted}</div><div class="ac-kpi-l">${t('مقبول','Accepted')}</div></div>
-        <div class="ac-kpi rejected"><div class="ac-kpi-n">${rejected}</div><div class="ac-kpi-l">${t('مرفوض','Rejected')}</div></div>
-        <div class="ac-kpi pending"><div class="ac-kpi-n">${pending}</div><div class="ac-kpi-l">${t('معلّق','Pending')}</div></div>
-      </div>
-      <div class="ac-tabs">
-        <button class="ac-tab ${this._commentTab === 'recent' ? 'active' : ''}" onclick="ApprovalCycle._setTab('recent')">${t('الأحدث','Recent')}</button>
-        <button class="ac-tab ${this._commentTab === 'all' ? 'active' : ''}" onclick="ApprovalCycle._setTab('all')">${t('الكل','All')} ${total > 0 ? `(${total})` : ''}</button>
-      </div>
-      <div class="ac-comment-list">${commentItems}</div>
-    </div>`;
+    return `
+<div class="ac-card" style="min-height:400px">
+  <div class="ac-card-title-row">
+    <span class="ac-card-title">💬 ${t('مراجعة التعليقات','Comments Overview')}</span>
+    ${canComment && !myComment ? `<button class="btn-gold btn-sm" onclick="ApprovalCycle.openCommentModal()">+ ${t('إضافة تعليق','Add Comment')}</button>` : ''}
+  </div>
+  <div class="ac-kpis">
+    <div class="ac-kpi"><div class="ac-kpi-n">${total}</div><div class="ac-kpi-l">${t('الإجمالي','Total Comments')}</div></div>
+    <div class="ac-kpi accepted"><div class="ac-kpi-n">${accepted}</div><div class="ac-kpi-l">${t('مقبول','Accepted')}</div></div>
+    <div class="ac-kpi rejected"><div class="ac-kpi-n">${rejected}</div><div class="ac-kpi-l">${t('مرفوض','Rejected')}</div></div>
+    <div class="ac-kpi pending"><div class="ac-kpi-n">${pending}</div><div class="ac-kpi-l">${t('معلّق','Pending')}</div></div>
+  </div>
+  <div class="ac-comment-tabs">
+    <button class="ac-ctab ${this._commentTab==='recent'?'active':''}" onclick="ApprovalCycle._setTab('recent')">${t('الأحدث','Recent Comments')}</button>
+    <button class="ac-ctab ${this._commentTab==='all'?'active':''}" onclick="ApprovalCycle._setTab('all')">${t('الكل','All Comments')}${total ? ` (${total})` : ''}</button>
+  </div>
+  <div class="ac-comment-list">${commentItems}</div>
+  ${total > 10 && this._commentTab === 'recent' ? `<div style="text-align:center;margin-top:12px"><button class="btn-ghost btn-sm" onclick="ApprovalCycle._setTab('all')">${t('عرض جميع التعليقات','View All Comments')} →</button></div>` : ''}
+</div>`;
   },
 
-  // ── Right column: Authority + Next Step + Audit ───────────────────────────
+  /* ─── Right column: Authority + Next Step + Audit ────────────────────── */
   _renderRight(cycle, d) {
     const t = (ar, en) => this.t(ar, en);
     const canDecide = App.can('minutes.publish') || App.can('minutes.approve');
+    const attendees = (d && d.attendees) || [];
+    const sigs = (d && d.signatures) || [];
 
-    // Comment review authority
-    const attendees = d.attendees || [];
-    const reviewers = attendees.filter(a => a.role && (a.role.includes('Chair') || a.role.includes('Secretary') || a.role.includes('رئيس') || a.role.includes('أمين')));
-    const authorityPeople = (reviewers.length ? reviewers : attendees).slice(0, 3);
-    const authorityCard = `<div class="ac-card">
-      <div class="ac-card-t">🏛️ ${t('سلطة مراجعة التعليقات', 'Comment Review Authority')}</div>
-      <div class="ac-authority-box">
-        ${authorityPeople.length ? authorityPeople.map(a => {
-          const initials = (a.name || '?').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
-          return `<div class="ac-authority-person">
-            <div class="ac-authority-av">${initials}</div>
-            <div class="ac-authority-info">
-              <div class="ac-authority-name">${esc(a.name)}</div>
-              <div class="ac-authority-role">${esc(a.role || t('عضو','Member'))}</div>
-            </div>
-            <span class="ac-authority-action">${t('مراجع','Reviewer')}</span>
-          </div>`;
-        }).join('') : `<div style="font-size:12px;color:var(--text3)">${t('لا يوجد مراجعون محددون.','No reviewers assigned.')}</div>`}
-      </div>
-    </div>`;
+    /* Comment Review Authority */
+    const reviewers = attendees.filter(a => a.role &&
+      (a.role.toLowerCase().includes('chair') || a.role.toLowerCase().includes('secret') ||
+       a.role.includes('رئيس') || a.role.includes('أمين')));
+    const authority = (reviewers.length ? reviewers : attendees).slice(0, 3);
+    const authorityCard = `
+<div class="ac-card">
+  <div class="ac-card-title">🏛️ ${t('صلاحية مراجعة التعليقات','Comment Review Authority')}</div>
+  <div class="ac-authority-note">${t('يمكن لأمين السر والرئيس قبول أو رفض التعليقات.','Both the Secretary and Chairman can accept or reject comments.')}</div>
+  <div class="ac-authority-list">
+    ${authority.length ? authority.map(a => {
+      const initials = (a.name||'?').split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
+      const canR = a.role && (a.role.toLowerCase().includes('secret') || a.role.includes('أمين') || a.role.toLowerCase().includes('chair') || a.role.includes('رئيس'));
+      return `<div class="ac-auth-person">
+        <div class="ac-auth-av">${initials}</div>
+        <div class="ac-auth-info">
+          <div class="ac-auth-name">${esc(a.name)}</div>
+          <div class="ac-auth-role">${esc(a.role||'')}</div>
+        </div>
+        ${canR ? `<span class="ac-auth-tag">${t('يمكنه المراجعة','Can review')}</span>` : ''}
+      </div>`;
+    }).join('') : `<div style="font-size:12px;color:var(--text3)">${t('لا يوجد مراجعون.','No reviewers assigned.')}</div>`}
+  </div>
+</div>`;
 
-    // Next step card
+    /* Next Step */
     const nextInfo = this._nextStepInfo(cycle);
-    const nextCard = `<div class="ac-card">
-      <div class="ac-card-t">🎯 ${t('الخطوة التالية', 'Next Step')}</div>
-      <div class="ac-next-step-box">
-        <div class="ac-next-step-title">${t('الإجراء المطلوب','Required Action')}</div>
-        <div class="ac-next-step-action">${nextInfo.action}</div>
-        <div class="ac-next-step-desc">${nextInfo.desc}</div>
-        ${nextInfo.who ? `<div class="ac-next-step-who"><div class="ac-next-step-av">👤</div><span style="font-size:11.5px;color:rgba(255,255,255,.8)">${nextInfo.who}</span></div>` : ''}
-      </div>
-      ${canDecide && nextInfo.advance_to ? `<div class="ac-advance-bar"><button class="btn-gold" onclick="ApprovalCycle.advance('${nextInfo.advance_to}')">${nextInfo.btn}</button></div>` : ''}
-    </div>`;
+    const nextCard = `
+<div class="ac-card">
+  <div class="ac-card-title">🎯 ${t('الخطوة التالية','Next Step')}</div>
+  <div class="ac-next-box">
+    <div class="ac-next-label">${t('بمجرد توقيع جميع الحضور، سيُرسَل المحضر إلى المعتمد النهائي للتوقيع.','Once all attendees have signed, the minutes will be sent to the final approver for sign-off.')}</div>
+    <div class="ac-next-action">${nextInfo.action}</div>
+    ${nextInfo.who ? `<div class="ac-next-who">${t('إلى:','To:')} ${nextInfo.who}</div>` : ''}
+  </div>
+  ${canDecide && nextInfo.advance_to ? `<div style="margin-top:12px"><button class="btn-gold" style="width:100%" onclick="ApprovalCycle.advance('${nextInfo.advance_to}')">${nextInfo.btn}</button></div>` : ''}
+</div>`;
 
-    // Audit trail
-    const audit = d.audit || [];
-    const auditCard = `<div class="ac-card">
-      <div class="ac-card-t">📜 ${t('سجل التدقيق', 'Audit Trail')}</div>
-      <div class="ac-audit-list">
-        ${audit.length ? audit.map(e => `<div class="ac-audit-row">
-          <span class="ac-audit-time">${this._fmtDT(e.created_at)}</span>
-          <span class="ac-audit-text">— ${esc(e.actor_name || '')} · ${esc(this._auditLabel(e.action))}</span>
-        </div>`).join('') : `<div style="font-size:12px;color:var(--text3);padding:8px 0">${t('لا توجد سجلات بعد.','No records yet.')}</div>`}
-      </div>
-    </div>`;
+    /* Final Approver */
+    const finalSig = sigs.filter(s => s.sig_stage === 'final_approver');
+    const fa = finalSig[0];
+    const faInitials = fa ? (fa.signer_name||'?').split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() : '';
+    const finalApproverCard = `
+<div class="ac-card">
+  <div class="ac-card-title">👤 ${t('المعتمد النهائي (تلقائي)','Final Approver (Automatic)')}</div>
+  ${fa ? `<div class="ac-auth-person" style="margin-top:6px">
+    <div class="ac-auth-av">${faInitials}</div>
+    <div class="ac-auth-info">
+      <div class="ac-auth-name">${esc(fa.signer_name)}</div>
+      <div class="ac-auth-role">${esc(fa.signer_role||t('رئيس المجلس','Board Chairman'))}</div>
+    </div>
+    <span class="ac-status-chip ${fa.status==='signed'?'signed':'pending'}">${fa.status==='signed'?t('✓ وقّع','✓ Signed'):t('معلّق','Pending')}</span>
+  </div>` : `<div style="font-size:12px;color:var(--text3);margin-top:6px">${t('سيُحدَّد تلقائياً من قائمة الحضور (رئيس المجلس).','Will be auto-assigned from attendees (Chairman).')}</div>`}
+</div>`;
 
-    return authorityCard + nextCard + auditCard;
+    /* Audit Trail */
+    const audit = (d && d.audit) || [];
+    const auditCard = `
+<div class="ac-card">
+  <div class="ac-card-title-row">
+    <span class="ac-card-title">📜 ${t('سجل التدقيق (الأخير)','Audit Trail (Latest)')}</span>
+    ${audit.length > 3 ? `<button class="ac-link-btn" onclick="">${t('عرض الكل','View Full Audit Trail')} →</button>` : ''}
+  </div>
+  <div class="ac-audit-list">
+    ${audit.length ? audit.slice(0, 8).map(e => `
+      <div class="ac-audit-row">
+        <div class="ac-audit-time">${this._fmtDT(e.created_at)}</div>
+        <div class="ac-audit-text">${esc(this._auditLabel(e.action))} ${e.actor_name ? t('بواسطة','by') + ' ' + esc(e.actor_name) : ''}</div>
+      </div>`).join('') : `<div style="font-size:11.5px;color:var(--text3);padding:8px 0">${t('لا توجد سجلات بعد.','No records yet.')}</div>`}
+  </div>
+</div>`;
+
+    return authorityCard + nextCard + finalApproverCard + auditCard;
   },
 
-  // ── Next step info ─────────────────────────────────────────────────────────
+  /* ─── SVG step icons ─────────────────────────────────────────────────── */
+  _svgDoc()      { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>`; },
+  _svgEnvelope() { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`; },
+  _svgComment()  { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`; },
+  _svgClock()    { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>`; },
+  _svgResolve()  { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,11 12,14 22,4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`; },
+  _svgFinal()    { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><polyline points="9,15 11,17 15,13"/></svg>`; },
+  _svgSign()     { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`; },
+  _svgApprover() { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`; },
+  _svgArchive()  { return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21,8 21,21 3,21 3,8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`; },
+
+  /* ─── Helpers ─────────────────────────────────────────────────────────── */
+  _stageName(s) {
+    const t = (ar, en) => this.t(ar, en);
+    return {
+      draft:           t('المسودة','Draft'),
+      circulated:      t('تم التعميم','Delivered'),
+      comments_open:   t('التعليقات مفتوحة','Comments Open'),
+      deadline_closed: t('انتهى الموعد','Deadline Closed'),
+      review_resolve:  t('مراجعة وحل','Review & Resolve'),
+      final_version:   t('النسخة النهائية','Final Version'),
+      attendee_sign:   t('توقيعات الحضور','Attendee Signatures'),
+      final_approver:  t('المعتمد النهائي','Final Approver'),
+      archived:        t('مؤرشف','Archived'),
+    }[s] || s;
+  },
+
   _nextStepInfo(cycle) {
     const t = (ar, en) => this.t(ar, en);
-    const m = { action: '—', desc: '', who: '', advance_to: null, btn: '' };
-    switch (cycle.cycle_stage) {
-      case 'draft':
-        return { action: t('تعميم المحضر','Circulate Minutes'), desc: t('عمّم المحضر على الحضور لبدء مرحلة التعليقات','Distribute the minutes to attendees to start the comment phase'), who: t('أمين السر','Secretary'), advance_to: 'circulated', btn: `📧 ${t('تعميم الآن','Circulate Now')}` };
-      case 'circulated':
-        return { action: t('فتح باب التعليقات','Open Comments'), desc: t('افتح باب التعليقات وحدد الموعد النهائي','Open the comment window and set a deadline'), who: t('أمين السر','Secretary'), advance_to: 'comments_open', btn: `💬 ${t('فتح باب التعليقات','Open for Comments')}` };
-      case 'comments_open':
-        return { action: t('إغلاق باب التعليقات','Close Comments'), desc: t('أغلق باب التعليقات وانتقل لمرحلة المراجعة','Close the comment window and proceed to review'), who: t('أمين السر','Secretary'), advance_to: 'deadline_closed', btn: `🔒 ${t('إغلاق التعليقات','Close Comments')}` };
-      case 'deadline_closed':
-        return { action: t('بدء مراجعة التعليقات','Start Review'), desc: t('ابدأ قبول أو رفض التعليقات المقدَّمة','Begin accepting or rejecting the submitted comments'), who: t('أمين السر','Secretary'), advance_to: 'review_resolve', btn: `🔍 ${t('بدء المراجعة','Start Review')}` };
-      case 'review_resolve': {
-        const pending = (this._data && this._data.comments || []).filter(c => c.status === 'pending').length;
-        return { action: t('إعداد النسخة النهائية','Prepare Final Version'), desc: pending ? t(`لا تزال هناك ${pending} تعليقات معلّقة.`,`${pending} comment(s) still pending.`) : t('أكمِل مراجعة جميع التعليقات ثم أصدر النسخة النهائية.','Review all comments then issue the final version.'), who: t('أمين السر','Secretary'), advance_to: 'final_version', btn: `📋 ${t('إصدار النسخة النهائية','Issue Final Version')}` };
-      }
-      case 'final_version':
-        return { action: t('جمع توقيعات الحضور','Collect Attendee Signatures'), desc: t('اطلب من جميع الحضور توقيع النسخة النهائية','Request all attendees to sign the final version'), who: t('أمين السر','Secretary'), advance_to: 'attendee_sign', btn: `✍️ ${t('بدء التوقيع','Open for Signing')}` };
-      case 'attendee_sign': {
-        const sigs = (this._data && this._data.signatures || []).filter(s => s.sig_stage === 'attendee');
-        const remaining = sigs.filter(s => s.status !== 'signed').length;
-        return { action: t('الاعتماد النهائي','Final Approval'), desc: remaining ? t(`${remaining} حاضر لم يوقّع بعد.`,`${remaining} attendee(s) have not signed yet.`) : t('جميع الحضور وقّعوا. أرسل للمعتمد النهائي.','All attendees signed. Send to final approver.'), who: t('رئيس الجلسة','Chairman'), advance_to: remaining ? null : 'final_approver', btn: `👤 ${t('إرسال للاعتماد النهائي','Send to Final Approver')}` };
-      }
-      case 'final_approver':
-        return { action: t('أرشفة وتفعيل','Archive & Activate'), desc: t('بعد توقيع المعتمد النهائي، أرشِف المحضر وفعِّله رسمياً','After final approver signs, archive and officially activate the minutes'), who: t('أمين السر','Secretary'), advance_to: 'archived', btn: `🗃️ ${t('أرشفة وتفعيل','Archive & Activate')}` };
-      case 'archived':
-        return { action: t('اكتملت دورة الاعتماد','Approval Cycle Complete'), desc: t('تم اعتماد المحضر وأرشفته بنجاح.','The minutes have been approved and archived successfully.'), who: '', advance_to: null, btn: '' };
-      default: return m;
-    }
-  },
-
-  // ── Stage name ─────────────────────────────────────────────────────────────
-  _stageName(s) {
     const map = {
-      draft:          this.t('مسودة','Draft'),
-      circulated:     this.t('تم التعميم','Circulated'),
-      comments_open:  this.t('التعليقات مفتوحة','Comments Open'),
-      deadline_closed:this.t('الموعد النهائي','Deadline Closed'),
-      review_resolve: this.t('مراجعة وحل','Review & Resolve'),
-      final_version:  this.t('النسخة النهائية','Final Version'),
-      attendee_sign:  this.t('توقيعات الحضور','Attendee Signatures'),
-      final_approver: this.t('المعتمد النهائي','Final Approver'),
-      archived:       this.t('مؤرشَف','Archived'),
+      draft:           { action: t('تعميم المحضر على الحضور','Circulate minutes to attendees'),   advance_to: 'circulated',      btn: t('📧 تعميم الآن','📧 Circulate Now'),       who: '', desc: '' },
+      circulated:      { action: t('فتح باب التعليقات','Open comments period'),                    advance_to: 'comments_open',   btn: t('💬 فتح التعليقات','💬 Open Comments'),    who: '', desc: '' },
+      comments_open:   { action: t('إغلاق الموعد النهائي للتعليقات','Close comment deadline'),     advance_to: 'deadline_closed', btn: t('🔒 إغلاق التعليقات','🔒 Close Comments'),  who: '', desc: '' },
+      deadline_closed: { action: t('بدء مراجعة التعليقات وحلها','Begin reviewing & resolving'),   advance_to: 'review_resolve',  btn: t('🔍 بدء المراجعة','🔍 Start Review'),       who: '', desc: '' },
+      review_resolve:  { action: t('إصدار النسخة النهائية','Issue final version'),                advance_to: 'final_version',   btn: t('📋 إصدار النسخة النهائية','📋 Issue Final'), who: '', desc: '' },
+      final_version:   { action: t('طلب توقيعات الحضور','Request attendee signatures'),           advance_to: 'attendee_sign',   btn: t('✍️ طلب التوقيعات','✍️ Request Signatures'), who: '', desc: '' },
+      attendee_sign:   { action: t('إرسال إلى المعتمد النهائي','Send to final approver'),         advance_to: 'final_approver',  btn: t('👤 إرسال للمعتمد','👤 Send to Approver'),   who: t('د. عبدالله الأحمدي','Dr. Abdullah Alghamdi'), desc: '' },
+      final_approver:  { action: t('أرشفة المحضر وتفعيله','Archive and activate minutes'),         advance_to: 'archived',        btn: t('🗃️ أرشفة وتفعيل','🗃️ Archive & Activate'), who: '', desc: '' },
+      archived:        { action: t('اكتملت دورة الاعتماد','Approval cycle complete ✓'),            advance_to: null,              btn: '',                                             who: '', desc: '' },
     };
-    return map[s] || s;
+    return map[cycle.cycle_stage] || map['draft'];
   },
 
-  // ── Audit label ────────────────────────────────────────────────────────────
   _auditLabel(action) {
-    if (!action) return '';
-    if (action.startsWith('cycle_advance:')) {
-      const stage = action.replace('cycle_advance:', '');
-      return `${this.t('انتقال إلى','Advanced to')}: ${this._stageName(stage)}`;
-    }
-    const map = { circulated: this.t('تعميم المحضر','Minutes circulated'), approved: this.t('اعتماد المحضر','Minutes approved'), final_approved: this.t('الاعتماد النهائي','Final approval'), signed: this.t('توقيع إلكتروني','E-signed') };
-    return map[action] || action;
-  },
-
-  // ── Date/time formatter ────────────────────────────────────────────────────
-  _fmtDT(v) {
-    if (!v) return '';
-    try {
-      const d = new Date(v);
-      return d.toLocaleDateString(App.lang === 'ar' ? 'ar-SA' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch (_) { return v; }
-  },
-
-  // ── Comment tab switch ─────────────────────────────────────────────────────
-  _setTab(tab) {
-    this._commentTab = tab;
-    this._render();
-  },
-
-  // ── Set deadline ───────────────────────────────────────────────────────────
-  async setDeadline() {
     const t = (ar, en) => this.t(ar, en);
-    const el = document.getElementById('ac-deadline-input');
-    if (!el || !el.value) { showToast(t('الرجاء تحديد موعد','Please select a deadline'), 'error'); return; }
-    const val = el.value.replace('T', ' ') + ':00';
-    try {
-      await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deadline: val }) });
-      showToast(t('✓ تم حفظ الموعد النهائي','✓ Deadline saved'));
-      await this._load();
-    } catch (e) { showToast(t('خطأ: ','Error: ') + e.message, 'error'); }
+    return {
+      advanced:         t('تقدّمت الدورة','Cycle advanced'),
+      deadline_set:     t('تم تحديد الموعد','Deadline set'),
+      comment_added:    t('أُضيف تعليق','Comment added'),
+      comment_accepted: t('قُبل التعليق','Comment accepted'),
+      comment_rejected: t('رُفض التعليق','Comment rejected'),
+      signed:           t('تم التوقيع','Signed'),
+      reminder_sent:    t('أُرسل تذكير','Reminder sent'),
+    }[action] || action;
   },
 
-  // ── Advance stage ──────────────────────────────────────────────────────────
+  _fmtDT(str) {
+    if (!str) return '';
+    try {
+      const d = new Date(str.replace(' ', 'T'));
+      return d.toLocaleDateString(App.lang === 'ar' ? 'ar-SA' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch { return str; }
+  },
+
+  _setTab(tab) { this._commentTab = tab; this._render(); },
+
+  /* ─── Actions ─────────────────────────────────────────────────────────── */
   async advance(to_stage) {
     const t = (ar, en) => this.t(ar, en);
-    if (!to_stage) return;
     try {
       await api(`/api/meetings/${this._mid}/approval-cycle/advance`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to_stage }) });
-      showToast(t('✓ تم الانتقال للمرحلة التالية','✓ Advanced to next stage'));
+      showToast(t('✓ تم التقدم إلى المرحلة التالية','✓ Advanced to next stage'));
       await this._load();
     } catch (e) { showToast(t('خطأ: ','Error: ') + e.message, 'error'); }
   },
 
-  // ── Decide on comment ─────────────────────────────────────────────────────
+  async setDeadline() {
+    const t = (ar, en) => this.t(ar, en);
+    const val = document.getElementById('ac-deadline-input');
+    if (!val || !val.value) { showToast(t('اختر تاريخاً ووقتاً','Select date and time'), 'error'); return; }
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deadline: val.value.replace('T', ' ') }) });
+      showToast(t('✓ تم تحديد الموعد النهائي','✓ Deadline set'));
+      await this._load();
+    } catch (e) { showToast(t('خطأ: ','Error: ') + e.message, 'error'); }
+  },
+
   async decideComment(cid, decision) {
     const t = (ar, en) => this.t(ar, en);
-    const noteEl = document.getElementById(`ac-snote-${cid}`);
+    const noteEl = document.getElementById('ac-snote-' + cid);
     const secretary_note = noteEl ? noteEl.value.trim() : '';
     try {
       await api(`/api/meetings/${this._mid}/approval-cycle/comments/${cid}/decide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, secretary_note }) });
-      showToast(decision === 'accepted' ? t('✓ تم قبول التعليق','✓ Comment accepted') : t('✓ تم رفض التعليق','✓ Comment rejected'));
+      showToast(decision === 'accepted' ? t('✓ تم قبول التعليق','✓ Comment accepted') : t('✕ تم رفض التعليق','✕ Comment rejected'));
       await this._load();
     } catch (e) { showToast(t('خطأ: ','Error: ') + e.message, 'error'); }
   },
 
-  // ── Send reminder ─────────────────────────────────────────────────────────
   async sendReminder() {
     const t = (ar, en) => this.t(ar, en);
-    showToast(t('✓ تم إرسال تذكير للمعلّقين','✓ Reminder sent to pending signatories'));
+    showToast(t('📨 تم إرسال التذكيرات','📨 Reminders sent'));
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  COMMENT MODAL
-  // ══════════════════════════════════════════════════════════════════════════
+  /* ─── Comment modal ───────────────────────────────────────────────────── */
   openCommentModal() {
-    const overlay = document.getElementById('ac-comment-overlay');
-    if (!overlay) return;
-    const notesEl = document.getElementById('ac-cmt-notes');
-    const clauseEl = document.getElementById('ac-cmt-clause');
-    if (notesEl) notesEl.value = '';
-    if (clauseEl) clauseEl.value = '';
-    this._resetEsign();
-    overlay.classList.add('open');
-    setTimeout(() => { try { notesEl && notesEl.focus(); } catch (_) {} }, 80);
+    const el = document.getElementById('ac-comment-overlay');
+    if (el) el.classList.add('open');
   },
-
   closeCommentModal() {
-    const overlay = document.getElementById('ac-comment-overlay');
-    if (overlay) overlay.classList.remove('open');
+    const el = document.getElementById('ac-comment-overlay');
+    if (el) el.classList.remove('open');
+    this._pendingComment = null;
   },
 
   async submitComment() {
     const t = (ar, en) => this.t(ar, en);
-    const content = (document.getElementById('ac-cmt-notes') || {}).value || '';
-    const clause_ref = (document.getElementById('ac-cmt-clause') || {}).value || '';
-    if (!content.trim()) { showToast(t('الرجاء كتابة تعليقك','Please enter your comment'), 'error'); return; }
-    // Store comment data then open e-signature modal (two-step: write → sign → submit)
-    this._pendingComment = { content: content.trim(), clause_ref: clause_ref.trim() };
+    const contentEl = document.getElementById('ac-comment-content');
+    const clauseEl  = document.getElementById('ac-comment-clause');
+    if (!contentEl || !contentEl.value.trim()) { showToast(t('أدخل نص التعليق','Enter comment text'), 'error'); return; }
+    this._pendingComment = { content: contentEl.value.trim(), clause_ref: clauseEl ? clauseEl.value.trim() : '' };
     this.closeCommentModal();
     this.openSignModal('comment');
   },
 
-  async _finalizeComment(signature_data, signature_type) {
+  async _finalizeComment(sig_data, sig_type) {
     const t = (ar, en) => this.t(ar, en);
-    if (!this._pendingComment) return;
-    const { content, clause_ref } = this._pendingComment;
-    this._pendingComment = null;
+    const pc = this._pendingComment;
+    if (!pc) return;
     try {
-      await api(`/api/meetings/${this._mid}/approval-cycle/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, clause_ref, signature_data, signature_type }) });
-      showToast(t('✓ تم إرسال تعليقك بنجاح','✓ Comment submitted successfully'));
+      await api(`/api/meetings/${this._mid}/approval-cycle/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: pc.content, clause_ref: pc.clause_ref, signature_data: sig_data, signature_type: sig_type }) });
+      showToast(t('✓ تم إضافة التعليق بنجاح','✓ Comment added successfully'));
+      this._pendingComment = null;
       await this._load();
     } catch (e) { showToast(t('خطأ: ','Error: ') + e.message, 'error'); }
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  SIGNATURE MODAL
-  // ══════════════════════════════════════════════════════════════════════════
+  /* ─── E-Signature modal ───────────────────────────────────────────────── */
   openSignModal(purpose) {
     this._eSignPurpose = purpose;
+    this._eSignMode = 'draw';
     const overlay = document.getElementById('ac-esign-overlay');
     if (!overlay) return;
-    this._resetEsign();
+    // Reset UI
+    const drawTab = document.getElementById('esign-tab-draw');
+    const typeTab = document.getElementById('esign-tab-type');
+    const drawWrap = document.getElementById('esign-draw-wrap');
+    const typeWrap = document.getElementById('esign-type-wrap');
+    if (drawTab) drawTab.classList.add('active');
+    if (typeTab) typeTab.classList.remove('active');
+    if (drawWrap) drawWrap.style.display = '';
+    if (typeWrap) typeWrap.style.display = 'none';
+    const typeInput = document.getElementById('ac-esign-type-input');
+    if (typeInput) typeInput.value = '';
     overlay.classList.add('open');
     this._initCanvas();
   },
@@ -553,7 +671,7 @@ const ApprovalCycle = {
     if (!data) { showToast(t('التوقيع الإلكتروني مطلوب','E-signature is required'), 'error'); return; }
     const btn = document.getElementById('ac-esign-submit-btn');
     if (btn) { btn.disabled = true; btn.textContent = t('جارٍ الحفظ…','Saving…'); }
-    const purpose = this._eSignPurpose; // save before closeSignModal() nulls it
+    const purpose = this._eSignPurpose;
     this.closeSignModal();
     try {
       if (purpose === 'comment') {
@@ -567,86 +685,73 @@ const ApprovalCycle = {
     finally { if (btn) { btn.disabled = false; btn.textContent = t('تأكيد التوقيع','Confirm Signature'); } }
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  E-SIGNATURE CANVAS
-  // ══════════════════════════════════════════════════════════════════════════
   switchEsignMode(mode) {
     this._eSignMode = mode;
-    const drawTab = document.getElementById('esign-tab-draw');
-    const typeTab = document.getElementById('esign-tab-type');
+    const drawTab  = document.getElementById('esign-tab-draw');
+    const typeTab  = document.getElementById('esign-tab-type');
     const drawWrap = document.getElementById('esign-draw-wrap');
     const typeWrap = document.getElementById('esign-type-wrap');
-    if (drawTab) drawTab.classList.toggle('active', mode === 'draw');
-    if (typeTab) typeTab.classList.toggle('active', mode === 'type');
+    if (drawTab)  drawTab.classList.toggle('active', mode === 'draw');
+    if (typeTab)  typeTab.classList.toggle('active', mode === 'type');
     if (drawWrap) drawWrap.style.display = mode === 'draw' ? '' : 'none';
     if (typeWrap) typeWrap.style.display = mode === 'type' ? '' : 'none';
+    if (mode === 'draw') this._initCanvas();
   },
 
-  _resetEsign() {
-    this._eSignMode = 'draw';
-    this._hasDrawing = false;
-    this._drawing = false;
-    const canvas = document.getElementById('ac-esign-canvas');
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+  _getEsignData() {
+    if (this._eSignMode === 'type') {
+      const v = (document.getElementById('ac-esign-type-input') || {}).value || '';
+      return { data: v.trim() || null, type: 'type' };
     }
-    const typeInput = document.getElementById('ac-esign-type-input');
-    if (typeInput) typeInput.value = '';
-    const hint = document.getElementById('esign-canvas-hint');
-    if (hint) hint.style.display = '';
+    if (this._hasDrawing && this._canvas) {
+      return { data: this._canvas.toDataURL(), type: 'draw' };
+    }
+    return { data: null, type: 'draw' };
   },
 
   _initCanvas() {
     setTimeout(() => {
       const canvas = document.getElementById('ac-esign-canvas');
-      if (!canvas || canvas._acBound) return;
-      canvas._acBound = true;
+      if (!canvas) return;
       this._canvas = canvas;
-      const ctx = canvas.getContext('2d');
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#1a2340';
+      this._ctx = canvas.getContext('2d');
+      this._hasDrawing = false;
+      const hint = document.getElementById('esign-canvas-hint');
+      // Scale for DPR
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width  = (rect.width  || 480) * dpr;
+      canvas.height = (rect.height || 150) * dpr;
+      this._ctx.scale(dpr, dpr);
+      this._ctx.clearRect(0, 0, canvas.width, canvas.height);
+      this._ctx.strokeStyle = '#0A1628';
+      this._ctx.lineWidth = 2.5;
+      this._ctx.lineCap = 'round';
+      this._ctx.lineJoin = 'round';
 
       const getPos = (e) => {
         const r = canvas.getBoundingClientRect();
         const src = e.touches ? e.touches[0] : e;
-        return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+        return { x: src.clientX - r.left, y: src.clientY - r.top };
       };
+      const start = (e) => { e.preventDefault(); this._drawing = true; const p = getPos(e); this._ctx.beginPath(); this._ctx.moveTo(p.x, p.y); if (hint) hint.style.display = 'none'; };
+      const draw  = (e) => { e.preventDefault(); if (!this._drawing) return; const p = getPos(e); this._ctx.lineTo(p.x, p.y); this._ctx.stroke(); this._hasDrawing = true; };
+      const stop  = ()  => { this._drawing = false; };
 
-      canvas.addEventListener('mousedown', (e) => { e.preventDefault(); this._drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
-      canvas.addEventListener('mousemove', (e) => { if (!this._drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); this._hasDrawing = true; const h = document.getElementById('esign-canvas-hint'); if (h) h.style.display = 'none'; });
-      canvas.addEventListener('mouseup', () => { this._drawing = false; ctx.beginPath(); });
-      canvas.addEventListener('mouseleave', () => { this._drawing = false; ctx.beginPath(); });
-      canvas.addEventListener('touchstart', (e) => { e.preventDefault(); this._drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
-      canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (!this._drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); this._hasDrawing = true; const h = document.getElementById('esign-canvas-hint'); if (h) h.style.display = 'none'; }, { passive: false });
-      canvas.addEventListener('touchend', () => { this._drawing = false; ctx.beginPath(); });
-    }, 100);
+      canvas.onmousedown  = start; canvas.onmousemove  = draw; canvas.onmouseup   = stop;
+      canvas.ontouchstart = start; canvas.ontouchmove  = draw; canvas.ontouchend  = stop;
+    }, 80);
   },
 
   clearCanvas() {
-    const canvas = document.getElementById('ac-esign-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    this._hasDrawing = false;
-    const hint = document.getElementById('esign-canvas-hint');
-    if (hint) hint.style.display = '';
-  },
-
-  _getEsignData() {
-    if (this._eSignMode === 'type') {
-      const val = (document.getElementById('ac-esign-type-input') || {}).value || '';
-      return { data: val.trim(), type: 'type' };
+    if (this._ctx && this._canvas) {
+      this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+      this._hasDrawing = false;
+      const hint = document.getElementById('esign-canvas-hint');
+      if (hint) hint.style.display = '';
     }
-    const canvas = document.getElementById('ac-esign-canvas');
-    if (!canvas || !this._hasDrawing) return { data: '', type: 'draw' };
-    return { data: canvas.toDataURL('image/png'), type: 'draw' };
   },
 
-  // ── Bind canvas after render (for any canvas that needs re-binding) ────────
-  _bindCanvas() {
-    this._canvas = null;
-  },
+  _bindCanvas() { this._initCanvas(); },
 };
+window.ApprovalCycle = ApprovalCycle;
