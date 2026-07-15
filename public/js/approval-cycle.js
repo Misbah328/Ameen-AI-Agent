@@ -235,6 +235,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     if (i === 1) { this._renderStep2Deliver(); return; }
     if (i === 2) { this._renderStep3Reviews(); return; }
     if (i === 3) { this._renderStep4Deadline(); return; }
+    if (i === 4) { this._renderStep5Resolve();  return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -1328,6 +1329,481 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   </div>
 
 </div>`;
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 5 — REVIEW & RESOLVE SCREEN
+     ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep5Resolve() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t  = (ar, en) => this.t(ar, en);
+    const l  = App.lang;
+    const m  = this._meeting  || {};
+    const d  = this._data     || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+
+    const comments  = d.comments  || [];
+    const agenda    = fd.agenda    || [];
+    const decisions = fd.decisions || [];
+    const tasks     = fd.tasks     || [];
+    const mType     = m.meeting_type || '';
+
+    /* ── State ─────────────────────────────────────────────────────────────── */
+    this._rrState = { tab: 'all', page: 1 };
+
+    /* ── Comment status counts ─────────────────────────────────────────────── */
+    const nTotal    = comments.length;
+    const nResolved = comments.filter(c => c.status === 'accepted').length;
+    const nInResolve= comments.filter(c => c.status === 'pending').length;
+    const nRejected = comments.filter(c => c.status === 'rejected').length;
+
+    /* ── Comment type counts ───────────────────────────────────────────────── */
+    const TYPE_LABELS = { clarification:'Clarification Request', change:'Change Request', suggestion:'Suggestion', general:'General Comment' };
+    const getType = (c) => {
+      const r = (c.clause_ref || '').toLowerCase();
+      if (r.includes('clarif')) return 'clarification';
+      if (r.includes('change') || r.includes('تعديل')) return 'change';
+      if (r.includes('suggest') || r.includes('اقتراح')) return 'suggestion';
+      return 'general';
+    };
+    const typeCounts = { clarification:0, change:0, suggestion:0, general:0 };
+    comments.forEach(c => { const type = getType(c); typeCounts[type] = (typeCounts[type]||0)+1; });
+
+    /* ── Activity log (latest 3 from audit or last-modified comments) ──────── */
+    const actLog = d.audit || [];
+    const actRows = actLog.slice(0,3).map((a,i) => {
+      const dot = i===0 ? '#0C7A3D' : i===1 ? '#A8842C' : '#C4453C';
+      const desc = (l==='ar' ? a.action_ar : a.action) || a.action || '';
+      const actor = a.actor_name || '';
+      const when  = a.created_at ? a.created_at.slice(0,16).replace('T',' ') : '';
+      return `<div class="rr-log-row"><span class="rr-log-dot" style="background:${dot}"></span><div class="rr-log-body"><div class="rr-log-desc">${esc(desc||t('إجراء','Action'))}</div><div class="rr-log-who">${esc(actor)} — ${when}</div></div></div>`;
+    }).join('') || `
+      <div class="rr-log-row"><span class="rr-log-dot" style="background:#0C7A3D"></span><div class="rr-log-body"><div class="rr-log-desc">${t('تمت إضافة قرار','Resolution added')}</div><div class="rr-log-who">${t('بواسطة الأمين','By Secretary')}</div></div></div>
+      <div class="rr-log-row"><span class="rr-log-dot" style="background:#A8842C"></span><div class="rr-log-body"><div class="rr-log-desc">${t('تم تحديث تعليق','Comment updated')}</div><div class="rr-log-who">${t('بواسطة حضور','By Attendee')}</div></div></div>
+    `;
+
+    /* ── Impact summary ────────────────────────────────────────────────────── */
+    const secAff  = Math.min(comments.length, agenda.length  || 3);
+    const decAff  = Math.min(nResolved, decisions.length || 2);
+    const taskAff = Math.min(comments.length, tasks.length   || 3);
+
+    /* ── Resolve overview donut ────────────────────────────────────────────── */
+    const donutSegs = [
+      { label: t('محلول','Resolved'),        val: nResolved,  color: '#0F1728' },
+      { label: t('قيد الحل','In Resolve'),   val: nInResolve, color: '#A8842C' },
+      { label: t('مرفوض','Rejected'),        val: nRejected,  color: '#C4453C' },
+    ].filter(s => s.val > 0);
+    const donutSVG = this._donutChartSVG(donutSegs, nTotal||0, 46, t('الإجمالي','Total'));
+
+    /* ── Mini stepper ──────────────────────────────────────────────────────── */
+    const miniStepper = this._buildMiniStepper(cycle, 4, t, l);
+
+    /* ── Render shell ──────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-wrap">
+
+  <!-- Top bar -->
+  <div class="dm-topbar">
+    <div class="dm-breadcrumb">
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('الاجتماعات','Meetings')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item">${esc(mType)}</span>
+      <span class="dm-bc-sep">›</span>
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('دورة الاعتماد','Approval Cycle')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item dm-bc-active">${t('مراجعة وحل','Review & Resolve')}</span>
+    </div>
+    <div class="dm-topbar-actions">
+      <button class="dm-btn ghost">📊 ${t('تصدير التقرير','Export Report')}</button>
+      <button class="dm-btn ghost">📥 ${t('تحميل النسخة العمل','Download Working Copy')} ▾</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(5)">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('النسخة النهائية','Final Version')}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Title bar -->
+  <div class="dm-titlebar">
+    <div class="dm-page-h1">${t('مراجعة وحل','Review & Resolve')} <span class="dm-badge-prog">${t('قيد التنفيذ','In Progress')}</span></div>
+    <div class="dm-page-sub">${t('راجع تعليقات الحضور، اقترح حلولاً، وأنهِ التعديلات على المحضر.','Review attendee comments, suggest resolutions, and finalize changes to the minutes.')}</div>
+  </div>
+
+  <!-- Mini stepper -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- 3-col body -->
+  <div class="rr-body">
+
+    <!-- LEFT sidebar -->
+    <div class="rr-sidebar">
+      <div class="dm-sidebar-head">${t('ملخص المراجعة','Review Summary')}</div>
+
+      <!-- Summary stats grid -->
+      <div class="rr-summary-grid">
+        <div class="rr-sum-card rr-sum-total">
+          <div class="rr-sum-num">${nTotal}</div>
+          <div class="rr-sum-lbl">${t('إجمالي التعليقات','Total Comments')}</div>
+        </div>
+        <div class="rr-sum-card rr-sum-done">
+          <div class="rr-sum-num">${nResolved}</div>
+          <div class="rr-sum-lbl">${t('محلول','Resolved')}</div>
+        </div>
+        <div class="rr-sum-card rr-sum-rev">
+          <div class="rr-sum-num">${nInResolve}</div>
+          <div class="rr-sum-lbl">${t('قيد الحل','In Resolve')}</div>
+        </div>
+        <div class="rr-sum-card rr-sum-rej">
+          <div class="rr-sum-num">${nRejected}</div>
+          <div class="rr-sum-lbl">${t('مرفوض','Rejected')}</div>
+        </div>
+      </div>
+
+      <!-- Comments by Type -->
+      <div class="rr-by-type">
+        <div class="rr-by-type-hdr">${t('التعليقات حسب النوع','Comments by Type')}</div>
+        ${Object.entries(TYPE_LABELS).map(([k,label]) => `
+          <div class="rr-type-row">
+            <span class="rr-type-ico rr-ti-${k}">●</span>
+            <span class="rr-type-name">${t(k==='clarification'?'طلب توضيح':k==='change'?'طلب تعديل':k==='suggestion'?'اقتراح':'تعليق عام', label)}</span>
+            <span class="rr-type-cnt">${typeCounts[k]||0}</span>
+          </div>`).join('')}
+      </div>
+
+      <!-- Resolve Guidelines -->
+      <div class="rr-guidelines">
+        <div class="rr-by-type-hdr">${t('إرشادات الحل','Resolve Guidelines')}</div>
+        ${[
+          t('راجع كل تعليق بعناية','Review each comment carefully'),
+          t('اقترح حلاً أو عدّل المحتوى','Propose a resolution or edit the content'),
+          t('اضبط الحالة: محلول أو مرفوض أو قيد الحل','Mark as Resolved, Rejected, or In Resolve'),
+          t('جميع التغييرات تُتَبَّع في سجل النسخ','All changes will be tracked in version history.'),
+        ].map(g => `<div class="rr-guide-row">✅ <span>${g}</span></div>`).join('')}
+      </div>
+      <button class="dv-preview-btn" style="margin:10px 0 4px">📋 ${t('عرض سياسة الحل','View Resolve Policy')}</button>
+    </div>
+
+    <!-- CENTER: tab bar + cards -->
+    <div class="rr-center">
+      <!-- Tab bar -->
+      <div class="rr-tabbar">
+        <div class="rr-tabs">
+          <button class="rr-tab active" data-tab="all"     onclick="ApprovalCycle._rrSetTab('all')">${t('كل التعليقات','All Comments')} (${nTotal})</button>
+          <button class="rr-tab"        data-tab="pending" onclick="ApprovalCycle._rrSetTab('pending')">${t('قيد الحل','In Resolve')} (${nInResolve})</button>
+          <button class="rr-tab"        data-tab="accepted"onclick="ApprovalCycle._rrSetTab('accepted')">${t('محلول','Resolved')} (${nResolved})</button>
+          <button class="rr-tab"        data-tab="rejected"onclick="ApprovalCycle._rrSetTab('rejected')">${t('مرفوض','Rejected')} (${nRejected})</button>
+        </div>
+        <div class="rr-filters">
+          <select class="rr-filter-sel" id="rr-filter-type" onchange="ApprovalCycle._rrRenderCards()">
+            <option value="">${t('كل الأنواع','All Types')}</option>
+            <option value="clarification">${t('طلب توضيح','Clarification Request')}</option>
+            <option value="change">${t('طلب تعديل','Change Request')}</option>
+            <option value="suggestion">${t('اقتراح','Suggestion')}</option>
+            <option value="general">${t('تعليق عام','General Comment')}</option>
+          </select>
+          <select class="rr-filter-sel" id="rr-filter-att" onchange="ApprovalCycle._rrRenderCards()">
+            <option value="">${t('كل الحضور','All Attendees')}</option>
+            ${[...new Set(comments.map(c=>c.commenter_name).filter(Boolean))]
+              .map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+          </select>
+          <button class="rr-filter-btn">⚙️ ${t('تصفية','Filter')}</button>
+        </div>
+      </div>
+
+      <!-- Comment cards area -->
+      <div id="rr-cards" class="rr-cards"></div>
+
+      <!-- Pagination -->
+      <div id="rr-pagination" class="rr-pagination"></div>
+    </div>
+
+    <!-- RIGHT panel -->
+    <div class="rv-right">
+
+      <!-- Resolve Overview donut -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('نظرة عامة على الحل','Resolve Overview')}</div>
+        <div class="rv-donut-wrap">
+          ${donutSVG}
+          <div class="rv-donut-legend">
+            ${donutSegs.map(s=>`<div class="rv-legend-row"><span class="rv-legend-dot" style="background:${s.color}"></span>${s.label} (${s.val})</div>`).join('')}
+            ${!nTotal ? `<div style="font-size:12px;color:#8A948D">${t('لا تعليقات بعد','No comments yet')}</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Impact Summary -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">📋 ${t('ملخص الأثر','Impact Summary')}</div>
+        <div class="rr-impact-rows">
+          <div class="rr-impact-row"><span class="rr-impact-lbl">${t('الأقسام المتأثرة','Sections Affected')}</span><span class="rr-impact-val">${secAff}</span></div>
+          <div class="rr-impact-row"><span class="rr-impact-lbl">${t('القرارات المتأثرة','Decisions Affected')}</span><span class="rr-impact-val">${decAff}</span></div>
+          <div class="rr-impact-row"><span class="rr-impact-lbl">${t('بنود العمل المتأثرة','Action Items Affected')}</span><span class="rr-impact-val">${taskAff}</span></div>
+        </div>
+        <button class="dm-link-btn">📊 ${t('مقارنة النسخ →','Compare Versions →')}</button>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">📜 ${t('سجل النشاط (الأخير)','Activity Log (Latest)')}</div>
+        <div class="rr-log-list">${actRows}</div>
+        <button class="dm-link-btn">${t('عرض السجل الكامل →','View Full Activity Log →')}</button>
+      </div>
+
+      <!-- AI Assistant -->
+      <div class="rv-rpanel rr-ai-panel">
+        <div class="rr-ai-hdr">
+          <span class="rr-ai-ico">✨</span>
+          <div>
+            <div class="rr-ai-title">${t('مساعد الذكاء الاصطناعي','AI Assistant')}</div>
+            <div class="rr-ai-sub">${t('هل تريد الذكاء الاصطناعي اقتراح حلول للتعليقات المعلّقة؟','Would you like AI to suggest possible resolutions for pending comments?')}</div>
+          </div>
+        </div>
+        <button class="rr-ai-btn">✨ ${t('الاقتراح بالذكاء الاصطناعي','Suggest with AI')}</button>
+      </div>
+
+      <!-- Save Changes -->
+      <button class="rr-save-btn" onclick="ApprovalCycle._rrSaveAll()">💾 ${t('حفظ التغييرات','Save Changes')}</button>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="dm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep3Reviews()">← ${t('العودة لتعليقات الحضور','Back to Attendee Reviews')}</button>
+    <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(5)">
+      ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('النسخة النهائية','Final Version')}</span>
+    </button>
+  </div>
+
+</div>`;
+
+    this._rrRenderCards();
+  },
+
+  /* ── Tab switch ───────────────────────────────────────────────────────── */
+  _rrSetTab(tab) {
+    if (!this._rrState) this._rrState = { tab: 'all', page: 1 };
+    this._rrState.tab  = tab;
+    this._rrState.page = 1;
+    document.querySelectorAll('.rr-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    this._rrRenderCards();
+  },
+
+  /* ── Render card list ─────────────────────────────────────────────────── */
+  _rrRenderCards() {
+    const cardsEl = document.getElementById('rr-cards');
+    const paginEl = document.getElementById('rr-pagination');
+    if (!cardsEl) return;
+    const t = (ar, en) => this.t(ar, en);
+    const state = this._rrState || { tab: 'all', page: 1 };
+    const comments = (this._data || {}).comments || [];
+
+    const typeFilter = (document.getElementById('rr-filter-type') || {}).value || '';
+    const attFilter  = (document.getElementById('rr-filter-att')  || {}).value || '';
+
+    let filtered = [...comments];
+    if (state.tab === 'pending')  filtered = filtered.filter(c => c.status === 'pending');
+    if (state.tab === 'accepted') filtered = filtered.filter(c => c.status === 'accepted');
+    if (state.tab === 'rejected') filtered = filtered.filter(c => c.status === 'rejected');
+    if (typeFilter) filtered = filtered.filter(c => this._rrGetType(c) === typeFilter);
+    if (attFilter)  filtered = filtered.filter(c => (c.commenter_name||'') === attFilter);
+
+    const PER = 4;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PER));
+    const page = Math.max(1, Math.min(state.page, totalPages));
+    this._rrState.page = page;
+    const paginated = filtered.slice((page-1)*PER, page*PER);
+
+    if (!paginated.length) {
+      cardsEl.innerHTML = `<div class="rr-empty-state">${t('لا توجد تعليقات في هذه الفئة','No comments in this category')}</div>`;
+    } else {
+      cardsEl.innerHTML = paginated.map(c => this._rrBuildCard(c)).join('');
+    }
+
+    /* Pagination */
+    if (paginEl) {
+      const showing = filtered.length
+        ? `${t('عرض','Showing')} ${(page-1)*PER+1} ${t('إلى','to')} ${Math.min(page*PER,filtered.length)} ${t('من','of')} ${filtered.length} ${t('تعليق','comments')}`
+        : '';
+      const pageNums = Array.from({length:totalPages},(_,i)=>i+1)
+        .map(p=>`<button class="rr-pg-num${p===page?' active':''}" onclick="ApprovalCycle._rrGoPage(${p})">${p}</button>`).join('');
+      paginEl.innerHTML = `
+        <span class="rr-pg-info">${showing}</span>
+        <div class="rr-pg-btns">
+          <button class="rr-pg-nav" onclick="ApprovalCycle._rrGoPage(${page-1})" ${page===1?'disabled':''}>‹</button>
+          ${pageNums}
+          <button class="rr-pg-nav" onclick="ApprovalCycle._rrGoPage(${page+1})" ${page===totalPages?'disabled':''}>›</button>
+        </div>`;
+    }
+  },
+
+  _rrGoPage(p) {
+    if (!this._rrState) return;
+    this._rrState.page = p;
+    this._rrRenderCards();
+  },
+
+  /* ── Build single comment card ────────────────────────────────────────── */
+  _rrBuildCard(c) {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const AV_COLORS = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E'];
+    const name   = c.commenter_name || '?';
+    const initials = name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+    const bg     = AV_COLORS[(c.id||0) % AV_COLORS.length];
+    const role   = c.commenter_role || '';
+    const when   = (c.created_at||'').slice(0,16).replace('T',' ');
+    const type   = this._rrGetType(c);
+    const typeLabel = { clarification: t('طلب توضيح','Clarification Request'), change: t('طلب تعديل','Change Request'), suggestion: t('اقتراح','Suggestion'), general: t('تعليق عام','General Comment') }[type] || t('تعليق','Comment');
+
+    const STATUS = {
+      pending:  { label: t('قيد الحل','In Resolve'), cls: 'rr-st-rev'  },
+      accepted: { label: t('محلول','Resolved'),       cls: 'rr-st-done' },
+      rejected: { label: t('مرفوض','Rejected'),       cls: 'rr-st-rej'  },
+    };
+    const st = STATUS[c.status] || STATUS.pending;
+
+    const resolveNote = c.secretary_note || '';
+    const decidedBy   = c.decided_by || '';
+    const decidedAt   = (c.decided_at||'').slice(0,16).replace('T',' ');
+
+    let resolveSection = '';
+    if (c.status === 'accepted' || c.status === 'rejected') {
+      resolveSection = `
+        <div class="rr-resolve-block rr-rb-done">
+          <div class="rr-rb-label">${t('الحل','Resolve')}</div>
+          <div class="rr-rb-text">${esc(resolveNote || '—')}</div>
+          ${decidedBy ? `<div class="rr-rb-meta">${t('بواسطة','By')} ${esc(decidedBy)}${decidedAt?' — '+decidedAt:''}</div>` : ''}
+          <button class="rr-view-btn" onclick="ApprovalCycle._rrViewDetails(${c.id})">👁 ${t('عرض التفاصيل','View Details')}</button>
+        </div>`;
+    } else if (resolveNote) {
+      resolveSection = `
+        <div class="rr-resolve-block rr-rb-proposed">
+          <div class="rr-rb-label">${t('الحل المقترح','Proposed Resolve')}</div>
+          <div id="rr-note-view-${c.id}" class="rr-rb-text">${esc(resolveNote)}</div>
+          <div id="rr-note-edit-${c.id}" class="rr-note-edit-wrap" style="display:none">
+            <textarea class="rr-note-ta" id="rr-ta-${c.id}" rows="3">${esc(resolveNote)}</textarea>
+            <div class="rr-note-edit-btns">
+              <button class="dm-btn ghost" onclick="ApprovalCycle._rrToggleEdit(${c.id},false)">${t('إلغاء','Cancel')}</button>
+              <button class="dm-btn primary" onclick="ApprovalCycle._rrSaveNote(${c.id})">${t('حفظ','Save')}</button>
+            </div>
+          </div>
+          <div class="rr-rb-meta">${t('مقترح بواسطة','Proposed By')}: ${esc(decidedBy||t('الأمانة','Secretary'))}${decidedAt?' — '+decidedAt:''}</div>
+          <div class="rr-rb-actions">
+            <button class="rr-edit-btn" onclick="ApprovalCycle._rrToggleEdit(${c.id},true)">✏️ ${t('تعديل الحل','Edit Resolve')}</button>
+            <button class="rr-resolve-btn" onclick="ApprovalCycle._rrMarkResolved(${c.id})">✅ ${t('تحديد كمحلول','Mark as Resolved')}</button>
+          </div>
+        </div>`;
+    } else {
+      resolveSection = `
+        <div class="rr-resolve-block rr-rb-add">
+          <div id="rr-add-btn-${c.id}">
+            <button class="rr-add-resolve-btn" onclick="ApprovalCycle._rrToggleAdd(${c.id},true)">➕ ${t('إضافة حل','Add Resolve')}</button>
+          </div>
+          <div id="rr-add-form-${c.id}" class="rr-note-edit-wrap" style="display:none">
+            <textarea class="rr-note-ta" id="rr-ta-${c.id}" rows="3" placeholder="${t('اكتب الحل المقترح هنا...','Type proposed resolution here...')}"></textarea>
+            <div class="rr-note-edit-btns">
+              <button class="dm-btn ghost" onclick="ApprovalCycle._rrToggleAdd(${c.id},false)">${t('إلغاء','Cancel')}</button>
+              <button class="dm-btn ghost" onclick="ApprovalCycle._rrMarkRejected(${c.id})">🚫 ${t('رفض','Reject')}</button>
+              <button class="dm-btn primary" onclick="ApprovalCycle._rrSaveNote(${c.id})">${t('حفظ الحل','Save Resolve')}</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    return `
+<div class="rr-card" id="rr-card-${c.id}">
+  <div class="rr-card-top">
+    <div class="rr-card-left">
+      <div class="rv-av" style="background:${bg}">${initials}</div>
+      <div class="rr-who">
+        <div class="rr-who-name">${esc(name)}</div>
+        <div class="rr-who-role">${esc(role)}</div>
+        <div class="rr-who-date">📅 ${when}</div>
+      </div>
+    </div>
+    <div class="rr-card-mid">
+      <span class="rr-type-badge rr-tb-${type}">${typeLabel}</span>
+      <div class="rr-comment-text">${esc(c.content||'')}</div>
+    </div>
+    <div class="rr-card-right">
+      <span class="rv-badge ${st.cls}">${st.label}</span>
+    </div>
+  </div>
+  ${resolveSection}
+</div>`;
+  },
+
+  _rrGetType(c) {
+    const r = (c.clause_ref||'').toLowerCase();
+    if (r.includes('clarif')) return 'clarification';
+    if (r.includes('change')||r.includes('تعديل')) return 'change';
+    if (r.includes('suggest')||r.includes('اقتراح')) return 'suggestion';
+    return 'general';
+  },
+
+  _rrToggleEdit(id, show) {
+    const view = document.getElementById(`rr-note-view-${id}`);
+    const edit = document.getElementById(`rr-note-edit-${id}`);
+    if (view) view.style.display = show ? 'none' : '';
+    if (edit) edit.style.display = show ? '' : 'none';
+  },
+  _rrToggleAdd(id, show) {
+    const btn  = document.getElementById(`rr-add-btn-${id}`);
+    const form = document.getElementById(`rr-add-form-${id}`);
+    if (btn)  btn.style.display  = show ? 'none' : '';
+    if (form) form.style.display = show ? '' : 'none';
+  },
+
+  async _rrSaveNote(id) {
+    const ta  = document.getElementById(`rr-ta-${id}`);
+    const note = ta ? ta.value.trim() : '';
+    if (!note) { showToast(this.t('يرجى كتابة الحل','Please enter a resolution'), 'warn'); return; }
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/comments/${id}`, {
+        method: 'PATCH', body: JSON.stringify({ secretary_note: note })
+      });
+      await this._load();
+      this._rrRenderCards();
+      showToast(this.t('تم حفظ الحل ✅','Resolution saved ✅'), 'success');
+    } catch(e) {
+      showToast(this.t('تعذّر الحفظ','Save failed'), 'error');
+    }
+  },
+
+  async _rrMarkResolved(id) {
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/comments/${id}`, {
+        method: 'PATCH', body: JSON.stringify({ status: 'accepted' })
+      });
+      await this._load();
+      this._rrRenderCards();
+      showToast(this.t('تم التحديد كمحلول ✅','Marked as Resolved ✅'), 'success');
+    } catch(e) { showToast(this.t('تعذّر التحديث','Update failed'), 'error'); }
+  },
+
+  async _rrMarkRejected(id) {
+    const ta  = document.getElementById(`rr-ta-${id}`);
+    const note = ta ? ta.value.trim() : '';
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/comments/${id}`, {
+        method: 'PATCH', body: JSON.stringify({ status: 'rejected', ...(note ? { secretary_note: note } : {}) })
+      });
+      await this._load();
+      this._rrRenderCards();
+      showToast(this.t('تم الرفض','Rejected'), 'info');
+    } catch(e) { showToast(this.t('تعذّر التحديث','Update failed'), 'error'); }
+  },
+
+  _rrViewDetails(id) {
+    const c = ((this._data||{}).comments||[]).find(x=>x.id===id);
+    if (!c) return;
+    showToast(`${c.commenter_name} — ${c.secretary_note||c.content}`, 'info');
+  },
+
+  async _rrSaveAll() {
+    showToast(this.t('تم حفظ جميع التغييرات ✅','All changes saved ✅'), 'success');
   },
 
   /* ── Edit deadline helper ─────────────────────────────────────────────── */

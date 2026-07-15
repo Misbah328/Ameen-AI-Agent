@@ -4459,6 +4459,29 @@ router.get('/meetings/:id/approval-cycle', auth, requirePermission('minutes.view
   }
 });
 
+// PATCH /api/meetings/:id/approval-cycle/comments/:cid  — update resolution
+router.patch('/meetings/:id/approval-cycle/comments/:cid', auth, requirePermission('minutes.view'), (req, res) => {
+  const mid = parseInt(req.params.id);
+  const cid = parseInt(req.params.cid);
+  const { status, secretary_note } = req.body || {};
+  try {
+    const actor = db.prepare(`SELECT name_en, name_ar FROM users WHERE id=?`).get(req.user.id);
+    const actorName = (actor && (actor.name_en || actor.name_ar)) || req.user.email || 'Secretary';
+    const fields = [];
+    const vals   = [];
+    if (status !== undefined)        { fields.push('status=?');         vals.push(status); }
+    if (secretary_note !== undefined) { fields.push('secretary_note=?'); vals.push(secretary_note); }
+    if (status === 'accepted' || status === 'rejected') {
+      fields.push('decided_by=?', 'decided_at=datetime(\'now\')');
+      vals.push(actorName);
+    }
+    if (!fields.length) return res.status(400).json({ error: 'nothing to update' });
+    vals.push(cid, mid);
+    db.prepare(`UPDATE minutes_comments SET ${fields.join(',')} WHERE id=? AND meeting_id=?`).run(...vals);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST /api/meetings/:id/approval-cycle/advance  — advance cycle stage
 router.post('/meetings/:id/approval-cycle/advance', auth, (req, res) => {
   const mid = parseInt(req.params.id);
