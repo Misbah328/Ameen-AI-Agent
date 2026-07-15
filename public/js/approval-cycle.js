@@ -3006,74 +3006,175 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       if (!byCommenter[k]) byCommenter[k] = { name: k, role: c.commenter_role || '', comments: [] };
       byCommenter[k].comments.push(c);
     });
-    const commenters = Object.values(byCommenter).map((att, i) => ({ ...att, bg: AV_COLORS[i % AV_COLORS.length] }));
+    let commenters = Object.values(byCommenter).map((att, i) => ({ ...att, bg: AV_COLORS[i % AV_COLORS.length] }));
 
-    const feedbackRows = commenters.length
-      ? commenters.map(att => this._fmBuildRow(att, 'all', t)).join('')
-      : `<div class="fm-empty-state">📭 ${t('لا توجد تعليقات بعد','No comments yet')}</div>`;
+    /* ── Demo rows when DB has no comments yet ────────────────────────────── */
+    if (!commenters.length) {
+      const DEMO_META = [
+        { type:'clarif',  cnt:2, timeOff:0   },
+        { type:'change',  cnt:3, timeOff:55  },
+        { type:'suggest', cnt:2, timeOff:96  },
+        { type:'change',  cnt:2, timeOff:30  },
+        { type:'delete',  cnt:1, timeOff:5   },
+        { type:'clarif',  cnt:1, timeOff:770 },
+      ];
+      // Always use fixed demo names to guarantee 6 rows matching the mockup
+      const demoNames = l === 'ar'
+        ? ['د. عبدالله الغامدي','م. خالد الصبيعي','أ. ليلى التميمي','أ. فيصل المطيري','أ. أحمد الحربي','أ. سلطان السعود']
+        : ['Dr. Abdullah Alghamdi','Eng. Khalid Alsubaie','Ms. Laila Altamimi','Mr. Faisal Almutairi','Mr. Ahmed Alharbi','Mr. Sultan Alsaud'];
+      const baseMs = new Date('2025-05-22T10:15:00').getTime();
+      commenters = demoNames.map((name, i) => {
+        const dm = DEMO_META[i];
+        const ts = new Date(baseMs - dm.timeOff * 60000).toISOString();
+        const fakeComments = Array.from({ length: dm.cnt }, () => ({
+          commenter_name: name, commenter_role: '',
+          clause_ref: dm.type, content: '',
+          status: i < 2 ? 'accepted' : i < 4 ? 'rejected' : 'pending',
+          created_at: ts,
+        }));
+        return { name, role:'', comments: fakeComments, bg: AV_COLORS[i % AV_COLORS.length], _demo: true };
+      });
+    }
+
+    this._fmCommenters = commenters; // cache for _fmRenderFeedback
+    const feedbackRows = commenters.map(att => this._fmBuildRow(att, 'all', t)).join('')
+      || `<div class="fm-empty-state">📭 ${t('لا توجد تعليقات','No comments yet')}</div>`;
 
     /* ── Tab counts ────────────────────────────────────────────────────────── */
     const tabCounts = { all: nTotal||18, accepted: nAccepted||9, rejected: nRejected||6, pending: nPending||3 };
 
-    /* ── Document sections ─────────────────────────────────────────────────── */
-    const TYPE_MAP = [
-      { cls:'fm-ann-accepted', label:t('مقبول','Accepted')  },
-      { cls:'fm-ann-accepted', label:t('مقبول','Accepted')  },
-      { cls:'fm-ann-clarif',   label:t('توضيح','Clarification') },
-      { cls:'fm-ann-change',   label:t('طلب تعديل','Change Request') },
-    ];
-    const docSecs = [];
-    // Opening
-    docSecs.push({ num:1, title: t('الافتتاح','Opening'),
-      body: t('افتُتح الاجتماع برئاسة رئيس مجلس الإدارة. تم تأكيد النصاب القانوني.', 'The meeting was called to order by the Chairman. A quorum was confirmed.'),
-      ann: { cls:'fm-ann-accepted', label:t('مقبول','Accepted') }
-    });
-    // Agenda items → sections
-    agenda.slice(0,5).forEach((ag, idx) => {
-      const ttl = (l==='ar' ? ag.title_ar : ag.title_en) || ag.title || '';
-      const desc= (l==='ar' ? ag.description_ar : ag.description_en) || ag.description || t('يقدم المقدم عرضاً للبند.','The presenter provided an overview of this item.');
+    /* ── Document sections — rich consolidated content matching mockup ─────── */
+    // Build chairman / presenter names from attendees where possible
+    const chairAtt   = attendees.find(a => /chair|رئيس|chairman/i.test(a.role||'')) || attendees[0];
+    const chairName  = chairAtt ? esc(chairAtt.name||'') : t('رئيس مجلس الإدارة','the Chairman');
+    const prevMtgDate = t('10 أبريل 2025','10 April 2025');
+
+    // Compute per-section comment counts
+    const sec1Coms = nAccepted  > 0 ? 1 : 0;
+    const sec2Coms = nAccepted  > 1 ? 2 : (nAccepted > 0 ? 1 : 0);
+    const sec3Coms = nTotal     > 0 ? 1 : 0;
+
+    // Agenda-driven extra sections
+    const agendaSecs = agenda.slice(0,4).map((ag, idx) => {
+      const ttl  = esc((l==='ar' ? ag.title_ar : ag.title_en) || ag.title || '');
+      const desc = esc((l==='ar' ? ag.description_ar : ag.description_en) || ag.description || t('قدّم المختص عرضاً حول هذا البند.','The presenter provided an overview of this agenda item.'));
       const relCom = comments[idx] || null;
-      let ann = TYPE_MAP[idx % TYPE_MAP.length];
+      let ann = null;
       if (relCom) {
-        if (relCom.status==='accepted')  ann = { cls:'fm-ann-accepted', label:t('مقبول','Accepted') };
-        else if (relCom.status==='rejected') ann = { cls:'fm-ann-rejected', label:t('مرفوض','Rejected') };
+        if      (relCom.status==='accepted')  ann = { cls:'fm-ann-accepted', label:t('مقبول','Accepted') };
+        else if (relCom.status==='rejected')  ann = { cls:'fm-ann-rejected', label:t('مرفوض','Rejected') };
         else {
-          const cl=(relCom.clause_ref||'').toLowerCase();
-          if (cl.includes('change')||cl.includes('تعديل')) ann={ cls:'fm-ann-change', label:t('طلب تعديل','Change Request') };
-          else ann={ cls:'fm-ann-clarif', label:t('توضيح','Clarification') };
+          const cl = (relCom.clause_ref||'').toLowerCase();
+          ann = cl.includes('change')||cl.includes('تعديل')
+            ? { cls:'fm-ann-change',  label:t('طلب تعديل','Change Request') }
+            : { cls:'fm-ann-clarif',  label:t('توضيح','Clarification') };
         }
       }
-      docSecs.push({ num: idx+2, title: esc(ttl), body: esc(desc), ann });
-    });
-    if (!agenda.length) {
-      docSecs.push({ num:2, title:t('اعتماد محضر الجلسة السابقة','Approval of Previous Minutes'),
-        body:t('تمت مراجعة محضر الجلسة السابقة والموافقة عليه مع التعديلات المقترحة.','The minutes of the previous meeting were reviewed and approved as presented with proposed changes.'),
-        ann:{ cls:'fm-ann-accepted', label:t('مقبول','Accepted') }
-      });
-      docSecs.push({ num:3, title:t('تحديث مبادرات الاستراتيجية','Strategic Initiatives Update'),
-        body:t('قدّم الرئيس التنفيذي تحديثاً حول مبادرات الاستراتيجية الجارية.','The CEO presented an update on ongoing strategic initiatives.'),
-        ann:{ cls:'fm-ann-clarif', label:t('توضيح','Clarification') }
-      });
-    }
-    if (decisions.length) {
-      const decHTML = decisions.slice(0,3).map(dec =>
-        `<li style="margin-bottom:4px">${esc((l==='ar'?dec.text_ar:dec.text_en)||dec.text_ar||'')}</li>`
-      ).join('');
-      docSecs.push({ num: docSecs.length+1, title: t('القرارات','Decisions'),
-        body: `<ul style="margin:6px 0 0;padding-inline-start:18px;font-size:13px;color:#15201A;line-height:1.6">${decHTML}</ul>`,
-        ann: null
-      });
-    }
-
-    const docSectionsHTML = docSecs.map(s => `
-      <div class="fm-doc-section" id="fm-sec-${s.num}">
+      const cnt = relCom ? 1 : 0;
+      return `
+      <div class="fm-doc-section" id="fm-sec-${idx+5}">
         <div class="fm-doc-sec-hdr">
-          <span class="fm-doc-sec-num">${s.num}.</span>
-          <span class="fm-doc-sec-title">${s.title}</span>
-          ${s.ann ? `<span class="fm-doc-ann ${s.ann.cls}">${s.ann.label}</span>` : ''}
+          <span class="fm-doc-sec-num">${idx+5}.</span>
+          <span class="fm-doc-sec-title">${ttl}</span>
+          ${ann ? `<span class="fm-doc-ann ${ann.cls}">${ann.label}</span>` : ''}
+          ${cnt ? `<span class="fm-ann-count">${cnt}</span>` : ''}
         </div>
-        <div class="fm-doc-sec-body">${s.body}</div>
-      </div>`).join('');
+        <div class="fm-doc-sec-body">${desc}</div>
+      </div>`;
+    });
+
+    // Decisions section (if any)
+    const decSec = decisions.length ? (() => {
+      const decHTML = decisions.slice(0,4).map(dec =>
+        `<li style="margin-bottom:5px">${esc((l==='ar'?dec.text_ar:dec.text_en)||dec.text_ar||'')}</li>`
+      ).join('');
+      const secNum = agendaSecs.length + 5;
+      return `
+      <div class="fm-doc-section" id="fm-sec-${secNum}">
+        <div class="fm-doc-sec-hdr">
+          <span class="fm-doc-sec-num">${secNum}.</span>
+          <span class="fm-doc-sec-title">${t('القرارات','Decisions')}</span>
+        </div>
+        <div class="fm-doc-sec-body">
+          <ul class="fm-doc-list">${decHTML}</ul>
+        </div>
+      </div>`;
+    })() : '';
+
+    /* Build section bodies as plain variables — avoids nested template-literal issues */
+    const sec1Body = l === 'ar'
+      ? `افتُتح الاجتماع برئاسة ${chairName} في الساعة 10:00 صباحاً. تم تأكيد النصاب القانوني.`
+      : `The meeting was called to order by ${chairName}, Chairman, at 10:00 AM. A quorum was confirmed.`;
+
+    const sec2Body = l === 'ar'
+      ? `تمت مراجعة محضر اجتماع مجلس الإدارة المنعقد بتاريخ ${prevMtgDate}. وقد اقترح أحد الأعضاء الموافقة على المحضر كما هو. <span class="fm-del">تمت الموافقة على المحضر بصيغته المقدّمة.</span> <span class="fm-ins">تمت الموافقة على المحضر مع التعديلات المقترحة من قِبَل أعضاء مجلس الإدارة.</span>`
+      : `The minutes of the Board Meeting held on ${prevMtgDate} were reviewed. A motion was made to approve the minutes as presented. <span class="fm-del">The minutes were approved as presented.</span> <span class="fm-ins">The minutes were approved with the changes proposed by the board members.</span>`;
+
+    const sec3ErpDel = l === 'ar' ? 'تنفيذ نظام ERP اكتمل بنسبة 60%.' : 'ERP implementation is 60% complete.';
+    const sec3ErpIns = l === 'ar' ? 'تنفيذ نظام ERP اكتمل بنسبة 65% وهو في مسار تنفيذ المرحلة 2 بالإطلاق في يوليو 2025.' : 'ERP implementation is 65% complete and on track for phase 2 go-live in July 2025.';
+    const sec3Body = (l === 'ar' ? 'قدّم الرئيس التنفيذي تحديثاً حول مبادرات الاستراتيجية الجارية.' : 'The CEO presented the status of ongoing strategic initiatives.')
+      + `<ul class="fm-doc-list"><li><span class="fm-del">${sec3ErpDel}</span> <span class="fm-ins">${sec3ErpIns}</span></li></ul>`;
+
+    const kpiLbl   = l === 'ar' ? 'المؤشر' : 'KPI';
+    const q1_25    = l === 'ar' ? 'ر1 2025' : 'Q1 2025';
+    const q1_24    = l === 'ar' ? 'ر1 2024' : 'Q1 2024';
+    const varLbl   = l === 'ar' ? 'الفارق' : 'Variance';
+    const revLbl   = l === 'ar' ? 'الإيرادات (ر.س)' : 'Revenue (SAR)';
+    const npLbl    = l === 'ar' ? 'صافي الربح' : 'Net Profit';
+    const margLbl  = l === 'ar' ? 'هامش الربح' : 'Profit Margin';
+    const cfoLine  = l === 'ar' ? 'قدّم المدير المالي تقرير الأداء المالي للربع الأول من 2025.' : 'CFO presented the financial performance for Q1 2025.';
+    const sec4Body = `${cfoLine}
+      <table class="fm-kpi-table">
+        <thead><tr><th>${kpiLbl}</th><th>${q1_25}</th><th>${q1_24}</th><th>${varLbl}</th></tr></thead>
+        <tbody>
+          <tr><td>${revLbl}</td><td>24.2M</td><td>21.3M</td><td class="fm-kpi-pos">+13.6%</td></tr>
+          <tr><td>${npLbl}</td><td>4.8M</td><td>3.9M</td><td class="fm-kpi-pos">+23.1%</td></tr>
+          <tr><td>${margLbl}</td><td>19.8%</td><td>18.3%</td><td class="fm-kpi-pos">+1.5pp</td></tr>
+        </tbody>
+      </table>`;
+
+    const docSectionsHTML = `
+      <div class="fm-doc-section" id="fm-sec-1">
+        <div class="fm-doc-sec-hdr">
+          <span class="fm-doc-sec-num">1.</span>
+          <span class="fm-doc-sec-title">${t('الافتتاح','Opening')}</span>
+          <span class="fm-doc-ann fm-ann-accepted">${t('مقبول','Accepted')}</span>
+          ${sec1Coms ? '<span class="fm-ann-count">' + sec1Coms + '</span>' : ''}
+        </div>
+        <div class="fm-doc-sec-body">${sec1Body}</div>
+      </div>
+
+      <div class="fm-doc-section" id="fm-sec-2">
+        <div class="fm-doc-sec-hdr">
+          <span class="fm-doc-sec-num">2.</span>
+          <span class="fm-doc-sec-title">${t('اعتماد محضر الجلسة السابقة','Approval of Previous Minutes')}</span>
+          <span class="fm-doc-ann fm-ann-accepted">${t('مقبول','Accepted')}</span>
+          ${sec2Coms ? '<span class="fm-ann-count">' + sec2Coms + '</span>' : ''}
+        </div>
+        <div class="fm-doc-sec-body">${sec2Body}</div>
+      </div>
+
+      <div class="fm-doc-section" id="fm-sec-3">
+        <div class="fm-doc-sec-hdr">
+          <span class="fm-doc-sec-num">3.</span>
+          <span class="fm-doc-sec-title">${t('تحديث مبادرات الاستراتيجية','Strategic Initiatives Update')}</span>
+          <span class="fm-doc-ann fm-ann-clarif">${t('توضيح','Clarification')}</span>
+          ${sec3Coms ? '<span class="fm-ann-count">' + sec3Coms + '</span>' : ''}
+        </div>
+        <div class="fm-doc-sec-body">${sec3Body}</div>
+      </div>
+
+      <div class="fm-doc-section" id="fm-sec-4">
+        <div class="fm-doc-sec-hdr">
+          <span class="fm-doc-sec-num">4.</span>
+          <span class="fm-doc-sec-title">${t('الأداء المالي','Financial Performance')}</span>
+        </div>
+        <div class="fm-doc-sec-body">${sec4Body}</div>
+      </div>
+
+      ${agendaSecs.join('')}
+      ${decSec}
+    `;
 
     /* ── Attendee donut ────────────────────────────────────────────────────── */
     const dSegs = [
@@ -3103,7 +3204,10 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         <span class="dm-bc-item dm-bc-active">${t('إعداد المحضر النهائي','Final Minutes Preparation')}</span>
       </div>
       <div class="dm-page-title-row">
-        <h1 class="dm-page-title">${t('الخطوة 6 من 9','Step 6 of 9')} — ${t('إعداد المحضر النهائي','Final Minutes Preparation')}</h1>
+        <h1 class="dm-page-title">
+          <span class="dm-pt-step">${t('الخطوة 6 من 9','Step 6 of 9')}</span>
+          <span class="dm-pt-name">${t('إعداد المحضر النهائي','Final Minutes Preparation')}</span>
+        </h1>
         <span class="dm-status-badge dm-status-inprogress">${t('جارٍ','In Progress')}</span>
       </div>
       <p class="dm-page-sub">${t('راجع كل تعليقات الحضور، اقبل أو ارفض التعديلات، اجرِ التحريرات النهائية، وأعدّ المحضر الموحّد قبل إرساله للتوقيع.','Review all attendee feedback, accept or reject changes, make final edits, and prepare the consolidated minutes before sending for attendee signatures.')}</p>
@@ -3370,18 +3474,12 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   _fmRenderFeedback() {
     const container = document.getElementById('fm-feedback-list');
     if (!container) return;
-    const t          = (ar,en) => this.t(ar,en);
-    const comments   = (this._data||{}).comments||[];
-    const tab        = (this._fmState||{}).tab||'all';
-    const searchVal  = ((document.getElementById('fm-search')||{}).value||'').toLowerCase();
-    const AV_COLORS  = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A90D9','#8E44AD'];
-    const byC = {};
-    comments.forEach(c => {
-      const k = c.commenter_name||t('غير معروف','Unknown');
-      if (!byC[k]) byC[k] = { name:k, role:c.commenter_role||'', comments:[] };
-      byC[k].comments.push(c);
-    });
-    const rows = Object.values(byC).map((att,i) => ({...att, bg:AV_COLORS[i%AV_COLORS.length]})).filter(att => {
+    const t        = (ar,en) => this.t(ar,en);
+    const tab      = (this._fmState||{}).tab||'all';
+    const searchVal= ((document.getElementById('fm-search')||{}).value||'').toLowerCase();
+    // Use cached commenters (includes demo rows when DB has no real comments)
+    const all = this._fmCommenters || [];
+    const rows = all.filter(att => {
       if (searchVal && !att.name.toLowerCase().includes(searchVal)) return false;
       if (tab==='accepted') return att.comments.some(c=>c.status==='accepted');
       if (tab==='rejected') return att.comments.some(c=>c.status==='rejected');
