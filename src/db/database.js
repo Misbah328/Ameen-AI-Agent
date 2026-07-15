@@ -1460,3 +1460,52 @@ db.exec(`
 `);
 
 module.exports = db;
+
+// ── Minutes Approval Cycle — extended workflow tables ─────────────────────────
+// minutes_cycle tracks the 9-stage workflow per meeting.
+// minutes_comments stores attendee comments with e-signatures.
+// minutes_signatures stores final e-signatures (attendees + final approver).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS minutes_cycle (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id       INTEGER UNIQUE NOT NULL,
+    cycle_stage      TEXT    DEFAULT 'draft',
+    comment_deadline TEXT    DEFAULT NULL,
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS minutes_comments (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id       INTEGER NOT NULL,
+    commenter_id     INTEGER,
+    commenter_name   TEXT    NOT NULL DEFAULT '',
+    commenter_role   TEXT    DEFAULT '',
+    clause_ref       TEXT    DEFAULT '',
+    content          TEXT    NOT NULL DEFAULT '',
+    status           TEXT    DEFAULT 'pending',
+    decided_by       TEXT    DEFAULT '',
+    decided_at       TEXT    DEFAULT NULL,
+    secretary_note   TEXT    DEFAULT '',
+    signature_data   TEXT    DEFAULT '',
+    signature_type   TEXT    DEFAULT 'type',
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS minutes_signatures (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id       INTEGER NOT NULL,
+    signer_id        INTEGER,
+    signer_name      TEXT    NOT NULL DEFAULT '',
+    signer_role      TEXT    DEFAULT '',
+    sig_stage        TEXT    DEFAULT 'attendee',
+    status           TEXT    DEFAULT 'pending',
+    signature_data   TEXT    DEFAULT '',
+    signature_type   TEXT    DEFAULT 'type',
+    signed_at        TEXT    DEFAULT NULL,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+  );
+`);

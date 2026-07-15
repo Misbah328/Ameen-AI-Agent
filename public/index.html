@@ -63,6 +63,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/css/app.css?v=20260714g"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713m"/>
+<link rel="stylesheet" href="/css/approval-cycle.css?v=20260715a"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
 </head>
 <body>
@@ -122,6 +123,10 @@
   <button class="nb" data-p="scheduled">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
     <span class="nb-label" data-ar="الاجتماعات" data-en="Meetings">الاجتماعات</span>
+  </button>
+  <button class="nb nb-sub" data-p="approval-cycle">
+    <span class="nb-icon">✅</span>
+    <span class="nb-label" data-ar="اعتماد المحاضر" data-en="Minutes Approval">اعتماد المحاضر</span>
   </button>
   <button class="nb" data-p="calendar">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/><rect x="10.5" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg></span>
@@ -1512,7 +1517,59 @@
   </div>
 </section>
 
+<!-- ══ MINUTES APPROVAL CYCLE ════════════════════════════════════════════════ -->
+<section class="panel" id="panel-approval-cycle">
+  <div id="ac-page-body" style="flex:1;overflow-y:auto;min-height:0"></div>
+</section>
+
 </main>
+</div>
+
+<!-- ══ APPROVAL CYCLE: E-SIGNATURE MODAL ════════════════════════════════════ -->
+<div class="ac-esign-overlay" id="ac-esign-overlay" onclick="if(event.target===this)ApprovalCycle.closeSignModal()">
+  <div class="ac-esign-modal">
+    <div class="ac-esign-title">✍️ <span data-ar="التوقيع الإلكتروني" data-en="Electronic Signature">التوقيع الإلكتروني</span></div>
+    <div class="ac-esign-sub"><span data-ar="وقّع على المحضر الرسمي باستخدام التوقيع المرسوم أو المكتوب." data-en="Sign the official minutes using drawn or typed signature.">وقّع على المحضر الرسمي باستخدام التوقيع المرسوم أو المكتوب.</span></div>
+    <div class="ac-esign-tabs">
+      <button class="ac-esign-tab active" id="esign-tab-draw" onclick="ApprovalCycle.switchEsignMode('draw')"><span data-ar="رسم التوقيع" data-en="Draw Signature">رسم التوقيع</span></button>
+      <button class="ac-esign-tab" id="esign-tab-type" onclick="ApprovalCycle.switchEsignMode('type')"><span data-ar="كتابة الاسم" data-en="Type Name">كتابة الاسم</span></button>
+    </div>
+    <div id="esign-draw-wrap" class="ac-esign-canvas-wrap">
+      <canvas id="ac-esign-canvas" class="ac-esign-canvas" width="480" height="150"></canvas>
+      <div class="ac-esign-hint" id="esign-canvas-hint"><span data-ar="ارسم توقيعك هنا…" data-en="Draw your signature here…">ارسم توقيعك هنا…</span></div>
+    </div>
+    <div id="esign-type-wrap" class="ac-esign-type-wrap" style="display:none">
+      <input type="text" id="ac-esign-type-input" class="ac-esign-type-input" data-ph-ar="اكتب اسمك بالكامل…" data-ph-en="Type your full name…" placeholder="اكتب اسمك بالكامل…"/>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="ac-esign-clear-btn" onclick="ApprovalCycle.clearCanvas()"><span data-ar="مسح" data-en="Clear">مسح</span></button>
+    </div>
+    <div class="ac-esign-confirm"><span data-ar="بالنقر على «تأكيد التوقيع» أؤكد أنني أوافق على مضمون المحضر وأن هذا التوقيع يُعدّ توقيعاً قانونياً ملزماً." data-en="By clicking «Confirm Signature» I confirm my agreement to the minutes content and that this signature is legally binding.">بالنقر على «تأكيد التوقيع» أؤكد موافقتي.</span></div>
+    <div class="ac-esign-actions">
+      <button class="btn-ghost" onclick="ApprovalCycle.closeSignModal()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      <button class="btn-gold" id="ac-esign-submit-btn" onclick="ApprovalCycle.submitSignature()"><span data-ar="تأكيد التوقيع" data-en="Confirm Signature">تأكيد التوقيع</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APPROVAL CYCLE: COMMENT MODAL ════════════════════════════════════════ -->
+<div class="ac-comment-overlay" id="ac-comment-overlay" onclick="if(event.target===this)ApprovalCycle.closeCommentModal()">
+  <div class="ac-comment-modal">
+    <div class="ac-esign-title">💬 <span data-ar="إضافة تعليق على المحضر" data-en="Add Comment on Minutes">إضافة تعليق على المحضر</span></div>
+    <div class="ac-esign-sub"><span data-ar="بعد كتابة التعليق ستُطلب منك إضافة توقيعك الإلكتروني." data-en="After writing your comment, you will be asked to add your e-signature.">بعد كتابة التعليق ستُطلب منك إضافة توقيعك الإلكتروني.</span></div>
+    <div class="frow" style="margin-bottom:10px">
+      <label class="fl"><span data-ar="البند المرتبط (اختياري)" data-en="Related Clause (optional)">البند المرتبط (اختياري)</span></label>
+      <input id="ac-cmt-clause" class="fi" data-ph-ar="مثال: البند 3 — القرارات" data-ph-en="e.g. Clause 3 — Decisions" placeholder="مثال: البند 3 — القرارات"/>
+    </div>
+    <div class="frow" style="margin-bottom:16px">
+      <label class="fl"><span data-ar="التعليق" data-en="Comment">التعليق</span> *</label>
+      <textarea id="ac-cmt-notes" class="fi" rows="5" data-ph-ar="اكتب تعليقك أو اقتراح التعديل هنا…" data-ph-en="Write your comment or proposed change here…" placeholder="اكتب تعليقك أو اقتراح التعديل هنا…" style="resize:vertical"></textarea>
+    </div>
+    <div class="ac-esign-actions">
+      <button class="btn-ghost" onclick="ApprovalCycle.closeCommentModal()"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      <button class="btn-gold" id="ac-cmt-submit-btn" onclick="ApprovalCycle.submitComment()">✍️ <span data-ar="التوقيع والإرسال" data-en="Sign &amp; Submit">التوقيع والإرسال</span></button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ MODAL: ADD TASK ════════════════════════════════════════ -->
@@ -1899,6 +1956,7 @@
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260713e"></script>
 <script src="/js/meetings.js?v=20260714b"></script>
+<script src="/js/approval-cycle.js?v=20260715a"></script>
 
 <!-- ═══ Change Password Modal ══════════════════════════════════════════════ -->
 <div id="modal-change-password" onclick="if(event.target===this)closeChangePassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">

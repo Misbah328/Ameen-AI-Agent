@@ -238,6 +238,7 @@ const ROLE_ACCESS = {
     "governance", "boards",
     "integrations",
     "admin",
+    "approval-cycle",
   ]),
   CEO: new Set([
     "create-meeting", "scheduled", "live",
@@ -253,6 +254,7 @@ const ROLE_ACCESS = {
     "overview",
     "analytics", "activity",
     "governance", "boards",
+    "approval-cycle",
   ]),
   "Board Member": new Set([
     "transcripts",
@@ -266,6 +268,7 @@ const ROLE_ACCESS = {
     "overview",
     "analytics", "activity",
     "governance", "boards",
+    "approval-cycle",
   ]),
   "Committee Member": new Set([
     "transcripts",
@@ -289,6 +292,7 @@ const ROLE_ACCESS = {
     "series",
     "overview",
     "analytics", "activity",
+    "approval-cycle",
   ]),
   Manager: new Set([
     "create-meeting", "scheduled", "live",
@@ -302,23 +306,25 @@ const ROLE_ACCESS = {
     "team",
     "overview",
     "analytics", "activity",
+    "approval-cycle",
   ]),
-  Employee: new Set(["overview", "create-meeting", "scheduled", "live", "transcripts", "history", "tasks", "ask"]),
+  Employee: new Set(["overview", "create-meeting", "scheduled", "live", "transcripts", "history", "tasks", "ask", "approval-cycle"]),
   Observer: new Set(["transcripts", "history", "lastmeeting", "overview", "tasks"]),
   // ── Phase 4 enterprise RBAC roles ──────────────────────────────────────────
   "Super Admin": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
-    "governance", "boards", "integrations", "admin",
+    "governance", "boards", "integrations", "admin", "approval-cycle",
   ]),
   "Organization Admin": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
-    "governance", "boards", "integrations", "admin",
+    "governance", "boards", "integrations", "admin", "approval-cycle",
   ]),
   "Board Secretary": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "overview", "analytics", "activity", "governance", "boards",
+    "approval-cycle",
   ]),
   "Committee Chair": new Set([
     "transcripts", "history", "tasks", "ask", "documents", "schedule",
@@ -933,6 +939,7 @@ const Panels = {
       transcripts: "scheduled", history: "scheduled",
       series: "scheduled", lastmeeting: "scheduled", schedule: "calendar",
       team: "integrations", activity: "overview",
+      "approval-cycle": "scheduled",
     };
     const navName = document.querySelector(`.nb[data-p="${name}"]`) ? name : navAlias[name] || name;
     document
@@ -1011,6 +1018,9 @@ const Panels = {
         break;
       case "resolutions":
         if (window.MT) await MT.renderResolutions();
+        break;
+      case "approval-cycle":
+        if (window.ApprovalCycle) await ApprovalCycle.refresh();
         break;
       case "logs":
         await ActivityLog.refresh();

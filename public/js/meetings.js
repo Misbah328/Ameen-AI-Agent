@@ -231,6 +231,11 @@ const MT = {
   },
 
   setTab(k) {
+    // Approval tab now opens the dedicated full-page Minutes Approval Cycle panel
+    if (k === "approval" && this._mid && window.ApprovalCycle) {
+      ApprovalCycle.open(this._mid);
+      return;
+    }
     this._tab = k;
     // Issue 1 fix: set LiveMT._mid synchronously BEFORE rendering, so the
     // "Start Meeting" button works on the very first click even if onMount's
@@ -344,8 +349,10 @@ const MT = {
       <div class="mx-steps">${steps.map((s, i) => {
         const st = i < cur ? "done" : i === cur ? "cur" : "";
         const log = lcByStage[s.k];
-        return `<div class="mx-step ${st}"><div class="mx-step-dot">${i < cur ? "✓" : i + 1}</div>
-          <div class="mx-step-l">${t(s.ar, s.en)}</div>
+        const isApproval = s.k === "approval";
+        const clickable = isApproval ? `style="cursor:pointer" onclick="if(window.ApprovalCycle&&MT._mid)ApprovalCycle.open(MT._mid)" title="${t('فتح دورة الاعتماد','Open Approval Cycle')}"` : "";
+        return `<div class="mx-step ${st}" ${clickable}><div class="mx-step-dot">${i < cur ? "✓" : i + 1}</div>
+          <div class="mx-step-l">${t(s.ar, s.en)}${isApproval ? ` <span style="font-size:9px;color:var(--gold)">↗</span>` : ""}</div>
           <div class="mx-step-s">${log ? fmtDate(log.created_at) : (i === cur ? t("الحالي", "Current") : t("قيد الانتظار", "Pending"))}</div></div>`;
       }).join("")}</div></div>`;
 

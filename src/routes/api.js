@@ -4427,3 +4427,176 @@ router.get('/settings/integration/:provider', auth, requirePermission('admin.set
 });
 
 module.exports = router;
+
+// ════════════════════════════════════════════════════════════════════════════════
+// MINUTES APPROVAL CYCLE — full workflow API
+// ════════════════════════════════════════════════════════════════════════════════
+
+// GET  /api/meetings/:id/approval-cycle  — full cycle snapshot
+router.get('/meetings/:id/approval-cycle', auth, requirePermission('minutes.view'), (req, res) => {
+  const mid = parseInt(req.params.id);
+  try {
+    const cycle = db.prepare(`SELECT * FROM minutes_cycle WHERE meeting_id=?`).get(mid) || {
+      meeting_id: mid, cycle_stage: 'draft', comment_deadline: null
+    };
+    const comments = db.prepare(
+      `SELECT * FROM minutes_comments WHERE meeting_id=? ORDER BY created_at DESC`
+    ).all(mid);
+    const signatures = db.prepare(
+      `SELECT * FROM minutes_signatures WHERE meeting_id=? ORDER BY created_at ASC`
+    ).all(mid);
+    const audit = db.prepare(
+      `SELECT mal.*, m.title_en FROM minutes_approval_log mal
+       LEFT JOIN meetings m ON m.id=mal.meeting_id
+       WHERE mal.meeting_id=? ORDER BY mal.created_at DESC LIMIT 30`
+    ).all(mid);
+    const attendees = db.prepare(
+      `SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id ASC`
+    ).all(mid);
+    res.json({ cycle, comments, signatures, audit, attendees });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/meetings/:id/approval-cycle/advance  — advance cycle stage
+router.post('/meetings/:id/approval-cycle/advance', auth, (req, res) => {
+  const mid = parseInt(req.params.id);
+  const { to_stage, note } = req.body || {};
+  const canPublish = rbacService.hasPermission(db, req.user.id, 'minutes.publish');
+  const canApprove = rbacService.hasPermission(db, req.user.id, 'minutes.approve');
+  if (!canPublish && !canApprove) return res.status(403).json({ error: 'FORBIDDEN' });
+  if (!to_stage) return res.status(400).json({ error: 'to_stage required' });
+
+  const allowed = ['circulated','comments_open','deadline_closed','review_resolve',
+    'final_version','attendee_sign','final_approver','archived'];
+  if (!allowed.includes(to_stage)) return res.status(400).json({ error: 'invalid stage' });
+
+  try {
+    const actor = resolveActor(req.user.id);
+    const actor_name = actor.name || req.user.email || 'Secretary';
+    const actor_id = req.user.id;
+
+    // Upsert cycle record
+    db.prepare(`INSERT INTO minutes_cycle (meeting_id, cycle_stage, updated_at)
+      VALUES (?,?,datetime('now'))
+      ON CONFLICT(meeting_id) DO UPDATE SET cycle_stage=excluded.cycle_stage, updated_at=excluded.updated_at`
+    ).run(mid, to_stage);
+
+    // Sync meetings table fields
+    const syncMap = {
+      circulated: { minutes_status: 'circulated', lifecycle_stage: 'review' },
+      final_version: { minutes_status: 'approved', lifecycle_stage: 'approval' },
+      archived: { minutes_status: 'final_approved', lifecycle_stage: 'archived' },
+    };
+    if (syncMap[to_stage]) {
+      const s = syncMap[to_stage];
+      db.prepare(`UPDATE meetings SET minutes_status=?, lifecycle_stage=?, lifecycle_updated_at=datetime('now') WHERE id=?`)
+        .run(s.minutes_status, s.lifecycle_stage, mid);
+    }
+
+    // If advancing to attendee_sign, auto-populate signatures for attendees
+    if (to_stage === 'attendee_sign') {
+      const attendees = db.prepare(`SELECT * FROM meeting_attendees WHERE meeting_id=?`).all(mid);
+      const existingSigs = db.prepare(`SELECT signer_name FROM minutes_signatures WHERE meeting_id=? AND sig_stage='attendee'`).all(mid).map(r => r.signer_name);
+      const ins = db.prepare(`INSERT INTO minutes_signatures (meeting_id,signer_name,signer_role,sig_stage,status) VALUES (?,?,?,?,?)`);
+      attendees.forEach(a => {
+        if (!existingSigs.includes(a.name)) ins.run(mid, a.name, a.role || '', 'attendee', 'pending');
+      });
+    }
+
+    // If advancing to final_approver, auto-populate for chairman
+    if (to_stage === 'final_approver') {
+      const existing = db.prepare(`SELECT id FROM minutes_signatures WHERE meeting_id=? AND sig_stage='final_approver'`).get(mid);
+      if (!existing) {
+        const chairman = db.prepare(`SELECT * FROM meeting_attendees WHERE meeting_id=? AND (role LIKE '%Chair%' OR role LIKE '%رئيس%') LIMIT 1`).get(mid);
+        const name = chairman ? chairman.name : 'Chairman';
+        const role = chairman ? (chairman.role || 'Chairman') : 'Chairman';
+        db.prepare(`INSERT INTO minutes_signatures (meeting_id,signer_name,signer_role,sig_stage,status) VALUES (?,?,?,?,?)`).run(mid, name, role, 'final_approver', 'pending');
+      }
+    }
+
+    // Audit log
+    db.prepare(`INSERT INTO minutes_approval_log (meeting_id,action,actor_id,actor_name,comments) VALUES (?,?,?,?,?)`)
+      .run(mid, `cycle_advance:${to_stage}`, actor_id, actor_name, note || `Advanced to ${to_stage}`);
+
+    res.json({ success: true, cycle_stage: to_stage });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/meetings/:id/approval-cycle/deadline  — set comment deadline
+router.post('/meetings/:id/approval-cycle/deadline', auth, requirePermission('minutes.publish'), (req, res) => {
+  const mid = parseInt(req.params.id);
+  const { deadline } = req.body || {};
+  if (!deadline) return res.status(400).json({ error: 'deadline required' });
+  try {
+    db.prepare(`INSERT INTO minutes_cycle (meeting_id, comment_deadline, updated_at)
+      VALUES (?,?,datetime('now'))
+      ON CONFLICT(meeting_id) DO UPDATE SET comment_deadline=excluded.comment_deadline, updated_at=excluded.updated_at`
+    ).run(mid, deadline);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/meetings/:id/approval-cycle/comments  — add a comment (requires e-signature)
+router.post('/meetings/:id/approval-cycle/comments', auth, requirePermission('minutes.view'), (req, res) => {
+  const mid = parseInt(req.params.id);
+  const { content, clause_ref, signature_data, signature_type } = req.body || {};
+  if (!content || !content.trim()) return res.status(400).json({ error: 'content required' });
+  if (!signature_data || !signature_data.trim()) return res.status(400).json({ error: 'e-signature required' });
+  const actor = resolveActor(req.user.id);
+  const name = actor.name || req.user.email || 'Attendee';
+  const role = req.user.system_role || '';
+  try {
+    const r = db.prepare(`INSERT INTO minutes_comments
+      (meeting_id,commenter_id,commenter_name,commenter_role,clause_ref,content,signature_data,signature_type)
+      VALUES (?,?,?,?,?,?,?,?)`
+    ).run(mid, req.user.id, name, role, clause_ref || '', content.trim(), signature_data, signature_type || 'type');
+    res.json({ success: true, id: r.lastInsertRowid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/meetings/:id/approval-cycle/comments/:cid/decide  — accept or reject a comment
+router.post('/meetings/:id/approval-cycle/comments/:cid/decide', auth, (req, res) => {
+  const mid = parseInt(req.params.id);
+  const cid = parseInt(req.params.cid);
+  const { decision, secretary_note } = req.body || {};
+  const canPublish = rbacService.hasPermission(db, req.user.id, 'minutes.publish');
+  const canApprove = rbacService.hasPermission(db, req.user.id, 'minutes.approve');
+  if (!canPublish && !canApprove) return res.status(403).json({ error: 'FORBIDDEN' });
+  if (!['accepted','rejected'].includes(decision)) return res.status(400).json({ error: 'invalid decision' });
+  const decidedBy = resolveActor(req.user.id);
+  const name = decidedBy.name || req.user.email || 'Secretary';
+  try {
+    db.prepare(`UPDATE minutes_comments SET status=?,decided_by=?,decided_at=datetime('now'),secretary_note=? WHERE id=? AND meeting_id=?`)
+      .run(decision, name, secretary_note || '', cid, mid);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/meetings/:id/approval-cycle/sign  — submit e-signature (attendee or final approver)
+router.post('/meetings/:id/approval-cycle/sign', auth, requirePermission('minutes.view'), (req, res) => {
+  const mid = parseInt(req.params.id);
+  const { sig_stage, signature_data, signature_type } = req.body || {};
+  if (!signature_data || !signature_data.trim()) return res.status(400).json({ error: 'signature required' });
+  const signer = resolveActor(req.user.id);
+  const name = signer.name || req.user.email || 'Attendee';
+  const role = req.user.system_role || '';
+  try {
+    const existing = db.prepare(`SELECT id FROM minutes_signatures WHERE meeting_id=? AND signer_name=? AND sig_stage=?`).get(mid, name, sig_stage || 'attendee');
+    if (existing) {
+      db.prepare(`UPDATE minutes_signatures SET status='signed',signature_data=?,signature_type=?,signed_at=datetime('now') WHERE id=?`)
+        .run(signature_data, signature_type || 'type', existing.id);
+    } else {
+      db.prepare(`INSERT INTO minutes_signatures (meeting_id,signer_id,signer_name,signer_role,sig_stage,status,signature_data,signature_type,signed_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))`)
+        .run(mid, req.user.id, name, role, sig_stage || 'attendee', 'signed', signature_data, signature_type || 'type');
+    }
+    // Audit log
+    db.prepare(`INSERT INTO minutes_approval_log (meeting_id,action,actor_id,actor_name,comments) VALUES (?,?,?,?,?)`)
+      .run(mid, 'signed', req.user.id, name, `E-signed as ${sig_stage || 'attendee'}`);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
