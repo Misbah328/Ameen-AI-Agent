@@ -2173,80 +2173,157 @@
    STEP 7 — Attendee Signatures
 ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Doc status bar */
-.s7-doc-status-bar {
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  padding:9px 16px; border-top:1px solid #E5E9E7;
-  font-size:11.5px; color:#8A948D; background:#FAFBF9;
-  flex-shrink:0;
+/* In-progress badge */
+.dm-status-inprogress {
+  background:rgba(232,130,26,.12); color:#A8590A;
+  font-weight:700; font-size:11.5px; padding:3px 10px; border-radius:99px;
 }
-.s7-stat-item  { display:flex; align-items:center; gap:3px; }
-.s7-stat-num   { font-weight:700; color:#15201A; }
-.s7-stat-sep   { color:#D0D5DD; }
-.s7-stat-acc .s7-stat-num { color:#0C7A3D; }
-.s7-stat-rej .s7-stat-num { color:#C4453C; }
-.s7-stat-pnd .s7-stat-num { color:#A8842C; }
-.s7-stat-saved { margin-inline-start:auto; color:#0C7A3D; font-weight:700; font-size:11px; }
 
-/* Section annotation icons */
-.s7-ann-ico {
-  display:inline-flex; align-items:center; justify-content:center;
-  width:18px; height:18px; border-radius:50%;
-  background:#0C7A3D; color:#fff;
-  font-size:9px; font-weight:800; flex-shrink:0;
-  margin-inline-start:4px;
-}
-.s7-ann-ico-clarif { background:#2C6CA8; }
-
-/* ── RIGHT: Review Summary donut ─────────────────────────────────────────── */
-.s7-donut-svg { display:block; flex-shrink:0; }
-.s7-donut-wrap  { display:flex; align-items:center; gap:16px; }
-.s7-donut-legend { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; }
-.s7-legend-row {
-  display:flex; align-items:center; gap:7px;
-  font-size:12px; color:#46514A;
-}
-.s7-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-.s7-legend-lbl { flex:1; font-size:11.5px; }
-.s7-legend-val { font-size:13px; font-weight:800; color:#15201A; display:flex; align-items:center; gap:4px; }
-.s7-legend-pct { font-size:10.5px; font-weight:400; color:#8A948D; }
-
-/* ── RIGHT: Changes by Type ───────────────────────────────────────────────── */
-.s7-ct-rows  { display:flex; flex-direction:column; gap:0; }
-.s7-ct-row {
+/* Deadline badge (top-right) */
+.s7-deadline-badge {
   display:flex; align-items:center; gap:8px;
-  padding:8px 0; border-bottom:1px solid #F2F3F5;
+  padding:7px 12px; background:rgba(12,122,61,.07);
+  border:1px solid rgba(12,122,61,.2); border-radius:8px; font-size:11.5px;
 }
-.s7-ct-row:last-child { border-bottom:none; }
-.s7-ct-ico {
-  width:24px; height:24px; border-radius:6px; background:#F2F3F5;
+.s7-dl-badge-label { font-size:10.5px; color:#8A948D; }
+.s7-dl-badge-date  { font-size:12px; font-weight:700; color:#0C7A3D; }
+
+/* ── Meta bar ──────────────────────────────────────────────────────────── */
+.s7-meta-bar {
+  display:flex; align-items:stretch;
+  background:#fff; border:1px solid #E5E9E7; border-radius:10px;
+  margin-bottom:18px; overflow:hidden; flex-shrink:0;
+}
+.s7-meta-item {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 16px; flex:1; min-width:0;
+}
+.s7-meta-sep   { width:1px; background:#E5E9E7; flex-shrink:0; }
+.s7-meta-lbl   { font-size:10.5px; color:#8A948D; margin-bottom:2px; }
+.s7-meta-val   { font-size:12.5px; font-weight:600; color:#15201A; }
+.s7-version-badge {
+  display:inline-flex; padding:2px 8px; border-radius:99px;
+  background:rgba(12,122,61,.1); color:#0C7A3D; font-size:11.5px; font-weight:700;
+}
+.s7-status-inprogress { color:#A8590A; font-weight:700; }
+
+/* ── 2-column body ─────────────────────────────────────────────────────── */
+.s7-body { display:flex; gap:18px; flex:1; min-height:0; }
+
+/* ── Left: main panel ──────────────────────────────────────────────────── */
+.s7-main-panel {
+  flex:1; min-width:0; display:flex; flex-direction:column;
+  background:#fff; border:1px solid #E5E9E7; border-radius:12px; overflow:hidden;
+}
+.s7-table-hdr {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  padding:14px 18px 11px; border-bottom:1px solid #E5E9E7; flex-shrink:0; gap:12px;
+}
+.s7-table-title    { font-size:14px; font-weight:700; color:#15201A; margin-bottom:3px; }
+.s7-table-subtitle { font-size:11.5px; color:#8A948D; }
+.s7-table-actions  { display:flex; align-items:center; gap:7px; flex-shrink:0; }
+.s7-view-minutes-btn { font-size:12px !important; padding:6px 11px !important; gap:5px; }
+.s7-expand-btn {
+  width:30px; height:30px; border:1.5px solid #E5E9E7; border-radius:6px;
+  background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  color:#46514A; transition:background .15s; flex-shrink:0;
+}
+.s7-expand-btn:hover { background:#F2F3F5; }
+
+/* ── Signature table ───────────────────────────────────────────────────── */
+.s7-sig-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.s7-sig-table thead tr  { background:#F8F9FA; }
+.s7-sig-table thead th  {
+  padding:9px 14px; text-align:start; font-size:11.5px; font-weight:600;
+  color:#8A948D; border-bottom:1px solid #E5E9E7; white-space:nowrap;
+}
+.s7-sig-table tbody tr  { border-bottom:1px solid #F2F3F5; transition:background .12s; }
+.s7-sig-table tbody tr:last-child { border-bottom:none; }
+.s7-sig-table tbody tr:hover      { background:#FAFBF9; }
+.s7-sig-table td { padding:10px 14px; vertical-align:middle; }
+
+.s7-col-num  { width:32px; color:#8A948D; font-size:11.5px; text-align:center; }
+.s7-att-info { display:flex; align-items:center; gap:10px; }
+.s7-att-av   {
+  width:34px; height:34px; border-radius:50%; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
-  flex-shrink:0; color:#46514A;
+  font-size:11.5px; font-weight:700; color:#fff;
 }
-.s7-ct-lbl { flex:1; font-size:12px; color:#46514A; }
-.s7-ct-val { font-size:14px; font-weight:800; color:#15201A; }
+.s7-att-name     { font-size:13px; font-weight:600; color:#15201A; }
+.s7-col-role     { font-size:12px; color:#6B7280; }
+.s7-col-signedat { font-size:12px; color:#46514A; white-space:nowrap; }
+.s7-sig-cell     { min-width:90px; }
+.s7-sig-action   { width:80px; }
 
-/* ── RIGHT: Attendee Response Summary ────────────────────────────────────── */
-.s7-att-rows { display:flex; flex-direction:column; gap:0; margin-bottom:12px; }
-.s7-att-row {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:9px 0; border-bottom:1px solid #F2F3F5;
+/* Status badges */
+.s7-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:99px; font-size:11.5px; font-weight:600; }
+.s7-badge-signed      { background:rgba(12,122,61,.1);  color:#0C7A3D; }
+.s7-badge-pending     { background:rgba(232,130,26,.12); color:#A8590A; }
+.s7-badge-notrequired { background:#F2F3F5; color:#6B7280; }
+
+/* Signature SVG */
+.s7-sig-svg { display:block; }
+
+/* Action buttons */
+.s7-dl-btn {
+  width:28px; height:28px; border:1.5px solid #E5E9E7; border-radius:6px;
+  background:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+  color:#46514A; transition:background .12s;
 }
-.s7-att-row:last-child { border-bottom:none; }
-.s7-att-lbl { font-size:12px; color:#46514A; }
-.s7-att-val { font-size:14px; font-weight:800; color:#15201A; }
-.s7-att-pend { color:#A8842C; }
+.s7-dl-btn:hover { background:#F2F3F5; }
+.s7-remind-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; border:1.5px solid #E5E9E7; border-radius:6px;
+  background:#fff; font-size:11.5px; font-weight:600; color:#46514A;
+  cursor:pointer; transition:background .12s; white-space:nowrap;
+}
+.s7-remind-btn:hover { background:#F2F3F5; }
+.s7-not-req-text { font-size:11.5px; color:#9CA3AF; }
 
-.s7-view-pending-btn {
-  width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
-  padding:9px 12px; border:1.5px solid #D0D5DD; border-radius:8px;
-  background:#F8F9FA; font-size:12px; font-weight:700; color:#15201A;
+/* Table footer info note */
+.s7-table-footer {
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+  padding:10px 16px; background:#EFF6FF; border-top:1px solid #DBEAFE;
+  font-size:11.5px; color:#2C6CA8;
+}
+
+/* ── Right: sidebar ────────────────────────────────────────────────────── */
+.s7-sidebar {
+  width:290px; flex-shrink:0; display:flex; flex-direction:column; gap:14px;
+  overflow-y:auto;
+}
+
+/* Signature progress */
+.s7-progress-wrap   { display:flex; flex-direction:column; align-items:center; gap:14px; }
+.s7-progress-legend { width:100%; display:flex; flex-direction:column; gap:8px; }
+.s7-leg-row { display:flex; align-items:center; gap:8px; font-size:12px; color:#46514A; }
+.s7-leg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.s7-leg-lbl { flex:1; font-size:12px; }
+.s7-leg-val { font-size:13px; font-weight:700; color:#15201A; display:flex; align-items:center; gap:3px; }
+.s7-leg-pct { font-size:10.5px; font-weight:400; color:#8A948D; }
+
+/* Important notes */
+.s7-notes-list { display:flex; flex-direction:column; gap:10px; }
+.s7-note-row   { display:flex; align-items:flex-start; gap:8px; }
+.s7-note-dot   { width:8px; height:8px; border-radius:50%; background:#E8821A; flex-shrink:0; margin-top:4px; }
+.s7-note-txt   { font-size:12px; color:#46514A; line-height:1.5; }
+
+/* Audit trail */
+.s7-audit-list { display:flex; flex-direction:column; gap:12px; margin-bottom:12px; }
+.s7-audit-row  { display:flex; align-items:flex-start; gap:10px; }
+.s7-audit-ico  { font-size:14px; flex-shrink:0; margin-top:1px; }
+.s7-audit-body { flex:1; min-width:0; }
+.s7-audit-text { font-size:12px; font-weight:600; color:#15201A; margin-bottom:2px; }
+.s7-audit-meta { font-size:10.5px; color:#8A948D; }
+.s7-view-audit-btn {
+  width:100%; display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 12px; border:1.5px solid #E5E9E7; border-radius:8px;
+  background:#F8F9FA; font-size:12px; font-weight:600; color:#15201A;
   cursor:pointer; transition:background .15s;
 }
-.s7-view-pending-btn:hover { background:#E8EAE6; border-color:#C0C5CC; }
+.s7-view-audit-btn:hover { background:#EAECE8; }
 
-/* ── RIGHT: Info callout ─────────────────────────────────────────────────── */
-.s7-callout-panel { background:rgba(168,132,44,.05) !important; border-color:rgba(168,132,44,.3) !important; }
-.s7-callout-body { display:flex; gap:10px; align-items:flex-start; }
-.s7-callout-ico  { font-size:15px; flex-shrink:0; margin-top:1px; }
+/* ── Bottom bar ────────────────────────────────────────────────────────── */
+.s7-bb-center { flex:1; display:flex; justify-content:center; }
+.s7-bb-right  { display:flex; align-items:center; gap:8px; }
 .s7-callout-txt  { font-size:11.5px; color:#7A5A1A; line-height:1.55; margin:0; }

@@ -3558,177 +3558,104 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const l  = App.lang;
     const m  = this._meeting  || {};
     const d  = this._data     || {};
-    const fd = this._fullData || {};
 
-    const comments   = d.comments   || [];
-    const signatures = d.signatures || [];
-    const attendees  = fd.attendees || [];
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '15 May 2025';
+    const cycle   = d.cycle || {};
 
-    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
-    const title   = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || '';
-
-    /* ── Counts ───────────────────────────────────────────────────── */
-    const nAccepted = comments.filter(c => c.status === 'accepted').length || 9;
-    const nRejected = comments.filter(c => c.status === 'rejected').length || 6;
-    const nPending  = comments.filter(c => c.status === 'pending').length  || 3;
-    const nTotal    = comments.length || 18;
-    const nResolved = nAccepted + nRejected;
-
-    const nAttTotal  = attendees.length || 8;
-    const nAttSigned = signatures.filter(s => s.status === 'signed').length || 6;
-    const nAttPend   = Math.max(0, nAttTotal - nAttSigned) || 2;
-
-    /* ── Change type breakdown ────────────────────────────────────── */
-    const nChangeReq = Math.round(nTotal * 0.44) || 8;
-    const nClarif    = Math.round(nTotal * 0.22) || 4;
-    const nSuggest   = Math.round(nTotal * 0.17) || 3;
-    const nDeletion  = nTotal - nChangeReq - nClarif - nSuggest || 3;
-
-    /* ── Donut SVG (3-segment: accept / reject / pending) ─────────── */
-    const R = 40, CX = 60, CY = 60, SW = 12;
-    const C = 2 * Math.PI * R;   // ≈ 251.33
-    const aLen  = (nAccepted / nTotal) * C;
-    const rjLen = (nRejected / nTotal) * C;
-    const pLen  = (nPending  / nTotal) * C;
-    const gap   = C * 0.015;    // tiny gap between segments
-    const aOff  = C / 4;
-    const rjOff = aOff - aLen - gap;
-    const pOff  = rjOff - rjLen - gap;
-    const toFixed = v => v.toFixed(2);
-    const donutSVG = `
-<svg width="120" height="120" viewBox="0 0 120 120" class="s7-donut-svg">
-  <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#F2F3F5" stroke-width="${SW}"/>
-  <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#0C7A3D" stroke-width="${SW}"
-    stroke-dasharray="${toFixed(aLen - gap)} ${toFixed(C - aLen + gap)}"
-    stroke-dashoffset="${toFixed(aOff)}"/>
-  <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#E8821A" stroke-width="${SW}"
-    stroke-dasharray="${toFixed(rjLen - gap)} ${toFixed(C - rjLen + gap)}"
-    stroke-dashoffset="${toFixed((rjOff % C + C) % C)}"/>
-  <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#4B7CF3" stroke-width="${SW}"
-    stroke-dasharray="${toFixed(pLen - gap)} ${toFixed(C - pLen + gap)}"
-    stroke-dashoffset="${toFixed((pOff % C + C) % C)}"/>
-  <text x="${CX}" y="${CY - 6}" text-anchor="middle" font-size="22" font-weight="900" fill="#0F1728">${nTotal}</text>
-  <text x="${CX}" y="${CY + 10}" text-anchor="middle" font-size="10" fill="#8A948D">${t('الإجمالي','Total')}</text>
-</svg>`;
-
-    /* ── Mini stepper ────────────────────────────────────────────── */
-    const cycle = d.cycle || {};
+    /* ── Mini stepper ─────────────────────────────────────────────── */
     const miniStepper = this._buildMiniStepper(cycle, 6, t, l);
 
-    /* ── Feedback rows (same demo data as Step 6) ───────────────── */
-    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A'];
-    const DEMO_META = [
-      { type:'clarif',  cnt:2, timeOff:0   },
-      { type:'change',  cnt:3, timeOff:55  },
-      { type:'suggest', cnt:2, timeOff:96  },
-      { type:'change',  cnt:2, timeOff:30  },
-      { type:'delete',  cnt:1, timeOff:5   },
-      { type:'clarif',  cnt:1, timeOff:770 },
+    /* ── Demo attendee rows ───────────────────────────────────────── */
+    const DEMO_ATTENDEES = l === 'ar' ? [
+      { name:'\u062f. \u0639\u0628\u062f\u0627\u0644\u0644\u0647 \u0627\u0644\u063a\u0627\u0645\u062f\u064a',  role:'\u0631\u0626\u064a\u0633 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629', status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 11:02 \u0635', sig:0 },
+      { name:'\u0645. \u062e\u0627\u0644\u062f \u0627\u0644\u0635\u0628\u064a\u0639\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 11:15 \u0635', sig:1 },
+      { name:'\u0623. \u0644\u064a\u0644\u0649 \u0627\u0644\u062a\u0645\u064a\u0645\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 12:01 \u0645', sig:2 },
+      { name:'\u0623. \u0641\u064a\u0635\u0644 \u0627\u0644\u0645\u0637\u064a\u0631\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'signed',       signedAt:'22 \u0645\u0627\u064a\u0648 2025\u060c 12:25 \u0645', sig:3 },
+      { name:'\u0623. \u0623\u062d\u0645\u062f \u0627\u0644\u062d\u0631\u0628\u064a',      role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'pending',      signedAt:'', sig:-1 },
+      { name:'\u0623. \u0646\u0648\u0631\u0629 \u0627\u0644\u0639\u062a\u064a\u0628\u064a',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'pending',      signedAt:'', sig:-1 },
+      { name:'\u0623. \u0633\u0644\u0637\u0627\u0646 \u0627\u0644\u0633\u0639\u0648\u062f',     role:'\u0639\u0636\u0648 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629',  status:'pending',      signedAt:'', sig:-1 },
+      { name:'\u062f. \u0645\u0647\u0627 \u0627\u0644\u062d\u0627\u0631\u062b\u064a',      role:'\u0639\u0636\u0648 \u0645\u0633\u062a\u0642\u0644',          status:'pending',      signedAt:'', sig:-1 },
+      { name:'\u0623. \u064a\u0627\u0633\u0631 \u0627\u0644\u0642\u062d\u0637\u0627\u0646\u064a',    role:'\u0636\u064a\u0641 \u0645\u062f\u0639\u0648',           status:'not_required', signedAt:'', sig:-1 },
+    ] : [
+      { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     status:'signed',       signedAt:'22 May 2025, 11:02 AM', sig:0 },
+      { name:'Eng. Khalid Alsubaie',   role:'Board Member',       status:'signed',       signedAt:'22 May 2025, 11:15 AM', sig:1 },
+      { name:'Ms. Laila Altamimi',     role:'Board Member',       status:'signed',       signedAt:'22 May 2025, 12:01 PM', sig:2 },
+      { name:'Mr. Faisal Almutairi',   role:'Board Member',       status:'signed',       signedAt:'22 May 2025, 12:25 PM', sig:3 },
+      { name:'Mr. Ahmed Alharbi',      role:'Board Member',       status:'pending',      signedAt:'', sig:-1 },
+      { name:'Ms. Noura Alotaibi',     role:'Board Member',       status:'pending',      signedAt:'', sig:-1 },
+      { name:'Mr. Sultan Alsaud',      role:'Board Member',       status:'pending',      signedAt:'', sig:-1 },
+      { name:'Dr. Maha Alhaarthy',     role:'Independent Member', status:'pending',      signedAt:'', sig:-1 },
+      { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      status:'not_required', signedAt:'', sig:-1 },
     ];
-    const demoNames = l === 'ar'
-      ? ['د. عبدالله الغامدي','م. خالد الصبيعي','أ. ليلى التميمي','أ. فيصل المطيري','أ. أحمد الحربي','أ. سلطان السعود']
-      : ['Dr. Abdullah Alghamdi','Eng. Khalid Alsubaie','Ms. Laila Altamimi','Mr. Faisal Almutairi','Mr. Ahmed Alharbi','Mr. Sultan Alsaud'];
-    const baseMs = new Date('2025-05-22T10:15:00').getTime();
-    const commenters = demoNames.map((name, i) => {
-      const dm = DEMO_META[i];
-      const ts = new Date(baseMs - dm.timeOff * 60000).toISOString();
-      const fakeComments = Array.from({ length: dm.cnt }, () => ({
-        commenter_name: name, commenter_role: '',
-        clause_ref: dm.type, content: '',
-        status: i < 2 ? 'accepted' : i < 4 ? 'rejected' : 'pending',
-        created_at: ts,
-      }));
-      return { name, role:'', comments: fakeComments, bg: AV_COLORS[i % AV_COLORS.length] };
-    });
-    this._s7Commenters = commenters;
 
-    const tabCounts = {
-      all:      commenters.length,
-      accepted: commenters.filter(a => a.comments.some(c => c.status==='accepted')).length,
-      rejected: commenters.filter(a => a.comments.some(c => c.status==='rejected')).length,
-      pending:  commenters.filter(a => a.comments.some(c => c.status==='pending')).length,
+    const nTotal       = DEMO_ATTENDEES.length;
+    const nSigned      = DEMO_ATTENDEES.filter(a => a.status === 'signed').length;
+    const nPendingAtt  = DEMO_ATTENDEES.filter(a => a.status === 'pending').length;
+    const nNotRequired = DEMO_ATTENDEES.filter(a => a.status === 'not_required').length;
+
+    /* ── Donut SVG (signed / pending) ────────────────────────────── */
+    const R2 = 45, CX2 = 70, CY2 = 70, SW2 = 14;
+    const C2    = 2 * Math.PI * R2;
+    const gap2  = C2 * 0.02;
+    const sLen  = nSigned     / nTotal * C2;
+    const pLen2 = nPendingAtt / nTotal * C2;
+    const sOff  = C2 * 0.25;
+    const pOff2 = ((sOff - sLen - gap2) % C2 + C2) % C2;
+    const tf    = v => +v.toFixed(2);
+    const donutSVG = `<svg width="140" height="140" viewBox="0 0 140 140">
+  <circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#EAECF0" stroke-width="${SW2}"/>
+  ${nSigned > 0 ? `<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#0C7A3D" stroke-width="${SW2}" stroke-dasharray="${tf(sLen-gap2)} ${tf(C2-sLen+gap2)}" stroke-dashoffset="${tf(sOff)}" stroke-linecap="round"/>` : ''}
+  ${nPendingAtt > 0 ? `<circle cx="${CX2}" cy="${CY2}" r="${R2}" fill="none" stroke="#E8821A" stroke-width="${SW2}" stroke-dasharray="${tf(pLen2-gap2)} ${tf(C2-pLen2+gap2)}" stroke-dashoffset="${tf(pOff2)}" stroke-linecap="round"/>` : ''}
+  <text x="${CX2}" y="${CY2 - 7}" text-anchor="middle" font-size="24" font-weight="800" fill="#15201A">${nSigned}/${nTotal}</text>
+  <text x="${CX2}" y="${CY2 + 11}" text-anchor="middle" font-size="11" fill="#8A948D">${t('\u0645\u0648\u0642\u0651\u0639','Signed')}</text>
+</svg>`;
+
+    /* ── Signature SVG paths ──────────────────────────────────────── */
+    const SIG_PATHS = [
+      `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    ];
+
+    const getStatusBadge = status => {
+      if (status === 'signed')       return `<span class="s7-badge s7-badge-signed"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0C7A3D"/><path d="M2.5 5l2 2L7.5 3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> ${t('\u0648\u0642\u0651\u0639','Signed')}</span>`;
+      if (status === 'pending')      return `<span class="s7-badge s7-badge-pending">${t('\u0645\u0639\u0644\u0651\u0642','Pending')}</span>`;
+      if (status === 'not_required') return `<span class="s7-badge s7-badge-notrequired">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span>`;
+      return '';
     };
-    const feedbackRows = commenters.map(att => this._fmBuildRow(att, 'all', t)).join('');
 
-    /* ── Document sections (reuse Step 6 content) ───────────────── */
-    const prevMtgDate = '10 April 2025';
-    const chairName = 'Dr. Abdullah Alghamdi';
-    const sec1Body = l==='ar'
-      ? `افتُتح الاجتماع برئاسة ${chairName} في الساعة 10:00 صباحاً. تم تأكيد النصاب القانوني.`
-      : `The meeting was called to order by ${chairName}, Chairman, at 10:00 AM. A quorum was confirmed.`;
-    const sec2Body = l==='ar'
-      ? `تمت مراجعة محضر اجتماع مجلس الإدارة المنعقد بتاريخ ${prevMtgDate}. <span class="fm-del">تمت الموافقة على المحضر بصيغته المقدّمة.</span> <span class="fm-ins">تمت الموافقة على المحضر مع التعديلات المقترحة من قِبَل أعضاء مجلس الإدارة.</span>`
-      : `The minutes of the Board Meeting held on ${prevMtgDate} were reviewed. A motion was made to approve the minutes as presented. <span class="fm-del">The minutes were approved as presented.</span> <span class="fm-ins">The minutes were approved with the changes proposed by the board members.</span>`;
-    const sec3ErpDel = l==='ar' ? 'تنفيذ نظام ERP اكتمل بنسبة 60%.' : 'ERP implementation is 60% complete.';
-    const sec3ErpIns = l==='ar' ? 'تنفيذ نظام ERP اكتمل بنسبة 65% في مسار تنفيذ المرحلة 2.' : 'ERP implementation is 65% complete and on track for phase 2 go-live in July 2025.';
-    const sec3Body   = (l==='ar' ? 'قدّم الرئيس التنفيذي تحديثاً حول مبادرات الاستراتيجية الجارية.' : 'The CEO presented the status of ongoing strategic initiatives.')
-      + `<ul class="fm-doc-list"><li><span class="fm-del">${sec3ErpDel}</span> <span class="fm-ins">${sec3ErpIns}</span></li></ul>`;
-    const kpiLbl  = l==='ar'?'المؤشر':'KPI', q1_25=l==='ar'?'ر1 2025':'Q1 2025', q1_24=l==='ar'?'ر1 2024':'Q1 2024', varLbl=l==='ar'?'الفارق':'Variance';
-    const sec4Body = `${l==='ar'?'قدّم المدير المالي تقرير الأداء المالي للربع الأول من 2025.':'CFO presented the financial performance for Q1 2025.'}
-      <table class="fm-kpi-table"><thead><tr><th>${kpiLbl}</th><th>${q1_25}</th><th>${q1_24}</th><th>${varLbl}</th></tr></thead>
-      <tbody>
-        <tr><td>${l==='ar'?'الإيرادات (ر.س)':'Revenue (SAR)'}</td><td>24.2M</td><td>21.3M</td><td class="fm-kpi-pos">+13.6%</td></tr>
-        <tr><td>${l==='ar'?'صافي الربح':'Net Profit'}</td><td>4.8M</td><td>3.9M</td><td class="fm-kpi-pos">+23.1%</td></tr>
-        <tr><td>${l==='ar'?'هامش الربح':'Profit Margin'}</td><td>19.8%</td><td>18.3%</td><td class="fm-kpi-pos">+1.5pp</td></tr>
-      </tbody></table>`;
+    const getSigCells = att => {
+      if (att.status === 'signed') return `
+        <td class="s7-sig-cell"><svg class="s7-sig-svg" width="80" height="28" viewBox="0 0 50 28">${SIG_PATHS[att.sig]}</svg></td>
+        <td class="s7-sig-action"><button class="s7-dl-btn" title="${t('\u062a\u0646\u0632\u064a\u0644','Download')}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M4 5.5l2.5 2.5 2.5-2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M1.5 10h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></td>`;
+      if (att.status === 'not_required') return `
+        <td class="s7-sig-cell"><span style="color:#9CA3AF">-</span></td>
+        <td class="s7-sig-action"><span class="s7-not-req-text">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span></td>`;
+      return `
+        <td class="s7-sig-cell"><span style="color:#9CA3AF">-</span></td>
+        <td class="s7-sig-action"><button class="s7-remind-btn"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5a3.5 3.5 0 013.5 3.5v2l1 2H1.5l1-2V5A3.5 3.5 0 016 1.5z" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 10.5a1.2 1.2 0 002.4 0" stroke="currentColor" stroke-width="1.2"/></svg>${t('\u062a\u0630\u0643\u064a\u0631','Remind')}</button></td>`;
+    };
 
-    const docSectionsHTML = `
-      <div class="fm-doc-section">
-        <div class="fm-doc-sec-hdr">
-          <span class="fm-doc-sec-num">1.</span>
-          <span class="fm-doc-sec-title">${t('الافتتاح','Opening')}</span>
-          <span class="fm-doc-ann fm-ann-accepted">${t('مقبول','Accepted')}</span>
-          <span class="fm-doc-ann-ico s7-ann-ico">①</span>
-        </div>
-        <div class="fm-doc-sec-body">${sec1Body}</div>
-      </div>
-      <div class="fm-doc-section">
-        <div class="fm-doc-sec-hdr">
-          <span class="fm-doc-sec-num">2.</span>
-          <span class="fm-doc-sec-title">${t('اعتماد محضر الجلسة السابقة','Approval of Previous Minutes')}</span>
-          <span class="fm-doc-ann fm-ann-accepted">${t('مقبول','Accepted')}</span>
-          <span class="fm-doc-ann-ico s7-ann-ico">②</span>
-        </div>
-        <div class="fm-doc-sec-body">${sec2Body}</div>
-      </div>
-      <div class="fm-doc-section">
-        <div class="fm-doc-sec-hdr">
-          <span class="fm-doc-sec-num">3.</span>
-          <span class="fm-doc-sec-title">${t('تحديث مبادرات الاستراتيجية','Strategic Initiatives Update')}</span>
-          <span class="fm-doc-ann fm-ann-clarif">${t('توضيح','Clarification')}</span>
-          <span class="fm-doc-ann-ico s7-ann-ico s7-ann-ico-clarif">①</span>
-        </div>
-        <div class="fm-doc-sec-body">${sec3Body}</div>
-      </div>
-      <div class="fm-doc-section">
-        <div class="fm-doc-sec-hdr">
-          <span class="fm-doc-sec-num">4.</span>
-          <span class="fm-doc-sec-title">${t('الأداء المالي','Financial Performance')}</span>
-        </div>
-        <div class="fm-doc-sec-body">${sec4Body}</div>
-      </div>`;
+    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
+    const attendeeRows = DEMO_ATTENDEES.map((att, i) => {
+      const initials = att.name.split(' ').filter(w => w.length > 1).slice(0,2).map(w => w[0]).join('').toUpperCase();
+      return `<tr>
+        <td class="s7-col-num">${i+1}</td>
+        <td class="s7-col-attendee"><div class="s7-att-info"><div class="s7-att-av" style="background:${AV_COLORS[i%AV_COLORS.length]}">${initials}</div><span class="s7-att-name">${esc(att.name)}</span></div></td>
+        <td class="s7-col-role">${esc(att.role)}</td>
+        <td class="s7-col-status">${getStatusBadge(att.status)}</td>
+        <td class="s7-col-signedat">${att.signedAt || '-'}</td>
+        ${getSigCells(att)}
+      </tr>`;
+    }).join('');
 
-    /* ── Right panel: Changes by Type rows ──────────────────────── */
-    const changeTypeRows = [
-      { icon:`<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9 2L11 4L5 10H3V8L9 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`, label:t('طلب تعديل','Change Request'), val:nChangeReq },
-      { icon:`<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/><line x1="6.5" y1="5.5" x2="6.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="3.8" r=".7" fill="currentColor"/></svg>`, label:t('توضيح','Clarification'), val:nClarif },
-      { icon:`<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v1M10.7 2.8l-.7.7M12 6.5h-1M10 10l-.7-.7M6.5 12v-1M3.7 9.3l-.7.7M1 6.5h1M3.7 3.5l-.7-.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="6.5" r="2.2" stroke="currentColor" stroke-width="1.3"/></svg>`, label:t('اقتراح','Suggestion'), val:nSuggest },
-      { icon:`<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="3.5" width="9" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="3.5" x2="12" y2="3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`, label:t('حذف','Deletion'), val:nDeletion },
-    ].map(r => `<div class="s7-ct-row">
-      <span class="s7-ct-ico">${r.icon}</span>
-      <span class="s7-ct-lbl">${r.label}</span>
-      <span class="s7-ct-val">${r.val}</span>
-    </div>`).join('');
-
-    /* ── Review Period ───────────────────────────────────────────── */
-    const dlStr       = (cycle.comment_deadline || '').slice(0,10);
-    const deliveredAt = (cycle.circulated_at || cycle.created_at || '').slice(0,10);
-    const reviewPeriod = deliveredAt && dlStr
-      ? `${fmtDate(deliveredAt)} – ${fmtDate(dlStr)}`
-      : '16 May – 21 May 2025';
-
-    /* ── Autosave time ──────────────────────────────────────────── */
-    const now = new Date().toLocaleTimeString(l==='ar'?'ar-SA':'en-GB',{hour:'2-digit',minute:'2-digit'});
+    /* ── Audit trail ────────────────────────────────────────────── */
+    const sentAt = cycle.circulated_at ? this._fmtDT(cycle.circulated_at) : '22 May 2025, 10:45 AM';
+    const auditHTML = [
+      { icon:'📄', text:t('\u062a\u0645 \u0646\u0634\u0631 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629','Final version published'),      date:'22 May 2025, 10:45 AM', by:t('\u0628\u0648\u0627\u0633\u0637\u0629 \u0645\u062d\u0645\u062f \u0627\u0644\u0628\u0644\u0627\u0644\u064a','by Mohammad Albuali') },
+      { icon:'✍️', text:t('\u0623\u064f\u0631\u0633\u0644 \u0644\u0644\u062d\u0636\u0648\u0631 \u0644\u0644\u062a\u0648\u0642\u064a\u0639','Sent for attendee signatures'), date:'22 May 2025, 10:45 AM', by:t('\u0628\u0648\u0627\u0633\u0637\u0629 \u0645\u062d\u0645\u062f \u0627\u0644\u0628\u0644\u0627\u0644\u064a','by Mohammad Albuali') },
+    ].map(e => `<div class="s7-audit-row"><span class="s7-audit-ico">${e.icon}</span><div class="s7-audit-body"><div class="s7-audit-text">${e.text}</div><div class="s7-audit-meta">${e.date} · ${e.by}</div></div></div>`).join('');
 
     /* ── Render ─────────────────────────────────────────────────── */
     body.innerHTML = `
@@ -3737,253 +3664,158 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   <!-- Header -->
   <div class="dm-page-hdr">
     <div class="dm-page-hdr-left">
-      <div class="dm-breadcrumb">
-        <span class="dm-bc-item">${t('اجتماعات','Meetings')}</span>
-        <span class="dm-bc-sep">›</span>
-        <span class="dm-bc-item">${esc(title)}</span>
-        <span class="dm-bc-sep">›</span>
-        <span class="dm-bc-item">${t('دورة الاعتماد','Approval Cycle')}</span>
-        <span class="dm-bc-sep">›</span>
-        <span class="dm-bc-item dm-bc-active">${t('توقيعات الحضور','Attendee Signatures')}</span>
-      </div>
       <div class="dm-page-title-row">
         <h1 class="dm-page-title">
-          <span class="dm-pt-step">${t('الخطوة 7 من 9','Step 7 of 9')}</span>
-          <span class="dm-pt-name">${t('توقيعات الحضور','Attendee Signatures')}</span>
+          <span class="dm-pt-step">${t('\u0627\u0644\u062e\u0637\u0648\u0629 7 \u0645\u0646 9','Step 7 of 9')}</span>
+          <span class="dm-pt-name">${t('\u062a\u0648\u0642\u064a\u0639\u0627\u062a \u0627\u0644\u062d\u0636\u0648\u0631','Attendee Signatures')}</span>
         </h1>
-        <span class="dm-status-badge dm-status-pending">${t('معلّق','Pending')}</span>
+        <span class="dm-status-inprogress">${t('\u062c\u0627\u0631\u064d','In Progress')}</span>
       </div>
-      <p class="dm-page-sub">${t('أرسل المحضر المعتمد للحضور لأخذ التوقيعات الإلكترونية قبل الاعتماد النهائي.','Send the approved minutes to attendees to collect their electronic signatures before final approval.')}</p>
+      <p class="dm-page-sub">${t('\u064a\u062c\u0628 \u0639\u0644\u0649 \u062c\u0645\u064a\u0639 \u0627\u0644\u062d\u0636\u0648\u0631 \u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0648\u062a\u0642\u062f\u064a\u0645 \u062a\u0648\u0642\u064a\u0639\u0627\u062a\u0647\u0645 \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a\u0629.','All attendees must review the final minutes and provide their electronic signature. Once all required signatures are collected, the minutes will be ready for Final Approval.')}</p>
     </div>
     <div class="dm-page-hdr-right">
-      <button class="dm-btn ghost">📤 ${t('تصدير','Export')}</button>
-      <button class="dm-btn ghost">🕐 ${t('السجل','History')}</button>
-      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(7)">
-        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('الاعتماد النهائي','Final Approval')}</span>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s7DownloadPDF()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${t('\u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629 (PDF)','Download Final Version (PDF)')}
       </button>
+      <button class="dm-btn ghost">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        ${t('\u0627\u0644\u0633\u062c\u0644','History')}
+      </button>
+      <div class="s7-deadline-badge">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2" width="11" height="10" rx="1.5" stroke="#0C7A3D" stroke-width="1.2"/><path d="M4 1v2M9 1v2M1 5h11" stroke="#0C7A3D" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <div>
+          <div class="s7-dl-badge-label">${t('\u0627\u0644\u0645\u0648\u0639\u062f \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0644\u0644\u0645\u0631\u0627\u062c\u0639\u0629','Review Deadline')}</div>
+          <div class="s7-dl-badge-date">25 May 2025, 11:59 PM</div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Step bar -->
   <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
 
-  <!-- Meta row -->
-  <div class="dm-meta-row">
-    <div class="dm-meta-item">
-      <span class="dm-meta-ico">📅</span>
-      <div><div class="dm-meta-label">${t('الاجتماع','Board Meeting')}</div><div class="dm-meta-val">${esc(dateStr)}</div></div>
+  <!-- Meta bar -->
+  <div class="s7-meta-bar">
+    <div class="s7-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 1v2M10 1v2M1 5.5h12" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s7-meta-lbl">${t('\u0627\u0644\u0627\u062c\u062a\u0645\u0627\u0639','Meeting')}</div><div class="s7-meta-val">${t('\u0627\u062c\u062a\u0645\u0627\u0639 \u0645\u062c\u0644\u0633 \u0627\u0644\u0625\u062f\u0627\u0631\u0629 \u2013 15 \u0645\u0627\u064a\u0648 2025','Board Meeting \u2013 15 May 2025')}</div></div>
     </div>
-    <div class="dm-meta-item">
-      <span class="dm-meta-ico">📆</span>
-      <div><div class="dm-meta-label">${t('فترة المراجعة','Review Period')}</div><div class="dm-meta-val">${reviewPeriod}</div></div>
+    <div class="s7-meta-sep"></div>
+    <div class="s7-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><line x1="4.5" y1="9.5" x2="7.5" y2="9.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s7-meta-lbl">${t('\u0625\u0635\u062f\u0627\u0631 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a','Final Minutes Version')}</div><div class="s7-meta-val"><span class="s7-version-badge">v2.0 (Final)</span></div></div>
     </div>
-    <div class="dm-meta-item">
-      <span class="dm-meta-ico">👥</span>
-      <div><div class="dm-meta-label">${t('إجمالي الحضور','Total Attendees')}</div><div class="dm-meta-val">${nAttTotal}</div></div>
+    <div class="s7-meta-sep"></div>
+    <div class="s7-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h10v2H2zM3 4v8M11 4v8M2 12h10" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><div class="s7-meta-lbl">${t('\u0623\u064f\u0631\u0633\u0644 \u0644\u0644\u062a\u0648\u0642\u064a\u0639','Sent for Signatures')}</div><div class="s7-meta-val">${sentAt}</div></div>
     </div>
-    <div class="dm-meta-item">
-      <span class="dm-meta-ico">✍️</span>
-      <div><div class="dm-meta-label">${t('الاستجابات','Responses Received')}</div><div class="dm-meta-val">${nAttSigned} / ${nAttTotal}</div></div>
+    <div class="s7-meta-sep"></div>
+    <div class="s7-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><circle cx="10" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><path d="M1 12a4 4 0 018 0" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><path d="M9.5 10.5a3.5 3.5 0 014.5 2.5" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div><div class="s7-meta-lbl">${t('\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u062d\u0636\u0648\u0631','Total Attendees')}</div><div class="s7-meta-val">${nTotal}</div></div>
     </div>
-    <div class="dm-meta-item">
-      <span class="dm-meta-ico">✅</span>
-      <div><div class="dm-meta-label" style="color:#0C7A3D;font-weight:700">${t('حالة المراجعة','Review Status')}</div><div class="dm-meta-val" style="color:#0C7A3D">${t('مكتمل','Completed')}</div></div>
+    <div class="s7-meta-sep"></div>
+    <div class="s7-meta-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 7l2.5 2.5L10 4.5" stroke="#8A948D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#8A948D" stroke-width="1.2"/></svg>
+      <div><div class="s7-meta-lbl">${t('\u0627\u0644\u062a\u0648\u0642\u064a\u0639\u0627\u062a \u0627\u0644\u0645\u064f\u0633\u062a\u0644\u064e\u0645\u064e\u0629','Signatures Received')}</div><div class="s7-meta-val"><strong>${nSigned} / ${nTotal}</strong></div></div>
+    </div>
+    <div class="s7-meta-sep"></div>
+    <div class="s7-meta-item">
+      <div><div class="s7-meta-lbl">${t('\u0627\u0644\u062d\u0627\u0644\u0629','Status')}</div><div class="s7-meta-val"><span class="s7-status-inprogress">${t('\u062c\u0627\u0631\u064d','In Progress')}</span></div></div>
     </div>
   </div>
 
-  <!-- 3-column body -->
-  <div class="dm-body-cols">
+  <!-- 2-column body -->
+  <div class="s7-body">
 
-    <!-- LEFT: Attendee Feedback -->
-    <div class="rv-left fm-left">
-      <div class="fm-left-hdr">
-        <span class="fm-left-title">📋 ${t('تعليقات الحضور','Attendee Feedback')} <span class="fm-total-badge">${tabCounts.all}</span></span>
-      </div>
-      <div class="fm-tabs">
-        <button class="fm-tab active" data-tab="all"      onclick="ApprovalCycle._s7SetTab('all')">${t('الكل','All')} <span>(${tabCounts.all})</span></button>
-        <button class="fm-tab"        data-tab="accepted" onclick="ApprovalCycle._s7SetTab('accepted')">${t('مقبول','Accept')} <span>(${tabCounts.accepted})</span></button>
-        <button class="fm-tab"        data-tab="rejected" onclick="ApprovalCycle._s7SetTab('rejected')">${t('مرفوض','Reject')} <span>(${tabCounts.rejected})</span></button>
-        <button class="fm-tab"        data-tab="pending"  onclick="ApprovalCycle._s7SetTab('pending')">${t('معلّق','Pending')} <span>(${tabCounts.pending})</span></button>
-      </div>
-      <div class="fm-search-row">
-        <input id="s7-search" class="fm-search" type="text" placeholder="${t('بحث في التعليقات...','Search comments...')}" oninput="ApprovalCycle._s7Render()"/>
-        <button class="fm-filter-btn">⚙</button>
-      </div>
-      <div id="s7-feedback-list" class="fm-feedback-list">${feedbackRows}</div>
-      <button class="fm-view-resolved-btn">
-        👁 ${t('عرض التعليقات المحسومة','View Resolved')} (${nResolved})
-      </button>
-    </div>
-
-    <!-- CENTER: Document (Attendee Reviewed version) -->
-    <div class="fm-center">
-      <div class="fm-doc-toolbar-wrap">
-        <div class="fm-doc-title-bar">
-          <span class="fm-doc-ver-title">${t('وثيقة المحضر (ن. مراجَعة من الحضور)','Minutes Document (v. Attendee Reviewed)')}</span>
-          <span class="fm-doc-editable-badge">${t('قابل للتحرير','Editable')}</span>
-          <div class="fm-doc-compare">
-            <span class="fm-doc-compare-lbl">${t('مقارنة مع المسودة','Compare with Draft')}</span>
-            <label class="fm-toggle"><input type="checkbox" checked><span class="fm-toggle-slider"></span></label>
-          </div>
-          <div class="fm-view-modes">
-            <button class="fm-vm-btn active" title="Page view">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="11" height="11" rx="1.5" fill="currentColor"/></svg>
-            </button>
-            <button class="fm-vm-btn" title="Split view">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="4.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="7.5" y="1" width="4.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
-            </button>
-            <button class="fm-vm-btn" title="Expand">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 4V1h3M9 1h3v3M1 9v3h3M9 12h3V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-          </div>
+    <!-- LEFT: Signature Table -->
+    <div class="s7-main-panel">
+      <div class="s7-table-hdr">
+        <div>
+          <div class="s7-table-title">${t('\u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0648\u0642\u064a\u0639 \u0644\u0644\u062d\u0636\u0648\u0631','Attendee Signature Status')}</div>
+          <div class="s7-table-subtitle">${t('\u064a\u064f\u0631\u062c\u0649 \u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0648\u0627\u0644\u062a\u0648\u0642\u064a\u0639 \u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a\u064b\u0627.','Please review the final minutes and sign electronically.')}</div>
         </div>
-        <div class="fm-toolbar">
-          <select class="fm-tb-select">
-            <option>${t('عنوان 2','Heading 2')}</option>
-            <option>${t('عنوان 1','Heading 1')}</option>
-            <option>${t('نص','Normal')}</option>
-          </select>
-          <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('bold')"><b>B</b></button>
-          <button class="fm-tb-btn" onclick="document.execCommand('italic')"><i>I</i></button>
-          <button class="fm-tb-btn" onclick="document.execCommand('underline')"><u>U</u></button>
-          <button class="fm-tb-btn" onclick="document.execCommand('strikeThrough')"><s>S</s></button>
-          <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="2" cy="4" r="1.2" fill="currentColor"/><line x1="5" y1="4" x2="13" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="2" cy="8" r="1.2" fill="currentColor"/><line x1="5" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="2" cy="12" r="1.2" fill="currentColor"/><line x1="5" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div class="s7-table-actions">
+          <button class="dm-btn ghost s7-view-minutes-btn">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6.5" cy="6.5" r="2.2" stroke="currentColor" stroke-width="1.2"/></svg>
+            ${t('\u0639\u0631\u0636 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a','View Final Minutes')}
           </button>
-          <button class="fm-tb-btn" onclick="document.execCommand('insertOrderedList')" title="Numbered list">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><text x="1" y="5" font-size="5" fill="currentColor">1.</text><line x1="5" y1="4" x2="13" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><text x="1" y="9" font-size="5" fill="currentColor">2.</text><line x1="5" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><text x="1" y="13" font-size="5" fill="currentColor">3.</text><line x1="5" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <button class="s7-expand-btn" title="${t('\u062a\u0648\u0633\u064a\u0639','Expand')}">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 4V1h3M10 1h3v3M1 10v3h3M10 13h3v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('justifyLeft')" title="Align left">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="11" x2="11" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>
-          <button class="fm-tb-btn" onclick="document.execCommand('justifyCenter')" title="Center">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>
-          <button class="fm-tb-btn" onclick="document.execCommand('justifyRight')" title="Align right">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="5" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="11" x2="13" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>
-          <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" title="Link">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 8.5a3.5 3.5 0 005 0l1.5-1.5a3.5 3.5 0 00-5-5L6.5 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M8.5 5.5a3.5 3.5 0 00-5 0L2 7a3.5 3.5 0 005 5L7.5 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          </button>
-          <button class="fm-tb-btn" title="Insert table">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="5" x2="13" y2="5" stroke="currentColor" stroke-width="1.3"/><line x1="7" y1="5" x2="7" y2="13" stroke="currentColor" stroke-width="1.3"/></svg>
-          </button>
-          <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('undo')" title="Undo">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5h5a4 4 0 010 8H4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2l-2 3 2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <button class="fm-tb-btn" onclick="document.execCommand('redo')" title="Redo">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12 5H7a4 4 0 000 8h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 2l2 3-2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <button class="fm-tb-btn fm-tb-insert">+ ${t('إدراج','Insert')} ▾</button>
         </div>
       </div>
-
-      <div class="fm-doc-body" contenteditable="true" spellcheck="false" id="s7-doc-body" oninput="ApprovalCycle._s7DocChanged()">
-        <div class="fm-doc-meeting-hdr">
-          <div class="fm-doc-mtg-title">${esc(title)}</div>
-          <div class="fm-doc-mtg-meta">${esc(dateStr)}${m.location ? ' · ' + esc(m.location) : ''}</div>
-        </div>
-        ${docSectionsHTML}
-      </div>
-
-      <!-- Bottom status bar -->
-      <div class="s7-doc-status-bar">
-        <span class="s7-stat-item"><span class="s7-stat-num">${nTotal}</span> ${t('تعديل','changes')}</span>
-        <span class="s7-stat-sep">•</span>
-        <span class="s7-stat-item s7-stat-acc"><span class="s7-stat-num">${nAccepted}</span> ${t('مقبول','accepted')}</span>
-        <span class="s7-stat-sep">•</span>
-        <span class="s7-stat-item s7-stat-rej"><span class="s7-stat-num">${nRejected}</span> ${t('مرفوض','rejected')}</span>
-        <span class="s7-stat-sep">•</span>
-        <span class="s7-stat-item s7-stat-pnd"><span class="s7-stat-num">${nPending}</span> ${t('معلّق','pending')}</span>
-        <span class="s7-stat-saved" id="s7-autosave">✓ ${t('حفظ تلقائي','Auto-saved')} ${now}</span>
+      <table class="s7-sig-table">
+        <thead><tr>
+          <th class="s7-col-num">#</th>
+          <th>${t('\u0627\u0644\u062d\u0636\u0648\u0631','Attendee')}</th>
+          <th>${t('\u0627\u0644\u062f\u0648\u0631','Role')}</th>
+          <th>${t('\u0627\u0644\u062d\u0627\u0644\u0629','Status')}</th>
+          <th>${t('\u0648\u064f\u0642\u0651\u0639 \u0641\u064a','Signed On')}</th>
+          <th>${t('\u0627\u0644\u062a\u0648\u0642\u064a\u0639','Signature')}</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${attendeeRows}</tbody>
+      </table>
+      <div class="s7-table-footer">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2C6CA8" stroke-width="1.3"/><line x1="7" y1="6" x2="7" y2="10" stroke="#2C6CA8" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="#2C6CA8"/></svg>
+        ${t('\u0633\u064a\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0625\u0634\u0639\u0627\u0631 \u0644\u0644\u062d\u0636\u0648\u0631 \u0628\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a \u0644\u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0648\u0627\u0644\u062a\u0648\u0642\u064a\u0639.','Attendees will be notified via email to review and sign the final minutes.')}
       </div>
     </div>
 
-    <!-- RIGHT panels -->
-    <div class="rv-right">
+    <!-- RIGHT: Sidebar -->
+    <div class="s7-sidebar">
 
-      <!-- Review Summary (donut) -->
-      <div class="rv-rpanel s7-review-panel">
-        <div class="rv-rp-title">${t('ملخص المراجعة','Review Summary')}</div>
-        <div class="s7-donut-wrap">
+      <!-- Signature Progress -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('\u062a\u0642\u062f\u0645 \u0627\u0644\u062a\u0648\u0642\u064a\u0639','Signature Progress')}</div>
+        <div class="s7-progress-wrap">
           ${donutSVG}
-          <div class="s7-donut-legend">
-            <div class="s7-legend-row">
-              <span class="s7-legend-dot" style="background:#0C7A3D"></span>
-              <span class="s7-legend-lbl">${t('مقبول','Accept')}</span>
-              <span class="s7-legend-val">${nAccepted} <span class="s7-legend-pct">(${Math.round(nAccepted/nTotal*100)}%)</span></span>
-            </div>
-            <div class="s7-legend-row">
-              <span class="s7-legend-dot" style="background:#E8821A"></span>
-              <span class="s7-legend-lbl">${t('مرفوض','Reject')}</span>
-              <span class="s7-legend-val">${nRejected} <span class="s7-legend-pct">(${Math.round(nRejected/nTotal*100)}%)</span></span>
-            </div>
-            <div class="s7-legend-row">
-              <span class="s7-legend-dot" style="background:#4B7CF3"></span>
-              <span class="s7-legend-lbl">${t('معلّق','Pending')}</span>
-              <span class="s7-legend-val">${nPending} <span class="s7-legend-pct">(${Math.round(nPending/nTotal*100)}%)</span></span>
-            </div>
+          <div class="s7-progress-legend">
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#0C7A3D"></span><span class="s7-leg-lbl">${t('\u0648\u0642\u0651\u0639','Signed')}</span><span class="s7-leg-val">${nSigned} <span class="s7-leg-pct">(${Math.round(nSigned/nTotal*100)}%)</span></span></div>
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#E8821A"></span><span class="s7-leg-lbl">${t('\u0645\u0639\u0644\u0651\u0642','Pending')}</span><span class="s7-leg-val">${nPendingAtt} <span class="s7-leg-pct">(${Math.round(nPendingAtt/nTotal*100)}%)</span></span></div>
+            <div class="s7-leg-row"><span class="s7-leg-dot" style="background:#D0D5DD"></span><span class="s7-leg-lbl">${t('\u063a\u064a\u0631 \u0645\u0637\u0644\u0648\u0628','Not Required')}</span><span class="s7-leg-val">${nNotRequired} <span class="s7-leg-pct">(${Math.round(nNotRequired/nTotal*100)}%)</span></span></div>
           </div>
         </div>
       </div>
 
-      <!-- Changes by Type -->
-      <div class="rv-rpanel s7-ct-panel">
-        <div class="rv-rp-title">${t('التعديلات حسب النوع','Changes by Type')}</div>
-        <div class="s7-ct-rows">${changeTypeRows}</div>
+      <!-- Important Notes -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0645\u0647\u0645\u0629','Important Notes')}</div>
+        <div class="s7-notes-list">
+          <div class="s7-note-row"><span class="s7-note-dot"></span><span class="s7-note-txt">${t('\u064a\u062c\u0628 \u0639\u0644\u0649 \u062c\u0645\u064a\u0639 \u0627\u0644\u062d\u0636\u0648\u0631 \u0627\u0644\u0645\u0637\u0644\u0648\u0628\u064a\u0646 \u062a\u0648\u0642\u064a\u0639 \u0627\u0644\u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0647\u0627\u0626\u064a.','All required attendees must sign the final minutes.')}</span></div>
+          <div class="s7-note-row"><span class="s7-note-dot"></span><span class="s7-note-txt">${t('\u0633\u062a\u062a\u0644\u0642\u0649 \u0625\u0634\u0639\u0627\u0631\u064b\u0627 \u0639\u0646\u062f \u062c\u0645\u0639 \u062c\u0645\u064a\u0639 \u0627\u0644\u062a\u0648\u0642\u064a\u0639\u0627\u062a.','You will be notified when all signatures are received.')}</span></div>
+          <div class="s7-note-row"><span class="s7-note-dot"></span><span class="s7-note-txt">${t('\u0628\u0645\u062c\u0631\u062f \u062c\u0645\u0639 \u062c\u0645\u064a\u0639 \u0627\u0644\u062a\u0648\u0642\u064a\u0639\u0627\u062a\u060c \u0633\u064a\u064f\u0631\u0633\u064e\u0644 \u0627\u0644\u0645\u062d\u0636\u0631 \u0644\u0644\u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0646\u0647\u0627\u0626\u064a.','Once all signatures are collected, the minutes will be sent for Final Approval.')}</span></div>
+        </div>
       </div>
 
-      <!-- Attendee Response Summary -->
-      <div class="rv-rpanel s7-att-panel">
-        <div class="rv-rp-title">${t('ملخص استجابة الحضور','Attendee Response Summary')}</div>
-        <div class="s7-att-rows">
-          <div class="s7-att-row">
-            <span class="s7-att-lbl">${t('الاستجابات المُوقَّعة','Signed Responses')}</span>
-            <span class="s7-att-val">${nAttSigned} / ${nAttTotal}</span>
-          </div>
-          <div class="s7-att-row">
-            <span class="s7-att-lbl">${t('الاستجابات المعلّقة','Pending Responses')}</span>
-            <span class="s7-att-val s7-att-pend">${nAttPend}</span>
-          </div>
-        </div>
-        <button class="s7-view-pending-btn">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2.2" stroke="currentColor" stroke-width="1.3"/><circle cx="10" cy="4" r="2.2" stroke="currentColor" stroke-width="1.3"/><path d="M1 12a4 4 0 018 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9.5 10.5a3 3 0 014.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-          ${t('عرض الحضور المعلّقين','View Pending Attendees')}
+      <!-- Audit Trail -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642','Audit Trail')}</div>
+        <div class="s7-audit-list">${auditHTML}</div>
+        <button class="s7-view-audit-btn">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="9.5" x2="7" y2="9.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          ${t('\u0639\u0631\u0636 \u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642 \u0627\u0644\u0643\u0627\u0645\u0644','View Full Audit Trail')}
         </button>
       </div>
-
-      <!-- Info callout -->
-      <div class="rv-rpanel s7-callout-panel">
-        <div class="s7-callout-body">
-          <span class="s7-callout-ico">ℹ️</span>
-          <p class="s7-callout-txt">${t('بعد اعتماد المحضر النهائي، انقر "الخطوة التالية" لإرساله للحضور للتوقيع الإلكتروني.','After finalizing the minutes, click "Next Step" to send for attendee signatures.')}</p>
-        </div>
-      </div>
-
     </div>
   </div>
 
   <!-- Bottom bar -->
   <div class="dm-bottombar fm-bottombar">
-    <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(5)">← ${t('العودة للنسخة النهائية','Back to Final Minutes')}</button>
-    <div class="fm-bb-actions">
-      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._s7Download()">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(5)">← ${t('\u0627\u0644\u0639\u0648\u062f\u0629 \u0644\u0625\u0639\u062f\u0627\u062f \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629','Back to Final Version Preparation')}</button>
+    <div class="s7-bb-center">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s7SendReminder()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5a4.5 4.5 0 014.5 4.5v2.5l1 2H1.5l1-2.5V6A4.5 4.5 0 017 1.5z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 12.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3"/></svg>
+        ${t('\u0625\u0631\u0633\u0627\u0644 \u062a\u0630\u0643\u064a\u0631 \u0644\u0644\u0645\u0639\u0644\u0651\u0642\u064a\u0646','Send Reminder to Pending')}
+      </button>
+    </div>
+    <div class="s7-bb-right">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s7DownloadPDF()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        ${t('تنزيل النسخة المراجَعة','Download Reviewed Version')}
-      </button>
-      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._s7AddNote()">
-        ✏️ ${t('إضافة ملاحظة داخلية','Add Internal Note')}
-      </button>
-      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._s7Preview()">
-        👁 ${t('معاينة النسخة النهائية','Preview Final Version')}
-      </button>
-      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(7)">
-        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('الاعتماد النهائي','Final Approval')}</span>
+        ${t('\u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629 (PDF)','Download Final Version (PDF)')}
       </button>
     </div>
   </div>
@@ -3992,46 +3824,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   /* ── Step 7 helpers ─────────────────────────────────────────────────── */
-  _s7SetTab(tab) {
-    document.querySelectorAll('#ac-step7-page .fm-tab').forEach(b =>
-      b.classList.toggle('active', b.dataset.tab === tab)
-    );
-    this._s7State = { ...(this._s7State||{}), tab };
-    this._s7Render();
-  },
-
-  _s7Render() {
-    const list = document.getElementById('s7-feedback-list');
-    if (!list) return;
-    const t   = (ar,en) => this.t(ar,en);
-    const tab = (this._s7State||{}).tab || 'all';
-    const q   = (document.getElementById('s7-search')?.value||'').toLowerCase();
-    const all = this._s7Commenters || [];
-    const rows = all
-      .filter(att => {
-        if (tab==='accepted') return att.comments.some(c=>c.status==='accepted');
-        if (tab==='rejected') return att.comments.some(c=>c.status==='rejected');
-        if (tab==='pending')  return att.comments.some(c=>c.status==='pending');
-        return true;
-      })
-      .filter(att => !q || att.name.toLowerCase().includes(q))
-      .map(att => this._fmBuildRow(att, tab, t))
-      .join('');
-    list.innerHTML = rows || `<div class="fm-empty-state">📭 ${t('لا توجد نتائج','No results')}</div>`;
-  },
-
-  _s7DocChanged() {
-    const badge = document.getElementById('s7-autosave');
-    if (badge) badge.textContent = '⏳ ' + this.t('جارٍ الحفظ...','Saving...');
-    clearTimeout(this._s7SaveTimer);
-    this._s7SaveTimer = setTimeout(() => {
-      if (badge) badge.innerHTML = '✓ ' + this.t('حفظ تلقائي','Auto-saved');
-    }, 1200);
-  },
-
-  _s7Download() { showToast(this.t('جارٍ تحضير النسخة المراجَعة...','Preparing reviewed version...'),'info'); },
-  _s7AddNote()  { showToast(this.t('جارٍ فتح مربع الملاحظة...','Opening note editor...'),'info'); },
-  _s7Preview()  { showToast(this.t('جارٍ فتح معاينة النسخة النهائية...','Opening final version preview...'),'info'); },
+  _s7DownloadPDF() { showToast(this.t('\u062c\u0627\u0631\u064d \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0646\u0633\u062e\u0629 \u0627\u0644\u0646\u0647\u0627\u0626\u064a\u0629...','Downloading final version PDF...'), 'info'); },
+  _s7SendReminder() { showToast(this.t('\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0630\u0643\u064a\u0631 \u0644\u0644\u062d\u0636\u0648\u0631 \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u064a\u0646','Reminder sent to pending attendees'), 'success'); },
+  _s7Preview()  { showToast(this.t('\u062c\u0627\u0631\u064d \u0641\u062a\u062d \u0627\u0644\u0645\u0639\u0627\u064a\u0646\u0629...','Opening preview...'), 'info'); },
 
   _bindCanvas() { this._initCanvas(); },
 };
