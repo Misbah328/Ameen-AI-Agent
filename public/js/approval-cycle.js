@@ -154,8 +154,8 @@ const ApprovalCycle = {
 
   <!-- ── Page title + status ───────────────────────────────────────────── -->
   <div class="ac-page-head">
-    <h1 class="ac-page-title">${esc(title)}</h1>
-    <h2 class="ac-page-subtitle">${t('دورة اعتماد المحضر', 'Minutes Approval Cycle')}</h2>
+    <div class="ac-page-meeting-name">${esc(title)}</div>
+    <h1 class="ac-page-title">${t('دورة اعتماد المحضر', 'Minutes Approval Cycle')}</h1>
     <div class="ac-page-meta">
       <span class="ac-stage-badge">${stageLabel}</span>
       <span class="ac-page-updated">${t('آخر تحديث:', 'Last updated:')} ${lastUpdated}</span>
@@ -211,11 +211,11 @@ const ApprovalCycle = {
 
       return `
 <div class="ac-step ${cls}" onclick="ApprovalCycle._onStepClick(${i})" title="${t(s.ar, s.en)}">
+  <div class="ac-step-num-label">${i + 1}</div>
   <div class="ac-step-dot">
     ${done ? `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
            : s.icon}
   </div>
-  <div class="ac-step-num-label">${i + 1}</div>
   <div class="ac-step-label">${t(s.ar, s.en)}</div>
   <div class="ac-step-sub">${subLabel}</div>
 </div>

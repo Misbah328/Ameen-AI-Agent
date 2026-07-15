@@ -83,9 +83,9 @@
 .ac-meta-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); display: inline-block; }
 
 /* ── Page head ─────────────────────────────────────────────────────────────── */
-.ac-page-head { padding: 24px 28px 0; background: #fff; }
-.ac-page-title { font-size: 22px; font-weight: 800; color: var(--navy); margin: 0 0 2px; }
-.ac-page-subtitle { font-size: 28px; font-weight: 900; color: var(--navy); margin: 0 0 14px; letter-spacing: -.5px; }
+.ac-page-head { padding: 20px 28px 0; background: #fff; }
+.ac-page-title { font-size: 28px; font-weight: 900; color: var(--navy); margin: 0 0 14px; letter-spacing: -.5px; }
+.ac-page-meeting-name { font-size: 13px; color: var(--text3); font-weight: 500; margin: 0 0 4px; }
 .ac-page-meta { display: flex; align-items: center; gap: 12px; padding-bottom: 20px; flex-wrap: wrap; }
 .ac-stage-badge {
   padding: 5px 14px; border-radius: 20px;
@@ -116,67 +116,60 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  width: 108px;
+  gap: 5px;
+  width: 104px;
   flex-shrink: 0;
   cursor: pointer;
-  padding: 8px 4px;
+  padding: 8px 4px 10px;
   border-radius: 10px;
   transition: background .15s;
-  position: relative;
 }
 .ac-step:hover { background: rgba(212,160,23,.07); }
 .ac-step-focus { background: rgba(212,160,23,.12) !important; }
 
+/* Step number — shown above the icon */
+.ac-step-num-label {
+  font-size: 11px; font-weight: 700; color: var(--text3);
+  line-height: 1;
+}
+.ac-step.done .ac-step-num-label { color: #1a7f4b; }
+.ac-step.cur  .ac-step-num-label { color: var(--navy); font-weight: 800; }
+
 /* Dot / icon */
 .ac-step-dot {
-  width: 52px; height: 52px; border-radius: 50%;
-  border: 2px solid var(--border3);
+  width: 54px; height: 54px; border-radius: 50%;
+  border: 2px solid #D0D5DD;
   background: #fff;
   display: flex; align-items: center; justify-content: center;
-  color: var(--text3);
-  position: relative; z-index: 1;
+  color: #98A2B3;
   transition: all .2s;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
-.ac-step.done .ac-step-dot { background: var(--gold); border-color: var(--gold); color: #fff; }
-.ac-step.cur  .ac-step-dot {
-  background: var(--navy); border-color: var(--navy); color: #fff;
-  box-shadow: 0 0 0 6px rgba(212,160,23,.18);
-}
-
-/* Number badge */
-.ac-step-num-label {
-  position: absolute;
-  top: 6px; inset-inline-end: 8px;
-  background: var(--navy); color: #fff;
-  width: 18px; height: 18px; border-radius: 50%;
-  font-size: 10px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-  z-index: 2;
-}
-.ac-step.done .ac-step-num-label { background: #1a7f4b; }
-.ac-step.cur  .ac-step-num-label { background: var(--gold); color: #fff; }
+.ac-step.done .ac-step-dot { background: #ECFDF3; border-color: #12B76A; color: #12B76A; }
+.ac-step.cur  .ac-step-dot { background: #fff; border-color: var(--navy); border-width: 2.5px; color: var(--navy); box-shadow: 0 0 0 4px rgba(15,23,41,.08); }
 
 .ac-step-label {
-  font-size: 11px; font-weight: 700; color: var(--text2);
+  font-size: 10.5px; font-weight: 700; color: var(--text3);
   text-align: center; line-height: 1.35; max-width: 96px;
 }
-.ac-step.done .ac-step-label { color: var(--navy); }
+.ac-step.done .ac-step-label { color: var(--text2); }
 .ac-step.cur  .ac-step-label { color: var(--navy); }
 
 .ac-step-sub {
   font-size: 10px; color: var(--text3); text-align: center; line-height: 1.3;
 }
-.ac-step.done .ac-step-sub { color: #1a7f4b; font-weight: 600; }
+.ac-step.done .ac-step-sub { color: #12B76A; font-weight: 600; }
 .ac-step.cur  .ac-step-sub { color: var(--gold); font-weight: 700; }
 
-/* Arrow between steps */
+/* Arrow between steps — margin-top aligns arrow to vertical centre of the dot.
+   num-label(~14px) + gap(5px) + padding-top(8px) + half-dot(27px) = 54px,
+   then subtract half arrow-height (12px) = 42px */
 .ac-step-arrow {
-  display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 52px; flex-shrink: 0;
-  color: var(--border3);
-  margin-top: 8px;
+  display: flex; align-items: flex-start; justify-content: center;
+  width: 28px; flex-shrink: 0;
+  color: #D0D5DD;
+  margin-top: 42px;
+  padding-top: 16px;
 }
 .ac-step-arrow.done { color: var(--gold); }
 
