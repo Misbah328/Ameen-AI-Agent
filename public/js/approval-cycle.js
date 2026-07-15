@@ -1014,11 +1014,11 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       return { name, role, status, comCnt: myComs.length, lastCom, att, bg: AV_COLORS[i % AV_COLORS.length] };
     });
 
-    const nTotal = attWithStatus.length;
-    const nDone  = attWithStatus.filter(a => a.status === 'completed').length;
-    const nRev   = attWithStatus.filter(a => a.status === 'in_review').length;
-    const nEdit  = attWithStatus.filter(a => a.status === 'reviewed_pending_edits').length;
-    const nNone  = attWithStatus.filter(a => a.status === 'not_started').length;
+    const nTotal   = attWithStatus.length;
+    const nDone    = attWithStatus.filter(a => a.status === 'completed').length;
+    const nRev     = attWithStatus.filter(a => a.status === 'in_review').length;
+    const nEdit    = attWithStatus.filter(a => a.status === 'reviewed_pending_edits').length;
+    const nNone    = attWithStatus.filter(a => a.status === 'not_started').length;
     const atRisk = attWithStatus.filter(a => a.status === 'not_started' || a.status === 'in_review');
 
     /* ── Deadline computation ─────────────────────────────────────────────── */
@@ -1041,6 +1041,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         isOverdue = true;
       }
     }
+    const nPending  = nRev + nEdit + nNone;
+    const canSubmit = nPending === 0 || isOverdue;
+
     const timeRemainingLabel = dl
       ? (isOverdue
           ? t('انتهى الموعد','Deadline Passed')
@@ -1223,6 +1226,33 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         <button class="rd-edit-dl-btn" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد','Edit Deadline')}</button>
       </div>
 
+      <!-- Review Progress Banner -->
+      <div class="rd-progress-banner">
+        <div class="rd-pb-row">
+          <div class="rd-pb-left">
+            <span class="rd-pb-title">📊 ${t('اكتمال المراجعة','Review Completion')}</span>
+            <span class="rd-pb-fraction">${nDone} ${t('من','of')} ${nTotal} ${t('حضور','attendees')}</span>
+          </div>
+          <span class="rd-pb-pct ${nPending===0?'rd-pb-pct-done':''}">${nTotal ? Math.round(nDone/nTotal*100) : 0}%</span>
+        </div>
+        <div class="rd-pb-bar-wrap">
+          <div class="rd-pb-bar" style="width:${nTotal ? Math.round(nDone/nTotal*100) : 0}%"></div>
+        </div>
+        <div class="rd-pb-info">
+          💡 ${t('يمكنك فتح شاشة المراجعة والحل في أي وقت لمتابعة التعليقات وحلّها أولاً بأول.','You can open Review & Resolve at any time to monitor comments and start resolving them as they are received.')}
+        </div>
+        ${nPending > 0 && !isOverdue ? `
+        <div class="rd-pb-warn">
+          ⚠️ <strong>${nPending} ${t('من','of')} ${nTotal}</strong> ${t('حضور لم يكملوا مراجعتهم بعد. لا يمكن تقديم المحضر للاعتماد النهائي حتى اكتمال جميع المراجعات المطلوبة أو انتهاء الموعد النهائي.','attendees are still pending review. You cannot submit for Final Approval until all required reviews are complete or the deadline has expired.')}
+        </div>` : isOverdue ? `
+        <div class="rd-pb-expired">
+          ✅ ${t('انتهى الموعد النهائي — يمكنك المتابعة للاعتماد النهائي.','Deadline has expired — you may proceed to Final Approval.')}
+        </div>` : `
+        <div class="rd-pb-complete">
+          ✅ ${t('أكمل جميع الحضور مراجعاتهم — يمكنك تقديم المحضر للاعتماد النهائي.','All attendees have completed their reviews — ready for Final Approval.')}
+        </div>`}
+      </div>
+
       <!-- Attendee Review Status table -->
       <div class="rd-section-hdr" style="margin-top:16px">
         <span class="rd-section-ico">👥</span>
@@ -1321,14 +1351,38 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   </div>
 
   <!-- Bottom bar -->
-  <div class="dm-bottombar">
-    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep3Reviews()">← ${t('العودة لتعليقات الحضور','Back to Attendee Reviews')}</button>
-    <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(4)">
-      ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
-    </button>
+  <div class="dm-bottombar rd-bb-split">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep3Reviews()">← ${t('العودة','Back to Attendee Reviews')}</button>
+    <div class="rd-bb-right">
+      <button class="dm-btn secondary rd-monitor-btn" onclick="ApprovalCycle._renderStep5Resolve()">
+        👁 ${t('فتح المراجعة والحل','Open Review & Resolve')}
+        <span class="rd-monitor-tag">${t('متاح الآن','Available Now')}</span>
+      </button>
+      <div class="rd-sf-group">
+        <button class="rd-sf-btn ${canSubmit ? 'rd-sf-active' : 'rd-sf-locked'}"
+          onclick="ApprovalCycle._rdCheckSubmit(${canSubmit}, ${nPending}, ${nTotal})">
+          ${canSubmit ? '✅' : '🔒'} ${t('تقديم للاعتماد النهائي','Submit for Final Approval')}
+        </button>
+        ${!canSubmit ? `<div class="rd-sf-warn">⚠️ ${nPending} ${t('من','of')} ${nTotal} ${t('حضور لم يكملوا المراجعة بعد','attendees still pending review')}</div>` : ''}
+      </div>
+    </div>
   </div>
 
 </div>`;
+  },
+
+  /* ── Submit gate helper (Step 4) ──────────────────────────────────────── */
+  _rdCheckSubmit(canSubmit, nPending, nTotal) {
+    if (canSubmit) {
+      this._onStepClick(5);
+    } else {
+      showToast(
+        this.t(
+          `⚠️ ${nPending} من ${nTotal} حضور لم يكملوا مراجعتهم بعد. لا يمكن التقديم حتى اكتمال جميع المراجعات أو انتهاء الموعد.`,
+          `⚠️ ${nPending} of ${nTotal} attendees are still pending review. Submission for Final Approval is blocked until all reviews are complete or the deadline expires.`
+        ), 'warn', 5000
+      );
+    }
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -1352,6 +1406,32 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
     /* ── State ─────────────────────────────────────────────────────────────── */
     this._rrState = { tab: 'all', page: 1 };
+
+    /* ── Attendee review completion (for Submission Readiness) ─────────────── */
+    const AV_COLORS2 = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A90D9','#8E44AD'];
+    const attendees2 = fd.attendees || [];
+    const attSigs2   = (d.signatures || []).filter(s => s.sig_stage === 'review');
+    const attComms2  = d.comments   || [];
+    const att2WithStatus = attendees2.map((att, i) => {
+      const name  = att.name || att.full_name || att.attendee_name || '';
+      const myComs = attComms2.filter(c => c.commenter_name === name);
+      const mySigs = attSigs2.filter(s => s.signer_name === name);
+      let status;
+      if (mySigs.length && mySigs.every(s => s.status === 'signed')) status = 'completed';
+      else if (myComs.some(c => c.status === 'pending')) status = 'in_review';
+      else if (myComs.length) status = 'reviewed_pending_edits';
+      else status = 'not_started';
+      return { name, status };
+    });
+    const att2Total   = att2WithStatus.length;
+    const att2Done    = att2WithStatus.filter(a => a.status === 'completed').length;
+    const att2Pending = att2Total - att2Done;
+    const cycle2 = d.cycle || {};
+    const dl2     = cycle2.comment_deadline || '';
+    const isOverdue2 = dl2 ? new Date(dl2) < new Date() : false;
+    const canSubmit2  = att2Pending === 0 || isOverdue2;
+    const commentsAllResolved = comments.every(c => c.status === 'accepted' || c.status === 'rejected');
+    const canFullSubmit = canSubmit2 && (commentsAllResolved || nTotal === 0);
 
     /* ── Comment status counts ─────────────────────────────────────────────── */
     const nTotal    = comments.length;
@@ -1561,6 +1641,52 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           </div>
         </div>
         <button class="rr-ai-btn">✨ ${t('الاقتراح بالذكاء الاصطناعي','Suggest with AI')}</button>
+      </div>
+
+      <!-- Submission Readiness -->
+      <div class="rv-rpanel rr-readiness-panel">
+        <div class="rv-rp-title">🎯 ${t('جاهزية التقديم','Submission Readiness')}</div>
+        <div class="rr-ready-rows">
+          <div class="rr-ready-row">
+            <span class="rr-ready-ico">${canSubmit2 ? '✅' : '⚠️'}</span>
+            <div class="rr-ready-body">
+              <div class="rr-ready-label">${t('مراجعات الحضور','Attendee Reviews')}</div>
+              <div class="rr-ready-val ${canSubmit2 ? 'rr-ready-ok' : 'rr-ready-warn'}">
+                ${att2Done} ${t('من','of')} ${att2Total} ${t('مكتمل','completed')}
+                ${!canSubmit2 ? `<span class="rr-ready-badge-warn">${att2Pending} ${t('معلّق','pending')}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="rr-ready-row">
+            <span class="rr-ready-ico">${commentsAllResolved || nTotal===0 ? '✅' : '⚠️'}</span>
+            <div class="rr-ready-body">
+              <div class="rr-ready-label">${t('حل التعليقات','Comment Resolution')}</div>
+              <div class="rr-ready-val ${commentsAllResolved || nTotal===0 ? 'rr-ready-ok' : 'rr-ready-warn'}">
+                ${nResolved + nRejected} ${t('من','of')} ${nTotal} ${t('محسوم','resolved')}
+                ${nInResolve > 0 ? `<span class="rr-ready-badge-warn">${nInResolve} ${t('معلّق','pending')}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="rr-ready-row">
+            <span class="rr-ready-ico">${isOverdue2 ? '⏱️' : '📅'}</span>
+            <div class="rr-ready-body">
+              <div class="rr-ready-label">${t('الموعد النهائي','Review Deadline')}</div>
+              <div class="rr-ready-val ${isOverdue2 ? 'rr-ready-warn' : 'rr-ready-ok'}">
+                ${isOverdue2 ? t('انتهى الموعد','Deadline Expired') : t('لا يزال نشطاً','Still Active')}
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="rr-submit-btn ${canFullSubmit ? 'rr-submit-active' : 'rr-submit-locked'}"
+          onclick="ApprovalCycle._rrCheckSubmit(${canFullSubmit}, ${att2Pending}, ${att2Total}, ${nInResolve})">
+          ${canFullSubmit ? '✅' : '🔒'} ${t('تقديم للاعتماد النهائي','Submit for Final Approval')}
+        </button>
+        ${!canFullSubmit ? `
+        <div class="rr-submit-warn-txt">
+          ${!canSubmit2 ? `⚠️ ${att2Pending} ${t('من','of')} ${att2Total} ${t('حضور لم يكملوا مراجعتهم','attendees still pending review')}` : ''}
+          ${!canSubmit2 && nInResolve > 0 ? '<br>' : ''}
+          ${nInResolve > 0 ? `⚠️ ${nInResolve} ${t('تعليق لم يُحسَم بعد','comment(s) still unresolved')}` : ''}
+        </div>` : ''}
       </div>
 
       <!-- Save Changes -->
@@ -1804,6 +1930,25 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   async _rrSaveAll() {
     showToast(this.t('تم حفظ جميع التغييرات ✅','All changes saved ✅'), 'success');
+  },
+
+  /* ── Submit gate helper (Step 5) ──────────────────────────────────────── */
+  _rrCheckSubmit(canFullSubmit, att2Pending, att2Total, nInResolve) {
+    if (canFullSubmit) {
+      this._onStepClick(5);
+    } else {
+      const parts = [];
+      if (att2Pending > 0) parts.push(
+        this.t(`${att2Pending} من ${att2Total} حضور لم يكملوا مراجعتهم بعد`, `${att2Pending} of ${att2Total} attendees are still pending review`)
+      );
+      if (nInResolve > 0) parts.push(
+        this.t(`${nInResolve} تعليق لم يُحسَم بعد`, `${nInResolve} comment(s) still unresolved`)
+      );
+      showToast('⚠️ ' + parts.join(' — ') + '. ' +
+        this.t('لا يمكن التقديم للاعتماد النهائي حتى اكتمال جميع المتطلبات.','Submission for Final Approval is blocked until all requirements are met.'),
+        'warn', 5500
+      );
+    }
   },
 
   /* ── Edit deadline helper ─────────────────────────────────────────────── */
