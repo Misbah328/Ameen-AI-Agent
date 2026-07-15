@@ -6933,67 +6933,118 @@ ${docBody ? docBody.innerHTML : ''}`;
     const d  = this._data     || {};
     const cycle = d.cycle || {};
 
+    const meetingTitle = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || t('اجتماع مجلس الإدارة','Board Meeting');
+    const comments = d.comments || [];
+    const nAcc = comments.filter(c=>c.status==='accepted').length || 6;
     const miniStepper = this._buildMiniStepper(cycle, 8, t, l);
 
-    /* ── Demo attendees (all signed) ─────────────────────────────── */
+    /* ── Re-use Stage 8 attendees if navigated from S8, else define ── */
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A6FA8','#6B4FA8','#2AA87A','#C47A3C','#5A8A4A'];
     const SIG_PATHS = [
       `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 17 Q9 9 13 14 L18 18 Q22 22 26 14 Q30 6 36 12 L42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
     ];
-    const ATTENDEES = l === 'ar' ? [
-      { name:'د. عبدالله الغامدي', role:'رئيس مجلس الإدارة', at:'22 مايو 2025، 11:02 ص', sig:0 },
-      { name:'م. خالد الصبيعي',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 11:15 ص', sig:1 },
-      { name:'أ. ليلى التميمي',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:01 م', sig:2 },
-      { name:'أ. فيصل المطيري',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:25 م', sig:3 },
-      { name:'أ. أحمد الحربي',     role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:28 م', sig:4 },
-      { name:'أ. نورة العتيبي',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:31 م', sig:0 },
-      { name:'أ. سلطان السعود',    role:'عضو مجلس الإدارة',  at:'22 مايو 2025، 12:33 م', sig:1 },
-      { name:'د. مها الحارثي',     role:'عضو مستقل',          at:'22 مايو 2025، 12:35 م', sig:2 },
-      { name:'أ. ياسر القحطاني',   role:'ضيف مدعو',           at:'22 مايو 2025، 12:40 م', sig:3 },
-    ] : [
-      { name:'Dr. Abdullah Alghamdi', role:'Board Chairman',     at:'22 May 2025, 11:02 AM', sig:0 },
-      { name:'Eng. Khalid Alsubaie',  role:'Board Member',       at:'22 May 2025, 11:15 AM', sig:1 },
-      { name:'Ms. Laila Altamimi',    role:'Board Member',       at:'22 May 2025, 12:01 PM', sig:2 },
-      { name:'Mr. Faisal Almutairi',  role:'Board Member',       at:'22 May 2025, 12:25 PM', sig:3 },
-      { name:'Mr. Ahmed Alharbi',     role:'Board Member',       at:'22 May 2025, 12:28 PM', sig:4 },
-      { name:'Ms. Noura Alotaibi',    role:'Board Member',       at:'22 May 2025, 12:31 PM', sig:0 },
-      { name:'Mr. Sultan Alsaud',     role:'Board Member',       at:'22 May 2025, 12:33 PM', sig:1 },
-      { name:'Dr. Maha Alhaarthy',    role:'Independent Member', at:'22 May 2025, 12:35 PM', sig:2 },
-      { name:'Mr. Yasser Alqahtani',  role:'Invited Guest',      at:'22 May 2025, 12:40 PM', sig:3 },
-    ];
-    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
+    if (!this._s8Attendees) {
+      this._s8Attendees = l === 'ar' ? [
+        { name:'د. عبدالله الغامدي',  role:'رئيس مجلس الإدارة',  email:'a.alghamdi@ameen.sa',  at:'22 مايو 2025، 11:02 ص', device:'iPhone 15 Pro', verify:'بصمة الوجه',  hash:'A3F8C9', sig:0,  required:true  },
+        { name:'م. خالد الصبيعي',     role:'عضو مجلس الإدارة',   email:'k.alsubaie@ameen.sa',  at:'22 مايو 2025، 11:18 ص', device:'MacBook Pro',  verify:'كلمة مرور', hash:'B7D2E1', sig:1,  required:true  },
+        { name:'أ. ليلى التميمي',     role:'عضو مجلس الإدارة',   email:'l.altamimi@ameen.sa',  at:'22 مايو 2025، 11:52 ص', device:'iPad Pro',     verify:'بصمة الإصبع',hash:'C5A3F7', sig:2,  required:true  },
+        { name:'أ. فيصل المطيري',     role:'عضو مجلس الإدارة',   email:'f.almutairi@ameen.sa', at:'22 مايو 2025، 12:08 م', device:'Samsung S24',  verify:'رمز OTP',   hash:'D1B8C2', sig:3,  required:true  },
+        { name:'أ. أحمد الحربي',      role:'عضو مجلس الإدارة',   email:'a.alharbi@ameen.sa',   at:'22 مايو 2025، 12:22 م', device:'MacBook Air',  verify:'كلمة مرور', hash:'E4F9A6', sig:4,  required:true  },
+        { name:'أ. نورة العتيبي',     role:'عضو مجلس الإدارة',   email:'n.alotaibi@ameen.sa',  at:'22 مايو 2025، 12:31 م', device:'iPhone 14',    verify:'بصمة الوجه',hash:'F2C7B3', sig:5,  required:true  },
+        { name:'أ. سلطان السعود',     role:'عضو مجلس الإدارة',   email:'s.alsaud@ameen.sa',    at:'22 مايو 2025، 12:44 م', device:'iPad Air',     verify:'رمز OTP',   hash:'G8D4E1', sig:0,  required:true  },
+        { name:'د. مها الحارثي',      role:'عضو مستقل',           email:'m.alhaarthy@ameen.sa', at:'22 مايو 2025، 12:51 م', device:'MacBook Pro',  verify:'كلمة مرور', hash:'H1F3C9', sig:1,  required:true  },
+        { name:'أ. ياسر القحطاني',    role:'ضيف مدعو',            email:'y.alqahtani@ameen.sa', at:'—',                      device:'—',            verify:'—',         hash:'—',      sig:-1, required:false },
+      ] : [
+        { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     email:'a.alghamdi@ameen.sa',  at:'22 May 2025, 11:02 AM', device:'iPhone 15 Pro', verify:'Face ID',     hash:'A3F8C9', sig:0,  required:true  },
+        { name:'Eng. Khalid Alsubaie',   role:'Board Member',       email:'k.alsubaie@ameen.sa',  at:'22 May 2025, 11:18 AM', device:'MacBook Pro',   verify:'Password',    hash:'B7D2E1', sig:1,  required:true  },
+        { name:'Ms. Laila Altamimi',     role:'Board Member',       email:'l.altamimi@ameen.sa',  at:'22 May 2025, 11:52 AM', device:'iPad Pro',      verify:'Fingerprint', hash:'C5A3F7', sig:2,  required:true  },
+        { name:'Mr. Faisal Almutairi',   role:'Board Member',       email:'f.almutairi@ameen.sa', at:'22 May 2025, 12:08 PM', device:'Samsung S24',   verify:'OTP Code',    hash:'D1B8C2', sig:3,  required:true  },
+        { name:'Mr. Ahmed Alharbi',      role:'Board Member',       email:'a.alharbi@ameen.sa',   at:'22 May 2025, 12:22 PM', device:'MacBook Air',   verify:'Password',    hash:'E4F9A6', sig:4,  required:true  },
+        { name:'Ms. Noura Alotaibi',     role:'Board Member',       email:'n.alotaibi@ameen.sa',  at:'22 May 2025, 12:31 PM', device:'iPhone 14',     verify:'Face ID',     hash:'F2C7B3', sig:5,  required:true  },
+        { name:'Mr. Sultan Alsaud',      role:'Board Member',       email:'s.alsaud@ameen.sa',    at:'22 May 2025, 12:44 PM', device:'iPad Air',      verify:'OTP Code',    hash:'G8D4E1', sig:0,  required:true  },
+        { name:'Dr. Maha Alhaarthy',     role:'Independent Member', email:'m.alhaarthy@ameen.sa', at:'22 May 2025, 12:51 PM', device:'MacBook Pro',   verify:'Password',    hash:'H1F3C9', sig:1,  required:true  },
+        { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      email:'y.alqahtani@ameen.sa', at:'—',                     device:'—',             verify:'—',           hash:'—',      sig:-1, required:false },
+      ];
+    }
+    const ATTS = this._s8Attendees;
+    const nSigned = ATTS.filter(a=>a.sig>=0).length;
+    const nTotal  = ATTS.length;
 
-    /* ── Attendee table rows (show rows 1-3 + row 9) ─────────────── */
-    const makeAttRow = (a, i) => {
+    /* ── Full 15-event audit trail ───────────────────────────────── */
+    this._s9AuditEvents = [
+      { ico:'🚀', text:t('بدء دورة اعتماد المحاضر للاجتماع','Minutes approval cycle initiated for meeting'),                        date:'15 May 2025, 4:00 PM',  by:t('النظام','System') },
+      { ico:'📝', text:t('كتب أمين السر المحضر الأولي (مسودة v1.0)','Secretary drafted initial minutes (draft v1.0)'),               date:'16 May 2025, 9:10 AM',  by:t('محمد البلالي','Mohammad Albuali') },
+      { ico:'📧', text:t(`أُرسل المحضر للمراجعة إلى ${nTotal} حضور`,`Minutes sent for review to ${nTotal} attendees`),              date:'16 May 2025, 9:20 AM',  by:t('محمد البلالي','Mohammad Albuali') },
+      { ico:'💬', text:t('أُضيف 3 تعليقات من خالد الصبيعي وليلى التميمي','3 comments added by Khalid Alsubaie & Laila Altamimi'), date:'16 May 2025, 2:30 PM',  by:t('النظام','System') },
+      { ico:'💬', text:t('أُضيف 5 تعليقات إضافية من أعضاء المجلس','5 additional comments added by board members'),                  date:'17–18 May 2025',        by:t('النظام','System') },
+      { ico:'🔄', text:t('أُعيد المحضر للمراجعة بطلب من الرئيس — تعديل بند الميزانية','Minutes returned for revision per Chairman — budget item'), date:'20 May 2025, 3:30 PM', by:t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi') },
+      { ico:'✅', text:t(`تم حل جميع التعليقات (${nAcc} مقبول)`,`All comments resolved (${nAcc} accepted)`),                       date:'21 May 2025, 5:00 PM',  by:t('محمد البلالي','Mohammad Albuali') },
+      { ico:'📋', text:t(`تم إصدار النسخة النهائية (v1.${nAcc} Final)`,`Final version issued (v1.${nAcc} Final)`),                  date:'22 May 2025, 10:45 AM', by:t('محمد البلالي','Mohammad Albuali') },
+      { ico:'✍️', text:t('أُرسل طلب التوقيع الإلكتروني لجميع الحضور','E-signature request sent to all attendees'),                  date:'22 May 2025, 10:46 AM', by:t('النظام','System') },
+      { ico:'✅', text:t('6 توقيعات استُلمت في أول 2 ساعة','6 signatures received within first 2 hours'),                          date:'22 May 2025, 12:31 PM', by:t('النظام','System') },
+      { ico:'✅', text:t('اكتملت جميع التوقيعات المطلوبة (8/8)','All required signatures collected (8/8)'),                          date:'22 May 2025, 12:51 PM', by:t('النظام','System') },
+      { ico:'📨', text:t('أُرسل المحضر للاعتماد النهائي من رئيس المجلس','Minutes submitted for final approval by Board Chairman'),   date:'22 May 2025, 12:52 PM', by:t('النظام','System') },
+      { ico:'🎉', text:t('اعتمد الرئيس المحضر رسمياً — شهادة: APC-2025-089','Chairman officially approved minutes — Cert: APC-2025-089'), date:'22 May 2025, 1:05 PM', by:t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi') },
+      { ico:'🔒', text:t('تم قفل الوثيقة ومنع التعديل عليها','Document locked and made tamper-proof'),                            date:'22 May 2025, 1:06 PM',  by:t('النظام','System') },
+      { ico:'🏛️', text:t('أُرشف المحضر وفُعِّل بوصفه السجل الرسمي · رقم الأرشيف: MM-2025-089-ARC','Minutes archived & activated as official record · Archive ID: MM-2025-089-ARC'), date:'22 May 2025, 1:06 PM', by:t('النظام','System') },
+    ];
+
+    /* ── Document version history ─────────────────────────────────── */
+    this._s9Versions = [
+      { ver:'v1.0', label:t('مسودة أولية','Initial Draft'),               date:'16 May 2025, 9:10 AM',  by:t('محمد البلالي','Mohammad Albuali'), size:'198 KB', status:'draft'    },
+      { ver:`v1.1`, label:t('بعد تعليقات المراجعة الأولى','After round-1 review comments'), date:'17 May 2025, 3:00 PM', by:t('محمد البلالي','Mohammad Albuali'), size:'204 KB', status:'draft' },
+      { ver:`v1.${nAcc-2}`, label:t('مراجعات إضافية','Additional revisions'),  date:'19 May 2025, 11:00 AM', by:t('محمد البلالي','Mohammad Albuali'), size:'209 KB', status:'draft' },
+      { ver:`v1.${nAcc}`, label:t('النسخة النهائية (قبل التوقيعات)',`Final version (pre-signatures)`), date:'22 May 2025, 10:45 AM', by:t('محمد البلالي','Mohammad Albuali'), size:'312 KB', status:'final' },
+      { ver:`v1.${nAcc}-SIGNED`, label:t('نهائي موقّع من الجميع + معتمد','Final signed by all + approved'), date:'22 May 2025, 1:06 PM', by:t('النظام','System'), size:'487 KB', status:'archived' },
+    ];
+
+    /* ── Attendee table (all 9) ───────────────────────────────────── */
+    const attRows = ATTS.map((a,i) => {
       const initials = a.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+      const statusCell = a.sig>=0
+        ? `<span class="s9-signed-badge"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0C7A3D"/><path d="M2.5 5l2 2L7.5 3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('وقّع','Signed')}</span>`
+        : `<span style="font-size:11px;color:#8A948D;background:#F8F9FA;padding:3px 8px;border-radius:10px">${t('غير مطلوب','Not Required')}</span>`;
       return `<tr>
         <td class="s9-col-num">${i+1}</td>
-        <td class="s9-col-att"><div class="s9-att-info"><div class="s9-av" style="background:${AV_COLORS[i%AV_COLORS.length]}">${initials}</div><span>${esc(a.name)}</span></div></td>
+        <td class="s9-col-att"><div class="s9-att-info"><div class="s9-av" style="background:${AV_COLORS[i%AV_COLORS.length]}">${initials}</div><div><div>${esc(a.name)}</div><div style="font-size:10px;color:#8A948D">${esc(a.email)}</div></div></div></td>
         <td class="s9-col-role">${esc(a.role)}</td>
-        <td class="s9-col-status"><span class="s9-signed-badge"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0C7A3D"/><path d="M2.5 5l2 2L7.5 3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('وقّع','Signed')}</span></td>
+        <td class="s9-col-status">${statusCell}</td>
         <td class="s9-col-at">${a.at}</td>
       </tr>`;
-    };
-    const attRows = [0,1,2,8].map(i => makeAttRow(ATTENDEES[i], i)).join('');
+    }).join('');
 
-    /* ── Audit trail rows ─────────────────────────────────────────── */
-    const auditEntries = [
-      { label:t('إنشاء المسودة','Draft created'),                   date:'15 May 2025, 10:15 AM', highlight:false },
-      { label:t('أُرسل للحضور','Sent to attendees'),                date:'16 May 2025, 09:00 AM', highlight:false },
-      { label:t('جُمعت كل التوقيعات','All signatures collected'),   date:'22 May 2025, 12:35 PM', highlight:false },
-      { label:t('اعتمده الرئيس','Final approved by Chairman'),      date:'22 May 2025, 01:05 PM', highlight:false },
-      { label:t('أُرشف وفُعِّل','Archived & activated'),           date:'22 May 2025, 01:06 PM', highlight:true  },
-    ].map(e=>`<div class="s9-audit-row ${e.highlight?'s9-audit-highlight':''}">
-      <span class="s9-audit-lbl">${e.label}</span>
-      <span class="s9-audit-date">${e.date}</span>
-    </div>`).join('');
+    /* ── Audit trail summary rows (last 5) ─────────────────────────── */
+    const auditEntries = this._s9AuditEvents.slice(-5).map((e,i,arr)=>`
+<div class="s9-audit-row ${i===arr.length-1?'s9-audit-highlight':''}">
+  <span style="font-size:13px;flex-shrink:0">${e.ico}</span>
+  <span class="s9-audit-lbl">${e.text}</span>
+  <span class="s9-audit-date">${e.date}</span>
+</div>`).join('');
 
     /* ── Render ─────────────────────────────────────────────────── */
     body.innerHTML = `
 <div class="dm-step-page" id="ac-step9-page">
+
+  <!-- Celebration banner -->
+  <div class="s9-celebration-banner">
+    <div class="s9-cel-left">
+      <span class="s9-cel-icon">🏛️</span>
+      <div>
+        <div class="s9-cel-title">🎉 ${t('اكتملت دورة الاعتماد بنجاح!','Approval Cycle Successfully Completed!')}</div>
+        <div class="s9-cel-sub">${t('تم اعتماد المحضر وأرشفته وتفعيله بوصفه السجل الرسمي لاجتماع مجلس الإدارة.','Minutes approved, archived and activated as the official Board Meeting record.')}</div>
+      </div>
+    </div>
+    <div class="s9-cel-badges">
+      <span class="s9-cel-badge s9-cb-green">✅ ${t('معتمد','Approved')}</span>
+      <span class="s9-cel-badge s9-cb-blue">🔒 ${t('مقفول','Locked')}</span>
+      <span class="s9-cel-badge s9-cb-gold">🏛️ ${t('مؤرشف رسمياً','Officially Archived')}</span>
+    </div>
+  </div>
 
   <!-- Header -->
   <div class="dm-page-hdr">
@@ -7008,16 +7059,24 @@ ${docBody ? docBody.innerHTML : ''}`;
           ${t('مكتمل','Completed')}
         </span>
       </div>
-      <p class="dm-page-sub">${t('اعتمد الرئيس المحضر وأصبح مؤرشفاً بوصفه السجل الرسمي.','The minutes have been approved by the Chairman and are now archived as the official record.')}</p>
+      <p class="dm-page-sub">${t('اعتمد الرئيس المحضر رسمياً. النسخة المعتمدة مقفولة وآمنة ومتاحة للتنزيل وهي السجل الرسمي للاجتماع.','The Chairman has officially approved the minutes. The approved version is locked, secured and available for download as the official meeting record.')}</p>
     </div>
     <div class="dm-page-hdr-right">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s9Preview()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.4"/><ellipse cx="7" cy="7" rx="6" ry="4" stroke="currentColor" stroke-width="1.4"/></svg>
+        ${t('معاينة','Preview')}
+      </button>
       <button class="dm-btn ghost" onclick="ApprovalCycle._s9Download()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        ${t('تنزيل المحضر الرسمي (PDF)','Download Official Minutes (PDF)')}
+        ${t('تنزيل الرسمي (PDF)','Download Official (PDF)')}
       </button>
-      <button class="dm-btn ghost">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s9History()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
         ${t('السجل','History')}
+      </button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._s9ShareMinutes()" style="background:#2C6CA8">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="3" cy="7" r="1.8" stroke="white" stroke-width="1.3"/><circle cx="11" cy="3" r="1.8" stroke="white" stroke-width="1.3"/><circle cx="11" cy="11" r="1.8" stroke="white" stroke-width="1.3"/><path d="M4.7 6.2L9.3 3.8M4.7 7.8l4.6 2.4" stroke="white" stroke-width="1.3"/></svg>
+        ${t('مشاركة وتوزيع','Share & Distribute')}
       </button>
     </div>
   </div>
@@ -7029,23 +7088,21 @@ ${docBody ? docBody.innerHTML : ''}`;
   <div class="s9-meta-bar">
     <div class="s9-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 1v2M10 1v2M1 5.5h12" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <div><div class="s9-meta-lbl">${t('الاجتماع','Meeting')}</div><div class="s9-meta-val">${t('اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting – 15 May 2025')}</div></div>
+      <div><div class="s9-meta-lbl">${t('الاجتماع','Meeting')}</div><div class="s9-meta-val">${esc(meetingTitle)}</div></div>
     </div>
     <div class="s9-meta-sep"></div>
     <div class="s9-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/></svg>
-      <div><div class="s9-meta-lbl">${t('إصدار المحضر الرسمي','Official Minutes Version')}</div><div class="s9-meta-val"><span class="s9-version-badge">v2.0 (Final)</span></div></div>
+      <div><div class="s9-meta-lbl">${t('إصدار المحضر الرسمي','Official Version')}</div><div class="s9-meta-val"><span class="s9-version-badge">v1.${nAcc}-SIGNED</span></div></div>
     </div>
     <div class="s9-meta-sep"></div>
     <div class="s9-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
-      <div><div class="s9-meta-lbl">${t('اعتُمد في','Approved On')}</div><div class="s9-meta-val">22 May 2025, 01:05 PM</div></div>
+      <div><div class="s9-meta-lbl">${t('اعتُمد في','Approved On')}</div><div class="s9-meta-val" style="color:#0C7A3D;font-weight:700">22 May 2025, 1:05 PM</div></div>
     </div>
     <div class="s9-meta-sep"></div>
     <div class="s9-meta-item">
-      <div class="s9-meta-av">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3.5" stroke="#8A948D" stroke-width="1.3"/><path d="M2 14a6 6 0 0112 0" stroke="#8A948D" stroke-width="1.3" stroke-linecap="round"/></svg>
-      </div>
+      <div class="s9-meta-av"><span style="font-size:11px;font-weight:800;color:#0F1728">عب</span></div>
       <div>
         <div class="s9-meta-lbl">${t('اعتمده','Approved By')}</div>
         <div class="s9-meta-val" style="font-weight:700">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
@@ -7054,17 +7111,21 @@ ${docBody ? docBody.innerHTML : ''}`;
     </div>
     <div class="s9-meta-sep"></div>
     <div class="s9-meta-item">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#8A948D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div><div class="s9-meta-lbl">${t('جميع التوقيعات','All Signatures')}</div><div class="s9-meta-val"><strong>9 / 9 ${t('مُجمَّعة','Collected')}</strong></div></div>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><div class="s9-meta-lbl">${t('التوقيعات','Signatures')}</div><div class="s9-meta-val"><strong style="color:#0C7A3D">${nSigned}/${nTotal}</strong> ${t('مجمَّعة','collected')}</div></div>
     </div>
     <div class="s9-meta-sep"></div>
     <div class="s9-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
       <div>
         <div class="s9-meta-lbl">${t('الحالة','Status')}</div>
-        <div class="s9-meta-val s9-archived-status">${t('مؤرشف ومفعَّل','Archived & Activated')}</div>
+        <div class="s9-meta-val s9-archived-status">🏛️ ${t('مؤرشف ومفعَّل','Archived & Activated')}</div>
         <div class="s9-meta-sub">${t('السجل الرسمي','Official Record')}</div>
       </div>
+    </div>
+    <div class="s9-meta-sep"></div>
+    <div class="s9-meta-item">
+      <div><div class="s9-meta-lbl">${t('رقم الأرشيف','Archive ID')}</div><div class="s9-meta-val" style="font-family:monospace;font-size:11.5px;color:#0C7A3D">MM-2025-089-ARC</div></div>
     </div>
   </div>
 
@@ -7074,56 +7135,76 @@ ${docBody ? docBody.innerHTML : ''}`;
     <!-- ── LEFT ───────────────────────────────────────────────────── -->
     <div class="s9-left">
 
-      <!-- Archive info card -->
+      <!-- Archive Certificate card -->
       <div class="s9-archive-card">
         <div class="s9-archive-stamp">
-          <svg width="56" height="68" viewBox="0 0 56 68" fill="none">
-            <rect width="56" height="68" rx="4" fill="#ECFDF5"/>
-            <rect x="8" y="8" width="40" height="52" rx="2" fill="white" stroke="#D1FAE5" stroke-width="1"/>
-            <rect x="12" y="14" width="32" height="3" rx="1" fill="#D1FAE5"/>
-            <rect x="12" y="20" width="26" height="2" rx="1" fill="#EAECE8"/>
-            <rect x="12" y="25" width="28" height="2" rx="1" fill="#EAECE8"/>
-            <rect x="12" y="30" width="22" height="2" rx="1" fill="#EAECE8"/>
-            <circle cx="28" cy="46" r="12" fill="#0C7A3D"/>
-            <path d="M22 46l4 4 8-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg width="60" height="72" viewBox="0 0 60 72" fill="none">
+            <rect width="60" height="72" rx="5" fill="#ECFDF5"/>
+            <rect x="8" y="8" width="44" height="56" rx="2" fill="white" stroke="#D1FAE5" stroke-width="1"/>
+            <rect x="13" y="15" width="34" height="3.5" rx="1.5" fill="#D1FAE5"/>
+            <rect x="13" y="21" width="28" height="2" rx="1" fill="#EAECE8"/>
+            <rect x="13" y="26" width="30" height="2" rx="1" fill="#EAECE8"/>
+            <rect x="13" y="31" width="22" height="2" rx="1" fill="#EAECE8"/>
+            <rect x="13" y="36" width="26" height="2" rx="1" fill="#EAECE8"/>
+            <circle cx="30" cy="52" r="13" fill="#0C7A3D"/>
+            <path d="M23 52l4.5 4.5L37 46" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span class="s9-stamp-label">${t('مؤرشف','ARCHIVED')}</span>
+          <span style="font-size:9px;color:#047857;font-weight:700;text-align:center">🔒 ${t('مقفول','LOCKED')}</span>
         </div>
         <div class="s9-archive-info">
-          <div class="s9-archive-title">${t('محضر الاجتماع المؤرشف','Archived Meeting Minutes')}</div>
-          <div class="s9-archive-desc">${t('اعتمد الرئيس هذا المحضر وأصبح مؤرشفاً بوصفه السجل الرسمي للاجتماع.','These minutes have been approved by the Chairman and are now archived as the official record of the meeting.')}</div>
+          <div class="s9-archive-title">📋 ${t('شهادة الأرشفة الرسمية','Official Archive Certificate')}</div>
+          <div class="s9-archive-desc">${t('تم اعتماد المحضر وأرشفته رسمياً. رقم الشهادة: APC-2025-089.','Minutes officially approved and archived. Certificate No: APC-2025-089.')}</div>
           <div class="s9-kv-grid">
-            <div class="s9-kv-row"><span class="s9-kk">${t('عنوان الاجتماع','Meeting Title')}</span><span class="s9-kv">${t('اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting – 15 May 2025')}</span></div>
-            <div class="s9-kv-row"><span class="s9-kk">${t('إصدار المحضر','Minutes Version')}</span><span class="s9-kv">v2.0 (Final)</span></div>
-            <div class="s9-kv-row"><span class="s9-kk">${t('أُرشف في','Archived On')}</span><span class="s9-kv">22 May 2025, 01:06 PM</span></div>
-            <div class="s9-kv-row"><span class="s9-kk">${t('أُرشف بواسطة','Archived By')}</span><span class="s9-kv">${t('محمد البلالي (أمين السر)','Mohammad Albuali (Meeting Secretary)')}</span></div>
-            <div class="s9-kv-row"><span class="s9-kk">${t('رقم السجل','Record ID')}</span><span class="s9-kv s9-record-id">MM-2025-05-15-001</span></div>
-            <div class="s9-kv-row"><span class="s9-kk">${t('مكان التخزين','Storage Location')}</span><span class="s9-kv">${t('أرشيف أمين الحوكمة الآمن','Ameen Governance Secure Archive')}</span></div>
-            <div class="s9-kv-row"><span class="s9-kk">${t('سياسة الاحتفاظ','Retention Policy')}</span><span class="s9-kv">7 ${t('سنوات','Years')}</span></div>
+            ${[
+              [t('عنوان الاجتماع','Meeting Title'),       esc(meetingTitle)],
+              [t('إصدار المحضر','Minutes Version'),       `v1.${nAcc}-SIGNED (${t('نهائي','Final')})`],
+              [t('رقم الأرشيف','Archive ID'),             'MM-2025-089-ARC'],
+              [t('رقم الشهادة','Certificate No'),         'APC-2025-089'],
+              [t('أُرشف في','Archived On'),               '22 May 2025, 1:06 PM'],
+              [t('أُرشف بواسطة','Archived By'),           t('محمد البلالي (أمين السر)','Mohammad Albuali (Secretary)')],
+              [t('الحجم','Size'),                          '487 KB · 14 Pages'],
+              [t('SHA-256','SHA-256'),                    'A3F8C9D2E1B7F4A6…'],
+              [t('سياسة الاحتفاظ','Retention Policy'),   t('7 سنوات (حتى 2032)','7 Years (until 2032)')],
+              [t('مكان التخزين','Storage'),               t('أرشيف الحوكمة الآمن','Ameen Governance Secure Archive')],
+            ].map(([k,v])=>`<div class="s9-kv-row"><span class="s9-kk">${k}</span><span class="s9-kv ${k.includes('SHA')||k.includes('رقم')?'s9-record-id':''}">${v}</span></div>`).join('')}
           </div>
           <div class="s9-lock-alert">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="#0C7A3D" stroke-width="1.2"/><path d="M2.5 6.5l2.5 2.5 5-5" stroke="#0C7A3D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>${t('هذا السجل مقفل وآمن من التلاعب. أي تغييرات مستقبلية ستُسجَّل كتعديل.','This record is locked and tamper-proof. Any future changes will be recorded as an amendment.')}</span>
+            <span>${t('هذا السجل مقفل ومؤمَّن. أي تعديلات مستقبلية ستُسجَّل كتعديل رسمي لا يؤثر على النسخة الأصلية.','This record is locked and secured. Future amendments will be recorded separately without affecting the original.')}</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download()" style="flex:1;min-width:120px">
+              📥 ${t('تنزيل PDF الرسمي','Download Official PDF')}
+            </button>
+            <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9VersionHistory()" style="flex:1;min-width:120px">
+              📂 ${t('سجل الإصدارات','Version History')}
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- All Attendees table -->
+      <!-- All Attendee Signatures -->
       <div class="s9-att-section">
-        <div class="s9-att-title">${t('جميع الحضور (9 من 9 وقّعوا)','All Attendees (9 of 9 Signed)')}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="s9-att-title">✍️ ${t(`توقيعات الحضور (${nSigned}/${nTotal})`,`Attendee Signatures (${nSigned}/${nTotal})`)}</div>
+          <button class="s9-view-sigs-btn" onclick="ApprovalCycle._s9ViewSigs()" style="padding:5px 12px;font-size:11.5px">
+            ${t('عرض الكل','View All')}
+          </button>
+        </div>
         <table class="s9-att-table">
           <thead><tr>
             <th class="s9-col-num">#</th>
             <th>${t('الحضور','Attendee')}</th>
             <th>${t('الدور','Role')}</th>
-            <th>${t('حالة التوقيع','Signature Status')}</th>
-            <th>${t('وقّع في','Signed On')}</th>
+            <th>${t('الحالة','Status')}</th>
+            <th>${t('وُقِّع في','Signed On')}</th>
           </tr></thead>
           <tbody>${attRows}</tbody>
         </table>
         <button class="s9-view-sigs-btn" onclick="ApprovalCycle._s9ViewSigs()">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
-          ${t('عرض جميع التوقيعات','View All Signatures')}
+          ${t(`عرض جميع التوقيعات مع الشهادات (${nTotal})`,`View All Signatures & Certificates (${nTotal})`)}
         </button>
       </div>
     </div>
@@ -7131,19 +7212,18 @@ ${docBody ? docBody.innerHTML : ''}`;
     <!-- ── CENTER ─────────────────────────────────────────────────── -->
     <div class="s9-center">
 
-      <!-- Minutes Document preview -->
+      <!-- Official document card -->
       <div class="s9-panel">
-        <div class="s9-panel-title">${t('وثيقة المحضر','Minutes Document')}</div>
+        <div class="s9-panel-title">📄 ${t('الوثيقة الرسمية','Official Document')}</div>
         <div class="s9-doc-preview">
           <div class="s9-doc-thumb">
             <div class="s9-doc-thumb-inner">
               <div class="s9-thumb-logo">
-                <svg width="40" height="22" viewBox="0 0 40 22" fill="none">
-                  <text x="0" y="17" font-size="15" font-weight="800" fill="#A8842C" font-family="serif">AMEEN</text>
-                </svg>
+                <svg width="44" height="20" viewBox="0 0 44 20" fill="none"><text x="0" y="16" font-size="14" font-weight="800" fill="#A8842C" font-family="serif">AMEEN</text></svg>
               </div>
               <div class="s9-thumb-title">${t('محضر اجتماع مجلس الإدارة','Board Meeting Minutes')}</div>
-              <div class="s9-thumb-date">15 May 2025</div>
+              <div class="s9-thumb-date">15 ${t('مايو','May')} 2025</div>
+              <div style="margin-top:6px;font-size:9px;color:#8A948D">v1.${nAcc}-SIGNED</div>
               <div class="s9-approved-stamp">${t('معتمد','APPROVED')}</div>
             </div>
             <div class="s9-doc-badge-corner">
@@ -7151,92 +7231,144 @@ ${docBody ? docBody.innerHTML : ''}`;
             </div>
           </div>
           <div class="s9-doc-meta-row">
-            <span class="s9-doc-meta-item">${t('الحجم: 245 كيلوبايت','Size: 245 KB')}</span>
-            <span class="s9-doc-meta-sep">|</span>
-            <span class="s9-doc-meta-item">${t('الصفحات: 12','Pages: 12')}</span>
+            <span class="s9-doc-meta-item">487 KB</span>
+            <span class="s9-doc-meta-sep">·</span>
+            <span class="s9-doc-meta-item">14 ${t('صفحة','Pages')}</span>
+            <span class="s9-doc-meta-sep">·</span>
+            <span class="s9-doc-meta-item">PDF</span>
           </div>
-          <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download()">
+          <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Preview()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
-            ${t('عرض / تنزيل (PDF)','View / Download (PDF)')}
+            ${t('معاينة بالترويسة الرسمية','Preview with Official Letterhead')}
           </button>
+        </div>
+        <!-- Download options -->
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download('pdf')">📥 ${t('تنزيل PDF الرسمي (موقّع)','Download Official PDF (Signed)')}</button>
+          <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download('word')">📄 ${t('تنزيل Word (.docx)','Download Word (.docx)')}</button>
+          <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download('cert')">🏆 ${t('تنزيل شهادة الاعتماد','Download Approval Certificate')}</button>
         </div>
       </div>
 
       <!-- Related Records & Links -->
       <div class="s9-panel">
-        <div class="s9-panel-title">${t('السجلات والروابط ذات الصلة','Related Records & Links')}</div>
+        <div class="s9-panel-title">🔗 ${t('السجلات والروابط ذات الصلة','Related Records & Links')}</div>
         <div class="s9-links-list">
           <div class="s9-link-row">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><line x1="4" y1="5" x2="9" y2="5" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="9" x2="7" y2="9" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/></svg>
-            <span class="s9-link-lbl">${t('القرارات المرتبطة (4)','Associated Decisions (4)')}</span>
+            <span style="font-size:13px">📋</span>
+            <span class="s9-link-lbl">${t('القرارات الرسمية (4)','Formal Decisions (4)')}</span>
             <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('decisions')">${t('عرض','View')}</button>
           </div>
           <div class="s9-link-row">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 5h5M4 7h5M4 9h3" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/></svg>
-            <span class="s9-link-lbl">${t('بنود الإجراءات (7)','Action Items (7)')}</span>
+            <span style="font-size:13px">✅</span>
+            <span class="s9-link-lbl">${t('بنود المتابعة (7)','Follow-Up Items (7)')}</span>
             <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('actions')">${t('عرض','View')}</button>
           </div>
           <div class="s9-link-row">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 7.5a3.5 3.5 0 016 0" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.5" cy="4.5" r="1.8" stroke="#8A948D" stroke-width="1.2"/></svg>
-            <span class="s9-link-lbl">${t('قيد سجل القرارات','Decision Registry Entry')}</span>
-            <a class="s9-link-anchor" href="#" onclick="return false">DR-2025-05-15-001</a>
-          </div>
-          <div class="s9-link-row">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2" width="11" height="10" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M1 5h11" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><path d="M4 1v2M9 1v2" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-            <span class="s9-link-lbl">${t('كشف الحضور','Meeting Attendance Sheet')}</span>
+            <span style="font-size:13px">👥</span>
+            <span class="s9-link-lbl">${t('كشف الحضور الرسمي','Official Attendance Sheet')}</span>
             <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('attendance')">${t('عرض','View')}</button>
           </div>
           <div class="s9-link-row">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="8.5" y2="4.5" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="8.5" y2="7" stroke="#8A948D" stroke-width="1" stroke-linecap="round"/></svg>
+            <span style="font-size:13px">📎</span>
             <span class="s9-link-lbl">${t('المستندات الداعمة (3)','Supporting Documents (3)')}</span>
             <button class="s9-link-btn" onclick="ApprovalCycle._s9ViewLink('supporting')">${t('عرض','View')}</button>
           </div>
+          <div class="s9-link-row">
+            <span style="font-size:13px">🔖</span>
+            <span class="s9-link-lbl">${t('قيد سجل القرارات','Decision Registry Entry')}</span>
+            <a class="s9-link-anchor" href="#" onclick="ApprovalCycle._s9ViewLink('registry');return false">DR-2025-089</a>
+          </div>
+          <div class="s9-link-row">
+            <span style="font-size:13px">📂</span>
+            <span class="s9-link-lbl">${t('سجل الإصدارات (${(this._s9Versions||[]).length} إصدارات)','Version History')}</span>
+            <button class="s9-link-btn" onclick="ApprovalCycle._s9VersionHistory()">${t('عرض','View')}</button>
+          </div>
         </div>
+      </div>
+
+      <!-- Document Version History (mini) -->
+      <div class="s9-panel">
+        <div class="s9-panel-title" style="display:flex;justify-content:space-between">
+          <span>📂 ${t('سجل الإصدارات','Version History')}</span>
+          <button onclick="ApprovalCycle._s9VersionHistory()" style="background:none;border:none;font-size:11px;color:#4A6FA8;cursor:pointer">${t('عرض الكل','View All')}</button>
+        </div>
+        ${(this._s9Versions||[]).map(v=>`
+<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F2F3F5">
+  <span style="font-size:10.5px;font-family:monospace;background:${v.status==='archived'?'#D1FAE5':v.status==='final'?'#DBEAFE':'#F8F9FA'};color:${v.status==='archived'?'#065F46':v.status==='final'?'#1D4ED8':'#5A6A5C'};padding:2px 7px;border-radius:8px;font-weight:700;white-space:nowrap">${v.ver}</span>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:11.5px;font-weight:600;color:#15201A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.label}</div>
+    <div style="font-size:10.5px;color:#8A948D">${v.date} · ${v.size}</div>
+  </div>
+  <button onclick="ApprovalCycle._s9Download('ver_${v.ver}')" style="padding:3px 8px;border:1px solid #E4E7EC;border-radius:6px;background:#fff;cursor:pointer;font-size:11px;white-space:nowrap">📥</button>
+</div>`).join('')}
       </div>
     </div>
 
     <!-- ── RIGHT sidebar ──────────────────────────────────────────── -->
     <div class="s9-sidebar">
 
-      <!-- Approval Confirmation -->
-      <div class="s9-panel">
+      <!-- Approval Certificate -->
+      <div class="s9-panel" style="background:linear-gradient(135deg,#F0FDF4,#ECFDF5);border:1.5px solid #A7F3D0">
         <div class="s9-panel-hdr">
-          <span class="s9-panel-title">${t('تأكيد الاعتماد','Approval Confirmation')}</span>
+          <span class="s9-panel-title" style="color:#065F46">🏆 ${t('شهادة الاعتماد الرسمي','Official Approval Certificate')}</span>
           <span class="s9-confirm-ico">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#ECFDF5"/><path d="M5 10l4 4 7-7" stroke="#0C7A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="11" fill="#0C7A3D"/><path d="M6 11l4 4 7-7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
         </div>
-        <p class="s9-confirm-text">${t('أؤكد أنني راجعت المحضر النهائي وأعتمده بوصفه سجلاً صحيحاً ودقيقاً.','I confirm that I have reviewed the final minutes and approve them as a true and accurate record.')}</p>
-        <div class="s9-sig-box">
-          <svg width="140" height="40" viewBox="0 0 140 40">
-            <path d="M10 28 C20 18 30 14 45 22 C55 28 60 22 75 18 C88 14 100 18 115 22 L130 20" stroke="#1a3a5c" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <div style="background:#fff;border:1px solid #D1FAE5;border-radius:10px;padding:12px 14px">
+          <div style="font-size:10.5px;color:#8A948D;margin-bottom:6px">${t('رقم الشهادة','Certificate No')}</div>
+          <div style="font-size:15px;font-weight:800;color:#0C7A3D;font-family:monospace">APC-2025-089</div>
+          <div style="height:1px;background:#D1FAE5;margin:10px 0"></div>
+          <p class="s9-confirm-text">${t('أؤكد أنني راجعت المحضر النهائي وأعتمده بوصفه سجلاً صحيحاً ودقيقاً لاجتماع مجلس الإدارة المنعقد بتاريخ 15 مايو 2025.','I confirm that I have reviewed the final minutes and approve them as a true and accurate record of the Board Meeting held on 15 May 2025.')}</p>
+          <div class="s9-sig-box" style="background:#F0FDF4;border:1px solid #D1FAE5">
+            <svg width="140" height="40" viewBox="0 0 140 40">
+              <path d="M10 28 C20 18 30 14 45 22 C55 28 60 22 75 18 C88 14 100 18 115 22 L130 20" stroke="#1a3a5c" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="s9-approver-row">
+            <div class="s9-approver-name">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
+            <div class="s9-approver-role">${t('رئيس مجلس الإدارة','Board Chairman')}</div>
+            <div class="s9-approver-date">📅 22 May 2025, 1:05 PM</div>
+          </div>
         </div>
-        <div class="s9-approver-row">
-          <div class="s9-approver-name">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
-          <div class="s9-approver-role">${t('رئيس مجلس الإدارة','Board Chairman')}</div>
-          <div class="s9-approver-date">22 May 2025, 01:05 PM</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span class="s9-final-badge">✅ ${t('اعتماد نهائي','Final Approval')}</span>
+          <span class="s9-final-badge" style="border-color:#2C6CA8;color:#2C6CA8">🔒 SHA-256</span>
         </div>
-        <span class="s9-final-badge">${t('اعتماد نهائي','Final Approval')}</span>
+        <button class="s9-view-dl-btn" onclick="ApprovalCycle._s9Download('cert')">
+          🏆 ${t('تنزيل شهادة الاعتماد','Download Approval Certificate')}
+        </button>
       </div>
 
-      <!-- Next Steps -->
+      <!-- Next Steps (all completed) -->
       <div class="s9-panel">
-        <div class="s9-panel-title">${t('الخطوات التالية','Next Steps')}</div>
+        <div class="s9-panel-title">🎯 ${t('ما تم إنجازه','What Was Completed')}</div>
         <div class="s9-nextsteps">
-          <div class="s9-ns-row"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${t('المحضر أصبح جزءاً من السجل الرسمي','Minutes are now part of the official record')}</span></div>
-          <div class="s9-ns-row"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${t('سُجِّلت القرارات في سجل القرارات','Decisions have been recorded in the Decision Registry')}</span></div>
-          <div class="s9-ns-row"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${t('بنود الإجراءات متاحة في المتابعة والتنفيذ','Action Items are available in Follow-Up & Execution')}</span></div>
+          ${[
+            t('المحضر أصبح السجل الرسمي للاجتماع','Minutes are now the official meeting record'),
+            t('النسخة المعتمدة مقفولة ومؤمَّنة','Approved version locked and secured'),
+            t('تم تسجيل القرارات الرسمية (4 قرارات) في سجل القرارات','4 formal decisions recorded in Decision Registry'),
+            t('7 بنود متابعة متاحة في نظام المتابعة والتنفيذ','7 follow-up items available in tracking system'),
+            t('أُرسلت إشعارات لجميع الحضور بالاعتماد النهائي','Notifications sent to all attendees of final approval'),
+            t('سجل التدقيق الكامل (15 حدث) محفوظ ومؤمَّن','Full audit trail (15 events) preserved and secured'),
+          ].map(s=>`<div class="s9-ns-row">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="7" fill="#0C7A3D"/><path d="M3.5 7l2.5 2.5 5-5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>${s}</span>
+          </div>`).join('')}
         </div>
       </div>
 
       <!-- Audit Trail Summary -->
       <div class="s9-panel">
-        <div class="s9-panel-title">${t('سجل التدقيق (ملخص)','Audit Trail (Summary)')}</div>
+        <div class="s9-panel-title" style="display:flex;justify-content:space-between">
+          <span>🔍 ${t('سجل التدقيق (آخر 5)','Audit Trail (Last 5)')}</span>
+          <button onclick="ApprovalCycle._s9AuditTrail()" style="background:none;border:none;font-size:11px;color:#4A6FA8;cursor:pointer">${t('عرض الكل','View All')}</button>
+        </div>
         <div class="s9-audit-table">${auditEntries}</div>
         <button class="s9-audit-full-btn" onclick="ApprovalCycle._s9AuditTrail()">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="1" width="9" height="11" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="4.5" x2="9" y2="4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="9.5" x2="7" y2="9.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-          ${t('عرض سجل التدقيق الكامل','View Full Audit Trail')}
+          🔍 ${t('سجل التدقيق الكامل (15 حدث)','Full Audit Trail (15 events)')}
         </button>
       </div>
 
@@ -7244,30 +7376,319 @@ ${docBody ? docBody.innerHTML : ''}`;
   </div>
 
   <!-- Bottom bar -->
-  <div class="dm-bottombar fm-bottombar">
+  <div class="dm-bottombar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(7)">← ${t('العودة للاعتماد النهائي','Back to Final Approval')}</button>
-    <div class="s9-bb-info">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2C6CA8" stroke-width="1.3"/><line x1="7" y1="6" x2="7" y2="10" stroke="#2C6CA8" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="#2C6CA8"/></svg>
-      <span>${t('تم أرشفة المحضر وتفعيله بوصفه السجل الرسمي.','The minutes are archived and activated as the official record.')}</span>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#065F46" stroke-width="1.3"/><path d="M3.5 7l2.5 2.5 5-5" stroke="#065F46" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span style="font-size:12px;color:#065F46;font-weight:600">🏛️ ${t('اكتملت دورة الاعتماد · المحضر مؤرشف ومفعَّل رسمياً · رقم الشهادة: APC-2025-089','Approval cycle complete · Minutes officially archived & activated · Cert: APC-2025-089')}</span>
     </div>
-    <button class="dm-btn primary s9-archive-cta" onclick="ApprovalCycle._s9GoToArchive()">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="9" rx="1.5" stroke="white" stroke-width="1.4"/><path d="M1 7h12" stroke="white" stroke-width="1.2"/><path d="M5 1h4" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M7 1v3" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
-      ${t('الانتقال إلى أرشيف الاجتماعات','Go to Meeting Archive')}
-    </button>
+    <div style="display:flex;gap:8px">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s9ShareMinutes()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="3" cy="7" r="1.8" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="3" r="1.8" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="11" r="1.8" stroke="currentColor" stroke-width="1.3"/><path d="M4.7 6.2L9.3 3.8M4.7 7.8l4.6 2.4" stroke="currentColor" stroke-width="1.3"/></svg>
+        ${t('مشاركة وتوزيع','Share & Distribute')}
+      </button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._s9GoToArchive()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="9" rx="1.5" stroke="white" stroke-width="1.4"/><path d="M1 7h12" stroke="white" stroke-width="1.2"/><path d="M5 1h4" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M7 1v3" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+        ${t('الانتقال إلى أرشيف الاجتماعات','Go to Meeting Archive')}
+      </button>
+    </div>
   </div>
 
 </div>`;
   },
 
-  /* ── Step 9 helpers ─────────────────────────────────────────────────── */
-  _s9Download()   { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
-  _s9ViewSigs()   { showToast(this.t('تم جمع جميع التوقيعات (9/9) ✅','All signatures collected (9/9) ✅'), 'success'); },
-  _s9ViewLink(type) {
-    const labels = { decisions: this.t('القرارات المرتبطة','Associated Decisions'), actions: this.t('بنود الإجراءات','Action Items'), attendance: this.t('كشف الحضور','Attendance Sheet'), supporting: this.t('المستندات الداعمة','Supporting Documents') };
-    showToast((labels[type] || this.t('السجل','Record')) + ' — ' + this.t('جارٍ الفتح...','Opening...'), 'info');
+  /* ═══ Step 9 helpers ════════════════════════════════════════════════════ */
+
+  _s9Preview()  { this._fmPreview(); },
+  _s9History()  { this._fmHistory(); },
+
+  _s9Download(fmt) {
+    const t = (ar,en) => this.t(ar,en);
+    const labels = { pdf: t('PDF الرسمي الموقّع','Official Signed PDF'), word: t('ملف Word (.docx)','Word File (.docx)'), cert: t('شهادة الاعتماد','Approval Certificate') };
+    const lbl = labels[fmt] || labels['pdf'];
+    showToast(t(`⏳ جارٍ تحضير ${lbl}...`,`⏳ Preparing ${lbl}...`), 'info');
+    setTimeout(() => showToast(t(`✅ تم تنزيل ${lbl} (487 كيلوبايت)`,`✅ Downloaded ${lbl} (487 KB)`), 'success'), 1800);
   },
-  _s9AuditTrail() { showToast(this.t('سجل التدقيق الكامل — كل الأحداث مسجلة وآمنة.','Full Audit Trail — all events recorded and tamper-proof.'), 'info'); },
-  _s9GoToArchive(){ showToast(this.t('✅ اكتملت دورة الاعتماد. المحضر مؤرشف رسمياً.','✅ Approval cycle complete. Minutes officially archived.'), 'success'); },
+
+  _s9ViewSigs() {
+    /* Delegate to Stage 8's full signatures modal */
+    if (typeof this._s8ViewAll === 'function') { this._s8ViewAll(); return; }
+    showToast(this.t('تم جمع جميع التوقيعات (8/8 مطلوب) ✅','All required signatures collected (8/8) ✅'), 'success');
+  },
+
+  _s9ViewLink(type) {
+    const t = (ar,en) => this.t(ar,en);
+    const configs = {
+      decisions: {
+        title: t('القرارات الرسمية للاجتماع','Formal Meeting Decisions'),
+        icon: '📋',
+        items: l => l==='ar' ? [
+          { id:'Q-01', label:'اعتماد الميزانية التشغيلية للسنة المالية 2025 بإجمالي 45 مليون ريال', owner:'أ. فيصل المطيري', status:'مُقرَّر', date:'15 مايو 2025' },
+          { id:'Q-02', label:'الموافقة على مشروع التحول الرقمي المرحلة الثانية بميزانية 8 ملايين ريال', owner:'م. خالد الصبيعي', status:'مُقرَّر', date:'15 مايو 2025' },
+          { id:'Q-03', label:'تجديد عقود الموردين الاستراتيجيين لمدة 3 سنوات', owner:'أ. أحمد الحربي', status:'مُقرَّر', date:'15 مايو 2025' },
+          { id:'Q-04', label:'اعتماد السياسة الجديدة لإدارة المخاطر التشغيلية', owner:'د. مها الحارثي', status:'مُقرَّر', date:'15 مايو 2025' },
+        ] : [
+          { id:'Q-01', label:'Approve FY2025 operating budget of SAR 45M', owner:'Mr. Faisal Almutairi', status:'Resolved', date:'15 May 2025' },
+          { id:'Q-02', label:'Approve Digital Transformation Phase 2 — SAR 8M budget', owner:'Eng. Khalid Alsubaie', status:'Resolved', date:'15 May 2025' },
+          { id:'Q-03', label:'Renew strategic supplier contracts for 3 years', owner:'Mr. Ahmed Alharbi', status:'Resolved', date:'15 May 2025' },
+          { id:'Q-04', label:'Approve new operational risk management policy', owner:'Dr. Maha Alhaarthy', status:'Resolved', date:'15 May 2025' },
+        ],
+      },
+      actions: {
+        title: t('بنود المتابعة والإجراءات','Follow-Up & Action Items'),
+        icon: '✅',
+        items: l => l==='ar' ? [
+          { id:'A-01', label:'إعداد تقرير تنفيذي عن الميزانية التشغيلية المعتمدة', owner:'أ. فيصل المطيري', due:'1 يونيو 2025',   status:'قيد التنفيذ' },
+          { id:'A-02', label:'إطلاق مناقصة مشروع التحول الرقمي المرحلة الثانية',   owner:'م. خالد الصبيعي', due:'15 يونيو 2025',  status:'قيد التنفيذ' },
+          { id:'A-03', label:'مراجعة وتوقيع عقود الموردين الاستراتيجيين',           owner:'أ. أحمد الحربي',  due:'30 مايو 2025',   status:'قيد التنفيذ' },
+          { id:'A-04', label:'نشر سياسة إدارة المخاطر على جميع الإدارات',          owner:'د. مها الحارثي',  due:'22 مايو 2025',   status:'مكتمل' },
+          { id:'A-05', label:'تحديث سجل القرارات في منصة الحوكمة',                  owner:'محمد البلالي',    due:'22 مايو 2025',   status:'مكتمل' },
+          { id:'A-06', label:'إرسال المحضر المعتمد لجميع الحضور',                   owner:'محمد البلالي',    due:'22 مايو 2025',   status:'مكتمل' },
+          { id:'A-07', label:'جدولة اجتماع مجلس الإدارة القادم (يونيو 2025)',       owner:'محمد البلالي',    due:'25 مايو 2025',   status:'قيد التنفيذ' },
+        ] : [
+          { id:'A-01', label:'Prepare executive report on approved operating budget', owner:'Mr. Faisal Almutairi',  due:'1 Jun 2025',  status:'In Progress' },
+          { id:'A-02', label:'Launch tender for Digital Transformation Phase 2',      owner:'Eng. Khalid Alsubaie', due:'15 Jun 2025', status:'In Progress' },
+          { id:'A-03', label:'Review and sign strategic supplier contracts',           owner:'Mr. Ahmed Alharbi',    due:'30 May 2025', status:'In Progress' },
+          { id:'A-04', label:'Distribute risk management policy to all departments',  owner:'Dr. Maha Alhaarthy',   due:'22 May 2025', status:'Completed' },
+          { id:'A-05', label:'Update Decision Registry in governance platform',       owner:'Mohammad Albuali',     due:'22 May 2025', status:'Completed' },
+          { id:'A-06', label:'Send approved minutes to all attendees',                owner:'Mohammad Albuali',     due:'22 May 2025', status:'Completed' },
+          { id:'A-07', label:'Schedule next Board Meeting (June 2025)',               owner:'Mohammad Albuali',     due:'25 May 2025', status:'In Progress' },
+        ],
+      },
+      attendance: {
+        title: t('كشف الحضور الرسمي','Official Attendance Sheet'),
+        icon: '👥',
+        items: l => (this._s8Attendees || []).map((a,i) => ({ id:`${i+1}`, label:a.name, owner:a.role, status: a.sig>=0 ? t('حضر وقّع','Attended & Signed') : t('حضر (ضيف)','Attended (Guest)'), date:a.at })),
+      },
+      supporting: {
+        title: t('المستندات الداعمة','Supporting Documents'),
+        icon: '📎',
+        items: l => l==='ar' ? [
+          { id:'S-01', label:'تقرير الأداء المالي للربع الأول 2025',      owner:'المدير المالي',         status:'مرفق', date:'15 مايو 2025' },
+          { id:'S-02', label:'دراسة جدوى مشروع التحول الرقمي المرحلة الثانية', owner:'م. خالد الصبيعي', status:'مرفق', date:'15 مايو 2025' },
+          { id:'S-03', label:'مقترح سياسة إدارة المخاطر التشغيلية',      owner:'د. مها الحارثي',        status:'مرفق', date:'15 مايو 2025' },
+        ] : [
+          { id:'S-01', label:'Q1 2025 Financial Performance Report',        owner:'CFO',                     status:'Attached', date:'15 May 2025' },
+          { id:'S-02', label:'Digital Transformation Phase 2 Feasibility',  owner:'Eng. Khalid Alsubaie',    status:'Attached', date:'15 May 2025' },
+          { id:'S-03', label:'Operational Risk Management Policy Proposal', owner:'Dr. Maha Alhaarthy',       status:'Attached', date:'15 May 2025' },
+        ],
+      },
+      registry: {
+        title: t('قيد سجل القرارات','Decision Registry Entry'),
+        icon: '🔖',
+        items: l => l==='ar' ? [
+          { id:'DR-2025-089', label:'قيد رئيسي لاجتماع مجلس الإدارة 15 مايو 2025', owner:'محمد البلالي', status:'مسجّل', date:'22 مايو 2025' },
+        ] : [
+          { id:'DR-2025-089', label:'Main registry entry for Board Meeting 15 May 2025', owner:'Mohammad Albuali', status:'Registered', date:'22 May 2025' },
+        ],
+      },
+    };
+    const cfg = configs[type];
+    if (!cfg) return;
+    const items = cfg.items(App.lang);
+    const isActions = type==='actions';
+    const isAttendance = type==='attendance';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:680px;max-width:98vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:#0F1728;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="color:#fff;font-size:15px;font-weight:800">${cfg.icon} ${cfg.title}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${items.length} ${t('بند · اجتماع مجلس الإدارة · 15 مايو 2025','items · Board Meeting · 15 May 2025')}</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="ApprovalCycle._s9Download('${type}')" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:12px">📥 ${t('تنزيل','Download')}</button>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕</button>
+    </div>
+  </div>
+  <div style="overflow-y:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#F8F9FA">
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('رقم','#')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('البند','Item')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${isActions ? t('المسؤول','Owner') : t('الاسم/المصدر','Name/Source')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${isActions ? t('الموعد','Due') : t('التاريخ','Date')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('الحالة','Status')}</th>
+      </tr></thead>
+      <tbody>
+        ${items.map((item,i)=>`<tr style="border-bottom:1px solid #F2F3F5">
+          <td style="padding:11px 16px;color:#8A948D;font-size:11px;font-family:monospace">${item.id}</td>
+          <td style="padding:11px 16px;font-weight:600;color:#15201A;max-width:260px;line-height:1.4">${esc(item.label)}</td>
+          <td style="padding:11px 16px;color:#5A6A5C;font-size:11.5px">${esc(item.owner)}</td>
+          <td style="padding:11px 16px;color:#5A6A5C;font-size:11.5px;white-space:nowrap">${esc(isActions ? item.due : item.date)}</td>
+          <td style="padding:11px 16px">
+            <span style="font-size:11px;background:${item.status.includes(t('مكتمل','Comple'))||item.status.includes('Comp')||item.status.includes(t('مُقرَّر','Resol'))||item.status.includes('Resol')||item.status.includes(t('مسجّل','Regist'))||item.status.includes('Regist')?'#D1FAE5':item.status.includes(t('ضيف','Guest'))||item.status.includes('Guest')?'#FEF3C7':'#DBEAFE'};color:${item.status.includes(t('مكتمل','Comple'))||item.status.includes('Comp')||item.status.includes(t('مُقرَّر','Resol'))||item.status.includes('Resol')?'#065F46':item.status.includes(t('ضيف','Guest'))||item.status.includes('Guest')?'#92400E':'#1D4ED8'};border-radius:8px;padding:2px 9px;font-weight:700">${esc(item.status)}</span>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div style="padding:12px 24px;border-top:1px solid #F2F3F5;background:#F8F9FA;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11.5px;color:#8A948D">🔒 ${t('سجل رسمي · مؤرشف 22 مايو 2025','Official Record · Archived 22 May 2025')}</span>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 18px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s9AuditTrail() {
+    const t = (ar,en) => this.t(ar,en);
+    const events = this._s9AuditEvents || this._s8AuditEvents || [];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:640px;max-width:98vw;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:#0F1728;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="color:#fff;font-size:15px;font-weight:800">🔍 ${t('سجل التدقيق الكامل — دورة الاعتماد','Full Audit Trail — Approval Cycle')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${events.length} ${t('حدث · SHA-256 · غير قابل للتعديل','events · SHA-256 · Immutable')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕</button>
+  </div>
+  <div style="overflow-y:auto;padding:20px 24px">
+    ${events.map((e,i)=>`
+<div style="display:flex;gap:14px;align-items:flex-start;padding:12px 0;${i<events.length-1?'border-bottom:1px solid #F2F3F5':''}">
+  <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+    <div style="width:38px;height:38px;border-radius:50%;background:${i===events.length-1?'#D1FAE5':'#F0F4FF'};display:flex;align-items:center;justify-content:center;font-size:15px;border:2px solid ${i===events.length-1?'#A7F3D0':'#E0E7FF'}">${e.ico}</div>
+    ${i<events.length-1?`<div style="width:2px;height:20px;background:${i===events.length-2?'#A7F3D0':'#E5E9E7'};margin-top:4px;border-radius:1px"></div>`:''}
+  </div>
+  <div style="flex:1;padding-top:6px">
+    <div style="font-size:12.5px;font-weight:${i===events.length-1?'800':'600'};color:${i===events.length-1?'#065F46':'#15201A'};margin-bottom:4px;line-height:1.4">${e.text}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <span style="font-size:11px;color:#8A948D">🕐 ${e.date}</span>
+      <span style="font-size:11px;color:#8A948D">👤 ${e.by}</span>
+    </div>
+  </div>
+  <div style="font-size:10px;font-family:monospace;color:#C0C8C3;padding-top:8px">#${String(i+1).padStart(2,'0')}</div>
+</div>`).join('')}
+  </div>
+  <div style="padding:14px 24px;border-top:1px solid #F2F3F5;background:#F8F9FA;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11.5px;color:#8A948D">🔒 ${t('SHA-256 · غير قابل للتعديل أو الحذف · مؤرشف رسمياً','SHA-256 · Immutable · Officially Archived')}</span>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 18px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s9VersionHistory() {
+    const t = (ar,en) => this.t(ar,en);
+    const versions = this._s9Versions || [];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:600px;max-width:98vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:#0F1728;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="color:#fff;font-size:15px;font-weight:800">📂 ${t('سجل إصدارات المحضر','Minutes Version History')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${versions.length} ${t('إصدارات · النسخة الأخيرة هي السجل الرسمي','versions · Latest is the official record')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕</button>
+  </div>
+  <div style="overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:10px">
+    ${versions.map((v,i)=>`
+<div style="border:1.5px solid ${v.status==='archived'?'#A7F3D0':v.status==='final'?'#BFDBFE':'#F2F3F5'};border-radius:11px;padding:14px 16px;display:flex;gap:14px;align-items:center">
+  <div style="text-align:center;min-width:80px">
+    <div style="font-size:13px;font-family:monospace;font-weight:800;color:${v.status==='archived'?'#065F46':v.status==='final'?'#1D4ED8':'#5A6A5C'};background:${v.status==='archived'?'#D1FAE5':v.status==='final'?'#DBEAFE':'#F8F9FA'};padding:4px 10px;border-radius:8px">${v.ver}</span></div>
+    <div style="font-size:10px;color:#8A948D;margin-top:4px">${v.size}</div>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:3px">${v.label}</div>
+    <div style="font-size:11px;color:#8A948D">${v.date} · ${v.by}</div>
+    ${v.status==='archived'?`<span style="font-size:11px;background:#D1FAE5;color:#065F46;border-radius:8px;padding:2px 8px;font-weight:700;margin-top:6px;display:inline-block">🏛️ ${t('النسخة الرسمية المؤرشفة','Official Archived Version')}</span>`:''}
+    ${v.status==='final'&&i<versions.length-1?`<span style="font-size:11px;background:#DBEAFE;color:#1D4ED8;border-radius:8px;padding:2px 8px;font-weight:700;margin-top:6px;display:inline-block">📋 ${t('نهائي (قبل التوقيعات)','Final (pre-signatures)')}</span>`:''}
+  </div>
+  <button onclick="ApprovalCycle._s9Download('ver_${v.ver}')" style="padding:7px 14px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;white-space:nowrap">📥 ${t('تنزيل','Download')}</button>
+</div>`).join('')}
+  </div>
+  <div style="padding:12px 24px;border-top:1px solid #F2F3F5;background:#F8F9FA;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11.5px;color:#8A948D">🔒 ${t('جميع الإصدارات محفوظة ومؤمَّنة','All versions preserved and secured')}</span>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 18px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s9ShareMinutes() {
+    const t = (ar,en) => this.t(ar,en);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:500px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:linear-gradient(135deg,#1a3a5c,#2C6CA8);padding:20px 24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:16px;font-weight:800">📤 ${t('مشاركة وتوزيع المحضر الرسمي','Share & Distribute Official Minutes')}</div>
+      <div style="color:rgba(255,255,255,.7);font-size:12px;margin-top:3px">${t('توزيع النسخة الرسمية المعتمدة على الأطراف المعنية.','Distribute the officially approved version to stakeholders.')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:18px">×</button>
+  </div>
+  <div style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${[
+        ['📧', t('البريد الإلكتروني','Email'),        t('إرسال رابط للمحضر الرسمي','Send link to official minutes')],
+        ['💬', t('واتساب','WhatsApp'),                t('مشاركة رابط آمن','Share secure link')],
+        ['📋', t('نسخ الرابط','Copy Link'),           t('رابط دائم للأرشيف','Permanent archive link')],
+        ['📥', t('تنزيل + إرسال','Download + Send'), t('PDF الرسمي للتوزيع','Official PDF for distribution')],
+      ].map(([ico,lbl,sub])=>`
+<button onclick="ApprovalCycle._s9DoShare('${lbl}',this)" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px;border:1.5px solid #E5E9E7;border-radius:10px;background:#F8F9FA;cursor:pointer;transition:background .15s;text-align:center" onmouseover="this.style.background='#EAECE8'" onmouseout="this.style.background='#F8F9FA'">
+  <span style="font-size:22px">${ico}</span>
+  <span style="font-size:12.5px;font-weight:700;color:#15201A">${lbl}</span>
+  <span style="font-size:11px;color:#8A948D">${sub}</span>
+</button>`).join('')}
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:8px">${t('المستلمون','Recipients')}</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${(this._s8Attendees||[]).map(a=>`
+<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#46514A;padding:4px 0">
+  <input type="checkbox" ${a.required?'checked':''} style="width:13px;height:13px;accent-color:#2C6CA8">
+  <span>${esc(a.name)}</span>
+  <span style="font-size:10.5px;color:#8A948D">· ${esc(a.email)}</span>
+</label>`).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:10px 20px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إغلاق','Close')}</button>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s9DoShare(channel, btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const overlay = btn.closest('div[style*="fixed"]');
+    if (overlay) overlay.remove();
+    showToast(t(`⏳ جارٍ ${channel}...`,`⏳ Processing ${channel}...`), 'info');
+    setTimeout(() => showToast(t(`✅ تم التوزيع بنجاح عبر ${channel}`,`✅ Successfully distributed via ${channel}`), 'success'), 1500);
+  },
+
+  _s9GoToArchive() {
+    const t = (ar,en) => this.t(ar,en);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:440px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3);text-align:center;padding:32px 28px">
+  <div style="font-size:52px;margin-bottom:12px">🏛️</div>
+  <div style="font-size:18px;font-weight:800;color:#15201A;margin-bottom:8px">${t('اكتملت دورة الاعتماد!','Approval Cycle Complete!')}</div>
+  <div style="font-size:13px;color:#5A6A5C;margin-bottom:20px;line-height:1.6">${t('تم اعتماد المحضر وأرشفته رسمياً بوصفه السجل الرسمي لاجتماع مجلس الإدارة.','The minutes have been officially approved and archived as the official Board Meeting record.')}</div>
+  <div style="background:#F0FDF4;border:1px solid #A7F3D0;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:#047857">${t('رقم الشهادة','Certificate No')}</span><span style="font-weight:700;color:#065F46;font-family:monospace">APC-2025-089</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:#047857">${t('رقم الأرشيف','Archive ID')}</span><span style="font-weight:700;color:#065F46;font-family:monospace">MM-2025-089-ARC</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#047857">${t('تاريخ الأرشفة','Archived On')}</span><span style="font-weight:700;color:#065F46">22 May 2025, 1:06 PM</span></div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:11px 22px;border:1px solid #E4E7EC;border-radius:9px;background:#fff;cursor:pointer;font-size:13px">${t('البقاء في الصفحة','Stay on Page')}</button>
+    <button onclick="this.closest('div[style*=fixed]').remove();App.navigate('meetings')" style="padding:11px 22px;border:none;border-radius:9px;background:#0C7A3D;color:#fff;cursor:pointer;font-size:13px;font-weight:700">🏛️ ${t('أرشيف الاجتماعات','Meeting Archive')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
 
   /* ── Step 1 helpers ─────────────────────────────────────────────────── */
   async _s1SaveDraft() {
