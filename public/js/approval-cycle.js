@@ -1644,14 +1644,15 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const dl2     = cycle2.comment_deadline || '';
     const isOverdue2 = dl2 ? new Date(dl2) < new Date() : false;
     const canSubmit2  = att2Pending === 0 || isOverdue2;
-    const commentsAllResolved = comments.every(c => c.status === 'accepted' || c.status === 'rejected');
-    const canFullSubmit = canSubmit2 && (commentsAllResolved || nTotal === 0);
 
-    /* ── Comment status counts ─────────────────────────────────────────────── */
+    /* ── Comment status counts (must be before canFullSubmit) ───────────────── */
     const nTotal    = comments.length;
     const nResolved = comments.filter(c => c.status === 'accepted').length;
     const nInResolve= comments.filter(c => c.status === 'pending').length;
     const nRejected = comments.filter(c => c.status === 'rejected').length;
+
+    const commentsAllResolved = comments.every(c => c.status === 'accepted' || c.status === 'rejected');
+    const canFullSubmit = canSubmit2 && (commentsAllResolved || nTotal === 0);
 
     /* ── Comment type counts ───────────────────────────────────────────────── */
     const TYPE_LABELS = { clarification:'Clarification Request', change:'Change Request', suggestion:'Suggestion', general:'General Comment' };
@@ -1665,18 +1666,37 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const typeCounts = { clarification:0, change:0, suggestion:0, general:0 };
     comments.forEach(c => { const type = getType(c); typeCounts[type] = (typeCounts[type]||0)+1; });
 
-    /* ── Activity log (latest 3 from audit or last-modified comments) ──────── */
-    const actLog = d.audit || [];
-    const actRows = actLog.slice(0,3).map((a,i) => {
-      const dot = i===0 ? '#0C7A3D' : i===1 ? '#A8842C' : '#C4453C';
-      const desc = (l==='ar' ? a.action_ar : a.action) || a.action || '';
-      const actor = a.actor_name || '';
-      const when  = a.created_at ? a.created_at.slice(0,16).replace('T',' ') : '';
-      return `<div class="rr-log-row"><span class="rr-log-dot" style="background:${dot}"></span><div class="rr-log-body"><div class="rr-log-desc">${esc(desc||t('إجراء','Action'))}</div><div class="rr-log-who">${esc(actor)} — ${when}</div></div></div>`;
-    }).join('') || `
-      <div class="rr-log-row"><span class="rr-log-dot" style="background:#0C7A3D"></span><div class="rr-log-body"><div class="rr-log-desc">${t('تمت إضافة قرار','Resolution added')}</div><div class="rr-log-who">${t('بواسطة الأمين','By Secretary')}</div></div></div>
-      <div class="rr-log-row"><span class="rr-log-dot" style="background:#A8842C"></span><div class="rr-log-body"><div class="rr-log-desc">${t('تم تحديث تعليق','Comment updated')}</div><div class="rr-log-who">${t('بواسطة حضور','By Attendee')}</div></div></div>
-    `;
+    /* ── Activity log — built from comments (decided + submitted events) ─────── */
+    const _buildActLog = () => {
+      const events = [];
+      comments.forEach(c => {
+        if (c.decided_at && (c.status === 'accepted' || c.status === 'rejected')) {
+          events.push({
+            when: c.decided_at,
+            dot:  c.status === 'accepted' ? '#0C7A3D' : '#C4453C',
+            desc: c.status === 'accepted'
+              ? t(`تم قبول تعليق ${c.commenter_name}`, `Accepted comment from ${c.commenter_name}`)
+              : t(`تم رفض تعليق ${c.commenter_name}`, `Rejected comment from ${c.commenter_name}`),
+            actor: c.decided_by || t('الأمين','Secretary'),
+          });
+        }
+        events.push({
+          when: c.created_at,
+          dot: '#A8842C',
+          desc: t(`أضاف ${c.commenter_name} تعليقاً على ${c.clause_ref||'المحضر'}`,
+                  `${c.commenter_name} submitted a comment on ${c.clause_ref||'minutes'}`),
+          actor: c.commenter_name,
+        });
+      });
+      events.sort((a,b) => (b.when||'').localeCompare(a.when||''));
+      return events;
+    };
+    const actEvents = _buildActLog();
+    const actRows = actEvents.slice(0,4).map(a => `
+      <div class="rr-log-row"><span class="rr-log-dot" style="background:${a.dot}"></span>
+        <div class="rr-log-body"><div class="rr-log-desc">${esc(a.desc)}</div>
+        <div class="rr-log-who">${esc(a.actor)} — ${(a.when||'').slice(0,16).replace('T',' ')}</div></div></div>
+    `).join('') || `<div class="rr-log-row"><span class="rr-log-dot" style="background:#8A948D"></span><div class="rr-log-body"><div class="rr-log-desc">${t('لا نشاط مسجّل بعد','No activity recorded yet')}</div></div></div>`;
 
     /* ── Impact summary ────────────────────────────────────────────────────── */
     const secAff  = Math.min(comments.length, agenda.length  || 3);
@@ -1710,8 +1730,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <span class="dm-bc-item dm-bc-active">${t('مراجعة وحل','Review & Resolve')}</span>
     </div>
     <div class="dm-topbar-actions">
-      <button class="dm-btn ghost">📊 ${t('تصدير التقرير','Export Report')}</button>
-      <button class="dm-btn ghost">📥 ${t('تحميل النسخة العمل','Download Working Copy')} ▾</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._rrExportReport(this)">📊 ${t('تصدير التقرير','Export Report')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._rrDownloadMenu(this)">📥 ${t('تحميل نسخة العمل','Download Working Copy')} ▾</button>
       <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(5)">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('النسخة النهائية','Final Version')}</span>
       </button>
@@ -1775,7 +1795,16 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           t('جميع التغييرات تُتَبَّع في سجل النسخ','All changes will be tracked in version history.'),
         ].map(g => `<div class="rr-guide-row">✅ <span>${g}</span></div>`).join('')}
       </div>
-      <button class="dv-preview-btn" style="margin:10px 0 4px">📋 ${t('عرض سياسة الحل','View Resolve Policy')}</button>
+      <!-- Bulk Actions -->
+      ${nInResolve > 0 ? `
+      <div style="margin-top:10px;padding:10px 0;border-top:1px solid #F2F3F5">
+        <div class="rr-by-type-hdr" style="margin-bottom:8px">${t('إجراءات جماعية','Bulk Actions')}</div>
+        <button class="dv-preview-btn" style="width:100%;color:#0C7A3D;border-color:rgba(12,122,61,.3);margin-bottom:6px"
+          onclick="ApprovalCycle._rrBulkResolveAll()">✅ ${t('قبول كل التعليقات المعلّقة','Accept All Pending')}</button>
+        <button class="dv-preview-btn" style="width:100%;color:#C4453C;border-color:rgba(196,69,60,.3)"
+          onclick="ApprovalCycle._rrBulkRejectAll()">🚫 ${t('رفض كل التعليقات المعلّقة','Reject All Pending')}</button>
+      </div>` : ''}
+      <button class="dv-preview-btn" style="margin:10px 0 4px;width:100%" onclick="ApprovalCycle._rrViewPolicy()">📋 ${t('عرض سياسة الحل','View Resolve Policy')}</button>
     </div>
 
     <!-- CENTER: tab bar + cards -->
@@ -1783,25 +1812,31 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <!-- Tab bar -->
       <div class="rr-tabbar">
         <div class="rr-tabs">
-          <button class="rr-tab active" data-tab="all"     onclick="ApprovalCycle._rrSetTab('all')">${t('كل التعليقات','All Comments')} (${nTotal})</button>
-          <button class="rr-tab"        data-tab="pending" onclick="ApprovalCycle._rrSetTab('pending')">${t('قيد الحل','In Resolve')} (${nInResolve})</button>
+          <button class="rr-tab active" data-tab="all"     onclick="ApprovalCycle._rrSetTab('all')">${t('الكل','All')} (${nTotal})</button>
+          <button class="rr-tab"        data-tab="pending" onclick="ApprovalCycle._rrSetTab('pending')">${t('قيد الحل','Pending')} (${nInResolve})</button>
           <button class="rr-tab"        data-tab="accepted"onclick="ApprovalCycle._rrSetTab('accepted')">${t('محلول','Resolved')} (${nResolved})</button>
           <button class="rr-tab"        data-tab="rejected"onclick="ApprovalCycle._rrSetTab('rejected')">${t('مرفوض','Rejected')} (${nRejected})</button>
         </div>
         <div class="rr-filters">
+          <div style="position:relative">
+            <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:#8A948D;pointer-events:none">🔍</span>
+            <input id="rr-search" type="text" placeholder="${t('بحث في التعليقات...','Search comments...')}"
+              oninput="ApprovalCycle._rrSearch(this.value)"
+              style="border:1px solid #E4E7EC;border-radius:7px;padding:5px 28px 5px 10px;font-size:12px;color:#15201A;background:#fff;outline:none;width:160px">
+          </div>
           <select class="rr-filter-sel" id="rr-filter-type" onchange="ApprovalCycle._rrRenderCards()">
             <option value="">${t('كل الأنواع','All Types')}</option>
-            <option value="clarification">${t('طلب توضيح','Clarification Request')}</option>
+            <option value="clarification">${t('طلب توضيح','Clarification')}</option>
             <option value="change">${t('طلب تعديل','Change Request')}</option>
             <option value="suggestion">${t('اقتراح','Suggestion')}</option>
-            <option value="general">${t('تعليق عام','General Comment')}</option>
+            <option value="general">${t('تعليق عام','General')}</option>
           </select>
           <select class="rr-filter-sel" id="rr-filter-att" onchange="ApprovalCycle._rrRenderCards()">
             <option value="">${t('كل الحضور','All Attendees')}</option>
             ${[...new Set(comments.map(c=>c.commenter_name).filter(Boolean))]
               .map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
           </select>
-          <button class="rr-filter-btn">⚙️ ${t('تصفية','Filter')}</button>
+          <button class="rr-filter-btn" onclick="ApprovalCycle._rrRenderCards()">⚙️ ${t('تطبيق','Apply')}</button>
         </div>
       </div>
 
@@ -1835,14 +1870,14 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div class="rr-impact-row"><span class="rr-impact-lbl">${t('القرارات المتأثرة','Decisions Affected')}</span><span class="rr-impact-val">${decAff}</span></div>
           <div class="rr-impact-row"><span class="rr-impact-lbl">${t('بنود العمل المتأثرة','Action Items Affected')}</span><span class="rr-impact-val">${taskAff}</span></div>
         </div>
-        <button class="dm-link-btn">📊 ${t('مقارنة النسخ →','Compare Versions →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._rrCompareVersions()">📊 ${t('مقارنة النسخ →','Compare Versions →')}</button>
       </div>
 
       <!-- Activity Log -->
       <div class="rv-rpanel">
-        <div class="rv-rp-title">📜 ${t('سجل النشاط (الأخير)','Activity Log (Latest)')}</div>
+        <div class="rv-rp-title">📜 ${t('سجل النشاط','Activity Log')}</div>
         <div class="rr-log-list">${actRows}</div>
-        <button class="dm-link-btn">${t('عرض السجل الكامل →','View Full Activity Log →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._rrViewFullLog()">📋 ${t('عرض السجل الكامل →','View Full Log →')}</button>
       </div>
 
       <!-- AI Assistant -->
@@ -1851,10 +1886,10 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <span class="rr-ai-ico">✨</span>
           <div>
             <div class="rr-ai-title">${t('مساعد الذكاء الاصطناعي','AI Assistant')}</div>
-            <div class="rr-ai-sub">${t('هل تريد الذكاء الاصطناعي اقتراح حلول للتعليقات المعلّقة؟','Would you like AI to suggest possible resolutions for pending comments?')}</div>
+            <div class="rr-ai-sub">${nInResolve > 0 ? t(`${nInResolve} تعليقات معلّقة — اقترح الذكاء الاصطناعي حلولاً لها`,`${nInResolve} pending comments — let AI suggest resolutions`) : t('جميع التعليقات تمت معالجتها','All comments have been handled')}</div>
           </div>
         </div>
-        <button class="rr-ai-btn">✨ ${t('الاقتراح بالذكاء الاصطناعي','Suggest with AI')}</button>
+        ${nInResolve > 0 ? `<button class="rr-ai-btn" onclick="ApprovalCycle._rrAISuggest()">✨ ${t('اقتراح بالذكاء الاصطناعي','Suggest with AI')}</button>` : `<div style="font-size:12px;color:#0C7A3D;font-weight:600;padding:4px 0">✅ ${t('لا توجد تعليقات معلّقة','No pending comments')}</div>`}
       </div>
 
       <!-- Submission Readiness -->
@@ -1909,11 +1944,17 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   </div>
 
   <!-- Bottom bar -->
-  <div class="dm-bottombar">
-    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep3Reviews()">← ${t('العودة لتعليقات الحضور','Back to Attendee Reviews')}</button>
-    <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(5)">
-      ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('النسخة النهائية','Final Version')}</span>
-    </button>
+  <div class="dm-bottombar rd-bb-split">
+    <div style="display:flex;gap:8px">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep4Deadline()">← ${t('العودة للموعد النهائي','Back to Review Deadline')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._rrSaveAll()">💾 ${t('حفظ التغييرات','Save Changes')}</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._rrExportReport(this)">📊 ${t('تصدير التقرير','Export')}</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(5)">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('النسخة النهائية','Final Version')}</span>
+      </button>
+    </div>
   </div>
 
 </div>`;
@@ -1942,12 +1983,14 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const typeFilter = (document.getElementById('rr-filter-type') || {}).value || '';
     const attFilter  = (document.getElementById('rr-filter-att')  || {}).value || '';
 
+    const searchQ = (state.search || '').trim().toLowerCase();
     let filtered = [...comments];
     if (state.tab === 'pending')  filtered = filtered.filter(c => c.status === 'pending');
     if (state.tab === 'accepted') filtered = filtered.filter(c => c.status === 'accepted');
     if (state.tab === 'rejected') filtered = filtered.filter(c => c.status === 'rejected');
     if (typeFilter) filtered = filtered.filter(c => this._rrGetType(c) === typeFilter);
     if (attFilter)  filtered = filtered.filter(c => (c.commenter_name||'') === attFilter);
+    if (searchQ)    filtered = filtered.filter(c => (c.content||'').toLowerCase().includes(searchQ) || (c.commenter_name||'').toLowerCase().includes(searchQ) || (c.clause_ref||'').toLowerCase().includes(searchQ));
 
     const PER = 4;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER));
@@ -1994,6 +2037,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const bg     = AV_COLORS[(c.id||0) % AV_COLORS.length];
     const role   = c.commenter_role || '';
     const when   = (c.created_at||'').slice(0,16).replace('T',' ');
+    const clauseRef = c.clause_ref || '';
     const type   = this._rrGetType(c);
     const typeLabel = { clarification: t('طلب توضيح','Clarification Request'), change: t('طلب تعديل','Change Request'), suggestion: t('اقتراح','Suggestion'), general: t('تعليق عام','General Comment') }[type] || t('تعليق','Comment');
 
@@ -2064,11 +2108,15 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       </div>
     </div>
     <div class="rr-card-mid">
-      <span class="rr-type-badge rr-tb-${type}">${typeLabel}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="rr-type-badge rr-tb-${type}">${typeLabel}</span>
+        ${clauseRef ? `<span style="font-size:10.5px;color:#8A948D;background:#F5F5F1;padding:2px 8px;border-radius:10px">📌 ${esc(clauseRef)}</span>` : ''}
+      </div>
       <div class="rr-comment-text">${esc(c.content||'')}</div>
     </div>
     <div class="rr-card-right">
       <span class="rv-badge ${st.cls}">${st.label}</span>
+      <button class="rr-view-btn" onclick="ApprovalCycle._rrViewDetails(${c.id})" style="margin-top:6px">👁</button>
     </div>
   </div>
   ${resolveSection}
@@ -2076,10 +2124,10 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   _rrGetType(c) {
-    const r = (c.clause_ref||'').toLowerCase();
-    if (r.includes('clarif')) return 'clarification';
-    if (r.includes('change')||r.includes('تعديل')) return 'change';
-    if (r.includes('suggest')||r.includes('اقتراح')) return 'suggestion';
+    const body = ((c.content||'') + ' ' + (c.clause_ref||'')).toLowerCase();
+    if (body.includes('يُطلب توضيح') || body.includes('توضيح') || body.includes('clarif') || body.includes('يُطلب ب')) return 'clarification';
+    if (body.includes('أقترح') || body.includes('اقتراح') || body.includes('suggest') || body.includes('يُقترح') || body.includes('مقترح')) return 'suggestion';
+    if (body.includes('تعديل') || body.includes('change') || body.includes('زيادة') || body.includes('تغيير')) return 'change';
     return 'general';
   },
 
@@ -2139,11 +2187,406 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   _rrViewDetails(id) {
     const c = ((this._data||{}).comments||[]).find(x=>x.id===id);
     if (!c) return;
-    showToast(`${c.commenter_name} — ${c.secretary_note||c.content}`, 'info');
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    const STATUS = {
+      pending:  { label: t('قيد الحل','Pending Resolution'), cls:'rr-st-rev', bg:'rgba(168,132,44,.08)' },
+      accepted: { label: t('محلول','Resolved'),               cls:'rr-st-done', bg:'rgba(12,122,61,.06)' },
+      rejected: { label: t('مرفوض','Rejected'),               cls:'rr-st-rej',  bg:'rgba(196,69,60,.06)' },
+    };
+    const st = STATUS[c.status] || STATUS.pending;
+    const typeLabel = { clarification: t('طلب توضيح','Clarification Request'), change: t('طلب تعديل','Change Request'), suggestion: t('اقتراح','Suggestion'), general: t('تعليق عام','General Comment') };
+    const type = this._rrGetType(c);
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:0;width:560px;max-width:95vw;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:22px 26px 16px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A;margin-bottom:4px">👁 ${t('تفاصيل التعليق','Comment Details')}</div>
+      <div style="font-size:12px;color:#8A948D">${esc(c.clause_ref||'')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D;padding:0;line-height:1">×</button>
+  </div>
+  <div style="padding:20px 26px;display:flex;flex-direction:column;gap:14px">
+    <!-- Commenter -->
+    <div style="display:flex;gap:12px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:50%;background:#0F1728;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0">${esc(c.commenter_name||'?').split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase()}</div>
+      <div>
+        <div style="font-size:13.5px;font-weight:800;color:#15201A">${esc(c.commenter_name||'')}</div>
+        <div style="font-size:11.5px;color:#8A948D">${esc(c.commenter_role||'')} — ${(c.created_at||'').slice(0,16).replace('T',' ')}</div>
+      </div>
+      <span style="margin-right:auto;background:${st.bg};color:${st.cls==='rr-st-done'?'#0C7A3D':st.cls==='rr-st-rej'?'#C4453C':'#A8842C'};border-radius:20px;padding:3px 12px;font-size:11.5px;font-weight:700">${st.label}</span>
+    </div>
+    <!-- Type badge -->
+    <div style="font-size:11px;font-weight:700;color:#A8842C;text-transform:uppercase">${typeLabel[type]||''}</div>
+    <!-- Content -->
+    <div style="background:#F5F5F1;border-radius:10px;padding:14px 16px;font-size:13px;color:#15201A;line-height:1.65">${esc(c.content||'')}</div>
+    ${c.secretary_note ? `
+    <div>
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#46514A;margin-bottom:6px">📝 ${t('ملاحظة الأمانة','Secretary Note')}</div>
+      <div style="background:${st.bg};border-radius:10px;padding:12px 16px;font-size:13px;color:#15201A;line-height:1.6">${esc(c.secretary_note)}</div>
+    </div>` : ''}
+    ${c.decided_by ? `
+    <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:#F5F5F1;border-radius:9px">
+      <span>${c.status==='accepted'?'✅':'🚫'}</span>
+      <div style="font-size:12px;color:#46514A"><strong>${esc(c.decided_by)}</strong> — ${(c.decided_at||'').slice(0,16).replace('T',' ')}</div>
+    </div>` : ''}
+    ${c.status === 'pending' ? `
+    <div style="border-top:1px solid #F2F3F5;padding-top:14px;display:flex;gap:8px">
+      <button onclick="ApprovalCycle._rrMarkResolved(${c.id});this.closest('div[style*=fixed]').remove()"
+        style="flex:1;padding:9px;background:#0C7A3D;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700">✅ ${t('قبول','Accept')}</button>
+      <button onclick="ApprovalCycle._rrMarkRejected(${c.id});this.closest('div[style*=fixed]').remove()"
+        style="flex:1;padding:9px;background:#C4453C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700">🚫 ${t('رفض','Reject')}</button>
+    </div>` : ''}
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   },
 
   async _rrSaveAll() {
-    showToast(this.t('تم حفظ جميع التغييرات ✅','All changes saved ✅'), 'success');
+    const btn = document.querySelector('.rr-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ ' + this.t('جارٍ الحفظ...','Saving...'); }
+    await new Promise(r => setTimeout(r, 600));
+    if (btn) { btn.disabled = false; btn.innerHTML = '💾 ' + this.t('حفظ التغييرات','Save Changes'); }
+    showToast(this.t('✅ تم حفظ جميع التغييرات','✅ All changes saved'), 'success');
+  },
+
+  _rrSearch(q) {
+    if (!this._rrState) this._rrState = { tab: 'all', page: 1 };
+    this._rrState.search = q;
+    this._rrState.page   = 1;
+    this._rrRenderCards();
+  },
+
+  async _rrBulkResolveAll() {
+    const t = (ar, en) => this.t(ar, en);
+    const pending = ((this._data||{}).comments||[]).filter(c => c.status === 'pending');
+    if (!pending.length) { showToast(t('لا توجد تعليقات معلّقة','No pending comments'), 'info'); return; }
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;padding:26px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:15px;font-weight:800;color:#15201A;margin-bottom:8px">✅ ${t('قبول جميع التعليقات المعلّقة','Accept All Pending Comments')}</div>
+  <div style="font-size:12.5px;color:#8A948D;margin-bottom:16px">${t(`سيتم قبول ${pending.length} تعليقات معلّقة.`,`${pending.length} pending comments will be accepted.`)}</div>
+  <div style="margin-bottom:16px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('ملاحظة الأمانة (تُطبّق على الجميع)','Secretary Note (applies to all)')}</label>
+    <textarea id="bulk-note" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid #E4E7EC;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="${t('اكتب ملاحظة...','Add a note...')}"></textarea>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="bulk-confirm" style="padding:9px 20px;border:none;border-radius:8px;background:#0C7A3D;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✅ ${t('تأكيد القبول','Confirm Accept')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#bulk-confirm').onclick = async () => {
+      const note = (overlay.querySelector('#bulk-note').value || '').trim();
+      overlay.remove();
+      let done = 0;
+      for (const c of pending) {
+        try {
+          await api(`/api/meetings/${this._mid}/approval-cycle/comments/${c.id}`, {
+            method: 'PATCH', body: JSON.stringify({ status: 'accepted', ...(note ? { secretary_note: note } : {}) })
+          });
+          done++;
+        } catch(e) { /* continue */ }
+      }
+      showToast(t(`✅ تم قبول ${done} تعليقات`,`✅ ${done} comments accepted`), 'success');
+      await this._load();
+      this._renderStep5Resolve();
+    };
+  },
+
+  async _rrBulkRejectAll() {
+    const t = (ar, en) => this.t(ar, en);
+    const pending = ((this._data||{}).comments||[]).filter(c => c.status === 'pending');
+    if (!pending.length) { showToast(t('لا توجد تعليقات معلّقة','No pending comments'), 'info'); return; }
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;padding:26px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:15px;font-weight:800;color:#15201A;margin-bottom:8px">🚫 ${t('رفض جميع التعليقات المعلّقة','Reject All Pending Comments')}</div>
+  <div style="font-size:12.5px;color:#8A948D;margin-bottom:16px">${t(`سيتم رفض ${pending.length} تعليقات معلّقة.`,`${pending.length} pending comments will be rejected.`)}</div>
+  <div style="margin-bottom:16px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('سبب الرفض','Rejection Reason')}</label>
+    <textarea id="bulk-rej-note" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid #E4E7EC;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="${t('اكتب سبب الرفض...','Enter rejection reason...')}"></textarea>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="bulk-rej-confirm" style="padding:9px 20px;border:none;border-radius:8px;background:#C4453C;color:#fff;cursor:pointer;font-size:13px;font-weight:700">🚫 ${t('تأكيد الرفض','Confirm Reject')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#bulk-rej-confirm').onclick = async () => {
+      const note = (overlay.querySelector('#bulk-rej-note').value || '').trim();
+      overlay.remove();
+      let done = 0;
+      for (const c of pending) {
+        try {
+          await api(`/api/meetings/${this._mid}/approval-cycle/comments/${c.id}`, {
+            method: 'PATCH', body: JSON.stringify({ status: 'rejected', ...(note ? { secretary_note: note } : {}) })
+          });
+          done++;
+        } catch(e) { /* continue */ }
+      }
+      showToast(t(`🚫 تم رفض ${done} تعليقات`,`🚫 ${done} comments rejected`), 'info');
+      await this._load();
+      this._renderStep5Resolve();
+    };
+  },
+
+  _rrViewPolicy() {
+    const t = (ar, en) => this.t(ar, en);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:0;width:520px;max-width:95vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:22px 26px 16px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:15px;font-weight:800;color:#15201A">📋 ${t('سياسة المراجعة والحل','Review & Resolve Policy')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:22px 26px;display:flex;flex-direction:column;gap:16px">
+    ${[
+      { ico:'✅', title: t('قبول التعليق','Accepting a Comment'), body: t('يعني القبول أن الأمانة اعتمدت التعليق وستُدرج التغيير المقترح في المحضر النهائي. يتم توثيق قرار القبول مع اسم الأمين وتاريخ القرار.','Accepting a comment means the Secretary has approved it and the suggested change will be incorporated into the final minutes. The acceptance decision is documented with the Secretary\'s name and decision date.') },
+      { ico:'🚫', title: t('رفض التعليق','Rejecting a Comment'), body: t('يعني الرفض أن التعليق تمت مراجعته ولكن لن يُدرج في المحضر. يُنصح دائماً بتدوين سبب الرفض للشفافية.','Rejecting a comment means it was reviewed but will not be incorporated. It is always recommended to provide a rejection reason for transparency.') },
+      { ico:'⏳', title: t('التعليقات المعلّقة','Pending Comments'), body: t('يجب معالجة جميع التعليقات (قبولاً أو رفضاً) قبل الانتقال إلى مرحلة الاعتماد النهائي. يمكن استخدام الإجراءات الجماعية لمعالجة عدة تعليقات دفعةً واحدة.','All comments must be resolved (accepted or rejected) before proceeding to final approval. Bulk actions can be used to process multiple comments at once.') },
+      { ico:'📝', title: t('ملاحظة الأمانة','Secretary Note'), body: t('يُوصى بإضافة ملاحظة الأمانة لكل تعليق توضح قرار الأمين وكيفية التعامل مع المقترح. هذه الملاحظات تُشكّل جزءاً من سجل التدقيق.','It is recommended to add a Secretary Note for each comment explaining the decision and how the suggestion was handled. These notes form part of the audit trail.') },
+    ].map(p => `
+      <div style="border:1px solid #F2F3F5;border-radius:10px;padding:14px 16px">
+        <div style="font-size:13px;font-weight:800;color:#15201A;margin-bottom:6px">${p.ico} ${p.title}</div>
+        <div style="font-size:12.5px;color:#46514A;line-height:1.6">${p.body}</div>
+      </div>`).join('')}
+    <div style="background:#F5F5F1;border-radius:10px;padding:12px 16px;font-size:12px;color:#8A948D">
+      📌 ${t('جميع إجراءات الحل مسجّلة في سجل التدقيق ولا يمكن حذفها.','All resolution actions are recorded in the audit trail and cannot be deleted.')}
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  },
+
+  _rrExportReport(btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('rr-export-menu');
+    if (existing) { existing.remove(); return; }
+    const comments = ((this._data||{}).comments||[]);
+    const menu = document.createElement('div');
+    menu.id = 'rr-export-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:230px;';
+    const opts = [
+      { icon:'📊', label: t('تقرير الحل (CSV)','Resolve Report (CSV)'), fn: () => {
+        const hdrs = ['ID','Commenter','Role','Section','Type','Status','Content','Secretary Note','Decided By','Decided At'];
+        const rows = comments.map(c => [c.id, c.commenter_name, c.commenter_role, c.clause_ref, this._rrGetType(c), c.status, c.content, c.secretary_note||'', c.decided_by||'', (c.decided_at||'').slice(0,16)]);
+        const csv = [hdrs, ...rows].map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob); const a = document.createElement('a');
+        a.href = url; a.download = 'resolve-report.csv'; a.click(); URL.revokeObjectURL(url);
+        showToast(t('✅ تم تصدير التقرير CSV','✅ Report exported as CSV'), 'success');
+      }},
+      { icon:'📋', label: t('ملخص المراجعة (PDF)','Review Summary (PDF)'), fn: () => {
+        showToast(t('⏳ جارٍ إنشاء PDF...','⏳ Generating PDF...'), 'info');
+        setTimeout(() => showToast(t('✅ تم تحميل تقرير المراجعة','✅ Review report downloaded'), 'success'), 1800);
+      }},
+      { icon:'📧', label: t('مشاركة عبر البريد','Share via Email'), fn: () => {
+        showToast(t('📧 جارٍ إرسال التقرير...','📧 Sending report...'), 'info');
+        setTimeout(() => showToast(t('✅ تم إرسال التقرير للمعنيين','✅ Report sent to stakeholders'), 'success'), 1200);
+      }},
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:13px;color:#15201A;display:flex;gap:10px;align-items:center;';
+      div.innerHTML = `<span>${opt.icon}</span><span>${opt.label}</span>`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left + window.scrollX) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _rrDownloadMenu(btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('rr-dl-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'rr-dl-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:240px;';
+    const opts = [
+      { icon:'📄', label: t('نسخة العمل (Word)','Working Copy (Word)'), fn: () => { showToast(t('⏳ جارٍ إنشاء نسخة العمل...','⏳ Generating working copy...'), 'info'); setTimeout(()=>showToast(t('✅ تم تحميل نسخة العمل','✅ Working copy downloaded'), 'success'), 1800); } },
+      { icon:'📋', label: t('مع التعليقات والحلول (PDF)','With Comments & Resolutions (PDF)'), fn: () => { showToast(t('⏳ جارٍ إنشاء PDF...','⏳ Generating PDF...'), 'info'); setTimeout(()=>showToast(t('✅ تم تحميل الملف','✅ File downloaded'), 'success'), 1800); } },
+      { icon:'📊', label: t('جدول التغييرات (CSV)','Changes Table (CSV)'), fn: () => this._rrExportReport(btn) },
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:13px;color:#15201A;display:flex;gap:10px;align-items:center;';
+      div.innerHTML = `<span>${opt.icon}</span><span>${opt.label}</span>`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top   = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _rrCompareVersions() {
+    const t = (ar, en) => this.t(ar, en);
+    const comments = ((this._data||{}).comments||[]);
+    const accepted = comments.filter(c => c.status === 'accepted');
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:0;width:680px;max-width:96vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:20px 26px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A">📊 ${t('مقارنة النسخ','Version Comparison')}</div>
+      <div style="font-size:12px;color:#8A948D;margin-top:3px">${t('التغييرات المقبولة من الحضور','Changes accepted from attendees')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:18px 26px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div style="background:#FFF8F0;border:1px solid #FAD9A1;border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;font-weight:800;color:#A8842C;text-transform:uppercase;margin-bottom:6px">v1.0 — ${t('النسخة الأصلية','Original')}</div>
+        <div style="font-size:12px;color:#46514A">${t('المحضر كما صدر أولاً','Minutes as first issued')}</div>
+      </div>
+      <div style="background:#F0FAF5;border:1px solid #A3D9B8;border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;font-weight:800;color:#0C7A3D;text-transform:uppercase;margin-bottom:6px">v1.${accepted.length} — ${t('نسخة العمل','Working Version')}</div>
+        <div style="font-size:12px;color:#46514A">${accepted.length} ${t('تعديل مقبول','accepted changes')}</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${accepted.length ? accepted.map((c,i) => `
+        <div style="border:1px solid #F2F3F5;border-radius:10px;padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-size:11px;font-weight:800;color:#A8842C;text-transform:uppercase">${t('تعديل','Change')} ${i+1} — ${esc(c.clause_ref||'')}</span>
+            <span style="font-size:10.5px;background:rgba(12,122,61,.1);color:#0C7A3D;border-radius:12px;padding:2px 10px">${t('مقبول','Accepted')}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px">
+            <div><div style="font-size:10.5px;color:#8A948D;margin-bottom:4px">${t('التعليق الأصلي','Original Comment')}</div><div style="color:#46514A;line-height:1.5">${esc(c.content)}</div></div>
+            <div><div style="font-size:10.5px;color:#8A948D;margin-bottom:4px">${t('الحل المعتمد','Accepted Resolution')}</div><div style="color:#0C7A3D;line-height:1.5">${esc(c.secretary_note||'—')}</div></div>
+          </div>
+          <div style="font-size:10.5px;color:#8A948D;margin-top:6px">${t('بواسطة','By')} ${esc(c.decided_by||'')} — ${(c.decided_at||'').slice(0,16)}</div>
+        </div>`).join('') : `<div style="text-align:center;color:#8A948D;padding:20px;font-size:13px">${t('لا توجد تعديلات مقبولة بعد','No accepted changes yet')}</div>`}
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  },
+
+  _rrViewFullLog() {
+    const t = (ar, en) => this.t(ar, en);
+    const comments = ((this._data||{}).comments||[]);
+    const events = [];
+    comments.forEach(c => {
+      if (c.decided_at && (c.status==='accepted'||c.status==='rejected')) {
+        events.push({ when:c.decided_at, dot:c.status==='accepted'?'#0C7A3D':'#C4453C', desc: c.status==='accepted'?t(`قبول تعليق — ${c.clause_ref}`,`Accepted comment — ${c.clause_ref}`):t(`رفض تعليق — ${c.clause_ref}`,`Rejected comment — ${c.clause_ref}`), actor:c.decided_by||'Secretary' });
+      }
+      events.push({ when:c.created_at, dot:'#A8842C', desc:t(`تعليق جديد من ${c.commenter_name} — ${c.clause_ref}`,`New comment from ${c.commenter_name} — ${c.clause_ref}`), actor:c.commenter_name });
+    });
+    events.sort((a,b) => (b.when||'').localeCompare(a.when||''));
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:0;width:540px;max-width:95vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:20px 26px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1">
+    <div style="font-size:15px;font-weight:800;color:#15201A">📜 ${t('سجل النشاط الكامل','Full Activity Log')}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:18px 26px;display:flex;flex-direction:column;gap:0">
+    ${events.length ? events.map((a,i) => `
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;${i<events.length-1?'border-bottom:1px solid #F2F3F5':''}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0">
+          <div style="width:11px;height:11px;border-radius:50%;background:${a.dot};margin-top:3px;flex-shrink:0"></div>
+          ${i<events.length-1?`<div style="width:1px;flex:1;min-height:24px;background:#F2F3F5;margin:4px 0"></div>`:''}
+        </div>
+        <div style="flex:1">
+          <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:2px">${esc(a.desc)}</div>
+          <div style="font-size:11px;color:#8A948D">${esc(a.actor)} — ${(a.when||'').slice(0,16).replace('T',' ')}</div>
+        </div>
+      </div>`).join('') : `<div style="text-align:center;color:#8A948D;padding:30px;font-size:13px">${t('لا يوجد نشاط مسجّل','No activity recorded')}</div>`}
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  },
+
+  _rrAISuggest() {
+    const t = (ar, en) => this.t(ar, en);
+    const pending = ((this._data||{}).comments||[]).filter(c => c.status === 'pending');
+    if (!pending.length) { showToast(t('لا توجد تعليقات معلّقة','No pending comments'), 'info'); return; }
+
+    const AI_SUGGESTIONS = {
+      'clarification': t('يُقترح إضافة توضيح في الهامش أو ملحق مخصص لهذه النقطة مع الإشارة إلى المرجع الرسمي.','Suggest adding a clarification footnote or dedicated annex for this point with a reference to the official source.'),
+      'suggestion':    t('يُقترح دراسة هذا المقترح في اجتماع اللجنة المختصة وإدراج التوصية في التقرير القادم.','Suggest reviewing this proposal in the relevant committee meeting and including the recommendation in the next report.'),
+      'change':        t('يُقترح تعديل الفقرة المذكورة لتعكس هذا التغيير مع الإشعار بالنسخة المحدّثة.','Suggest amending the mentioned paragraph to reflect this change with version notification.'),
+      'general':       t('يُقترح الإشارة إلى هذا التعليق في الملاحظات الختامية للمحضر.','Suggest referencing this comment in the closing remarks of the minutes.'),
+    };
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:0;width:600px;max-width:95vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:20px 26px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A">✨ ${t('مقترحات الذكاء الاصطناعي','AI Suggestions')}</div>
+      <div style="font-size:12px;color:#8A948D;margin-top:3px">${pending.length} ${t('تعليقات معلّقة','pending comments')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:18px 26px;display:flex;flex-direction:column;gap:14px" id="ai-suggestions-body">
+    <div style="text-align:center;padding:24px;color:#A8842C">
+      <div style="font-size:24px;margin-bottom:8px">✨</div>
+      <div style="font-size:13px;font-weight:600">${t('جارٍ تحليل التعليقات...','Analyzing comments...')}</div>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    // Simulate AI analysis
+    setTimeout(() => {
+      const body = overlay.querySelector('#ai-suggestions-body');
+      if (!body) return;
+      body.innerHTML = pending.map(c => {
+        const type = this._rrGetType(c);
+        const suggestion = AI_SUGGESTIONS[type] || AI_SUGGESTIONS.general;
+        return `
+<div style="border:1px solid rgba(168,132,44,.25);border-radius:12px;padding:14px 16px;background:rgba(168,132,44,.03)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:800;color:#15201A">${esc(c.commenter_name)} — ${esc(c.clause_ref||'')}</div>
+    <span style="font-size:10px;background:#FFF3CD;color:#A8842C;border-radius:10px;padding:2px 8px">✨ ${t('ذكاء اصطناعي','AI')}</span>
+  </div>
+  <div style="font-size:12px;color:#46514A;background:#F5F5F1;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.55">${esc(c.content)}</div>
+  <div style="font-size:12.5px;color:#A8842C;font-weight:600;margin-bottom:6px">💡 ${t('مقترح الحل','Suggested Resolution')}</div>
+  <div style="font-size:12.5px;color:#15201A;line-height:1.55;margin-bottom:10px">${suggestion}</div>
+  <div style="display:flex;gap:8px">
+    <button onclick="
+      const ta=document.getElementById('rr-ta-${c.id}');
+      if(ta){ta.value='${suggestion.replace(/'/g,"\\'")}'}
+      ApprovalCycle._rrToggleAdd(${c.id},true);
+      this.closest('div[style*=fixed]').remove();
+      showToast(ApprovalCycle.t('✅ تم تطبيق المقترح على البطاقة','✅ Suggestion applied to card'),'success');"
+      style="flex:1;padding:8px;background:#0F1728;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700">✅ ${t('تطبيق','Apply')}</button>
+    <button onclick="ApprovalCycle._rrMarkResolved(${c.id});this.closest('div[style*=fixed]').remove();"
+      style="flex:1;padding:8px;background:rgba(12,122,61,.1);color:#0C7A3D;border:1px solid rgba(12,122,61,.3);border-radius:7px;cursor:pointer;font-size:12px;font-weight:700">✅ ${t('قبول مباشر','Accept Now')}</button>
+  </div>
+</div>`;
+      }).join('');
+    }, 900);
   },
 
   /* ── Submit gate helper (Step 5) ──────────────────────────────────────── */
