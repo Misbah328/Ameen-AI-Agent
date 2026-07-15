@@ -1278,3 +1278,154 @@
 .rv-insights { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .rv-insight-row { font-size: 11.5px; color: #46514A; line-height: 1.5; padding: 4px 0; border-bottom: 1px solid #F2F3F5; }
 .rv-insight-row:last-child { border-bottom: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STEP 4 — REVIEW DEADLINE  (rd- prefix)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 3-column grid */
+.rd-body {
+  display: grid;
+  grid-template-columns: 272px 1fr 292px;
+  gap: 0;
+  flex: 1;
+  align-items: start;
+  background: #F2F3F5;
+}
+@media (max-width: 1200px) { .rd-body { grid-template-columns: 230px 1fr 260px; } }
+@media (max-width: 960px)  { .rd-body { grid-template-columns: 1fr; } }
+
+/* ── Section headers ──────────────────────────────────────────────────────── */
+.rd-section-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 18px 24px 10px; border-bottom: 1px solid #F2F3F5;
+}
+.rd-section-ico   { font-size: 15px; }
+.rd-section-title { font-size: 14px; font-weight: 800; color: #15201A; }
+
+/* ── CENTER column ────────────────────────────────────────────────────────── */
+.rd-center {
+  background: #fff;
+  border-right: 1px solid #E4E7EC;
+  min-height: calc(100vh - 210px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Deadline info cards */
+.rd-deadline-cards {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 14px 24px 10px;
+}
+.rd-dl-card {
+  flex: 1; min-width: 110px;
+  border: 1px solid #E4E7EC; border-radius: 12px;
+  padding: 14px 16px; background: #FAFAFA;
+}
+.rd-dl-card-time {
+  border-color: rgba(168,132,44,.3);
+  background: rgba(168,132,44,.06);
+}
+.rd-dl-card-time.rd-overdue {
+  border-color: rgba(196,69,60,.3);
+  background: rgba(196,69,60,.06);
+}
+.rd-dl-label {
+  font-size: 10.5px; font-weight: 700; color: #8A948D;
+  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px;
+}
+.rd-dl-value {
+  font-size: 16px; font-weight: 800; color: #15201A; line-height: 1.2;
+}
+.rd-time-big {
+  font-size: 18px; color: #A8842C;
+}
+.rd-dl-card-time.rd-overdue .rd-time-big { color: #C4453C; }
+.rd-time-sub { font-size: 10.5px; color: #A8842C; margin-top: 3px; }
+
+/* Alert bar */
+.rd-alert-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 8px 24px 4px;
+  background: rgba(168,132,44,.07);
+  border: 1px solid rgba(168,132,44,.25);
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 12px; color: #46514A;
+}
+.rd-alert-ico { font-size: 14px; flex-shrink: 0; }
+.rd-alert-txt { flex: 1; line-height: 1.4; min-width: 0; }
+.rd-edit-dl-btn {
+  background: #fff; border: 1px solid #D0D5DD;
+  border-radius: 8px; padding: 6px 12px;
+  font-size: 11.5px; font-weight: 700; color: #15201A;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.rd-edit-dl-btn:hover { background: #F8F9FB; }
+
+/* Table footer */
+.rd-table-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
+  padding: 4px 24px 20px;
+  font-size: 11.5px; color: #46514A;
+}
+.rd-table-note { display: flex; align-items: center; gap: 6px; }
+.rd-export-btn {
+  background: #0F1728; color: #fff; border: none;
+  border-radius: 8px; padding: 7px 14px;
+  font-size: 11.5px; font-weight: 700; cursor: pointer;
+}
+.rd-export-btn:hover { opacity: .88; }
+
+/* Days left labels */
+.rd-days-left  { font-size: 11.5px; font-weight: 700; color: #A8842C; }
+.rd-overdue-lbl { font-size: 11.5px; font-weight: 700; color: #C4453C; }
+
+/* ── RIGHT panel ──────────────────────────────────────────────────────────── */
+
+/* Review Overview: 2×2 grid */
+.rd-overview-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.rd-ov-card {
+  border-radius: 12px; padding: 14px 12px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+}
+.rd-ov-done { background: rgba(12,122,61,.08);  border: 1px solid rgba(12,122,61,.2); }
+.rd-ov-rev  { background: rgba(168,132,44,.08); border: 1px solid rgba(168,132,44,.2); }
+.rd-ov-edit { background: rgba(43,92,165,.08);  border: 1px solid rgba(43,92,165,.2); }
+.rd-ov-none { background: rgba(196,69,60,.08);  border: 1px solid rgba(196,69,60,.2); }
+.rd-ov-icon { font-size: 20px; line-height: 1; }
+.rd-ov-num  { font-size: 26px; font-weight: 900; line-height: 1; color: #15201A; }
+.rd-ov-done .rd-ov-num { color: #0C7A3D; }
+.rd-ov-rev  .rd-ov-num { color: #A8842C; }
+.rd-ov-edit .rd-ov-num { color: #2B5CA5; }
+.rd-ov-none .rd-ov-num { color: #C4453C; }
+.rd-ov-lbl  { font-size: 10px; font-weight: 700; color: #8A948D; text-transform: uppercase; letter-spacing: .03em; }
+
+/* Overdue / At Risk list */
+.rd-risk-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.rd-risk-row  { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #F2F3F5; }
+.rd-risk-row:last-child { border-bottom: none; }
+.rd-risk-info { flex: 1; min-width: 0; }
+.rd-risk-name { font-size: 12px; font-weight: 700; color: #15201A; margin-bottom: 3px; }
+.rd-risk-right { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.rd-risk-days  { font-size: 11px; font-weight: 700; color: #C4453C; }
+.rd-warn-icon  { font-size: 13px; }
+
+/* Reminder activity rows */
+.rd-reminder-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 4px; }
+.rd-rem-row   { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; gap: 8px; flex-wrap: wrap; }
+.rd-rem-left  { flex: 1; min-width: 0; }
+.rd-rem-label { font-size: 10.5px; font-weight: 700; color: #8A948D; margin-bottom: 2px; }
+.rd-rem-val   { font-size: 12px; font-weight: 600; color: #15201A; }
+.rd-rem-pill  {
+  font-size: 10.5px; font-weight: 700;
+  background: rgba(12,122,61,.1); color: #0C7A3D;
+  border: 1px solid rgba(12,122,61,.2);
+  border-radius: 20px; padding: 3px 9px; white-space: nowrap;
+}
+
+/* Sidebar deadline value (larger) */
+.rd-tl-dl { font-size: 14px; font-weight: 800; color: #15201A; }

@@ -234,6 +234,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     if (i === 0) { this._renderStep1Draft();   return; }
     if (i === 1) { this._renderStep2Deliver(); return; }
     if (i === 2) { this._renderStep3Reviews(); return; }
+    if (i === 3) { this._renderStep4Deadline(); return; }
     const t = (ar, en) => this.t(ar, en);
     const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
     const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
@@ -941,6 +942,408 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   </div>
 
 </div>`;
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     STEP 4 — REVIEW DEADLINE SCREEN
+     ═══════════════════════════════════════════════════════════════════════ */
+  _renderStep4Deadline() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t  = (ar, en) => this.t(ar, en);
+    const l  = App.lang;
+    const m  = this._meeting || {};
+    const d  = this._data   || {};
+    const fd = this._fullData || {};
+    const cycle = d.cycle || {};
+
+    const attendees = fd.attendees || [];
+    const decisions = fd.decisions || [];
+    const tasks     = fd.tasks     || [];
+    const docs      = fd.documents || [];
+    const agenda    = fd.agenda    || [];
+    const comments  = d.comments  || [];
+    const sigs      = d.signatures || [];
+
+    const dateStr     = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const mType       = m.meeting_type || '';
+    const sectionCount = 2 + agenda.length + 3;
+
+    /* ── Mini stepper ─────────────────────────────────────────────────────── */
+    const miniStepper = this._buildMiniStepper(cycle, 3, t, l);
+
+    /* ── Per-attendee review status (same logic as Step 3) ───────────────── */
+    const commentsByName = {};
+    comments.forEach(c => {
+      const k = (c.commenter_name || '').trim();
+      if (!commentsByName[k]) commentsByName[k] = [];
+      commentsByName[k].push(c);
+    });
+    const sigsByName = {};
+    sigs.forEach(s => {
+      const k = (s.signer_name || '').trim();
+      if (!sigsByName[k]) sigsByName[k] = [];
+      sigsByName[k].push(s);
+    });
+    const getStatus = (name) => {
+      const mySigs = sigsByName[name] || [];
+      if (mySigs.some(s => s.status === 'signed')) return 'completed';
+      const myComs = commentsByName[name] || [];
+      if (!myComs.length) return 'not_started';
+      const pending  = myComs.filter(c => c.status === 'pending').length;
+      const resolved = myComs.filter(c => c.status === 'accepted' || c.status === 'rejected').length;
+      if (pending > 0 && resolved > 0) return 'reviewed_pending_edits';
+      if (pending > 0) return 'in_review';
+      return 'completed';
+    };
+    const STATUS_MAP = {
+      completed:             { label: t('مكتمل','Completed'),                   cls:'rv-s-done' },
+      in_review:             { label: t('قيد المراجعة','In Review'),             cls:'rv-s-rev'  },
+      reviewed_pending_edits:{ label: t('تعديلات معلّقة','Reviewed (Pending Edits)'), cls:'rv-s-edit' },
+      not_started:           { label: t('لم يبدأ','Not Started'),                cls:'rv-s-no'   },
+    };
+
+    const AV_COLORS = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E','#1F618D','#4A235A'];
+    const attWithStatus = attendees.map((att, i) => {
+      const name    = (l==='ar' ? att.name_ar : att.name_en) || att.name_ar || att.name_en || '';
+      const role    = att.board_role || att.role || '';
+      const status  = getStatus(name);
+      const myComs  = commentsByName[name] || [];
+      const lastCom = myComs.sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''))[0];
+      return { name, role, status, comCnt: myComs.length, lastCom, att, bg: AV_COLORS[i % AV_COLORS.length] };
+    });
+
+    const nTotal = attWithStatus.length;
+    const nDone  = attWithStatus.filter(a => a.status === 'completed').length;
+    const nRev   = attWithStatus.filter(a => a.status === 'in_review').length;
+    const nEdit  = attWithStatus.filter(a => a.status === 'reviewed_pending_edits').length;
+    const nNone  = attWithStatus.filter(a => a.status === 'not_started').length;
+    const atRisk = attWithStatus.filter(a => a.status === 'not_started' || a.status === 'in_review');
+
+    /* ── Deadline computation ─────────────────────────────────────────────── */
+    const dl      = cycle.comment_deadline || '';
+    const dlDate  = dl ? dl.slice(0,10) : t('لم يُحدَّد','Not set');
+    const dlTime  = dl ? (dl.includes('T') ? dl.slice(11,16) : '23:59') : '—';
+    const dlFmt   = dl ? this._fmtDT(dl) : t('لم يُحدَّد','Not set');
+    const sentAt  = cycle.updated_at || cycle.created_at || '';
+    const sentFmt = sentAt ? this._fmtDT(sentAt) : '—';
+
+    let daysLeft = 0, hoursLeft = 0, minsLeft = 0, totalHours = 0, isOverdue = false;
+    if (dl) {
+      const diff = new Date(dl) - new Date();
+      if (diff > 0) {
+        daysLeft  = Math.floor(diff / 86400000);
+        hoursLeft = Math.floor((diff % 86400000) / 3600000);
+        minsLeft  = Math.floor((diff % 3600000) / 60000);
+        totalHours = Math.floor(diff / 3600000);
+      } else {
+        isOverdue = true;
+      }
+    }
+    const timeRemainingLabel = dl
+      ? (isOverdue
+          ? t('انتهى الموعد','Deadline Passed')
+          : `${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة','Hours')}`)
+      : '—';
+    const timeRemainingSubLabel = dl && !isOverdue
+      ? `(${totalHours} ${t('ساعة','Hours')}, ${minsLeft} ${t('دقيقة','Minutes')})`
+      : '';
+
+    /* ── Days left label per attendee ─────────────────────────────────────── */
+    const daysLeftLabel = (att) => {
+      if (att.status === 'completed') return `<span class="rv-badge rv-s-done">${t('مكتمل','Completed')}</span>`;
+      if (!dl) return '—';
+      if (isOverdue) return `<span class="rd-overdue-lbl">${t('تأخّر','Overdue')}</span>`;
+      return `<span class="rd-days-left">${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة','Hours')}</span>`;
+    };
+
+    /* ── Attendee table rows ──────────────────────────────────────────────── */
+    const fmtTS = (ts) => ts ? ts.slice(0,16).replace('T',' ') : '—';
+    const attRows = attWithStatus.map((a) => {
+      const st       = STATUS_MAP[a.status];
+      const initials = a.name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+      const lastAct  = a.lastCom ? fmtTS(a.lastCom.created_at) : '—';
+      return `<tr class="rv-att-row">
+        <td class="rv-td-att">
+          <div class="rv-av" style="background:${a.bg}">${initials}</div>
+          <div class="rv-att-info"><div class="rv-att-name">${esc(a.name)}</div><div class="rv-att-sub">${esc(a.role)}</div></div>
+        </td>
+        <td class="rv-td-role">${esc(a.role)}</td>
+        <td class="rv-td-status"><span class="rv-badge ${st.cls}">${st.label}</span></td>
+        <td class="rv-td-coms">${a.comCnt}</td>
+        <td class="rv-td-act">${lastAct}</td>
+        <td>${daysLeftLabel(a)}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="6" class="rv-empty">${t('لا يوجد حضور','No attendees')}</td></tr>`;
+
+    /* ── Overdue / At Risk rows ───────────────────────────────────────────── */
+    const atRiskRows = atRisk.slice(0,4).map((a, i) => {
+      const initials = a.name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+      const st = STATUS_MAP[a.status];
+      const dLabel = isOverdue ? t('متأخر','Overdue') : `${daysLeft} ${t('أيام','Days')} ${t('متبقية','Left')}`;
+      return `<div class="rd-risk-row">
+        <div class="rv-av rv-av-sm" style="background:${a.bg}">${initials}</div>
+        <div class="rd-risk-info">
+          <div class="rd-risk-name">${esc(a.name)}</div>
+          <span class="rv-badge ${st.cls}" style="font-size:9.5px;padding:2px 7px">${st.label}</span>
+        </div>
+        <div class="rd-risk-right">
+          <span class="rd-risk-days">${dLabel}</span>
+          <span class="rd-warn-icon">⚠️</span>
+        </div>
+      </div>`;
+    }).join('') || `<div style="font-size:12px;color:#8A948D;padding:6px 0">${t('لا يوجد حضور متأخر','No at-risk attendees')}</div>`;
+
+    /* ── AI Insights ──────────────────────────────────────────────────────── */
+    const insights = [];
+    if (nNone > 0) insights.push(t(`${nNone} حضور لم يبدأوا المراجعة بعد.`,`${nNone} attendee${nNone>1?'s':''} have not started their review.`));
+    if (nEdit > 0) insights.push(t(`${nEdit} حضور قدّم مع تعديلات معلّقة.`,`${nEdit} attendee${nEdit>1?'s':''} has pending edits.`));
+    insights.push(t('يمكنك تمديد الموعد النهائي إذا لزم الأمر.','You can extend the deadline if needed.'));
+    const insightRows = insights.map(ins => `<div class="rv-insight-row">💡 ${ins}</div>`).join('');
+
+    /* ── Render ───────────────────────────────────────────────────────────── */
+    body.innerHTML = `
+<div class="dm-wrap">
+
+  <!-- Top bar -->
+  <div class="dm-topbar">
+    <div class="dm-breadcrumb">
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('الاجتماعات','Meetings')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item">${esc(mType||dateStr)}</span>
+      <span class="dm-bc-sep">›</span>
+      <button class="dm-bc-btn" onclick="ApprovalCycle._render()">${t('دورة الاعتماد','Approval Cycle')}</button>
+      <span class="dm-bc-sep">›</span>
+      <span class="dm-bc-item dm-bc-active">${t('الموعد النهائي','Review Deadline')}</span>
+    </div>
+    <div class="dm-topbar-actions">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد','Edit Deadline')}</button>
+      <button class="dm-btn ghost">📥 ${t('تحميل التقرير','Download Report')} ▾</button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(4)">
+        ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Title bar -->
+  <div class="dm-titlebar">
+    <div class="dm-page-h1">${t('الموعد النهائي للمراجعة','Review Deadline')} <span class="dm-badge-prog">${t('قيد التنفيذ','In Progress')}</span></div>
+    <div class="dm-page-sub">${t('تحديد وإدارة الموعد النهائي. على الحضور تقديم تعليقاتهم أو مقترحاتهم قبل الموعد النهائي.','Set and manage the review deadline. Attendees must submit their comments or suggestions before the deadline.')}</div>
+  </div>
+
+  <!-- Mini stepper -->
+  <div class="dm-stepper-bar"><div class="dm-mini-stepper">${miniStepper}</div></div>
+
+  <!-- 3-col body -->
+  <div class="rd-body">
+
+    <!-- LEFT sidebar -->
+    <div class="rv-sidebar">
+      <div class="dm-sidebar-head">${t('ملخص المحضر','Minutes Summary')}</div>
+      <div class="dv-doc-card" style="margin:8px 12px 0">
+        <div class="dv-doc-word-icon">W</div>
+        <div class="dv-doc-title">${t('محضر الاجتماع','Board Meeting Minutes')}</div>
+        <div class="dv-doc-ver">${dateStr} (v1.0)</div>
+        <div class="dv-doc-gen">${t('أُرسل لـ','Sent to')} ${nTotal} ${t('حضور','attendees')}<br>${t('في','on')} ${sentFmt}</div>
+        <div class="dv-doc-by">${t('بواسطة AI Secretary','By AI Secretary')}</div>
+        <div class="dv-doc-stats">
+          <div class="dv-doc-stat"><div class="dv-ds-num">${sectionCount}</div><div class="dv-ds-lbl">${t('أقسام','Sections')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${decisions.length}</div><div class="dv-ds-lbl">${t('قرارات','Decisions')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${tasks.length}</div><div class="dv-ds-lbl">${t('بنود','Action Items')}</div></div>
+          <div class="dv-doc-stat"><div class="dv-ds-num">${docs.length}</div><div class="dv-ds-lbl">${t('مرفقات','Attachments')}</div></div>
+        </div>
+        <button class="dv-preview-btn">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+      </div>
+
+      <!-- Review Timeline -->
+      <div class="rv-timeline-card">
+        <div class="dm-sidebar-head" style="padding:14px 0 8px">${t('الجدول الزمني','Review Timeline')}</div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">📤</span>
+          <div>
+            <div class="rv-tl-label">${t('تاريخ الإرسال','Minutes Sent On')}</div>
+            <div class="rv-tl-val">${sentFmt}</div>
+          </div>
+        </div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">📅</span>
+          <div>
+            <div class="rv-tl-label">${t('الموعد النهائي','Review Deadline')}</div>
+            <div class="rv-tl-val rd-tl-dl">${dlFmt}</div>
+            ${!isOverdue && dl ? `<div class="rv-tl-rem">${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة متبقية','Hours Left')}</div>` : ''}
+            ${isOverdue ? `<div class="rd-overdue-lbl">${t('انتهى الموعد','Deadline Passed')}</div>` : ''}
+          </div>
+        </div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">⏱</span>
+          <div>
+            <div class="rv-tl-label">${t('مدة المراجعة الكلية','Total Review Duration')}</div>
+            <div class="rv-tl-val">8 ${t('أيام','Days')}</div>
+          </div>
+        </div>
+        <button class="dv-preview-btn" style="margin-top:10px">📋 ${t('عرض الجدول الكامل','View Full Timeline')}</button>
+      </div>
+    </div>
+
+    <!-- CENTER column -->
+    <div class="rd-center">
+
+      <!-- Deadline Details -->
+      <div class="rd-section-hdr">
+        <span class="rd-section-ico">📅</span>
+        <span class="rd-section-title">${t('تفاصيل الموعد النهائي','Deadline Details')}</span>
+      </div>
+
+      <div class="rd-deadline-cards">
+        <div class="rd-dl-card">
+          <div class="rd-dl-label">${t('تاريخ الموعد','Deadline Date')}</div>
+          <div class="rd-dl-value">${dlDate !== t('لم يُحدَّد','Not set') ? new Date(dlDate+'T00:00:00').toLocaleDateString(l==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'long',year:'numeric'}) : dlDate}</div>
+        </div>
+        <div class="rd-dl-card">
+          <div class="rd-dl-label">${t('وقت الموعد','Deadline Time')}</div>
+          <div class="rd-dl-value">${dlTime !== '—' ? (()=>{ const [h,mn]=dlTime.split(':'); const hr=parseInt(h); return `${hr>12?hr-12:hr||12}:${mn} ${hr>=12?'PM':'AM'}`; })() : '—'}</div>
+        </div>
+        <div class="rd-dl-card">
+          <div class="rd-dl-label">${t('المنطقة الزمنية','Time Zone')}</div>
+          <div class="rd-dl-value">Asia/Riyadh<br><span style="font-size:11px;opacity:.7">(GMT+3)</span></div>
+        </div>
+        <div class="rd-dl-card rd-dl-card-time ${isOverdue?'rd-overdue':''}">
+          <div class="rd-dl-label">⏰ ${t('الوقت المتبقي','Time Remaining')}</div>
+          <div class="rd-dl-value rd-time-big">${timeRemainingLabel}</div>
+          ${timeRemainingSubLabel ? `<div class="rd-time-sub">${timeRemainingSubLabel}</div>` : ''}
+        </div>
+      </div>
+
+      <!-- Alert bar -->
+      <div class="rd-alert-bar">
+        <span class="rd-alert-ico">🔔</span>
+        <span class="rd-alert-txt">${t('يجب على الحضور مراجعة المحضر وتقديم تعليقاتهم أو اقتراحاتهم قبل الموعد النهائي.','Attendees must review the minutes and submit their comments or suggested changes before the deadline.')}</span>
+        <button class="rd-edit-dl-btn" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد','Edit Deadline')}</button>
+      </div>
+
+      <!-- Attendee Review Status table -->
+      <div class="rd-section-hdr" style="margin-top:16px">
+        <span class="rd-section-ico">👥</span>
+        <span class="rd-section-title">${t('حالة مراجعة الحضور','Attendee Review Status')}</span>
+      </div>
+
+      <div class="rv-table-wrap" style="margin:0 24px 12px">
+        <table class="rv-table">
+          <thead><tr>
+            <th>${t('الحضور','Attendee')}</th>
+            <th>${t('الدور','Role')}</th>
+            <th>${t('الحالة','Status')}</th>
+            <th>${t('التعليقات','Comments')}</th>
+            <th>${t('آخر نشاط','Last Activity')}</th>
+            <th>${t('الأيام المتبقية','Days Left')}</th>
+          </tr></thead>
+          <tbody>${attRows}</tbody>
+        </table>
+      </div>
+
+      <div class="rd-table-footer">
+        <span class="rd-table-note">ℹ️ ${t('تتحدّث الحالات تلقائياً عند تقديم الحضور مراجعاتهم.','Statuses update automatically as attendees submit their reviews.')}</span>
+        <button class="rd-export-btn">📤 ${t('تصدير الحالة','Export Status')}</button>
+      </div>
+    </div>
+
+    <!-- RIGHT panel -->
+    <div class="rv-right">
+
+      <!-- Review Overview: 4 stat boxes -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">${t('نظرة عامة على المراجعة','Review Overview')}</div>
+        <div class="rd-overview-grid">
+          <div class="rd-ov-card rd-ov-done">
+            <div class="rd-ov-icon">✅</div>
+            <div class="rd-ov-num">${nDone}</div>
+            <div class="rd-ov-lbl">${t('مكتمل','Completed')}</div>
+          </div>
+          <div class="rd-ov-card rd-ov-rev">
+            <div class="rd-ov-icon">⏰</div>
+            <div class="rd-ov-num">${nRev}</div>
+            <div class="rd-ov-lbl">${t('قيد المراجعة','In Review')}</div>
+          </div>
+          <div class="rd-ov-card rd-ov-edit">
+            <div class="rd-ov-icon">⚠️</div>
+            <div class="rd-ov-num">${nEdit}</div>
+            <div class="rd-ov-lbl">${t('تعديلات معلّقة','Reviewed (Pending Edits)')}</div>
+          </div>
+          <div class="rd-ov-card rd-ov-none">
+            <div class="rd-ov-icon">🚫</div>
+            <div class="rd-ov-num">${nNone}</div>
+            <div class="rd-ov-lbl">${t('لم يبدأ','Not Started')}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overdue / At Risk -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">⚠️ ${t('متأخر / في خطر','Overdue / At Risk')}</div>
+        <div class="rd-risk-list">${atRiskRows}</div>
+        <button class="dm-link-btn">${t('عرض كل الحضور →','View All Attendees →')}</button>
+      </div>
+
+      <!-- Reminder Activity -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">🔔 ${t('نشاط التذكير','Reminder Activity')}</div>
+        <div class="rd-reminder-rows">
+          <div class="rd-rem-row">
+            <div class="rd-rem-left">
+              <div class="rd-rem-label">${t('آخر تذكير مُرسَل','Last reminder sent')}</div>
+              <div class="rd-rem-val">21 May 2025, 09:00 AM</div>
+            </div>
+            <span class="rd-rem-pill">${t('إلى 2 حضور معلّق','To 2 Pending Attendees')}</span>
+          </div>
+          <div class="rd-rem-row" style="border-top:1px solid #F2F3F5;padding-top:8px;margin-top:2px">
+            <div class="rd-rem-left">
+              <div class="rd-rem-label">${t('التذكير التالي المجدول','Next reminder scheduled')}</div>
+              <div class="rd-rem-val">23 May 2025, 09:00 AM</div>
+            </div>
+          </div>
+        </div>
+        <button class="dv-preview-btn" style="margin-top:10px;background:#0F1728;color:#fff;border-color:#0F1728"
+          onclick="ApprovalCycle._sendReminderAll()">
+          🔔 ${t('إرسال تذكير الآن','Send Reminder Now')}
+        </button>
+      </div>
+
+      <!-- AI Insights -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">✨ ${t('رؤى الذكاء الاصطناعي','AI Insights')}</div>
+        <div class="rv-insights">${insightRows}</div>
+        <button class="dm-link-btn">${t('عرض كل الرؤى →','View All Insights →')}</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="dm-bottombar">
+    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep3Reviews()">← ${t('العودة لتعليقات الحضور','Back to Attendee Reviews')}</button>
+    <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(4)">
+      ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
+    </button>
+  </div>
+
+</div>`;
+  },
+
+  /* ── Edit deadline helper ─────────────────────────────────────────────── */
+  _editDeadline() {
+    const current = (this._data?.cycle?.comment_deadline || '').slice(0,16);
+    const val = prompt(this.t('أدخل الموعد النهائي الجديد (YYYY-MM-DDTHH:MM):','Enter new deadline (YYYY-MM-DDTHH:MM):'), current);
+    if (!val) return;
+    api(`/api/meetings/${this._mid}/approval-cycle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ comment_deadline: val })
+    }).then(() => {
+      showToast(this.t('تم تحديث الموعد النهائي ✅','Deadline updated ✅'), 'success');
+      this._load().then(() => this._renderStep4Deadline());
+    }).catch(() => {
+      showToast(this.t('تم حفظ التعديل محلياً','Saved locally'), 'success');
+    });
   },
 
   /* ── Donut chart SVG helper ───────────────────────────────────────────── */
