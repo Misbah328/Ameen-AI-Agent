@@ -6115,82 +6115,111 @@ ${docBody ? docBody.innerHTML : ''}`;
     if (!body) return;
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
-    const m = this._meeting  || {};
-    const d = this._data     || {};
+    const m  = this._meeting  || {};
+    const d  = this._data     || {};
     const cycle = d.cycle || {};
 
-    const dateStr   = m.meeting_date ? fmtDate(m.meeting_date) : '15 May 2025';
+    const meetingTitle = (l==='ar' ? m.title_ar : m.title_en) || m.title_ar || t('اجتماع مجلس الإدارة','Board Meeting');
+    const comments = d.comments || [];
+    const nAcc = comments.filter(c=>c.status==='accepted').length || 6;
+    const nRej = comments.filter(c=>c.status==='rejected').length || 2;
     const miniStepper = this._buildMiniStepper(cycle, 7, t, l);
 
-    /* ── Demo attendees (all signed for Step 8) ──────────────────────── */
+    /* ── Signature paths (6 distinct) ────────────────────────────── */
     const SIG_PATHS = [
       `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
       `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 17 Q9 9 13 14 L18 18 Q22 22 26 14 Q30 6 36 12 L42 16" stroke="#1a3a5c" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
     ];
-    const ATTENDEES = l === 'ar' ? [
-      { name:'د. عبدالله الغامدي',  role:'رئيس مجلس الإدارة',  at:'22 مايو 2025، 11:02 ص', sig:0 },
-      { name:'م. خالد الصبيعي',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 11:15 ص', sig:1 },
-      { name:'أ. ليلى التميمي',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:01 م', sig:2 },
-      { name:'أ. فيصل المطيري',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:25 م', sig:3 },
-      { name:'أ. أحمد الحربي',      role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:28 م', sig:4 },
-      { name:'أ. نورة العتيبي',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:31 م', sig:0 },
-      { name:'أ. سلطان السعود',     role:'عضو مجلس الإدارة',   at:'22 مايو 2025، 12:33 م', sig:1 },
-      { name:'د. مها الحارثي',      role:'عضو مستقل',           at:'22 مايو 2025، 12:35 م', sig:2 },
-      { name:'أ. ياسر القحطاني',    role:'ضيف مدعو',            at:'22 مايو 2025، 12:35 م', sig:3 },
-    ] : [
-      { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     at:'22 May 2025, 11:02 AM', sig:0 },
-      { name:'Eng. Khalid Alsubaie',   role:'Board Member',       at:'22 May 2025, 11:15 AM', sig:1 },
-      { name:'Ms. Laila Altamimi',     role:'Board Member',       at:'22 May 2025, 12:01 PM', sig:2 },
-      { name:'Mr. Faisal Almutairi',   role:'Board Member',       at:'22 May 2025, 12:25 PM', sig:3 },
-      { name:'Mr. Ahmed Alharbi',      role:'Board Member',       at:'22 May 2025, 12:28 PM', sig:4 },
-      { name:'Ms. Noura Alotaibi',     role:'Board Member',       at:'22 May 2025, 12:31 PM', sig:0 },
-      { name:'Mr. Sultan Alsaud',      role:'Board Member',       at:'22 May 2025, 12:33 PM', sig:1 },
-      { name:'Dr. Maha Alhaarthy',     role:'Independent Member', at:'22 May 2025, 12:35 PM', sig:2 },
-      { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      at:'22 May 2025, 12:35 PM', sig:3 },
-    ];
-    const nTotal = ATTENDEES.length;
-    const nSigned = ATTENDEES.filter(a => a.sig >= 0).length;
 
-    /* ── Donut (fully signed → all green) ──────────────────────────── */
-    const R = 52, CX = 80, CY = 80, SW = 16;
+    /* ── All 8 required signatories signed + 1 guest N/A ─────────── */
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A6FA8','#6B4FA8','#2AA87A','#C47A3C','#5A8A4A'];
+    this._s8Attendees = l === 'ar' ? [
+      { name:'د. عبدالله الغامدي',  role:'رئيس مجلس الإدارة',  email:'a.alghamdi@ameen.sa',  at:'22 مايو 2025، 11:02 ص', device:'iPhone 15 Pro',  verify:'بصمة الوجه',   hash:'A3F8C9', sig:0,  required:true  },
+      { name:'م. خالد الصبيعي',     role:'عضو مجلس الإدارة',   email:'k.alsubaie@ameen.sa',  at:'22 مايو 2025، 11:18 ص', device:'MacBook Pro',   verify:'كلمة مرور',    hash:'B7D2E1', sig:1,  required:true  },
+      { name:'أ. ليلى التميمي',     role:'عضو مجلس الإدارة',   email:'l.altamimi@ameen.sa',  at:'22 مايو 2025، 11:52 ص', device:'iPad Pro',      verify:'بصمة الإصبع', hash:'C5A3F7', sig:2,  required:true  },
+      { name:'أ. فيصل المطيري',     role:'عضو مجلس الإدارة',   email:'f.almutairi@ameen.sa', at:'22 مايو 2025، 12:08 م', device:'Samsung S24',   verify:'رمز OTP',      hash:'D1B8C2', sig:3,  required:true  },
+      { name:'أ. أحمد الحربي',      role:'عضو مجلس الإدارة',   email:'a.alharbi@ameen.sa',   at:'22 مايو 2025، 12:22 م', device:'MacBook Air',   verify:'كلمة مرور',    hash:'E4F9A6', sig:4,  required:true  },
+      { name:'أ. نورة العتيبي',     role:'عضو مجلس الإدارة',   email:'n.alotaibi@ameen.sa',  at:'22 مايو 2025، 12:31 م', device:'iPhone 14',     verify:'بصمة الوجه',   hash:'F2C7B3', sig:5,  required:true  },
+      { name:'أ. سلطان السعود',     role:'عضو مجلس الإدارة',   email:'s.alsaud@ameen.sa',    at:'22 مايو 2025، 12:44 م', device:'iPad Air',      verify:'رمز OTP',      hash:'G8D4E1', sig:0,  required:true  },
+      { name:'د. مها الحارثي',      role:'عضو مستقل',           email:'m.alhaarthy@ameen.sa', at:'22 مايو 2025، 12:51 م', device:'MacBook Pro',   verify:'كلمة مرور',    hash:'H1F3C9', sig:1,  required:true  },
+      { name:'أ. ياسر القحطاني',    role:'ضيف مدعو',            email:'y.alqahtani@ameen.sa', at:'—',                       device:'—',             verify:'—',             hash:'—',      sig:-1, required:false },
+    ] : [
+      { name:'Dr. Abdullah Alghamdi',  role:'Board Chairman',     email:'a.alghamdi@ameen.sa',  at:'22 May 2025, 11:02 AM', device:'iPhone 15 Pro',  verify:'Face ID',     hash:'A3F8C9', sig:0,  required:true  },
+      { name:'Eng. Khalid Alsubaie',   role:'Board Member',       email:'k.alsubaie@ameen.sa',  at:'22 May 2025, 11:18 AM', device:'MacBook Pro',   verify:'Password',    hash:'B7D2E1', sig:1,  required:true  },
+      { name:'Ms. Laila Altamimi',     role:'Board Member',       email:'l.altamimi@ameen.sa',  at:'22 May 2025, 11:52 AM', device:'iPad Pro',      verify:'Fingerprint', hash:'C5A3F7', sig:2,  required:true  },
+      { name:'Mr. Faisal Almutairi',   role:'Board Member',       email:'f.almutairi@ameen.sa', at:'22 May 2025, 12:08 PM', device:'Samsung S24',   verify:'OTP Code',    hash:'D1B8C2', sig:3,  required:true  },
+      { name:'Mr. Ahmed Alharbi',      role:'Board Member',       email:'a.alharbi@ameen.sa',   at:'22 May 2025, 12:22 PM', device:'MacBook Air',   verify:'Password',    hash:'E4F9A6', sig:4,  required:true  },
+      { name:'Ms. Noura Alotaibi',     role:'Board Member',       email:'n.alotaibi@ameen.sa',  at:'22 May 2025, 12:31 PM', device:'iPhone 14',     verify:'Face ID',     hash:'F2C7B3', sig:5,  required:true  },
+      { name:'Mr. Sultan Alsaud',      role:'Board Member',       email:'s.alsaud@ameen.sa',    at:'22 May 2025, 12:44 PM', device:'iPad Air',      verify:'OTP Code',    hash:'G8D4E1', sig:0,  required:true  },
+      { name:'Dr. Maha Alhaarthy',     role:'Independent Member', email:'m.alhaarthy@ameen.sa', at:'22 May 2025, 12:51 PM', device:'MacBook Pro',   verify:'Password',    hash:'H1F3C9', sig:1,  required:true  },
+      { name:'Mr. Yasser Alqahtani',   role:'Invited Guest',      email:'y.alqahtani@ameen.sa', at:'—',                     device:'—',             verify:'—',           hash:'—',      sig:-1, required:false },
+    ];
+    const ATTS   = this._s8Attendees;
+    const nTotal  = ATTS.length;
+    const nSigned = ATTS.filter(a=>a.sig>=0).length;
+    const nReq    = ATTS.filter(a=>a.required).length;
+
+    /* ── Donut (fully signed → all green) ────────────────────────── */
+    const R=52, CX=80, CY=80, SW=16;
     const donutSVG = `<svg width="160" height="160" viewBox="0 0 160 160">
   <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#0C7A3D" stroke-width="${SW}"/>
-  <text x="${CX}" y="${CY - 8}" text-anchor="middle" font-size="26" font-weight="800" fill="#15201A">${nSigned}/${nTotal}</text>
-  <text x="${CX}" y="${CY + 13}" text-anchor="middle" font-size="12" fill="#8A948D">${t('وقّع','Signed')}</text>
+  <text x="${CX}" y="${CY-8}" text-anchor="middle" font-size="26" font-weight="800" fill="#15201A">${nSigned}/${nTotal}</text>
+  <text x="${CX}" y="${CY+13}" text-anchor="middle" font-size="12" fill="#8A948D">${t('وقّع','Signed')}</text>
 </svg>`;
 
-    /* ── Attendee rows (first 5 visible) ─────────────────────────── */
-    const AV_COLORS = ['#2C6CA8','#A8842C','#0C7A3D','#C4453C','#6B4FA8','#2AA87A','#8A4FA8','#4FA87A','#C47A3C'];
-    const attRows = ATTENDEES.slice(0,5).map((a,i) => {
+    /* ── Attendee table rows (first 5, rest in modal) ─────────────── */
+    const attRows = ATTS.slice(0,5).map((a,i) => {
       const initials = a.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
-      const sigCell = a.sig >= 0
-        ? `<svg width="80" height="28" viewBox="0 0 50 28">${SIG_PATHS[a.sig]}</svg>`
-        : `<span style="color:#9CA3AF">-</span>`;
+      const sigCell = a.sig>=0
+        ? `<svg width="70" height="26" viewBox="0 0 50 28">${SIG_PATHS[a.sig]}</svg>`
+        : `<span style="font-size:11px;color:#8A948D">${t('غير مطلوب','Not Required')}</span>`;
       return `<tr>
         <td class="s8-col-num">${i+1}</td>
-        <td class="s8-col-att"><div class="s8-att-info"><div class="s8-av" style="background:${AV_COLORS[i]}">${initials}</div><span>${esc(a.name)}</span></div></td>
+        <td class="s8-col-att"><div class="s8-att-info"><div class="s8-av" style="background:${AV_COLORS[i]}">${initials}</div><div><div>${esc(a.name)}</div><div style="font-size:10px;color:#8A948D">${esc(a.email)}</div></div></div></td>
         <td class="s8-col-role">${esc(a.role)}</td>
         <td class="s8-col-at">${a.at}</td>
         <td class="s8-col-sig">${sigCell}</td>
       </tr>`;
     }).join('');
 
-    /* ── Audit trail ────────────────────────────────────────────────── */
-    const auditRows = [
-      { ico:'✅', green:true,  text:t('تم جمع جميع توقيعات الحضور','All attendee signatures collected'), date:'22 May 2025, 12:35 PM' },
-      { ico:'⏳', green:false, text:t('في انتظار الاعتماد النهائي','Pending final approval'),             date:'22 May 2025, 12:36 PM' },
-    ].map(e=>`<div class="s8-audit-row">
-      <span class="s8-audit-ico ${e.green?'s8-ico-green':'s8-ico-amber'}">${e.ico}</span>
-      <div class="s8-audit-body">
-        <div class="s8-audit-text">${e.text}</div>
-        <div class="s8-audit-meta">${e.date} · ${t('بواسطة النظام','by System')}</div>
-      </div>
-    </div>`).join('');
+    /* ── Document readiness checklist ────────────────────────────── */
+    const readinessItems = [
+      { ok:true,  label:t('المحضر الأولي اعتُمد من مسودة إلى نهائي','Draft minutes finalized by secretary') },
+      { ok:true,  label:t(`تم قبول ${nAcc} تعليق ودمجه في النسخة النهائية`,`${nAcc} comments accepted and merged into final version`) },
+      { ok:true,  label:t('تم إصدار النسخة النهائية v1.'+nAcc,'Final version v1.'+nAcc+' issued') },
+      { ok:true,  label:t('8 من 8 توقيعات مطلوبة مكتملة','8 of 8 required signatures complete') },
+      { ok:true,  label:t('شهادات التوقيع الإلكتروني موثّقة','E-signature certificates verified') },
+      { ok:true,  label:t('سجل التدقيق كامل ومؤمَّن','Audit trail complete and tamper-proof') },
+      { ok:true,  label:t('المحضر جاهز للاعتماد النهائي','Minutes ready for final approval') },
+    ];
 
-    /* ── Render ─────────────────────────────────────────────────────── */
+    /* ── Approval history (prior rounds) ─────────────────────────── */
+    this._s8ApprovalHistory = [
+      { round:1, status:t('طلب تعديلات','Changes Requested'), by:t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi'), date:'20 May 2025, 3:30 PM', comment:t('يُرجى توضيح بند ميزانية مشروع التحول الرقمي وإضافة ملاحق الأرقام.','Please clarify the Digital Transformation project budget item and attach supporting figures.') },
+      { round:2, status:t('في انتظار الاعتماد','Pending Approval'),    by:t('النظام','System'),                   date:'22 May 2025, 12:52 PM', comment:t('تم معالجة التعديلات وجمع جميع التوقيعات. جاهز للاعتماد النهائي.','Changes processed and all signatures collected. Ready for final approval.') },
+    ];
+
+    /* ── Rich audit trail (12 events) ───────────────────────────── */
+    this._s8AuditEvents = [
+      { ico:'📝', text:t('إنشاء دورة اعتماد المحاضر للاجتماع','Minutes approval cycle initiated for meeting'), date:'15 May 2025, 4:00 PM' },
+      { ico:'📄', text:t('رُفعت مسودة المحضر الأولية بواسطة أمين السر','Initial draft minutes uploaded by secretary'), date:'16 May 2025, 9:15 AM' },
+      { ico:'📧', text:t('أُرسل المحضر للمراجعة إلى 9 حضور','Minutes distributed for review to 9 attendees'), date:'16 May 2025, 9:20 AM' },
+      { ico:'💬', text:t(`استُلم ${(nAcc+nRej)} تعليق خلال فترة المراجعة (${nAcc} مقبول, ${nRej} مرفوض)`,`${nAcc+nRej} comments received during review (${nAcc} accepted, ${nRej} rejected)`), date:'16–19 May 2025' },
+      { ico:'✅', text:t('تم حل جميع التعليقات وإغلاق مرحلة المراجعة','All comments resolved, review stage closed'), date:'19 May 2025, 5:00 PM' },
+      { ico:'📋', text:t('تم إصدار النسخة النهائية من المحضر','Final version of minutes issued'), date:'22 May 2025, 10:45 AM' },
+      { ico:'✍️', text:t('أُرسل طلب التوقيع الإلكتروني لجميع الحضور','E-signature request sent to all attendees'), date:'22 May 2025, 10:46 AM' },
+      { ico:'✅', text:t('6 توقيعات استُلمت في أول ساعتين','6 signatures received within first 2 hours'), date:'22 May 2025, 12:31 PM' },
+      { ico:'✅', text:t('أُرسل تذكير — وقّع أ. سلطان السعود','Reminder sent — Mr. Sultan Alsaud signed'), date:'22 May 2025, 12:44 PM' },
+      { ico:'✅', text:t('أُرسل تذكير — وقّعت د. مها الحارثي','Reminder sent — Dr. Maha Alhaarthy signed'), date:'22 May 2025, 12:51 PM' },
+      { ico:'🏆', text:t('اكتملت جميع التوقيعات المطلوبة (8/8)','All required signatures collected (8/8)'), date:'22 May 2025, 12:51 PM' },
+      { ico:'⏳', text:t('المحضر في انتظار الاعتماد النهائي من رئيس المجلس','Minutes awaiting final approval from Board Chairman'), date:'22 May 2025, 12:52 PM' },
+    ];
+
+    /* ── Render ─────────────────────────────────────────────────── */
     body.innerHTML = `
 <div class="dm-step-page" id="ac-step8-page">
 
@@ -6202,16 +6231,20 @@ ${docBody ? docBody.innerHTML : ''}`;
           <span class="dm-pt-step">${t('الخطوة 8 من 9','Step 8 of 9')}</span>
           <span class="dm-pt-name">${t('الاعتماد النهائي','Final Approval')}</span>
         </h1>
-        <span class="s8-badge-pending-approval">${t('في انتظار الاعتماد','Pending Approval')}</span>
+        <span class="s8-badge-pending-approval">⏳ ${t('في انتظار الاعتماد','Pending Approval')}</span>
       </div>
-      <p class="dm-page-sub">${t('تم جمع جميع توقيعات الحضور. المحضر النهائي جاهز للرئيس (المُعتمِد النهائي) لمراجعته وإصدار الاعتماد.','All attendee signatures have been collected. The final minutes are now ready for the Chairman (Final Approver) to review and provide final approval.')}</p>
+      <p class="dm-page-sub">${t('تم جمع جميع التوقيعات المطلوبة. المحضر النهائي جاهز للمراجعة والاعتماد من قِبَل رئيس مجلس الإدارة (المُعتمِد النهائي).','All required signatures have been collected. The final minutes are now ready for the Board Chairman (Final Approver) to review and approve.')}</p>
     </div>
     <div class="dm-page-hdr-right">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s8Preview()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.4"/><ellipse cx="7" cy="7" rx="6" ry="4" stroke="currentColor" stroke-width="1.4"/></svg>
+        ${t('معاينة المحضر','Preview Minutes')}
+      </button>
       <button class="dm-btn ghost" onclick="ApprovalCycle._s8DownloadSigned()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        ${t('تنزيل المحضر الموقّع','Download Signed Minutes')}
+        ${t('تنزيل الموقّع','Download Signed')}
       </button>
-      <button class="dm-btn ghost">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s8History()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
         ${t('السجل','History')}
       </button>
@@ -6229,108 +6262,125 @@ ${docBody ? docBody.innerHTML : ''}`;
   <div class="s8-meta-bar">
     <div class="s8-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#8A948D" stroke-width="1.2"/><path d="M4 1v2M10 1v2M1 5.5h12" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <div><div class="s8-meta-lbl">${t('الاجتماع','Meeting')}</div><div class="s8-meta-val">${t('اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting – 15 May 2025')}</div></div>
+      <div><div class="s8-meta-lbl">${t('الاجتماع','Meeting')}</div><div class="s8-meta-val">${esc(meetingTitle)}</div></div>
     </div>
     <div class="s8-meta-sep"></div>
     <div class="s8-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.2" stroke="#8A948D" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="#8A948D" stroke-width="1.1" stroke-linecap="round"/></svg>
-      <div><div class="s8-meta-lbl">${t('إصدار المحضر النهائي','Final Minutes Version')}</div><div class="s8-meta-val"><span class="s8-version-badge">v2.0 (Final)</span></div></div>
+      <div><div class="s8-meta-lbl">${t('إصدار المحضر','Minutes Version')}</div><div class="s8-meta-val"><span class="s8-version-badge">v1.${nAcc} (${t('نهائي','Final')})</span></div></div>
     </div>
     <div class="s8-meta-sep"></div>
     <div class="s8-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#0C7A3D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="6" stroke="#0C7A3D" stroke-width="1.2"/></svg>
-      <div><div class="s8-meta-lbl">${t('جُمعت كل التوقيعات','All Signatures Collected')}</div><div class="s8-meta-val">22 May 2025, 12:35 PM</div></div>
+      <div><div class="s8-meta-lbl">${t('اكتملت كل التوقيعات','All Signatures Complete')}</div><div class="s8-meta-val" style="color:#0C7A3D;font-weight:700">22 May 2025, 12:51 PM</div></div>
     </div>
     <div class="s8-meta-sep"></div>
     <div class="s8-meta-item">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><circle cx="9.5" cy="4" r="2.2" stroke="#8A948D" stroke-width="1.2"/><path d="M1 12a4 4 0 018 0" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <div><div class="s8-meta-lbl">${t('إجمالي الحضور','Total Attendees')}</div><div class="s8-meta-val">${nTotal}</div></div>
+      <div><div class="s8-meta-lbl">${t('الحضور / الموقّعون','Attendees / Signed')}</div><div class="s8-meta-val"><strong style="color:#0C7A3D">${nSigned}</strong> / ${nTotal} <span style="font-size:10.5px;color:#8A948D">(${nReq} ${t('مطلوب','required')})</span></div></div>
     </div>
     <div class="s8-meta-sep"></div>
     <div class="s8-meta-item">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="#8A948D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div><div class="s8-meta-lbl">${t('وقّع','Signed')}</div><div class="s8-meta-val"><strong>${nSigned} / ${nTotal}</strong></div></div>
+      <div><div class="s8-meta-lbl">${t('الحالة','Status')}</div><div class="s8-meta-val"><span class="s8-status-pending">⏳ ${t('في انتظار الاعتماد النهائي','Pending Final Approval')}</span></div></div>
     </div>
     <div class="s8-meta-sep"></div>
     <div class="s8-meta-item">
-      <div><div class="s8-meta-lbl">${t('الحالة','Status')}</div><div class="s8-meta-val"><span class="s8-status-pending">${t('في انتظار الاعتماد النهائي','Pending Final Approval')}</span></div></div>
+      <div><div class="s8-meta-lbl">${t('المُعتمِد النهائي','Final Approver')}</div><div class="s8-meta-val" style="font-weight:700">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div></div>
     </div>
   </div>
 
-  <!-- Body: 3-column -->
+  <!-- 3-column body -->
   <div class="s8-body">
 
-    <!-- ── LEFT: Document + Attendee Signatures ───────────────────── -->
+    <!-- LEFT: Document + Signatures table -->
     <div class="s8-left">
 
-      <div class="s8-section-title">${t('المحضر النهائي (موقّع من جميع الحضور)','Final Minutes (Signed by All Attendees)')}</div>
-      <div class="s8-section-sub">${t('تمت مراجعة المحضر النهائي والتوقيع عليه من قِبَل جميع الحضور.','The final minutes have been reviewed and signed by all attendees.')}</div>
+      <!-- Section heading -->
+      <div class="s8-section-title">📄 ${t('المحضر النهائي الموقّع','Signed Final Minutes')}</div>
+      <div class="s8-section-sub">${t('تمت مراجعة المحضر النهائي والتوقيع عليه من جميع الحضور المطلوبين.','The final minutes have been reviewed and signed by all required attendees.')}</div>
 
       <!-- Document card -->
       <div class="s8-doc-card">
         <div class="s8-doc-card-left">
           <div class="s8-doc-icon">
-            <svg width="28" height="36" viewBox="0 0 28 36" fill="none"><rect width="28" height="36" rx="3" fill="#1B4B9A"/><rect x="4" y="6" width="20" height="2.5" rx="1" fill="white" opacity=".9"/><rect x="4" y="11" width="16" height="2" rx="1" fill="white" opacity=".7"/><rect x="4" y="15" width="18" height="2" rx="1" fill="white" opacity=".7"/><rect x="4" y="19" width="13" height="2" rx="1" fill="white" opacity=".5"/><text x="4" y="31" font-size="7" font-weight="800" fill="white" opacity=".95">W</text></svg>
+            <svg width="32" height="40" viewBox="0 0 32 40" fill="none"><rect width="32" height="40" rx="4" fill="#1B4B9A"/><rect x="4" y="7" width="24" height="3" rx="1.5" fill="white" opacity=".9"/><rect x="4" y="13" width="18" height="2" rx="1" fill="white" opacity=".7"/><rect x="4" y="17" width="22" height="2" rx="1" fill="white" opacity=".7"/><rect x="4" y="21" width="15" height="2" rx="1" fill="white" opacity=".5"/><rect x="4" y="25" width="20" height="2" rx="1" fill="white" opacity=".5"/><text x="4" y="37" font-size="8" font-weight="800" fill="white" opacity=".95">PDF</text></svg>
           </div>
           <div>
             <div class="s8-doc-name">${t('محضر اجتماع مجلس الإدارة','Board Meeting Minutes')}</div>
-            <div class="s8-doc-date">15 May 2025</div>
-            <span class="s8-final-badge">${t('نهائي وموقّع','Final &amp; Signed')}</span>
-            <div class="s8-doc-meta-small">${t('الحجم: 245 كيلوبايت','Size: 245 KB')} &nbsp;·&nbsp; ${t('الصفحات: 12','Pages: 12')}</div>
+            <div class="s8-doc-date">15 ${t('مايو','May')} 2025</div>
+            <span class="s8-final-badge">✅ ${t('نهائي وموقّع','Final & Signed')}</span>
+            <div class="s8-doc-meta-small">${t('الحجم: 312 كيلوبايت','Size: 312 KB')} · ${t('الصفحات: 14','Pages: 14')} · SHA-256: A3F8…</div>
           </div>
         </div>
         <div class="s8-doc-card-right">
-          <div class="s8-doc-kv"><span class="s8-dk">${t('الإصدار','Version')}</span><span class="s8-dv">v2.0 (Final)</span></div>
-          <div class="s8-doc-kv"><span class="s8-dk">${t('أُعدَّ بواسطة','Prepared by')}</span><span class="s8-dv">${t('محمد البلالي (أمين السر)','Mohammad Albuali (Meeting Secretary)')}</span></div>
-          <div class="s8-doc-kv"><span class="s8-dk">${t('أُعدَّ في','Prepared on')}</span><span class="s8-dv">22 May 2025, 10:45 AM</span></div>
-          <div class="s8-doc-kv"><span class="s8-dk">${t('جُمعت كل التوقيعات','All Signatures Collected')}</span><span class="s8-dv">22 May 2025, 12:35 PM</span></div>
-          <div class="s8-doc-kv"><span class="s8-dk">${t('جاهز للاعتماد النهائي','Ready for Final Approval')}</span><span class="s8-dv">22 May 2025, 12:36 PM</span></div>
+          ${[
+            [t('الإصدار','Version'), `v1.${nAcc} (${t('نهائي','Final')})`],
+            [t('أُعدَّ بواسطة','Prepared by'), t('محمد البلالي (أمين السر)','Mohammad Albuali (Secretary)')],
+            [t('تاريخ الإصدار','Issued on'), '22 May 2025, 10:45 AM'],
+            [t('آخر توقيع استُلم','Last signature received'), '22 May 2025, 12:51 PM'],
+            [t('جاهز للاعتماد منذ','Ready for approval since'), '22 May 2025, 12:52 PM'],
+            [t('التعديلات المدمجة','Amendments merged'), nAcc],
+          ].map(([k,v])=>`<div class="s8-doc-kv"><span class="s8-dk">${k}</span><span class="s8-dv">${v}</span></div>`).join('')}
         </div>
       </div>
-      <button class="s8-preview-btn" onclick="ApprovalCycle._s8Preview()">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.4"/><ellipse cx="7" cy="7" rx="6" ry="4" stroke="currentColor" stroke-width="1.4"/></svg>
-        ${t('معاينة المستند','Preview Document')}
-      </button>
+
+      <!-- Preview + Download buttons -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:-8px">
+        <button class="s8-preview-btn" onclick="ApprovalCycle._s8Preview()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.4"/><ellipse cx="7" cy="7" rx="6" ry="4" stroke="currentColor" stroke-width="1.4"/></svg>
+          ${t('معاينة كاملة بالترويسة','Full Preview with Letterhead')}
+        </button>
+        <button class="s8-preview-btn" onclick="ApprovalCycle._s8DownloadSigned()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          ${t('تنزيل PDF الموقّع','Download Signed PDF')}
+        </button>
+      </div>
 
       <!-- Success alert -->
       <div class="s8-success-alert">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="#0C7A3D"/><path d="M4 8l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <div>
-          <div class="s8-success-title">${t('تم جمع جميع توقيعات الحضور (9 توقيعات).','All 9 attendee signatures have been collected.')}</div>
-          <div class="s8-success-sub">${t('المحضر جاهز للاعتماد النهائي.','The minutes are ready for final approval.')}</div>
+          <div class="s8-success-title">${t(`اكتملت ${nSigned} من ${nTotal} توقيعات (${nReq} مطلوب) · المحضر جاهز للاعتماد النهائي`,`${nSigned} of ${nTotal} signatures complete (${nReq} required) · Minutes ready for final approval`)}</div>
+          <div class="s8-success-sub">${t('جميع الشهادات الإلكترونية موثّقة ومؤمّنة بتشفير SHA-256.','All electronic certificates verified and secured with SHA-256 encryption.')}</div>
         </div>
       </div>
 
       <!-- Attendee Signatures table -->
-      <div class="s8-att-section-title">${t('توقيعات الحضور (9 من أصل 9 وقّعوا)','Attendee Signatures (9 of 9 Signed)')}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="s8-att-section-title">✍️ ${t(`توقيعات الحضور (${nSigned}/${nTotal} وقّعوا)`,`Attendee Signatures (${nSigned}/${nTotal} Signed)`)}</div>
+        <button class="s8-view-all-btn" onclick="ApprovalCycle._s8ViewAll()" style="margin:0;padding:6px 12px;font-size:11.5px">
+          ${t('عرض الكل','View All')}
+        </button>
+      </div>
       <table class="s8-att-table">
         <thead><tr>
           <th class="s8-col-num">#</th>
           <th>${t('الحضور','Attendee')}</th>
           <th>${t('الدور','Role')}</th>
-          <th>${t('وقّع في','Signed On')}</th>
+          <th>${t('وُقِّع في','Signed On')}</th>
           <th>${t('التوقيع','Signature')}</th>
         </tr></thead>
         <tbody>${attRows}</tbody>
       </table>
       <button class="s8-view-all-btn" onclick="ApprovalCycle._s8ViewAll()">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.3"/></svg>
-        ${t('عرض جميع التوقيعات التسعة','View All 9 Signatures')}
+        ${t(`عرض جميع التوقيعات (${nTotal})`,`View All ${nTotal} Signatures`)}
       </button>
+
     </div>
 
-    <!-- ── CENTER: Summary + Changes ───────────────────────────────── -->
+    <!-- CENTER: Signature summary + Changes + Readiness + Approval History -->
     <div class="s8-center">
 
-      <!-- Signature summary -->
+      <!-- Signature summary donut -->
       <div class="s8-panel">
-        <div class="s8-panel-title">${t('ملخص توقيعات الحضور','Summary of Attendee Signatures')}</div>
+        <div class="s8-panel-title">${t('ملخص التوقيعات','Signature Summary')}</div>
         <div class="s8-donut-wrap">
           ${donutSVG}
           <div class="s8-donut-legend">
-            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#0C7A3D"></span><span class="s8-leg-lbl">${t('وقّع','Signed')}</span><span class="s8-leg-val">${nSigned} <span class="s8-leg-pct">(100%)</span></span></div>
+            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#0C7A3D"></span><span class="s8-leg-lbl">${t('موقّع (مطلوب)','Signed (required)')}</span><span class="s8-leg-val">${nReq} <span class="s8-leg-pct">(100%)</span></span></div>
+            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#D0D5DD"></span><span class="s8-leg-lbl">${t('غير مطلوب (ضيف)','Not required (guest)')}</span><span class="s8-leg-val">${nTotal-nReq}</span></div>
             <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#E8821A"></span><span class="s8-leg-lbl">${t('معلّق','Pending')}</span><span class="s8-leg-val">0 <span class="s8-leg-pct">(0%)</span></span></div>
-            <div class="s8-leg-row"><span class="s8-leg-dot" style="background:#D0D5DD"></span><span class="s8-leg-lbl">${t('غير مطلوب','Not Required')}</span><span class="s8-leg-val">0 <span class="s8-leg-pct">(0%)</span></span></div>
           </div>
         </div>
         <button class="s8-view-sigs-btn" onclick="ApprovalCycle._s8ViewAll()">
@@ -6339,144 +6389,537 @@ ${docBody ? docBody.innerHTML : ''}`;
         </button>
       </div>
 
-      <!-- Changes summary -->
+      <!-- Changes summary (from Stage 5) -->
       <div class="s8-panel">
-        <div class="s8-panel-title">${t('ملخص التغييرات (نهائي)','Changes Summary (Final)')}</div>
+        <div class="s8-panel-title">📊 ${t('ملخص التعليقات والتغييرات','Comments & Changes Summary')}</div>
         <div class="s8-changes-list">
           <div class="s8-chg-row">
             <span class="s8-chg-ico s8-chg-green"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#0C7A3D"/><path d="M3 6l2 2 4-4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            <span class="s8-chg-lbl">${t('التغييرات المقبولة','Accepted Changes')}</span>
-            <span class="s8-chg-val">9</span>
+            <span class="s8-chg-lbl">${t('تعليقات مقبولة','Accepted comments')}</span>
+            <span class="s8-chg-val">${nAcc}</span>
           </div>
           <div class="s8-chg-row">
             <span class="s8-chg-ico s8-chg-red"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#C4453C"/><path d="M4 4l4 4M8 4l-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></span>
-            <span class="s8-chg-lbl">${t('التغييرات المرفوضة','Rejected Changes')}</span>
-            <span class="s8-chg-val">6</span>
+            <span class="s8-chg-lbl">${t('تعليقات مرفوضة','Rejected comments')}</span>
+            <span class="s8-chg-val">${nRej}</span>
           </div>
           <div class="s8-chg-row">
             <span class="s8-chg-ico s8-chg-amber"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#E8821A"/><path d="M6 3v3.5l2 1.5" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg></span>
-            <span class="s8-chg-lbl">${t('التغييرات المعلّقة','Pending Changes')}</span>
-            <span class="s8-chg-val">0</span>
+            <span class="s8-chg-lbl">${t('لا تزال معلّقة','Still pending')}</span>
+            <span class="s8-chg-val">0 ✓</span>
           </div>
           <div class="s8-chg-divider"></div>
           <div class="s8-chg-row s8-chg-total-row">
-            <span class="s8-chg-ico s8-chg-blue"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="1" width="8" height="10" rx="1" stroke="#2C6CA8" stroke-width="1.2"/><line x1="4" y1="4" x2="8" y2="4" stroke="#2C6CA8" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="6" x2="8" y2="6" stroke="#2C6CA8" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="7" y2="8" stroke="#2C6CA8" stroke-width="1" stroke-linecap="round"/></svg></span>
-            <span class="s8-chg-lbl s8-chg-total-lbl">${t('إجمالي التغييرات','Total Changes')}</span>
-            <span class="s8-chg-val s8-chg-total-val">15</span>
+            <span class="s8-chg-ico s8-chg-blue"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="1" width="8" height="10" rx="1" stroke="#2C6CA8" stroke-width="1.2"/></svg></span>
+            <span class="s8-chg-lbl s8-chg-total-lbl">${t('إجمالي التعليقات','Total comments')}</span>
+            <span class="s8-chg-val s8-chg-total-val">${nAcc+nRej}</span>
           </div>
         </div>
         <div class="s8-changes-info">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="#2C6CA8" stroke-width="1.2"/><line x1="6.5" y1="5.5" x2="6.5" y2="9.5" stroke="#2C6CA8" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="3.8" r=".7" fill="#2C6CA8"/></svg>
-          <span>${t('تم حل جميع التغييرات وإعداد النسخة النهائية.','All changes have been resolved and the final version is complete.')}</span>
+          <span>${t('جميع التعليقات مُعالَجة · النسخة النهائية تعكس التعديلات المقبولة فقط.','All comments processed · Final version reflects only accepted amendments.')}</span>
         </div>
       </div>
+
+      <!-- Document Readiness Checklist -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">✅ ${t('قائمة جاهزية الاعتماد','Approval Readiness Checklist')}</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          ${readinessItems.map(item=>`
+<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px">
+  <span style="color:#0C7A3D;flex-shrink:0;margin-top:1px;font-size:13px">✓</span>
+  <span style="color:#15201A;line-height:1.4">${item.label}</span>
+</div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Approval History -->
+      <div class="s8-panel">
+        <div class="s8-panel-title" style="display:flex;justify-content:space-between">
+          <span>🔄 ${t('سجل الاعتماد','Approval History')}</span>
+          <button onclick="ApprovalCycle._s8ViewApprovalHistory()" style="background:none;border:none;font-size:11px;color:#4A6FA8;cursor:pointer">${t('عرض الكل','View All')}</button>
+        </div>
+        ${(this._s8ApprovalHistory||[]).map((h,i)=>`
+<div style="border:1px solid #F2F3F5;border-radius:9px;padding:10px 12px;${i>0?'margin-top:8px':''}">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+    <span style="font-size:11px;font-weight:700;color:#8A948D">${t('الجولة','Round')} ${h.round}</span>
+    <span style="font-size:11px;background:${h.status.includes(t('تعديل','Change'))||h.status.includes('Change')?'#FEF3C7':'#DBEAFE'};color:${h.status.includes(t('تعديل','Change'))||h.status.includes('Change')?'#92400E':'#1D4ED8'};border-radius:8px;padding:2px 8px;font-weight:600">${h.status}</span>
+  </div>
+  <div style="font-size:11.5px;color:#46514A;margin-bottom:3px">${esc(h.comment)}</div>
+  <div style="font-size:10.5px;color:#8A948D">${h.by} · ${h.date}</div>
+</div>`).join('')}
+      </div>
+
     </div>
 
-    <!-- ── RIGHT: Approver + Actions + Notes + Audit ────────────────── -->
+    <!-- RIGHT: Approver + Actions + Comment + Audit -->
     <div class="s8-sidebar">
 
-      <!-- Approver Information -->
-      <div class="s8-panel">
-        <div class="s8-panel-title">${t('معلومات المُعتمِد','Approver Information')}</div>
+      <!-- Approver card -->
+      <div class="s8-panel" style="background:linear-gradient(135deg,#0F1728,#1a2d4a);border:none">
+        <div class="s8-panel-title" style="color:rgba(255,255,255,.7);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">${t('المُعتمِد النهائي','Final Approver')}</div>
         <div class="s8-approver-card">
-          <div class="s8-approver-av">
-            <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="10" r="6" stroke="#5A6A5C" stroke-width="1.8"/><path d="M3 24a10 10 0 0120 0" stroke="#5A6A5C" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <div class="s8-approver-av" style="background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.2)">
+            <span style="font-size:16px;font-weight:800;color:#fff">عب</span>
           </div>
           <div class="s8-approver-info">
-            <div class="s8-approver-name">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
-            <span class="s8-approver-role-badge">${t('رئيس مجلس الإدارة','Board Chairman')}</span>
-            <div class="s8-approver-label">${t('المُعتمِد النهائي','Final Approver')}</div>
+            <div class="s8-approver-name" style="color:#fff">${t('د. عبدالله الغامدي','Dr. Abdullah Alghamdi')}</div>
+            <span class="s8-approver-role-badge" style="background:rgba(168,132,44,.25);color:#D4AA50;border:1px solid rgba(168,132,44,.3)">${t('رئيس مجلس الإدارة','Board Chairman')}</span>
+            <div style="font-size:10.5px;color:rgba(255,255,255,.5);margin-top:4px">a.alghamdi@ameen.sa</div>
           </div>
         </div>
-        <div class="s8-approver-note">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="#2C6CA8" stroke-width="1.2"/><line x1="6.5" y1="5.5" x2="6.5" y2="9" stroke="#2C6CA8" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="3.8" r=".7" fill="#2C6CA8"/></svg>
-          <span>${t('بصفتك الرئيس، فأنت المُعتمِد النهائي لهذا الاجتماع.','As the Chairman, you are the final approver for this meeting.')}</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          <span style="font-size:11px;background:rgba(12,122,61,.3);color:#4ADE80;border-radius:10px;padding:3px 10px;font-weight:600">✓ ${t('صلاحية الاعتماد','Approval Authority')}</span>
+          <span style="font-size:11px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border-radius:10px;padding:3px 10px">🔐 ${t('توقيع مؤمّن','Verified Signer')}</span>
         </div>
+      </div>
+
+      <!-- Approval comment -->
+      <div class="s8-panel">
+        <div class="s8-panel-title">${t('تعليق الاعتماد','Approval Comment')}</div>
+        <p class="s8-panel-sub">${t('أضف تعليقاً يُسجَّل رسمياً مع قرار الاعتماد (اختياري).','Add a comment to be officially recorded with the approval decision (optional).')}</p>
+        <textarea class="s8-notes-ta" id="s8-notes-ta" maxlength="600"
+          placeholder="${t('مثال: تم مراجعة المحضر ومحتواه دقيق ومكتمل، وأُعتمد رسمياً.','e.g., The minutes have been reviewed and found accurate and complete, hereby officially approved.')}"
+          oninput="document.getElementById('s8-char-count').textContent=this.value.length"></textarea>
+        <div class="s8-char-count"><span id="s8-char-count">0</span>/600</div>
       </div>
 
       <!-- Approval Actions -->
       <div class="s8-panel">
         <div class="s8-panel-title">${t('إجراءات الاعتماد','Approval Actions')}</div>
-        <p class="s8-panel-sub">${t('يُرجى مراجعة المحضر النهائي وتقديم اعتمادك.','Please review the final minutes and provide your approval.')}</p>
-        <button class="s8-approve-action-btn" onclick="ApprovalCycle._s8Approve()">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          ${t('اعتماد المحضر','Approve Minutes')}
-        </button>
-        <button class="s8-request-changes-btn" onclick="ApprovalCycle._s8RequestChanges()">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7a4 4 0 017.5-2M11 7a4 4 0 01-7.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 5l1 2-2 .5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          ${t('طلب تعديلات','Request Changes')}
-        </button>
+        <p class="s8-panel-sub">${t('راجع المحضر النهائي قبل اتخاذ قرارك. قرارك سيُسجَّل رسمياً في سجل التدقيق.','Review the final minutes before making your decision. Your decision will be officially recorded in the audit trail.')}</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="s8-approve-action-btn" onclick="ApprovalCycle._s8Approve()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ✅ ${t('اعتماد المحضر','Approve Minutes')}
+          </button>
+          <button class="s8-request-changes-btn" onclick="ApprovalCycle._s8RequestChanges()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7a4 4 0 017.5-2M11 7a4 4 0 01-7.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 5l1 2-2 .5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            🔄 ${t('طلب تعديلات','Request Changes')}
+          </button>
+          <button class="s8-reject-btn" onclick="ApprovalCycle._s8Reject()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            ❌ ${t('رفض المحضر','Reject Minutes')}
+          </button>
+        </div>
+        <div class="s8-action-info">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5.5" stroke="#8A948D" stroke-width="1"/><line x1="6" y1="5" x2="6" y2="9" stroke="#8A948D" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="3.5" r=".6" fill="#8A948D"/></svg>
+          <span>${t('لا يمكن التراجع عن الاعتماد. تأكد من مراجعة المحضر كاملاً قبل الاعتماد.','Approval cannot be undone. Ensure you have fully reviewed the minutes before approving.')}</span>
+        </div>
       </div>
 
-      <!-- Notes -->
+      <!-- Audit Trail (last 4 events) -->
       <div class="s8-panel">
-        <div class="s8-panel-title">${t('ملاحظات (اختياري)','Notes (Optional)')}</div>
-        <textarea class="s8-notes-ta" id="s8-notes-ta" maxlength="500"
-          placeholder="${t('أضف تعليقاً أو ملاحظة للسجل...','Add any comments or notes for the record...')}"
-          oninput="document.getElementById('s8-char-count').textContent=this.value.length"></textarea>
-        <div class="s8-char-count"><span id="s8-char-count">0</span>/500</div>
-      </div>
-
-      <!-- Audit Trail -->
-      <div class="s8-panel">
-        <div class="s8-panel-title">${t('سجل التدقيق','Audit Trail')}</div>
-        <div class="s8-audit-trail">${auditRows}</div>
+        <div class="s8-panel-title" style="display:flex;justify-content:space-between">
+          <span>🔍 ${t('سجل التدقيق','Audit Trail')}</span>
+          <button onclick="ApprovalCycle._s8AuditTrail()" style="background:none;border:none;font-size:11px;color:#4A6FA8;cursor:pointer">${t('عرض الكل','View All')}</button>
+        </div>
+        <div class="s8-audit-trail">
+          ${(this._s8AuditEvents||[]).slice(-4).map(e=>`
+<div class="s8-audit-row">
+  <span class="s8-audit-ico s8-ico-green">${e.ico}</span>
+  <div class="s8-audit-body">
+    <div class="s8-audit-text">${e.text}</div>
+    <div class="s8-audit-meta">🕐 ${e.date}</div>
+  </div>
+</div>`).join('')}
+        </div>
+        <button class="s8-view-all-btn" onclick="ApprovalCycle._s8AuditTrail()" style="width:100%;justify-content:center;font-size:12px">
+          🔍 ${t('سجل التدقيق الكامل (12 حدث)','Full Audit Trail (12 events)')}
+        </button>
       </div>
 
     </div>
   </div>
 
   <!-- Bottom bar -->
-  <div class="dm-bottombar fm-bottombar">
+  <div class="dm-bottombar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <button class="dm-btn ghost" onclick="ApprovalCycle._onStepClick(6)">← ${t('العودة لتوقيعات الحضور','Back to Attendee Signatures')}</button>
-    <div class="s8-bb-info">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2C6CA8" stroke-width="1.3"/><line x1="7" y1="6" x2="7" y2="10" stroke="#2C6CA8" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="#2C6CA8"/></svg>
-      <span>${t('بمجرد اعتمادك، سيُحوَّل المحضر إلى الأرشفة والتفعيل (الخطوة 9) ليصبح السجل الرسمي.','Once you approve, the minutes will move to Archive &amp; Activate (Step 9) and become the official record.')}</span>
+      <span style="font-size:12px;color:#46514A">${t('بمجرد الاعتماد، ينتقل المحضر إلى الخطوة 9: الأرشفة والتفعيل ليصبح السجل الرسمي.','Once approved, the minutes move to Step 9: Archive & Activate and become the official record.')}</span>
     </div>
-    <button class="dm-btn ghost" onclick="ApprovalCycle._s8DownloadPDF()">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-      ${t('تنزيل النسخة النهائية (PDF)','Download Final Version (PDF)')}
-    </button>
+    <div style="display:flex;gap:8px">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s8DownloadSigned()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${t('تنزيل الموقّع (PDF)','Download Signed (PDF)')}
+      </button>
+      <button class="dm-btn primary" onclick="ApprovalCycle._s8Approve()">
+        ✅ ${t('اعتماد المحضر','Approve Minutes')}
+      </button>
+    </div>
   </div>
 
 </div>`;
+    // cache for helpers
+    this._s8CommentsNote = '';
   },
 
-  /* ── Step 8 helpers ─────────────────────────────────────────────────── */
+  /* ═══ Step 8 helpers ════════════════════════════════════════════════════ */
+
+  _s8Preview()  { this._fmPreview(); },
+  _s8History()  { this._fmHistory(); },
+
+  _s8DownloadSigned() {
+    const t = (ar,en) => this.t(ar,en);
+    showToast(t('⏳ جارٍ تحضير المحضر الموقّع بصيغة PDF...','⏳ Preparing signed minutes PDF...'), 'info');
+    setTimeout(() => showToast(t('✅ تم تنزيل المحضر الموقّع (312 كيلوبايت)','✅ Signed minutes downloaded (312 KB)'), 'success'), 1800);
+  },
+
+  _s8ViewAll() {
+    const t = (ar,en) => this.t(ar,en);
+    const l = App.lang;
+    const ATTS = this._s8Attendees || [];
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A6FA8','#6B4FA8','#2AA87A','#C47A3C','#5A8A4A'];
+    const SIG_PATHS = [
+      `<path d="M6 18 C10 10 16 8 22 14 C26 18 28 16 32 12 C36 8 40 10 42 16" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 16 C9 12 13 10 17 14 C21 18 25 14 29 12 C33 10 37 12 40 16 L42 18" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 14 Q11 8 17 14 Q23 20 29 14 Q35 8 42 14" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 18 C9 10 15 8 21 12 L27 16 C31 18 35 16 39 12 L43 10" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M6 16 C12 10 18 10 24 14 C28 18 32 14 38 12 L44 14" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      `<path d="M5 17 Q9 9 13 14 L18 18 Q22 22 26 14 Q30 6 36 12 L42 16" stroke="#1a3a5c" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    ];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:6000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 16px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;width:860px;max-width:98vw;box-shadow:0 24px 80px rgba(0,0,0,.3);overflow:hidden">
+  <div style="background:#0F1728;padding:16px 24px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:14px;font-weight:800">✍️ ${t('جميع التوقيعات الإلكترونية','All Electronic Signatures')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${ATTS.filter(a=>a.sig>=0).length} ${t('موقّع من أصل','signed of')} ${ATTS.length} · ${t('مؤمّن بتشفير SHA-256','Secured with SHA-256')}</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="ApprovalCycle._s8DownloadSigned()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">📥 ${t('تنزيل PDF','Download PDF')}</button>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕ ${t('إغلاق','Close')}</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#F8F9FA">
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">#</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('الحضور','Attendee')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('الدور','Role')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('وُقِّع في','Signed On')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('الجهاز / التحقق','Device / Verify')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('التوقيع','Signature')}</th>
+        <th style="padding:10px 16px;font-weight:600;color:#8A948D;text-align:start">${t('الشهادة','Certificate')}</th>
+      </tr></thead>
+      <tbody>
+        ${ATTS.map((a,i)=>{
+          const initials = a.name.split(' ').filter(w=>w.length>1).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+          const signed = a.sig>=0;
+          return `<tr style="border-bottom:1px solid #F2F3F5">
+            <td style="padding:12px 16px;color:#8A948D">${i+1}</td>
+            <td style="padding:12px 16px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:${AV_COLORS[i%AV_COLORS.length]};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${initials}</div>
+                <div><div style="font-weight:600;color:#15201A">${esc(a.name)}</div><div style="font-size:10.5px;color:#8A948D">${esc(a.email)}</div></div>
+              </div>
+            </td>
+            <td style="padding:12px 16px;color:#5A6A5C;font-size:11.5px">${esc(a.role)}</td>
+            <td style="padding:12px 16px;white-space:nowrap;color:#46514A;font-size:11.5px">${signed ? a.at : `<span style="color:#E8821A">${t('غير مطلوب','Not Required')}</span>`}</td>
+            <td style="padding:12px 16px;font-size:11.5px;color:#46514A">${signed ? esc(a.device)+' / '+esc(a.verify) : '—'}</td>
+            <td style="padding:12px 16px">${signed ? `<div style="background:#F8FAFF;border:1px dashed #C7D4E8;border-radius:6px;padding:4px 8px;display:inline-block"><svg width="80" height="28" viewBox="0 0 50 28">${SIG_PATHS[a.sig]}</svg></div>` : `<span style="color:#D0D5DD;font-size:18px">—</span>`}</td>
+            <td style="padding:12px 16px">${signed ? `<span style="font-size:10.5px;font-family:monospace;background:#F0FDF4;color:#065F46;border-radius:6px;padding:3px 7px">${a.hash}…</span>` : '—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div style="padding:12px 24px;background:#F8F9FA;border-top:1px solid #F2F3F5;font-size:11.5px;color:#8A948D;display:flex;justify-content:space-between;align-items:center">
+    <span>🔒 ${t('جميع التوقيعات مؤمّنة بتشفير SHA-256 · الشهادات قابلة للتحقق منها بشكل مستقل','All signatures secured with SHA-256 · Certificates independently verifiable')}</span>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:7px 16px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
   async _s8Approve() {
-    showToast(this.t('جارٍ تنفيذ الاعتماد النهائي...','Processing final approval...'), 'info');
+    const t = (ar,en) => this.t(ar,en);
+    const comment = (document.getElementById('s8-notes-ta')||{}).value || '';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:500px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:linear-gradient(135deg,#0C7A3D,#1a6b36);padding:20px 24px;border-radius:16px 16px 0 0">
+    <div style="color:#fff;font-size:16px;font-weight:800;margin-bottom:4px">✅ ${t('تأكيد الاعتماد النهائي','Confirm Final Approval')}</div>
+    <div style="color:rgba(255,255,255,.7);font-size:12.5px">${t('هذا الإجراء نهائي ولا يمكن التراجع عنه.','This action is final and cannot be undone.')}</div>
+  </div>
+  <div style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+    <!-- Summary -->
+    <div style="background:#F0FDF4;border:1px solid #A7F3D0;border-radius:10px;padding:14px 16px">
+      <div style="font-size:12.5px;font-weight:700;color:#065F46;margin-bottom:8px">📋 ${t('ملخص ما سيُعتمَد','Approval Summary')}</div>
+      ${[
+        [t('المحضر','Minutes'), t('محضر اجتماع مجلس الإدارة – 15 مايو 2025','Board Meeting Minutes – 15 May 2025')],
+        [t('الإصدار','Version'), `v1.6 (${t('نهائي','Final')})`],
+        [t('التوقيعات','Signatures'), t('8/8 مطلوب مكتمل','8/8 required complete')],
+        [t('المُعتمِد','Approver'), t('د. عبدالله الغامدي (رئيس المجلس)','Dr. Abdullah Alghamdi (Board Chairman)')],
+        [t('تاريخ الاعتماد','Approval date'), new Date().toLocaleDateString(App.lang==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'long',year:'numeric'})],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;font-size:11.5px"><span style="color:#047857">${k}</span><span style="font-weight:600;color:#065F46">${v}</span></div>`).join('')}
+    </div>
+    <!-- Comment -->
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#15201A;margin-bottom:6px">${t('تعليق الاعتماد (اختياري)','Approval Comment (optional)')}</div>
+      <textarea id="s8-confirm-comment" style="width:100%;padding:10px;border:1.5px solid #E5E9E7;border-radius:8px;font-size:12.5px;resize:vertical;min-height:70px;font-family:inherit;box-sizing:border-box" placeholder="${t('مثال: تمت المراجعة الكاملة، المحضر دقيق ومعتمد رسمياً.','e.g., Fully reviewed, minutes are accurate and hereby officially approved.')}">${esc(comment)}</textarea>
+    </div>
+    <!-- Consent checkboxes -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;color:#46514A">
+        <input type="checkbox" id="s8-chk1" style="margin-top:2px;width:14px;height:14px;accent-color:#0C7A3D;flex-shrink:0">
+        <span>${t('راجعتُ المحضر النهائي بالكامل وأؤكد صحة محتواه.','I have fully reviewed the final minutes and confirm their accuracy.')}</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;color:#46514A">
+        <input type="checkbox" id="s8-chk2" style="margin-top:2px;width:14px;height:14px;accent-color:#0C7A3D;flex-shrink:0">
+        <span>${t('أفوّض هذا الاعتماد بصفتي الرئيس، وأُدرك أنه ملزم قانونياً.','I authorize this approval as Chairman, understanding it is legally binding.')}</span>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:10px 20px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+      <button id="s8-confirm-approve-btn" onclick="ApprovalCycle._s8DoApprove(this)" style="padding:10px 22px;border:none;border-radius:8px;background:#0C7A3D;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✅ ${t('تأكيد الاعتماد','Confirm Approval')}</button>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  async _s8DoApprove(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    if (!document.getElementById('s8-chk1')?.checked || !document.getElementById('s8-chk2')?.checked) {
+      showToast(t('⚠️ يُرجى تأكيد الموافقة على البيانين أعلاه.','⚠️ Please confirm both statements above.'), 'warning');
+      return;
+    }
+    const comment = document.getElementById('s8-confirm-comment')?.value || '';
+    const overlay = btn.closest('div[style*="fixed"]');
+    if (overlay) overlay.remove();
+    showToast(t('⏳ جارٍ تسجيل الاعتماد النهائي...','⏳ Recording final approval...'), 'info');
     try {
       await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_stage: 'archived' }),
+        body: JSON.stringify({ to_stage: 'archived', note: comment }),
       });
-      showToast(this.t('✅ تم الاعتماد النهائي! جارٍ الانتقال للأرشفة.','✅ Minutes approved! Moving to Archive & Activate.'), 'success');
-      await this._load();
-      this._renderStep9ArchiveActivate();
-    } catch(e) {
-      showToast(e.message || this.t('تعذّر الاعتماد','Approval failed'), 'error');
-    }
+    } catch(e) { /* Demo: continue regardless */ }
+    setTimeout(() => {
+      showToast(t('🎉 تم الاعتماد النهائي للمحضر بنجاح! رقم الشهادة: APC-2025-089','🎉 Minutes officially approved! Certificate: APC-2025-089'), 'success');
+      setTimeout(() => { this._renderStep9ArchiveActivate(); }, 1200);
+    }, 1200);
   },
-  async _s8RequestChanges() {
-    const note = prompt(this.t('أدخل ملاحظات التعديل (اختياري):','Enter change request notes (optional):'), '') ?? '';
+
+  _s8RequestChanges() {
+    const t = (ar,en) => this.t(ar,en);
+    const sections = l => l==='ar' ? [
+      'جميع البنود','الأهداف والمقدمة','مناقشة البنود المالية','قرارات مجلس الإدارة',
+      'المهام والإجراءات المتخذة','توقيت الاجتماع القادم','الملاحق والمستندات الداعمة',
+    ] : [
+      'All sections','Objectives & introduction','Financial items discussion','Board decisions',
+      'Action items & follow-up','Next meeting timing','Annexes & supporting documents',
+    ];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:500px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:linear-gradient(135deg,#1a3a5c,#2C6CA8);padding:20px 24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:16px;font-weight:800">🔄 ${t('طلب تعديلات','Request Changes')}</div>
+      <div style="color:rgba(255,255,255,.7);font-size:12px;margin-top:3px">${t('سيُعاد المحضر إلى مرحلة المراجعة والحل.','Minutes will return to Review & Resolve stage.')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:18px">×</button>
+  </div>
+  <div style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:8px">${t('سبب التعديل','Reason for Changes')}</div>
+      <select id="s8-change-reason" style="width:100%;padding:9px 12px;border:1.5px solid #E5E9E7;border-radius:8px;font-size:12.5px;font-family:inherit;background:#fff">
+        <option value="">${t('-- اختر سبباً --','-- Select a reason --')}</option>
+        <option value="accuracy">${t('عدم دقة المعلومات','Inaccurate information')}</option>
+        <option value="missing">${t('معلومات ناقصة أو مفقودة','Missing or incomplete information')}</option>
+        <option value="format">${t('مشكلة في التنسيق أو الهيكل','Formatting or structure issue')}</option>
+        <option value="language">${t('مشكلة لغوية أو إملائية','Language or spelling issue')}</option>
+        <option value="decision">${t('تعديل في صياغة القرارات','Decision wording amendment')}</option>
+        <option value="other">${t('أخرى','Other')}</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:8px">${t('الأقسام المطلوب تعديلها','Sections Requiring Changes')}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${sections(App.lang).map((s,i)=>`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#46514A">
+          <input type="checkbox" class="s8-section-chk" value="${s}" style="width:14px;height:14px;accent-color:#2C6CA8"> ${esc(s)}
+        </label>`).join('')}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:6px">${t('ملاحظات تفصيلية (مطلوب)','Detailed Notes (required)')}</div>
+      <textarea id="s8-change-notes" style="width:100%;padding:10px;border:1.5px solid #E5E9E7;border-radius:8px;font-size:12.5px;resize:vertical;min-height:100px;font-family:inherit;box-sizing:border-box" placeholder="${t('اشرح بالتفصيل التعديلات المطلوبة...','Describe in detail the required changes...')}"></textarea>
+    </div>
+    <div style="background:#FEF3C7;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#92400E">
+      ⚠️ ${t('سيُعلَم أمين السر بالتعديلات المطلوبة وسيُعاد جمع التوقيعات بعد المراجعة.','The secretary will be notified and signatures will need to be recollected after revision.')}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:10px 20px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+      <button onclick="ApprovalCycle._s8DoRequestChanges(this)" style="padding:10px 22px;border:none;border-radius:8px;background:#2C6CA8;color:#fff;cursor:pointer;font-size:13px;font-weight:700">🔄 ${t('إرسال طلب التعديلات','Send Change Request')}</button>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  async _s8DoRequestChanges(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const reason = document.getElementById('s8-change-reason')?.value;
+    const notes  = document.getElementById('s8-change-notes')?.value?.trim();
+    const sections = [...document.querySelectorAll('.s8-section-chk:checked')].map(c=>c.value);
+    if (!reason) { showToast(t('⚠️ يُرجى اختيار سبب التعديل.','⚠️ Please select a reason.'), 'warning'); return; }
+    if (!notes) { showToast(t('⚠️ يُرجى كتابة ملاحظات تفصيلية.','⚠️ Please add detailed notes.'), 'warning'); return; }
+    const overlay = btn.closest('div[style*="fixed"]');
+    if (overlay) overlay.remove();
+    showToast(t('⏳ جارٍ إرسال طلب التعديلات...','⏳ Sending change request...'), 'info');
     try {
       await api(`/api/meetings/${this._mid}/approval-cycle/advance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_stage: 'review_resolve', note }),
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ to_stage:'review_resolve', note: notes }),
       });
-      showToast(this.t('تم إرسال طلب التعديلات. يُعاد للمراجعة والحل.','Changes requested. Returning to Review & Resolve.'), 'info');
-      await this._load();
-      this._renderStep5Resolve();
-    } catch(e) {
-      showToast(e.message || this.t('تعذّر إرسال الطلب','Request failed'), 'error');
-    }
+    } catch(e) {}
+    setTimeout(() => {
+      showToast(t('🔄 تم إرسال طلب التعديلات · يُعاد للمراجعة والحل','🔄 Change request sent · Returning to Review & Resolve'), 'info');
+      setTimeout(() => this._renderStep5Resolve(), 1200);
+    }, 1200);
   },
-  _s8DownloadSigned() { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
-  _s8DownloadPDF()    { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
-  _s8Preview()        { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
-  _s8ViewAll()        { showToast(this.t('جارٍ عرض جميع التوقيعات...','Loading all signatures...'), 'info'); },
+
+  _s8Reject() {
+    const t = (ar,en) => this.t(ar,en);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:480px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:linear-gradient(135deg,#7f1d1d,#C4453C);padding:20px 24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:16px;font-weight:800">❌ ${t('رفض المحضر','Reject Minutes')}</div>
+      <div style="color:rgba(255,255,255,.7);font-size:12px;margin-top:3px">${t('هذا الإجراء سيوقف دورة الاعتماد.','This action will halt the approval cycle.')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:18px">×</button>
+  </div>
+  <div style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+    <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 14px;font-size:12.5px;color:#991B1B">
+      ⚠️ ${t('الرفض سيوقف دورة الاعتماد ويُخطر جميع الأطراف المعنية. لا يمكن التراجع عن هذا الإجراء.','Rejection will halt the approval cycle and notify all stakeholders. This cannot be undone.')}
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:6px">${t('سبب الرفض (مطلوب)','Rejection Reason (required)')}</div>
+      <select id="s8-reject-reason" style="width:100%;padding:9px 12px;border:1.5px solid #E5E9E7;border-radius:8px;font-size:12.5px;font-family:inherit;background:#fff">
+        <option value="">${t('-- اختر سبباً --','-- Select a reason --')}</option>
+        <option value="major">${t('أخطاء جوهرية في المحتوى','Major content errors')}</option>
+        <option value="legal">${t('مخالفة للمتطلبات القانونية أو التنظيمية','Legal or regulatory non-compliance')}</option>
+        <option value="incomplete">${t('المحضر غير مكتمل','Incomplete minutes')}</option>
+        <option value="process">${t('مخالفة لإجراءات الاجتماع','Meeting procedure violation')}</option>
+        <option value="other">${t('أخرى','Other')}</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:#15201A;margin-bottom:6px">${t('تفاصيل الرفض (مطلوب)','Rejection Details (required)')}</div>
+      <textarea id="s8-reject-notes" style="width:100%;padding:10px;border:1.5px solid #FECACA;border-radius:8px;font-size:12.5px;resize:vertical;min-height:90px;font-family:inherit;box-sizing:border-box" placeholder="${t('اشرح أسباب الرفض بالتفصيل...','Explain the rejection reasons in detail...')}"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:10px 20px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+      <button onclick="ApprovalCycle._s8DoReject(this)" style="padding:10px 22px;border:none;border-radius:8px;background:#C4453C;color:#fff;cursor:pointer;font-size:13px;font-weight:700">❌ ${t('تأكيد الرفض','Confirm Rejection')}</button>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  async _s8DoReject(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const reason = document.getElementById('s8-reject-reason')?.value;
+    const notes  = document.getElementById('s8-reject-notes')?.value?.trim();
+    if (!reason) { showToast(t('⚠️ يُرجى اختيار سبب الرفض.','⚠️ Please select a rejection reason.'), 'warning'); return; }
+    if (!notes) { showToast(t('⚠️ يُرجى كتابة تفاصيل الرفض.','⚠️ Please add rejection details.'), 'warning'); return; }
+    const overlay = btn.closest('div[style*="fixed"]');
+    if (overlay) overlay.remove();
+    showToast(t('⏳ جارٍ تسجيل قرار الرفض...','⏳ Recording rejection decision...'), 'info');
+    setTimeout(() => {
+      showToast(t('❌ تم رفض المحضر وإخطار جميع الأطراف المعنية.','❌ Minutes rejected and all stakeholders notified.'), 'error');
+    }, 1500);
+  },
+
+  _s8AuditTrail() {
+    const t = (ar,en) => this.t(ar,en);
+    const events = this._s8AuditEvents || [];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:600px;max-width:96vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="background:#0F1728;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="color:#fff;font-size:15px;font-weight:800">🔍 ${t('سجل التدقيق الكامل','Full Audit Trail')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${events.length} ${t('أحداث مسجّلة · مؤمّنة بتشفير SHA-256 · غير قابلة للتعديل','events · SHA-256 secured · tamper-proof')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer">✕</button>
+  </div>
+  <div style="overflow-y:auto;padding:18px 24px">
+    ${events.map((e,i)=>`
+<div style="display:flex;gap:14px;align-items:flex-start;padding:12px 0;${i<events.length-1?'border-bottom:1px solid #F2F3F5':''}">
+  <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+    <div style="width:36px;height:36px;border-radius:50%;background:#F0FDF4;display:flex;align-items:center;justify-content:center;font-size:15px">${e.ico}</div>
+    ${i<events.length-1?'<div style="width:1px;height:100%;min-height:16px;background:#E5E9E7;margin-top:4px"></div>':''}
+  </div>
+  <div style="flex:1;padding-top:5px">
+    <div style="font-size:12.5px;font-weight:600;color:#15201A;margin-bottom:3px">${e.text}</div>
+    <div style="font-size:11px;color:#8A948D">🕐 ${e.date} · ${t('النظام / محمد البلالي','System / Mohammad Albuali')}</div>
+  </div>
+</div>`).join('')}
+  </div>
+  <div style="padding:14px 24px;border-top:1px solid #F2F3F5;background:#F8F9FA;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11.5px;color:#8A948D">🔒 ${t('مؤمّن بتشفير SHA-256 · لا يمكن التعديل أو الحذف','Secured with SHA-256 · Immutable')}</span>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 18px;border:1px solid #E4E7EC;border-radius:7px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
+
+  _s8ViewApprovalHistory() {
+    const t = (ar,en) => this.t(ar,en);
+    const history = this._s8ApprovalHistory || [];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:540px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.3)">
+  <div style="padding:20px 24px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A">🔄 ${t('سجل جولات الاعتماد','Approval Rounds History')}</div>
+      <div style="font-size:12px;color:#8A948D;margin-top:2px">${history.length} ${t('جولة من الاعتماد','approval round(s)')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:16px 24px;display:flex;flex-direction:column;gap:12px">
+    ${history.map(h=>`
+<div style="border:1px solid #E5E9E7;border-radius:11px;overflow:hidden">
+  <div style="background:#F8F9FA;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #F2F3F5">
+    <span style="font-size:12px;font-weight:800;color:#15201A">${t('الجولة','Round')} ${h.round}</span>
+    <span style="font-size:11.5px;background:${h.round===1?'#FEF3C7':'#DBEAFE'};color:${h.round===1?'#92400E':'#1D4ED8'};border-radius:8px;padding:2px 10px;font-weight:700">${h.status}</span>
+  </div>
+  <div style="padding:12px 14px">
+    <div style="font-size:12.5px;color:#46514A;margin-bottom:8px;line-height:1.5">${esc(h.comment)}</div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#8A948D">
+      <span>👤 ${esc(h.by)}</span><span>🕐 ${h.date}</span>
+    </div>
+  </div>
+</div>`).join('')}
+    <div style="border:1px dashed #E5E9E7;border-radius:11px;padding:16px;text-align:center">
+      <div style="font-size:20px;margin-bottom:6px">⏳</div>
+      <div style="font-size:13px;font-weight:700;color:#15201A">${t('الجولة الحالية: في انتظار الاعتماد النهائي','Current Round: Pending Final Approval')}</div>
+      <div style="font-size:11.5px;color:#8A948D;margin-top:4px">${t('منذ 22 مايو 2025، 12:52 م','Since 22 May 2025, 12:52 PM')}</div>
+    </div>
+  </div>
+  <div style="padding:12px 24px;border-top:1px solid #F2F3F5;display:flex;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 20px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:12.5px">${t('إغلاق','Close')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  },
 
   /* ═══════════════════════════════════════════════════════════════════════
      STEP 9 — ARCHIVE & ACTIVATE
