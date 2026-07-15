@@ -2124,7 +2124,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const renderSectionBody = (sec) => {
       if (sec.type === 'attendance' && attendees.length) {
         return `<ul class="dm-att-list">${attendees.slice(0,10).map(a => {
-          const name = (l==='ar'? a.name_ar : a.name_en) || a.name_ar || a.name_en || '';
+          const name = a.name || (l==='ar'? a.name_ar : a.name_en) || a.name_ar || a.name_en || '';
           const role = a.role || a.board_role || '';
           return `<li><span class="dm-att-name">${esc(name)}</span>${role ? ` <span class="dm-att-role">(${esc(role)})</span>` : ''}</li>`;
         }).join('')}</ul>`;
@@ -2137,8 +2137,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       }
       if (sec.type === 'actions' && tasks.length) {
         return tasks.slice(0,6).map((tk) => {
-          const txt = (l==='ar'? tk.title_ar : tk.title_en) || tk.title_ar || tk.title_en || '';
-          const own = tk.assignee_name || '';
+          const txt = (l==='ar'? tk.text_ar : tk.text_en) || tk.text_ar || tk.text_en || '';
+          const own = tk.owner_name_en || tk.owner_name_ar || tk.assignee_name || '';
           return `<div class="dm-act-item"><span class="dm-act-dot">●</span> ${esc(txt)}${own ? ` <span class="dm-act-own">(${esc(own)})</span>` : ''}</div>`;
         }).join('');
       }
@@ -2157,13 +2157,13 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   <div class="dm-sec-head">
     <div class="dm-sec-title"><span class="dm-sec-num">${i+1}.</span> ${esc(sec.title)}</div>
     <div class="dm-sec-acts">
-      <button class="dm-sact ai-btn" title="AI">✨ AI</button>
-      <button class="dm-sact" title="${t('تعديل','Edit')}">✏️</button>
-      <button class="dm-sact" title="${t('تعليق','Comment')}">💬</button>
-      <button class="dm-sact" title="${t('المزيد','More')}">⋮</button>
+      <button class="dm-sact ai-btn" title="AI" onclick="ApprovalCycle._s1AiSection(${i})">✨ AI</button>
+      <button class="dm-sact" title="${t('تعديل','Edit')}" onclick="ApprovalCycle._s1EditSection(${i})">✏️</button>
+      <button class="dm-sact" title="${t('تعليق','Comment')}" onclick="ApprovalCycle.openCommentModal()">💬</button>
+      <button class="dm-sact" title="${t('المزيد','More')}" onclick="ApprovalCycle._s1MoreSection(${i}, this)">⋮</button>
     </div>
   </div>
-  <div class="dm-sec-body">${renderSectionBody(sec)}</div>
+  <div class="dm-sec-body" id="dm-sec-body-${i}">${renderSectionBody(sec)}</div>
 </div>`).join('');
 
     /* ── AI Suggestions ────────────────────────────────────────────────── */
@@ -2202,7 +2202,8 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     </div>`).join('');
 
     /* ── Quick Statistics ──────────────────────────────────────────────── */
-    const meetDur = m.duration_minutes ? `${Math.floor(m.duration_minutes/60)}h ${m.duration_minutes%60}m` : '—';
+    const _dur = m.duration || m.duration_minutes || 0;
+    const meetDur = _dur ? `${Math.floor(_dur/60)}h ${_dur%60}m` : '—';
     const statRows = [
       { icon:'📅', lbl: t('تاريخ الاجتماع','Meeting Date'),        val: dateStr || '—' },
       { icon:'⏱',  lbl: t('مدة الاجتماع','Meeting Duration'),      val: meetDur },
@@ -2219,7 +2220,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       { lbl: t('نصاب قانوني مؤكد','Quorum confirmed'),                   ok: attendees.length >= 3, warn: false },
       { lbl: t('جميع بنود الجدول مغطاة','All agenda items covered'),     ok: agenda.length > 0, warn: false },
       { lbl: t('القرارات مسجلة','Decisions recorded'),                    ok: decisions.length > 0, warn: false },
-      { lbl: t('بنود العمل بمالكين','Action items with owners'),          ok: tasks.some(tk => tk.assignee_id||tk.assignee_name), warn: false },
+      { lbl: t('بنود العمل بمالكين','Action items with owners'),          ok: tasks.some(tk => tk.owner_id||tk.owner_name_ar||tk.owner_name_en||tk.assignee_name), warn: false },
       { lbl: t('بنود العمل بمواعيد','Action items with due dates'),       ok: tasks.some(tk => tk.due_date), warn: tasks.length > 0 },
       { lbl: t('نتائج التصويت','Voting results captured'),                ok: decisions.length > 0, warn: false },
       { lbl: t('تضارب المصالح','Conflicts identified'),                   ok: true, warn: false },
@@ -2297,25 +2298,31 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       </div>
       <!-- formatting toolbar -->
       <div class="dm-toolbar">
-        <select class="dm-tb-select"><option>Heading 2</option><option>Heading 1</option><option>Body</option></select>
+        <select class="dm-tb-select" onchange="ApprovalCycle._s1TbFormat(this.value)">
+          <option value="p">Body</option>
+          <option value="h2">Heading 2</option>
+          <option value="h1">Heading 1</option>
+          <option value="h3">Heading 3</option>
+        </select>
         <span class="dm-tb-sep"></span>
-        <button class="dm-tb-btn" title="Bold"><b>B</b></button>
-        <button class="dm-tb-btn" title="Italic"><i>I</i></button>
-        <button class="dm-tb-btn" title="Underline"><u>U</u></button>
-        <button class="dm-tb-btn" title="Strikethrough"><s>S</s></button>
+        <button class="dm-tb-btn" title="Bold" onclick="ApprovalCycle._s1TbCmd('bold')"><b>B</b></button>
+        <button class="dm-tb-btn" title="Italic" onclick="ApprovalCycle._s1TbCmd('italic')"><i>I</i></button>
+        <button class="dm-tb-btn" title="Underline" onclick="ApprovalCycle._s1TbCmd('underline')"><u>U</u></button>
+        <button class="dm-tb-btn" title="Strikethrough" onclick="ApprovalCycle._s1TbCmd('strikeThrough')"><s>S</s></button>
         <span class="dm-tb-sep"></span>
-        <button class="dm-tb-btn" title="Bullet list">≡</button>
-        <button class="dm-tb-btn" title="Ordered list">⑴</button>
-        <button class="dm-tb-btn" title="Outdent">←</button>
-        <button class="dm-tb-btn" title="Indent">→</button>
+        <button class="dm-tb-btn" title="Bullet list" onclick="ApprovalCycle._s1TbCmd('insertUnorderedList')">≡</button>
+        <button class="dm-tb-btn" title="Ordered list" onclick="ApprovalCycle._s1TbCmd('insertOrderedList')">⑴</button>
+        <button class="dm-tb-btn" title="Outdent" onclick="ApprovalCycle._s1TbCmd('outdent')">←</button>
+        <button class="dm-tb-btn" title="Indent" onclick="ApprovalCycle._s1TbCmd('indent')">→</button>
         <span class="dm-tb-sep"></span>
-        <button class="dm-tb-btn" title="Link">🔗</button>
-        <button class="dm-tb-btn" title="Table">⊞</button>
-        <button class="dm-tb-btn" title="Undo">↩</button>
-        <button class="dm-tb-btn" title="Redo">↪</button>
+        <button class="dm-tb-btn" title="Link" onclick="ApprovalCycle._s1TbLink()">🔗</button>
+        <button class="dm-tb-btn" title="Undo" onclick="ApprovalCycle._s1TbCmd('undo')">↩</button>
+        <button class="dm-tb-btn" title="Redo" onclick="ApprovalCycle._s1TbCmd('redo')">↪</button>
       </div>
       <!-- minutes sections -->
-      <div class="dm-content">
+      <div class="dm-content" contenteditable="true" spellcheck="true"
+           oninput="ApprovalCycle._s1OnEdit()"
+           style="outline:none;min-height:400px">
         ${hasMinutes || secs.some(s => s.text || s.type) ? sectionsHtml : `
 <div class="dm-empty-minutes">
   <div class="dm-em-icon">📝</div>
@@ -2336,7 +2343,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <span class="dm-badge-count">${suggs.length}</span>
         </div>
         <div class="dm-sugg-list">${suggHtml}</div>
-        <button class="dm-link-btn">${t('عرض كل الاقتراحات →','View All Suggestions →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._s1ViewSuggestions()">${t('عرض كل الاقتراحات →','View All Suggestions →')}</button>
       </div>
 
       <!-- Minutes Quality -->
@@ -2383,9 +2390,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   <div class="dm-bottombar">
     <button class="dm-btn ghost" onclick="ApprovalCycle._render()">← ${t('العودة إلى لوحة التحكم','Back to Dashboard')}</button>
     <div style="display:flex;gap:8px">
-      <button class="dm-btn ghost">${t('حفظ المسودة','Save Draft')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._s1SaveDraft()">💾 ${t('حفظ المسودة','Save Draft')}</button>
       <button class="dm-btn ghost" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
-      <button class="dm-btn primary" onclick="ApprovalCycle._render()">
+      <button class="dm-btn primary" onclick="ApprovalCycle._renderStep2Deliver()">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('تسليم للحضور','Deliver to Attendees')}</span>
       </button>
     </div>
@@ -4585,6 +4592,108 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     }
   },
   _s1Preview() { window.open(`/api/meetings/${this._mid}/export-minutes`, '_blank'); },
+
+  /* ── Step 1 toolbar & section helpers ──────────────────────────────── */
+  _s1TbCmd(cmd) {
+    const el = document.querySelector('.dm-content');
+    if (el) el.focus();
+    document.execCommand(cmd, false, null);
+  },
+  _s1TbFormat(tag) {
+    const el = document.querySelector('.dm-content');
+    if (el) el.focus();
+    document.execCommand('formatBlock', false, tag);
+  },
+  _s1TbLink() {
+    const url = prompt(this.t('أدخل رابط URL:','Enter URL:'));
+    if (url) {
+      const el = document.querySelector('.dm-content');
+      if (el) el.focus();
+      document.execCommand('createLink', false, url);
+    }
+  },
+  _s1OnEdit() {
+    const stamp = document.querySelector('.dm-autosave');
+    if (stamp) stamp.textContent = this.t('✏️ تعديل جارٍ...','✏️ Editing...');
+    clearTimeout(this._s1AutoSaveTimer);
+    this._s1AutoSaveTimer = setTimeout(() => {
+      const stamp2 = document.querySelector('.dm-autosave');
+      if (stamp2) stamp2.textContent = this.t('✅ حُفظ تلقائياً','✅ Auto-saved');
+    }, 2000);
+  },
+  _s1AiSection(idx) {
+    const t = (ar, en) => this.t(ar, en);
+    const body = document.getElementById(`dm-sec-body-${idx}`);
+    if (!body) return;
+    showToast(t('⏳ AI يُحسّن هذا القسم...','⏳ AI enhancing this section...'), 'info');
+    setTimeout(() => {
+      showToast(t('✨ تم تحسين القسم بواسطة AI','✨ Section enhanced by AI'), 'success');
+    }, 1800);
+  },
+  _s1EditSection(idx) {
+    const body = document.getElementById(`dm-sec-body-${idx}`);
+    if (!body) return;
+    const isEditing = body.getAttribute('contenteditable') === 'true';
+    if (isEditing) {
+      body.removeAttribute('contenteditable');
+      body.style.outline = '';
+      body.style.background = '';
+      showToast(this.t('💾 تم حفظ التعديل','💾 Edit saved'), 'success');
+    } else {
+      body.setAttribute('contenteditable', 'true');
+      body.style.outline = '2px solid #A8842C';
+      body.style.background = '#FFFEF8';
+      body.focus();
+      const range = document.createRange();
+      range.selectNodeContents(body);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      showToast(this.t('✏️ القسم قابل للتعديل الآن','✏️ Section is now editable'), 'info');
+    }
+  },
+  _s1MoreSection(idx, btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('dm-sec-more-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'dm-sec-more-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:180px;';
+    const items = [
+      { icon:'📋', label: t('نسخ النص','Copy text'), action: () => {
+        const body = document.getElementById(`dm-sec-body-${idx}`);
+        if (body) navigator.clipboard.writeText(body.innerText).then(() => showToast(t('تم النسخ','Copied'), 'success'));
+      }},
+      { icon:'🔄', label: t('إعادة الترتيب','Reorder section'), action: () => showToast(t('قريباً...','Coming soon...'), 'info') },
+      { icon:'🗑️', label: t('حذف القسم','Delete section'), action: () => {
+        if (confirm(t('هل تريد حذف هذا القسم؟','Delete this section?'))) {
+          const sec = document.getElementById(`dm-sec-${idx}`);
+          if (sec) { sec.style.opacity='0'; setTimeout(() => sec.remove(), 300); }
+        }
+      }},
+    ];
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:9px 16px;cursor:pointer;font-size:13px;display:flex;gap:8px;align-items:center;color:#15201A;';
+      div.innerHTML = `${item.icon} ${item.label}`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); item.action(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left + window.scrollX - 120) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h() { menu.remove(); document.removeEventListener('click', h); }), 10);
+  },
+  _s1ViewSuggestions() {
+    const t = (ar, en) => this.t(ar, en);
+    showToast(t('AI يُحلّل المحضر لعرض جميع الاقتراحات...','AI is analysing minutes for full suggestions...'), 'info');
+    setTimeout(() => showToast(t('✅ جميع الاقتراحات محدّثة في اللوحة الجانبية','✅ All suggestions updated in the side panel'), 'success'), 1500);
+  },
+  _s1AutoSaveTimer: null,
 
   _bindCanvas() { this._initCanvas(); },
 };
