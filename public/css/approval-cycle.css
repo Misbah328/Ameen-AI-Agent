@@ -2180,6 +2180,13 @@
 .fm-callout-ico  { font-size:16px; flex-shrink:0; margin-top:1px; }
 .fm-callout-txt  { font-size:12px; color:#15201A; line-height:1.5; margin:0; }
 
+/* ── Compare mode overlay ─────────────────────────────────────────────────── */
+.fm-compare-mode .fm-del { background:rgba(196,69,60,.12); color:#C4453C; text-decoration:line-through; border-radius:2px; padding:0 2px; }
+.fm-compare-mode .fm-ins { background:rgba(12,122,61,.1); color:#0C7A3D; border-radius:2px; padding:0 2px; }
+.fm-compare-mode .fm-doc-section { border-right:3px solid #F2F3F5; }
+.fm-compare-mode .fm-ann-accepted ~ .fm-doc-sec-body .fm-ins,
+.fm-compare-mode .fm-ann-change ~ .fm-doc-sec-body .fm-ins { border-right-color:#0C7A3D; }
+
 /* ── Bottom bar extras ────────────────────────────────────────────────────── */
 .fm-bottombar { gap:8px; flex-wrap:wrap; }
 .fm-bb-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }

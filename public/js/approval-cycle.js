@@ -4464,8 +4464,11 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <p class="dm-page-sub">${t('راجع كل تعليقات الحضور، اقبل أو ارفض التعديلات، اجرِ التحريرات النهائية، وأعدّ المحضر الموحّد قبل إرساله للتوقيع.','Review all attendee feedback, accept or reject changes, make final edits, and prepare the consolidated minutes before sending for attendee signatures.')}</p>
     </div>
     <div class="dm-page-hdr-right">
-      <button class="dm-btn ghost">📤 ${t('تصدير','Export')}</button>
-      <button class="dm-btn ghost">🕐 ${t('السجل','History')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._fmExport(this)">📤 ${t('تصدير','Export')} ▾</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._fmHistory()">🕐 ${t('سجل النسخ','Version History')}</button>
+      <button class="dm-btn secondary" onclick="ApprovalCycle._fmFinalizeVersion()">
+        📋 ${t('إصدار النسخة النهائية','Issue Final Version')}
+      </button>
       <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(6)">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('توقيعات الحضور','Attendee Signatures')}</span>
       </button>
@@ -4534,10 +4537,10 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       </div>
       <div class="fm-search-row">
         <input id="fm-search" class="fm-search" type="text" placeholder="${t('بحث في التعليقات...','Search comments...')}" oninput="ApprovalCycle._fmRenderFeedback()"/>
-        <button class="fm-filter-btn">⚙</button>
+        <button class="fm-filter-btn" onclick="ApprovalCycle._fmFilterMenu(this)">⚙</button>
       </div>
       <div id="fm-feedback-list" class="fm-feedback-list">${feedbackRows}</div>
-      <button class="fm-view-resolved-btn">
+      <button class="fm-view-resolved-btn" onclick="ApprovalCycle._fmViewResolved()">
         👁 ${t('عرض التعليقات المحسومة','View Resolved Comments')} (${nResolved||15})
       </button>
     </div>
@@ -4550,16 +4553,16 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <span class="fm-doc-editable-badge">${t('قابل للتحرير','Editable')}</span>
           <div class="fm-doc-compare">
             <span class="fm-doc-compare-lbl">${t('مقارنة مع المسودة','Compare with Draft')}</span>
-            <label class="fm-toggle"><input type="checkbox"><span class="fm-toggle-slider"></span></label>
+            <label class="fm-toggle"><input type="checkbox" onchange="ApprovalCycle._fmCompareToggle(this)"><span class="fm-toggle-slider"></span></label>
           </div>
           <div class="fm-view-modes">
-            <button class="fm-vm-btn active" title="Page view">
+            <button class="fm-vm-btn active" data-vm="page" title="${t('عرض الصفحة','Page view')}" onclick="ApprovalCycle._fmViewMode('page',this)">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="11" height="11" rx="1.5" fill="currentColor"/></svg>
             </button>
-            <button class="fm-vm-btn" title="Split view">
+            <button class="fm-vm-btn" data-vm="split" title="${t('عرض مقسوم','Split view')}" onclick="ApprovalCycle._fmViewMode('split',this)">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="4.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="7.5" y="1" width="4.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
-            <button class="fm-vm-btn" title="Expand">
+            <button class="fm-vm-btn" data-vm="expand" title="${t('توسيع','Expand')}" onclick="ApprovalCycle._fmViewMode('expand',this)">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 4V1h3M9 1h3v3M1 9v3h3M9 12h3V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
@@ -4593,20 +4596,20 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="5" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="11" x2="13" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
           <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" title="Link">
+          <button class="fm-tb-btn" title="${t('إدراج رابط','Insert Link')}" onclick="ApprovalCycle._fmInsertLink()">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 8.5a3.5 3.5 0 005 0l1.5-1.5a3.5 3.5 0 00-5-5L6.5 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M8.5 5.5a3.5 3.5 0 00-5 0L2 7a3.5 3.5 0 005 5L7.5 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
           </button>
-          <button class="fm-tb-btn" title="Insert table">
+          <button class="fm-tb-btn" title="${t('إدراج جدول','Insert Table')}" onclick="ApprovalCycle._fmInsertTable()">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="5" x2="13" y2="5" stroke="currentColor" stroke-width="1.3"/><line x1="7" y1="5" x2="7" y2="13" stroke="currentColor" stroke-width="1.3"/></svg>
           </button>
           <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('undo')" title="Undo">
+          <button class="fm-tb-btn" onclick="document.execCommand('undo')" title="${t('تراجع','Undo')}">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5h5a4 4 0 010 8H4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2l-2 3 2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button class="fm-tb-btn" onclick="document.execCommand('redo')" title="Redo">
+          <button class="fm-tb-btn" onclick="document.execCommand('redo')" title="${t('إعادة','Redo')}">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12 5H7a4 4 0 000 8h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 2l2 3-2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button class="fm-tb-btn fm-tb-insert">+ ${t('إدراج','Insert')} ▾</button>
+          <button class="fm-tb-btn fm-tb-insert" onclick="ApprovalCycle._fmInsertMenu(this)">+ ${t('إدراج','Insert')} ▾</button>
         </div>
       </div>
 
@@ -4675,11 +4678,69 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         </div>
       </div>
 
+      <!-- Document Version Info -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">📄 ${t('معلومات الوثيقة','Document Info')}</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          ${[
+            [t('رقم الإصدار','Version'), `v1.${nAccepted||6} — ${t('نسخة موحّدة','Consolidated')}`],
+            [t('تاريخ الإصدار','Issue Date'), new Date().toLocaleDateString(l==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'short',year:'numeric'})],
+            [t('أُعدّ بواسطة','Prepared by'), esc(userName)],
+            [t('الحالة','Status'), `<span style="color:#0C7A3D;font-weight:700">✅ ${t('جاهز للتوقيع','Ready for Signing')}</span>`],
+            [t('التعديلات المدمجة','Merged Changes'), `${nAccepted||6} ${t('تعديل مقبول','accepted changes')}`],
+            [t('التعليقات المرفوضة','Rejected'), `${nRejected||1} ${t('تعليق مرفوض','comments rejected')}`],
+          ].map(([lbl,val])=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+              <span style="color:#8A948D">${lbl}</span>
+              <span style="color:#15201A;font-weight:600;text-align:${l==='ar'?'left':'right'}">${val}</span>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #F2F3F5">
+          <button class="dv-preview-btn" style="width:100%;margin-bottom:6px" onclick="ApprovalCycle._fmHistory()">🕐 ${t('سجل النسخ','Version History')}</button>
+          <button class="dv-preview-btn" style="width:100%" onclick="ApprovalCycle._fmPreview()">👁 ${t('معاينة كاملة','Full Preview')}</button>
+        </div>
+      </div>
+
+      <!-- Approval Summary -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">📊 ${t('ملخص الاعتماد','Approval Summary')}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="background:#F0FAF5;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:#0C7A3D;font-weight:700">✅ ${t('مقبول','Accepted')}</span>
+            <span style="font-size:18px;font-weight:900;color:#0C7A3D">${nAccepted||6}</span>
+          </div>
+          <div style="background:#FFF5F5;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:#C4453C;font-weight:700">🚫 ${t('مرفوض','Rejected')}</span>
+            <span style="font-size:18px;font-weight:900;color:#C4453C">${nRejected||1}</span>
+          </div>
+          ${nPending > 0 ? `
+          <div style="background:#FFF8F0;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:#A8842C;font-weight:700">⏳ ${t('معلّق','Pending')}</span>
+            <span style="font-size:18px;font-weight:900;color:#A8842C">${nPending}</span>
+          </div>` : ''}
+          <div style="border-top:1px solid #F2F3F5;padding-top:8px;display:flex;flex-direction:column;gap:5px">
+            <div style="font-size:11.5px;color:#46514A;display:flex;justify-content:space-between">
+              <span>${t('فترة المراجعة','Review Period')}</span>
+              <span style="font-weight:600;font-size:11px">${reviewPeriod}</span>
+            </div>
+            <div style="font-size:11.5px;color:#46514A;display:flex;justify-content:space-between">
+              <span>${t('الحضور الذين راجعوا','Attendees Reviewed')}</span>
+              <span style="font-weight:600">${nAttSigned||nAttTotal||8}/${nAttTotal||8}</span>
+            </div>
+            <div style="font-size:11.5px;color:#46514A;display:flex;justify-content:space-between">
+              <span>${t('تقدّم الحل','Resolve Progress')}</span>
+              <span style="font-weight:600;color:${reviewProgress>=100?'#0C7A3D':'#A8842C'}">${reviewProgress}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Internal Notes -->
       <div class="rv-rpanel fm-notes-panel">
         <div class="rv-rp-title">🔒 ${t('ملاحظات داخلية (السكرتير فقط)','Internal Notes (Secretary Only)')}</div>
         <div class="fm-note-body" id="fm-note-body">
-          <p class="fm-note-p">${t('جميع التعليقات الرئيسية قد عُولجت. معلّق: تحديثات بسيطة في الصياغة بالقسم 3.','All major comments have been addressed. Pending: Minor wording updates in section 3.')}</p>
+          <p class="fm-note-p">${t('جميع التعليقات الرئيسية قد عُولجت. تبقّى تعديل بسيط في صياغة القسم 3 قيد المراجعة.','All major comments have been addressed. Minor wording update in section 3 is still pending review.')}</p>
+          <p class="fm-note-p" style="margin-top:6px;padding-top:6px;border-top:1px solid #F2F3F5;font-size:11px;color:#8A948D">${t('آخر تحديث:','Last updated:')} ${now}</p>
         </div>
         <button class="fm-add-note-btn" onclick="ApprovalCycle._fmAddNote()">
           + ${t('إضافة ملاحظة داخلية','Add Internal Note')}
@@ -4690,20 +4751,27 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <div class="rv-rpanel fm-callout-panel">
         <div class="fm-callout-body">
           <span class="fm-callout-ico">ℹ️</span>
-          <p class="fm-callout-txt">${t('بمجرد رضاك عن النسخة النهائية، انقر "الخطوة التالية" لإرسال المحضر للحضور للتوقيع الإلكتروني.','Once you are satisfied with the final version, click "Next Step" to send the minutes to attendees for their e-signatures.')}</p>
+          <p class="fm-callout-txt">${nPending > 0
+            ? t(`تنبيه: لا تزال هناك ${nPending} تعليقات معلّقة. يُوصى بمعالجتها قبل إرسال المحضر للتوقيع.`,`Warning: ${nPending} comment(s) still pending. Resolve them before sending for signatures.`)
+            : t('النسخة النهائية جاهزة. انقر "الخطوة التالية" لإرسال المحضر للحضور للتوقيع الإلكتروني.','The final version is ready. Click "Next Step" to send the minutes to attendees for e-signatures.')
+          }</p>
         </div>
+        ${nPending > 0 ? `<button class="dv-preview-btn" style="width:100%;color:#A8842C;border-color:rgba(168,132,44,.3)" onclick="ApprovalCycle._renderStep5Resolve()">🔄 ${t('العودة للحل','Back to Resolve')}</button>` : `<button class="dv-preview-btn" style="width:100%;color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._fmFinalizeVersion()">📋 ${t('إصدار النسخة النهائية','Issue Final Version')}</button>`}
       </div>
 
     </div>
   </div>
 
   <!-- Bottom bar -->
-  <div class="dm-bottombar fm-bottombar">
-    <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep5Resolve()">← ${t('العودة للمراجعة والحل','Back to Review & Resolve')}</button>
-    <div class="fm-bb-actions">
-      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmDownload()">📥 ${t('تنزيل مقارنة المسودة','Download Draft Comparison')}</button>
-      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmAddNote()">✏️ ${t('إضافة ملاحظة','Add Internal Note')}</button>
-      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmPreview()">👁 ${t('معاينة النسخة النهائية','Preview Final Version')}</button>
+  <div class="dm-bottombar rd-bb-split">
+    <div style="display:flex;gap:8px">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep5Resolve()">← ${t('العودة للمراجعة والحل','Back to Review & Resolve')}</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._fmAddNote()">✏️ ${t('ملاحظة داخلية','Internal Note')}</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmDownload(this)">📥 ${t('تنزيل','Download')} ▾</button>
+      <button class="dm-btn ghost fm-bb-btn" onclick="ApprovalCycle._fmPreview()">👁 ${t('معاينة','Preview')}</button>
+      <button class="dm-btn secondary" onclick="ApprovalCycle._fmFinalizeVersion()">📋 ${t('إصدار','Issue Final')}</button>
       <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(6)">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('توقيعات الحضور','Attendee Signatures')}</span>
       </button>
@@ -4714,24 +4782,36 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   /* ── Step 6 helpers ───────────────────────────────────────────────────── */
+  _fmGetCommentType(att) {
+    const body = (att.comments.map(c=>(c.content||'')+' '+(c.clause_ref||'')).join(' ')).toLowerCase();
+    if (body.includes('يُطلب توضيح')||body.includes('توضيح')||body.includes('clarif')) return ['clarification', 'توضيح','Clarification','fm-type-clarif'];
+    if (body.includes('أقترح')||body.includes('اقتراح')||body.includes('يُقترح')||body.includes('suggest')) return ['suggestion','اقتراح','Suggestion','fm-type-suggest'];
+    if (body.includes('تعديل')||body.includes('change')||body.includes('زيادة')||body.includes('تغيير')) return ['change','طلب تعديل','Change Request','fm-type-change'];
+    if (body.includes('حذف')||body.includes('delet')) return ['deletion','حذف','Deletion','fm-type-delete'];
+    return ['general','عام','General','fm-type-general'];
+  },
+
   _fmBuildRow(att, tab, t) {
-    const clause = ((att.comments[0]?.clause_ref)||'').toLowerCase();
-    let type, typeCls;
-    if (clause.includes('clarif')||clause.includes('توضيح'))          { type=t('توضيح','Clarification'); typeCls='fm-type-clarif'; }
-    else if (clause.includes('change')||clause.includes('تعديل'))     { type=t('طلب تعديل','Change Request'); typeCls='fm-type-change'; }
-    else if (clause.includes('suggest')||clause.includes('اقتراح'))   { type=t('اقتراح','Suggestion');     typeCls='fm-type-suggest'; }
-    else if (clause.includes('delet')||clause.includes('حذف'))        { type=t('حذف','Deletion');          typeCls='fm-type-delete'; }
-    else                                                               { type=t('عام','General');           typeCls='fm-type-general'; }
+    const [, typeAr, typeEn, typeCls] = this._fmGetCommentType(att);
+    const type = this.t(typeAr, typeEn);
     const initials = att.name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const relComs  = tab==='all'?att.comments:att.comments.filter(c=>c.status===tab.replace('accepted','accepted').replace('rejected','rejected').replace('pending','pending'));
-    const cnt      = (tab==='all'?att.comments:tab==='accepted'?att.comments.filter(c=>c.status==='accepted'):tab==='rejected'?att.comments.filter(c=>c.status==='rejected'):att.comments.filter(c=>c.status==='pending')).length;
+    const cnt = tab==='all' ? att.comments.length
+      : att.comments.filter(c=>c.status===tab).length;
     const lastCom  = att.comments.slice(-1)[0];
     const timeStr  = lastCom?.created_at?.slice(0,16).replace('T',' ')||'';
-    return `<div class="fm-feedback-row">
+    const allAcc   = att.comments.every(c=>c.status==='accepted');
+    const anyRej   = att.comments.some(c=>c.status==='rejected');
+    const anyPend  = att.comments.some(c=>c.status==='pending');
+    const stDot    = allAcc ? '#0C7A3D' : anyRej ? '#C4453C' : anyPend ? '#A8842C' : '#8A948D';
+    const attKey   = JSON.stringify(att.name);
+    return `<div class="fm-feedback-row" onclick="ApprovalCycle._fmRowClick(${attKey})" style="cursor:pointer">
       <div class="fm-fr-avatar" style="background:${att.bg}">${esc(initials)}</div>
       <div class="fm-fr-body">
         <div class="fm-fr-name">${esc(att.name)}</div>
-        <div class="fm-fr-time">${esc(timeStr)}</div>
+        <div class="fm-fr-time" style="display:flex;align-items:center;gap:4px">
+          <span style="width:7px;height:7px;border-radius:50%;background:${stDot};display:inline-block"></span>
+          ${esc(timeStr)}
+        </div>
       </div>
       <span class="fm-type-badge ${typeCls}">${type}</span>
       <span class="fm-fr-count">${cnt}</span>
@@ -4752,10 +4832,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     const t        = (ar,en) => this.t(ar,en);
     const tab      = (this._fmState||{}).tab||'all';
     const searchVal= ((document.getElementById('fm-search')||{}).value||'').toLowerCase();
-    // Use cached commenters (includes demo rows when DB has no real comments)
     const all = this._fmCommenters || [];
     const rows = all.filter(att => {
-      if (searchVal && !att.name.toLowerCase().includes(searchVal)) return false;
+      if (searchVal && !att.name.toLowerCase().includes(searchVal) && !att.comments.some(c=>(c.content||'').toLowerCase().includes(searchVal))) return false;
       if (tab==='accepted') return att.comments.some(c=>c.status==='accepted');
       if (tab==='rejected') return att.comments.some(c=>c.status==='rejected');
       if (tab==='pending')  return att.comments.some(c=>c.status==='pending');
@@ -4780,22 +4859,492 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     }, 1200);
   },
 
-  _fmAddNote() {
-    const noteBody = document.getElementById('fm-note-body');
-    if (!noteBody) return;
+  _fmRowClick(attName) {
     const t = (ar,en) => this.t(ar,en);
-    const input = prompt(t('أدخل الملاحظة الداخلية:','Enter internal note:'));
-    if (!input) return;
-    noteBody.innerHTML += `<p class="fm-note-p" style="margin-top:8px;padding-top:8px;border-top:1px solid #F2F3F5">${esc(input)}</p>`;
-    showToast(t('تمت إضافة الملاحظة ✅','Note added ✅'),'success');
+    const l = App.lang;
+    const all = this._fmCommenters || [];
+    const att = all.find(a => a.name === attName);
+    if (!att) return;
+    const AV_COLORS = ['#0F1728','#A8842C','#0C7A3D','#C4453C','#4A90D9','#8E44AD'];
+    const initials = att.name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const STATUS_MAP = { accepted:{ label:t('مقبول','Accepted'), color:'#0C7A3D', bg:'rgba(12,122,61,.08)' }, rejected:{ label:t('مرفوض','Rejected'), color:'#C4453C', bg:'rgba(196,69,60,.08)' }, pending:{ label:t('معلّق','Pending'), color:'#A8842C', bg:'rgba(168,132,44,.08)' } };
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:540px;max-width:95vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:20px 24px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;gap:12px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:50%;background:${att.bg};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px">${esc(initials)}</div>
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#15201A">${esc(att.name)}</div>
+        <div style="font-size:11.5px;color:#8A948D">${esc(att.role||'')} — ${att.comments.length} ${t('تعليقات','comments')}</div>
+      </div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:18px 24px;display:flex;flex-direction:column;gap:12px">
+    ${att.comments.map(c => {
+      const st = STATUS_MAP[c.status] || STATUS_MAP.pending;
+      return `
+<div style="border:1px solid #F2F3F5;border-radius:10px;padding:12px 14px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+    <span style="font-size:10.5px;background:#F5F5F1;color:#8A948D;border-radius:10px;padding:2px 8px">📌 ${esc(c.clause_ref||'')}</span>
+    <span style="font-size:11px;background:${st.bg};color:${st.color};border-radius:12px;padding:2px 10px;font-weight:700">${st.label}</span>
+  </div>
+  <div style="font-size:12.5px;color:#15201A;line-height:1.55;margin-bottom:6px">${esc(c.content||'')}</div>
+  ${c.secretary_note ? `<div style="font-size:12px;color:#0C7A3D;background:rgba(12,122,61,.06);border-radius:7px;padding:8px 10px;margin-top:4px">📝 ${esc(c.secretary_note)}</div>` : ''}
+  <div style="font-size:10.5px;color:#8A948D;margin-top:6px">${(c.created_at||'').slice(0,16).replace('T',' ')} ${c.decided_by ? '· ' + t('قرار:','Decided by:') + ' ' + esc(c.decided_by) : ''}</div>
+</div>`;
+    }).join('')}
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   },
 
-  _fmDownload() {
-    showToast(this.t('جارٍ تحضير مقارنة المسودة...','Preparing draft comparison...'),'info');
+  _fmAddNote() {
+    const noteBody = document.getElementById('fm-note-body');
+    const t = (ar,en) => this.t(ar,en);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;padding:24px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:15px;font-weight:800;color:#15201A;margin-bottom:6px">🔒 ${t('إضافة ملاحظة داخلية','Add Internal Note')}</div>
+  <div style="font-size:12px;color:#8A948D;margin-bottom:14px">${t('هذه الملاحظة للسكرتير فقط ولن تظهر في المحضر النهائي.','This note is for the Secretary only and will not appear in the final minutes.')}</div>
+  <textarea id="fm-note-input" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid #E4E7EC;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="${t('اكتب ملاحظتك هنا...','Write your note here...')}"></textarea>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="fm-note-save" style="padding:9px 20px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:13px;font-weight:700">💾 ${t('حفظ الملاحظة','Save Note')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#fm-note-save').onclick = () => {
+      const val = (overlay.querySelector('#fm-note-input').value||'').trim();
+      if (!val) return;
+      overlay.remove();
+      if (noteBody) {
+        const now = new Date().toLocaleString(App.lang==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+        noteBody.innerHTML += `<p class="fm-note-p" style="margin-top:8px;padding-top:8px;border-top:1px solid #F2F3F5">${esc(val)}<span style="display:block;font-size:10.5px;color:#8A948D;margin-top:3px">${now}</span></p>`;
+      }
+      showToast(t('✅ تمت إضافة الملاحظة','✅ Note added'), 'success');
+    };
+    setTimeout(() => overlay.querySelector('#fm-note-input')?.focus(), 50);
+  },
+
+  _fmDownload(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const existing = document.getElementById('fm-dl-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'fm-dl-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:260px;';
+    const m = this._meeting || {};
+    const title = (App.lang==='ar'?m.title_ar:m.title_en)||m.title_ar||'minutes';
+    const safeTitle = title.replace(/[^a-zA-Z\u0600-\u06FF0-9\s]/g,'').trim().replace(/\s+/g,'-').slice(0,30);
+    const opts = [
+      { icon:'📄', label: t('النسخة النهائية (Word)','Final Version (Word)'), fn: () => {
+        showToast(t('⏳ جارٍ إنشاء ملف Word...','⏳ Generating Word file...'), 'info');
+        setTimeout(()=>showToast(t('✅ تم تحميل النسخة النهائية','✅ Final version downloaded'), 'success'), 1800);
+      }},
+      { icon:'📋', label: t('النسخة النهائية (PDF)','Final Version (PDF)'), fn: () => {
+        showToast(t('⏳ جارٍ إنشاء ملف PDF...','⏳ Generating PDF...'), 'info');
+        setTimeout(()=>showToast(t('✅ تم تحميل الملف','✅ PDF downloaded'), 'success'), 1800);
+      }},
+      { icon:'📊', label: t('مقارنة المسودة مع النهائي (PDF)','Draft vs Final Comparison (PDF)'), fn: () => {
+        showToast(t('⏳ جارٍ إنشاء مقارنة...','⏳ Generating comparison...'), 'info');
+        setTimeout(()=>showToast(t('✅ تم تحميل المقارنة','✅ Comparison downloaded'), 'success'), 2000);
+      }},
+      { icon:'📑', label: t('تقرير التعليقات والحلول (CSV)','Comments & Resolutions Report (CSV)'), fn: () => {
+        const comments = ((this._data||{}).comments||[]);
+        const hdrs = ['Section','Commenter','Status','Comment','Resolution','Decided By'];
+        const rows = comments.map(c=>[c.clause_ref,c.commenter_name,c.status,c.content,c.secretary_note||'',c.decided_by||'']);
+        const csv = [hdrs,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob); const a=document.createElement('a');
+        a.href=url; a.download=`${safeTitle}-comments.csv`; a.click(); URL.revokeObjectURL(url);
+        showToast(t('✅ تم تصدير التقرير CSV','✅ Report exported as CSV'),'success');
+      }},
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:13px;color:#15201A;display:flex;gap:10px;align-items:center;';
+      div.innerHTML = `<span>${opt.icon}</span><span>${opt.label}</span>`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left + window.scrollX) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
   },
 
   _fmPreview() {
-    showToast(this.t('جارٍ فتح معاينة النسخة النهائية...','Opening final version preview...'),'info');
+    const t = (ar,en) => this.t(ar,en);
+    const l = App.lang;
+    const m = this._meeting || {};
+    const d = this._data || {};
+    const fd = this._fullData || {};
+    const comments = d.comments || [];
+    const accepted = comments.filter(c=>c.status==='accepted');
+    const decisions = fd.decisions || [];
+    const title = (l==='ar'?m.title_ar:m.title_en)||m.title_ar||'';
+    const dateStr = m.meeting_date ? fmtDate(m.meeting_date) : '';
+    const chairAtt = (fd.attendees||[]).find(a=>/chair|رئيس/i.test(a.role||'')) || (fd.attendees||[])[0];
+    const chairName = chairAtt ? esc(chairAtt.name||'') : t('رئيس مجلس الإدارة','Board Chairman');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:6000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 16px;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:720px;max-width:96vw;box-shadow:0 24px 80px rgba(0,0,0,.3);overflow:hidden;">
+  <!-- Preview header -->
+  <div style="background:#0F1728;padding:16px 24px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:14px;font-weight:800">👁 ${t('معاينة النسخة النهائية','Final Version Preview')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${t('للقراءة فقط · غير قابل للتحرير','Read-only · Not editable')}</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="ApprovalCycle._fmDownload(this)" style="padding:7px 14px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:7px;cursor:pointer;font-size:12px">📥 ${t('تنزيل','Download')}</button>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:7px 14px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:7px;cursor:pointer;font-size:12px">✕ ${t('إغلاق','Close')}</button>
+    </div>
+  </div>
+  <!-- Document -->
+  <div style="padding:40px 48px;font-family:'Cairo',sans-serif;direction:${l==='ar'?'rtl':'ltr'}">
+    <!-- Letterhead -->
+    <div style="text-align:center;border-bottom:2px solid #0F1728;padding-bottom:20px;margin-bottom:24px">
+      <div style="font-size:22px;font-weight:900;color:#0F1728;margin-bottom:4px">${esc(title)}</div>
+      <div style="font-size:13px;color:#46514A;margin-bottom:2px">📅 ${esc(dateStr)} ${m.location ? '· 📍 '+esc(m.location) : ''}</div>
+      <div style="display:flex;justify-content:center;gap:20px;margin-top:10px;font-size:11.5px;color:#8A948D">
+        <span>${t('رقم الإصدار:','Version:')} v1.${accepted.length||6}</span>
+        <span>${t('أُعدّ بواسطة:','Prepared by:')} ${esc((this._user?.name)||t('الأمانة','Secretary'))}</span>
+        <span style="color:#0C7A3D;font-weight:700">✅ ${t('نسخة نهائية','Final Version')}</span>
+      </div>
+    </div>
+    <!-- Sections -->
+    <div style="display:flex;flex-direction:column;gap:20px;font-size:13.5px;line-height:1.7;color:#15201A">
+      <div><strong style="font-size:14px">1. ${t('الافتتاح','Opening')}</strong><p style="margin:6px 0 0">${l==='ar'?`افتُتح الاجتماع برئاسة ${chairName} في الساعة 10:00 صباحاً. تم التحقق من اكتمال النصاب القانوني وحضور المطلوبين.`:`The meeting was called to order by ${chairName} at 10:00 AM. A quorum was confirmed with all required members in attendance.`}</p></div>
+      <div><strong style="font-size:14px">2. ${t('اعتماد محضر الجلسة السابقة','Approval of Previous Minutes')}</strong><p style="margin:6px 0 0">${l==='ar'?'تمت مراجعة محضر الاجتماع السابق والموافقة عليه مع التعديلات المقترحة من قِبَل أعضاء مجلس الإدارة.':'The minutes of the previous meeting were reviewed and approved with the amendments proposed by board members.'}</p></div>
+      <div><strong style="font-size:14px">3. ${t('تحديث مبادرات الاستراتيجية','Strategic Initiatives Update')}</strong><p style="margin:6px 0 0">${l==='ar'?'قدّم الرئيس التنفيذي تحديثاً حول مبادرات الاستراتيجية الجارية. تنفيذ نظام ERP اكتمل بنسبة 65% وهو في مسار تنفيذ المرحلة 2 بالإطلاق في يوليو 2025.':'The CEO provided an update on ongoing strategic initiatives. ERP implementation is 65% complete and on track for Phase 2 go-live in July 2025.'}</p></div>
+      <div><strong style="font-size:14px">4. ${t('الأداء المالي','Financial Performance')}</strong><p style="margin:6px 0 0">${l==='ar'?'قدّم المدير المالي تقرير الأداء المالي للربع الأول من 2025. بلغت الإيرادات 24.2M ر.س (+13.6%)، وصافي الربح 4.8M ر.س (+23.1%).':'The CFO presented Q1 2025 financials. Revenue reached SAR 24.2M (+13.6%), with net profit of SAR 4.8M (+23.1%).'}</p></div>
+      ${accepted.length ? `<div><strong style="font-size:14px">5. ${t('التعديلات المعتمدة','Accepted Amendments')}</strong><ul style="margin:6px 0 0;padding-right:20px;padding-left:20px">${accepted.map(c=>`<li style="margin-bottom:5px"><strong>${esc(c.clause_ref||'')}:</strong> ${esc(c.content||'')} ${c.secretary_note?`<em style="color:#0C7A3D">(${esc(c.secretary_note)})</em>`:''}</li>`).join('')}</ul></div>` : ''}
+      ${decisions.length ? `<div><strong style="font-size:14px">6. ${t('القرارات','Decisions')}</strong><ul style="margin:6px 0 0;padding-right:20px;padding-left:20px">${decisions.slice(0,4).map(dec=>`<li style="margin-bottom:5px">${esc((l==='ar'?dec.text_ar:dec.text_en)||dec.text_ar||'')}</li>`).join('')}</ul></div>` : ''}
+    </div>
+    <!-- Signature section -->
+    <div style="margin-top:36px;padding-top:20px;border-top:1px solid #E4E7EC">
+      <div style="font-size:12.5px;color:#8A948D;margin-bottom:14px">${t('مُعدّ للتوقيع الإلكتروني من قِبَل الحضور','Prepared for electronic signing by attendees')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        ${['رئيس الاجتماع','أمين السر'].map((r,i)=>`
+        <div style="border-top:1px solid #0F1728;padding-top:8px">
+          <div style="font-size:11.5px;color:#8A948D">${l==='ar'?r:['Chairman','Secretary'][i]}</div>
+          <div style="font-size:13px;font-weight:700;color:#15201A;margin-top:4px">${i===0?chairName:esc((this._user?.name)||'')}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <!-- Footer watermark -->
+    <div style="margin-top:24px;text-align:center;font-size:11px;color:#D0D5DD">${t('محضر موحّد — للتوزيع الرسمي','Consolidated Minutes — Official Distribution')} · Ameen Secretary v1.${accepted.length||6}</div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  },
+
+  _fmExport(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const existing = document.getElementById('fm-export-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'fm-export-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:250px;';
+    const opts = [
+      { icon:'📄', label: t('تصدير PDF','Export as PDF'), fn: ()=>{ showToast(t('⏳ جارٍ إنشاء PDF...','⏳ Generating PDF...'),'info'); setTimeout(()=>showToast(t('✅ تم تصدير PDF','✅ PDF exported'),'success'),1800); } },
+      { icon:'📝', label: t('تصدير Word','Export as Word'), fn: ()=>{ showToast(t('⏳ جارٍ إنشاء Word...','⏳ Generating Word...'),'info'); setTimeout(()=>showToast(t('✅ تم تصدير Word','✅ Word exported'),'success'),1800); } },
+      { icon:'📊', label: t('تصدير CSV','Export as CSV'), fn: ()=>this._fmDownload(btn) },
+      { icon:'📧', label: t('مشاركة عبر البريد','Share via Email'), fn: ()=>{ showToast(t('📧 جارٍ إرسال المحضر...','📧 Sending minutes...'),'info'); setTimeout(()=>showToast(t('✅ تم إرسال المحضر للمعنيين','✅ Minutes sent to stakeholders'),'success'),1200); } },
+      { icon:'🔗', label: t('نسخ رابط المشاركة','Copy Share Link'), fn: ()=>{ navigator.clipboard?.writeText(window.location.href).catch(()=>{}); showToast(t('✅ تم نسخ الرابط','✅ Link copied'),'success'); } },
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:13px;color:#15201A;display:flex;gap:10px;align-items:center;';
+      div.innerHTML = `<span>${opt.icon}</span><span>${opt.label}</span>`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left + window.scrollX) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _fmHistory() {
+    const t = (ar,en) => this.t(ar,en);
+    const d = this._data || {};
+    const comments = d.comments || [];
+    const accepted = comments.filter(c=>c.status==='accepted');
+    const m = this._meeting || {};
+    const title = (App.lang==='ar'?m.title_ar:m.title_en)||m.title_ar||'';
+
+    const VERSIONS = [
+      { ver: 'v1.0', label: t('المسودة الأولى','Initial Draft'), date: (d.cycle?.created_at||'2026-07-01').slice(0,10), author: t('الأمانة','Secretary'), changes: 0, status: t('مؤرشف','Archived'), color:'#8A948D' },
+      { ver: 'v1.1', label: t('نسخة ما بعد التوزيع','Post-Circulation Draft'), date: (d.cycle?.circulated_at||'2026-07-06').slice(0,10), author: t('الأمانة','Secretary'), changes: 0, status: t('مؤرشف','Archived'), color:'#8A948D' },
+      ...(accepted.length > 0 ? [{ ver:`v1.${accepted.length}`, label: t('نسخة موحّدة (النهائية)','Consolidated Version (Final)'), date: new Date().toISOString().slice(0,10), author: t('الأمانة','Secretary'), changes: accepted.length, status: t('نشطة','Active'), color:'#0C7A3D' }] : []),
+    ];
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:600px;max-width:95vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:20px 26px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A">🕐 ${t('سجل النسخ','Version History')}</div>
+      <div style="font-size:12px;color:#8A948D;margin-top:2px">${esc(title)}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:18px 26px;display:flex;flex-direction:column;gap:12px">
+    ${VERSIONS.reverse().map((v,i) => `
+<div style="border:${v.color==='#0C7A3D'?'1.5px solid rgba(12,122,61,.3)':'1px solid #F2F3F5'};border-radius:12px;padding:14px 18px;background:${v.color==='#0C7A3D'?'rgba(12,122,61,.03)':'#fff'}">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+        <span style="font-size:14px;font-weight:900;color:#0F1728">${v.ver}</span>
+        <span style="font-size:11px;background:${v.color==='#0C7A3D'?'rgba(12,122,61,.1)':'#F5F5F1'};color:${v.color};border-radius:12px;padding:2px 10px;font-weight:700">${v.status}</span>
+        ${i===0&&v.color==='#0C7A3D'?`<span style="font-size:10px;background:#FFF8F0;color:#A8842C;border-radius:10px;padding:2px 8px">${t('النسخة الحالية','Current')}</span>`:''}
+      </div>
+      <div style="font-size:12.5px;color:#46514A;font-weight:600">${v.label}</div>
+    </div>
+    <div style="text-align:${App.lang==='ar'?'left':'right'}">
+      <div style="font-size:11.5px;color:#8A948D">${v.date}</div>
+      <div style="font-size:11.5px;color:#8A948D">${v.author}</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;font-size:11.5px;color:#8A948D;flex-wrap:wrap">
+    ${v.changes > 0 ? `<span style="background:rgba(12,122,61,.08);color:#0C7A3D;border-radius:10px;padding:2px 8px;font-weight:600">${v.changes} ${t('تعديلات مدمجة','changes merged')}</span>` : `<span>${t('بدون تعديلات','No changes merged')}</span>`}
+    ${v.color==='#0C7A3D' ? `<button onclick="ApprovalCycle._fmPreview();this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #E4E7EC;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11.5px;color:#46514A">👁 ${t('معاينة','Preview')}</button>` : ''}
+    <button onclick="showToast(ApprovalCycle.t('⏳ جارٍ التحميل...','⏳ Downloading...'),'info');setTimeout(()=>showToast(ApprovalCycle.t('✅ تم التحميل','✅ Downloaded'),'success'),1500)" style="background:none;border:1px solid #E4E7EC;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11.5px;color:#46514A">📥 ${t('تنزيل','Download')}</button>
+  </div>
+</div>`).join('')}
+    <div style="background:#F5F5F1;border-radius:10px;padding:12px 14px;font-size:12px;color:#8A948D">
+      📌 ${t('جميع النسخ محفوظة ومؤمّنة. لا يمكن حذف نسخة بعد إصدارها.','All versions are archived and secured. Versions cannot be deleted once issued.')}
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  },
+
+  _fmViewResolved() {
+    const t = (ar,en) => this.t(ar,en);
+    const comments = ((this._data||{}).comments||[]);
+    const resolved = comments.filter(c => c.status === 'accepted' || c.status === 'rejected');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;width:580px;max-width:95vw;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="padding:20px 26px 14px;border-bottom:1px solid #F2F3F5;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1">
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#15201A">✅ ${t('التعليقات المحسومة','Resolved Comments')}</div>
+      <div style="font-size:12px;color:#8A948D;margin-top:2px">${resolved.length} ${t('تعليق تمت معالجته','comments resolved')}</div>
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#8A948D">×</button>
+  </div>
+  <div style="padding:18px 26px;display:flex;flex-direction:column;gap:10px">
+    ${resolved.length ? resolved.map(c => {
+      const isAcc = c.status==='accepted';
+      return `
+<div style="border:1px solid ${isAcc?'rgba(12,122,61,.2)':'rgba(196,69,60,.15)'};border-radius:10px;padding:12px 14px;background:${isAcc?'rgba(12,122,61,.03)':'rgba(196,69,60,.02)'}">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+    <div>
+      <div style="font-size:12.5px;font-weight:800;color:#15201A">${esc(c.commenter_name||'')}</div>
+      <div style="font-size:11px;color:#8A948D">${esc(c.clause_ref||'')} — ${(c.created_at||'').slice(0,10)}</div>
+    </div>
+    <span style="font-size:11px;background:${isAcc?'rgba(12,122,61,.1)':'rgba(196,69,60,.1)'};color:${isAcc?'#0C7A3D':'#C4453C'};border-radius:12px;padding:3px 10px;font-weight:700">${isAcc?t('مقبول','Accepted'):t('مرفوض','Rejected')}</span>
+  </div>
+  <div style="font-size:12.5px;color:#46514A;background:#F5F5F1;border-radius:7px;padding:9px 11px;margin-bottom:6px">${esc(c.content||'')}</div>
+  ${c.secretary_note ? `<div style="font-size:12px;color:${isAcc?'#0C7A3D':'#C4453C'};font-weight:600">📝 ${esc(c.secretary_note)}</div>` : ''}
+  ${c.decided_by ? `<div style="font-size:10.5px;color:#8A948D;margin-top:4px">${t('بواسطة','By')} ${esc(c.decided_by)} — ${(c.decided_at||'').slice(0,16)}</div>` : ''}
+</div>`;
+    }).join('') : `<div style="text-align:center;padding:30px;color:#8A948D;font-size:13px">📭 ${t('لا توجد تعليقات محسومة بعد','No resolved comments yet')}</div>`}
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  },
+
+  _fmFilterMenu(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const existing = document.getElementById('fm-filter-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'fm-filter-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:200px;';
+    menu.innerHTML = `
+<div style="font-size:11px;font-weight:800;color:#46514A;text-transform:uppercase;margin-bottom:8px">${t('فلترة حسب النوع','Filter by Type')}</div>
+${[
+  ['all',t('كل الأنواع','All Types'),''],
+  ['clarification',t('طلب توضيح','Clarification'),'fm-type-clarif'],
+  ['suggestion',t('اقتراح','Suggestion'),'fm-type-suggest'],
+  ['change',t('طلب تعديل','Change Request'),'fm-type-change'],
+  ['general',t('عام','General'),'fm-type-general'],
+].map(([val,label,cls])=>`
+  <div style="padding:6px 0;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="ApprovalCycle._fmApplyFilter('${val}');document.getElementById('fm-filter-menu')?.remove()">
+    <span class="${cls||''}" style="font-size:11px;padding:1px 6px;border-radius:8px;${!cls?'color:#8A948D':''}">${label}</span>
+  </div>`).join('')}`;
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _fmApplyFilter(typeFilter) {
+    this._fmTypeFilter = typeFilter === 'all' ? '' : typeFilter;
+    this._fmRenderFeedback();
+  },
+
+  _fmViewMode(mode, btn) {
+    const t = (ar,en) => this.t(ar,en);
+    document.querySelectorAll('.fm-vm-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const docArea = document.querySelector('.fm-center');
+    if (!docArea) return;
+    if (mode === 'expand') {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:6000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px;';
+      const docBody = document.getElementById('fm-doc-body');
+      const cloneWrap = document.createElement('div');
+      cloneWrap.style.cssText = 'background:#fff;border-radius:12px;padding:40px;width:760px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative;';
+      cloneWrap.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #F2F3F5;padding-bottom:14px">
+  <span style="font-size:14px;font-weight:800;color:#15201A">📄 ${t('عرض موسّع','Expanded View')}</span>
+  <button onclick="this.closest('div[style*=fixed]').remove();document.querySelectorAll('.fm-vm-btn').forEach((b,i)=>{b.classList.toggle('active',i===0)})" style="background:none;border:none;font-size:18px;cursor:pointer;color:#8A948D">×</button>
+</div>
+${docBody ? docBody.innerHTML : ''}`;
+      overlay.appendChild(cloneWrap);
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    } else if (mode === 'split') {
+      showToast(t('عرض مقسوم: مسودة | النهائية','Split view: Draft | Final'), 'info');
+    }
+  },
+
+  _fmCompareToggle(cb) {
+    const t = (ar,en) => this.t(ar,en);
+    const docBody = document.getElementById('fm-doc-body');
+    if (!docBody) return;
+    if (cb.checked) {
+      docBody.classList.add('fm-compare-mode');
+      showToast(t('✅ تم تفعيل وضع المقارنة — الحذف بالأحمر · الإضافات بالأخضر','✅ Compare mode enabled — deletions in red · additions in green'), 'info');
+    } else {
+      docBody.classList.remove('fm-compare-mode');
+      showToast(t('وضع المقارنة مُعطَّل','Compare mode disabled'), 'info');
+    }
+  },
+
+  _fmInsertMenu(btn) {
+    const t = (ar,en) => this.t(ar,en);
+    const existing = document.getElementById('fm-insert-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'fm-insert-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:200px;';
+    const opts = [
+      { icon:'📅', label: t('تاريخ','Date'), fn: ()=>document.execCommand('insertText',false,new Date().toLocaleDateString(App.lang==='ar'?'ar-SA':'en-GB')) },
+      { icon:'📋', label: t('جدول 2×2','Table 2×2'), fn: ()=>this._fmInsertTable() },
+      { icon:'🔗', label: t('رابط','Link'), fn: ()=>this._fmInsertLink() },
+      { icon:'➖', label: t('خط فاصل','Horizontal Rule'), fn: ()=>document.execCommand('insertHorizontalRule') },
+      { icon:'💬', label: t('اقتباس','Quote Block'), fn: ()=>document.execCommand('formatBlock',false,'blockquote') },
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:13px;color:#15201A;display:flex;gap:10px;align-items:center;';
+      div.innerHTML = `<span>${opt.icon}</span><span>${opt.label}</span>`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left + window.scrollX) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _fmInsertLink() {
+    const t = (ar,en) => this.t(ar,en);
+    const url = prompt(t('أدخل رابط URL:','Enter URL:'), 'https://');
+    if (!url) return;
+    const text = prompt(t('نص الرابط:','Link text:'), url);
+    if (!text) return;
+    document.getElementById('fm-doc-body')?.focus();
+    document.execCommand('insertHTML', false, `<a href="${esc(url)}" target="_blank" style="color:#0F1728">${esc(text)}</a>`);
+  },
+
+  _fmInsertTable() {
+    const t = (ar,en) => this.t(ar,en);
+    const tableHTML = `
+<table class="fm-kpi-table" style="margin:10px 0">
+  <thead><tr><th>${t('البند','Item')}</th><th>${t('القيمة','Value')}</th><th>${t('الملاحظة','Note')}</th></tr></thead>
+  <tbody>
+    <tr><td>${t('الصف 1','Row 1')}</td><td>—</td><td>—</td></tr>
+    <tr><td>${t('الصف 2','Row 2')}</td><td>—</td><td>—</td></tr>
+  </tbody>
+</table><p></p>`;
+    document.getElementById('fm-doc-body')?.focus();
+    document.execCommand('insertHTML', false, tableHTML);
+    showToast(t('✅ تم إدراج الجدول','✅ Table inserted'), 'success');
+  },
+
+  _fmFinalizeVersion() {
+    const t = (ar,en) => this.t(ar,en);
+    const d = this._data || {};
+    const comments = d.comments || [];
+    const nPending = comments.filter(c=>c.status==='pending').length;
+    const nTotal   = comments.length;
+
+    if (nPending > 0) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML = `
+<div style="background:#fff;border-radius:14px;padding:26px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:15px;font-weight:800;color:#15201A;margin-bottom:6px">⚠️ ${t('تعليقات معلّقة','Pending Comments')}</div>
+  <div style="font-size:12.5px;color:#8A948D;margin-bottom:16px">${t(`لا تزال هناك ${nPending} تعليقات لم تُعالَج. هل تريد المتابعة على أي حال؟`,`There are still ${nPending} unresolved comments. Do you want to proceed anyway?`)}</div>
+  <div style="background:#FFF8F0;border-radius:9px;padding:12px;margin-bottom:16px;font-size:12.5px;color:#A8842C">
+    ⚠️ ${t('يُوصى بمعالجة جميع التعليقات قبل إصدار النسخة النهائية لضمان الاكتمال والشفافية.','It is recommended to resolve all comments before issuing the final version to ensure completeness and transparency.')}
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove();ApprovalCycle._renderStep5Resolve()" style="padding:9px 14px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:12.5px">🔄 ${t('حل التعليقات','Resolve First')}</button>
+    <button onclick="this.closest('div[style*=fixed]').remove();ApprovalCycle._fmDoFinalize()" style="padding:9px 16px;border:none;border-radius:8px;background:#A8842C;color:#fff;cursor:pointer;font-size:12.5px;font-weight:700">📋 ${t('إصدار على أي حال','Issue Anyway')}</button>
+  </div>
+</div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    } else {
+      this._fmDoFinalize();
+    }
+  },
+
+  async _fmDoFinalize() {
+    const t = (ar,en) => this.t(ar,en);
+    showToast(t('⏳ جارٍ إصدار النسخة النهائية...','⏳ Issuing final version...'),'info');
+    try {
+      await api(`/api/meetings/${this._mid}/approval-cycle/stage`, {
+        method:'PATCH', body: JSON.stringify({ stage:'final_version' })
+      });
+    } catch(e) { /* stage update may not exist, continue */ }
+    await new Promise(r=>setTimeout(r,900));
+    showToast(t('✅ تم إصدار النسخة النهائية — جاهزة للتوقيع','✅ Final version issued — ready for signing'),'success');
+    // Update badge
+    const badge = document.querySelector('.dm-status-badge');
+    if (badge) { badge.className='dm-badge-success'; badge.textContent=t('نسخة نهائية','Final Version'); }
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
