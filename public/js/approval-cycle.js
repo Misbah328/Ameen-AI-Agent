@@ -3302,9 +3302,15 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <label class="fm-toggle"><input type="checkbox"><span class="fm-toggle-slider"></span></label>
           </div>
           <div class="fm-view-modes">
-            <button class="fm-vm-btn active" title="Page">⊡</button>
-            <button class="fm-vm-btn" title="Split">⊟</button>
-            <button class="fm-vm-btn" title="Expand">⤢</button>
+            <button class="fm-vm-btn active" title="Page view">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="11" height="11" rx="1.5" fill="currentColor"/></svg>
+            </button>
+            <button class="fm-vm-btn" title="Split view">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="4.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="7.5" y="1" width="4.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="fm-vm-btn" title="Expand">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 4V1h3M9 1h3v3M1 9v3h3M9 12h3V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
         </div>
         <div class="fm-toolbar">
@@ -3319,18 +3325,36 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <button class="fm-tb-btn" onclick="document.execCommand('underline')"><u>U</u></button>
           <button class="fm-tb-btn" onclick="document.execCommand('strikeThrough')"><s>S</s></button>
           <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('insertUnorderedList')">≡</button>
-          <button class="fm-tb-btn" onclick="document.execCommand('insertOrderedList')">⑂</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="2" cy="4" r="1.2" fill="currentColor"/><line x1="5" y1="4" x2="13" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="2" cy="8" r="1.2" fill="currentColor"/><line x1="5" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="2" cy="12" r="1.2" fill="currentColor"/><line x1="5" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <button class="fm-tb-btn" onclick="document.execCommand('insertOrderedList')" title="Numbered list">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><text x="1" y="5" font-size="5" fill="currentColor">1.</text><line x1="5" y1="4" x2="13" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><text x="1" y="9" font-size="5" fill="currentColor">2.</text><line x1="5" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><text x="1" y="13" font-size="5" fill="currentColor">3.</text><line x1="5" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
           <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('justifyLeft')">⬛</button>
-          <button class="fm-tb-btn" onclick="document.execCommand('justifyCenter')">▥</button>
-          <button class="fm-tb-btn" onclick="document.execCommand('justifyRight')">⬛</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('justifyLeft')" title="Align left">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="7" x2="9" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="11" x2="11" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <button class="fm-tb-btn" onclick="document.execCommand('justifyCenter')" title="Center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <button class="fm-tb-btn" onclick="document.execCommand('justifyRight')" title="Align right">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="1" y1="3" x2="13" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="5" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="11" x2="13" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
           <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" title="Link">🔗</button>
-          <button class="fm-tb-btn" title="Table">▦</button>
+          <button class="fm-tb-btn" title="Link">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 8.5a3.5 3.5 0 005 0l1.5-1.5a3.5 3.5 0 00-5-5L6.5 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M8.5 5.5a3.5 3.5 0 00-5 0L2 7a3.5 3.5 0 005 5L7.5 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+          <button class="fm-tb-btn" title="Insert table">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="5" x2="13" y2="5" stroke="currentColor" stroke-width="1.3"/><line x1="7" y1="5" x2="7" y2="13" stroke="currentColor" stroke-width="1.3"/></svg>
+          </button>
           <span class="fm-tb-sep"></span>
-          <button class="fm-tb-btn" onclick="document.execCommand('undo')">↩</button>
-          <button class="fm-tb-btn" onclick="document.execCommand('redo')">↪</button>
+          <button class="fm-tb-btn" onclick="document.execCommand('undo')" title="Undo">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5h5a4 4 0 010 8H4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2l-2 3 2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="fm-tb-btn" onclick="document.execCommand('redo')" title="Redo">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12 5H7a4 4 0 000 8h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 2l2 3-2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button class="fm-tb-btn fm-tb-insert">+ ${t('إدراج','Insert')} ▾</button>
         </div>
       </div>

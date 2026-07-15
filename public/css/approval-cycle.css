@@ -1305,6 +1305,7 @@
 
 /* ── RIGHT panel ──────────────────────────────────────────────────────────── */
 .rv-right {
+  width: 290px; flex-shrink: 0;
   background: #F2F3F5;
   padding: 16px 14px;
   display: flex; flex-direction: column; gap: 12px;
@@ -2021,9 +2022,10 @@
 
 /* Toolbar */
 .fm-toolbar {
-  display:flex; align-items:center; gap:2px; flex-wrap:wrap;
-  padding:6px 12px;
+  display:flex; align-items:center; gap:2px; flex-wrap:nowrap;
+  padding:6px 12px; overflow-x:auto; scrollbar-width:none;
 }
+.fm-toolbar::-webkit-scrollbar { display:none; }
 .fm-tb-select {
   height:28px; border:1px solid #D0D5DD; border-radius:6px;
   padding:0 8px; font-size:11.5px; color:#15201A; background:#F8F9FA;
