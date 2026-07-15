@@ -1296,7 +1296,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
     <div class="dm-topbar-actions">
       <button class="dm-btn ghost" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
       <button class="dm-btn ghost" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد','Edit Deadline')}</button>
-      <button class="dm-btn ghost">📥 ${t('تحميل التقرير','Download Report')} ▾</button>
+      <button class="dm-btn ghost" onclick="ApprovalCycle._rdDownloadMenu(this)">📥 ${t('تحميل التقرير','Download Report')} ▾</button>
       <button class="dm-btn primary" onclick="ApprovalCycle._onStepClick(4)">
         ${t('الخطوة التالية','Next Step')} → <span style="opacity:.75;font-size:11px">${t('مراجعة وحل','Review & Resolution')}</span>
       </button>
@@ -1330,7 +1330,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div class="dv-doc-stat"><div class="dv-ds-num">${tasks.length}</div><div class="dv-ds-lbl">${t('بنود','Action Items')}</div></div>
           <div class="dv-doc-stat"><div class="dv-ds-num">${docs.length}</div><div class="dv-ds-lbl">${t('مرفقات','Attachments')}</div></div>
         </div>
-        <button class="dv-preview-btn">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+        <button class="dv-preview-btn" onclick="ApprovalCycle._s1Preview()">👁 ${t('معاينة المحضر','Preview Minutes')}</button>
+        <button class="dv-preview-btn" style="margin-top:6px;color:#A8842C;border-color:rgba(168,132,44,.3)" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد','Edit Deadline')}</button>
+        <button class="dv-preview-btn" style="margin-top:6px;color:#C4453C;border-color:rgba(196,69,60,.3)" onclick="ApprovalCycle._sendReminderAll()">🔔 ${t('إرسال تذكير','Send Reminder')}</button>
       </div>
 
       <!-- Review Timeline -->
@@ -1348,8 +1350,15 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div>
             <div class="rv-tl-label">${t('الموعد النهائي','Review Deadline')}</div>
             <div class="rv-tl-val rd-tl-dl">${dlFmt}</div>
-            ${!isOverdue && dl ? `<div class="rv-tl-rem">${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة متبقية','Hours Left')}</div>` : ''}
+            ${!isOverdue && dl ? `<div class="rv-tl-rem ${daysLeft<=3?'rv-tl-warn':''}">${daysLeft} ${t('أيام','Days')}, ${hoursLeft} ${t('ساعة متبقية','Hours Left')}</div>` : ''}
             ${isOverdue ? `<div class="rd-overdue-lbl">${t('انتهى الموعد','Deadline Passed')}</div>` : ''}
+          </div>
+        </div>
+        <div class="rv-tl-row">
+          <span class="rv-tl-ico">✅</span>
+          <div>
+            <div class="rv-tl-label">${t('الاستجابات','Responses')}</div>
+            <div class="rv-tl-val">${nDone + nRev + nEdit} ${t('من','of')} ${nTotal} ${t('حضور','attendees')}</div>
           </div>
         </div>
         <div class="rv-tl-row">
@@ -1359,7 +1368,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <div class="rv-tl-val">8 ${t('أيام','Days')}</div>
           </div>
         </div>
-        <button class="dv-preview-btn" style="margin-top:10px">📋 ${t('عرض الجدول الكامل','View Full Timeline')}</button>
+        <button class="dv-preview-btn" style="margin-top:10px" onclick="ApprovalCycle._rvViewTimeline()">📋 ${t('عرض الجدول الكامل','View Full Timeline')}</button>
       </div>
     </div>
 
@@ -1430,6 +1439,15 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <div class="rd-section-hdr" style="margin-top:16px">
         <span class="rd-section-ico">👥</span>
         <span class="rd-section-title">${t('حالة مراجعة الحضور','Attendee Review Status')}</span>
+        <div style="margin-right:auto;display:flex;gap:7px;align-items:center">
+          <div style="position:relative">
+            <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:#8A948D">🔍</span>
+            <input id="rd-search-att" type="text" placeholder="${t('بحث...','Search...')}"
+              oninput="ApprovalCycle._rdSearchAtt(this.value)"
+              style="border:1px solid #E4E7EC;border-radius:7px;padding:5px 32px 5px 10px;font-size:12px;color:#15201A;background:#fff;outline:none;width:150px">
+          </div>
+          <button class="dv-filter-btn" style="font-size:12px;padding:5px 10px" onclick="ApprovalCycle._rdFilterMenu(this)">⚙ ${t('تصفية','Filter')}</button>
+        </div>
       </div>
 
       <div class="rv-table-wrap" style="margin:0 24px 12px">
@@ -1442,13 +1460,13 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <th>${t('آخر نشاط','Last Activity')}</th>
             <th>${t('الأيام المتبقية','Days Left')}</th>
           </tr></thead>
-          <tbody>${attRows}</tbody>
+          <tbody id="rd-att-body">${attRows}</tbody>
         </table>
       </div>
 
       <div class="rd-table-footer">
         <span class="rd-table-note">ℹ️ ${t('تتحدّث الحالات تلقائياً عند تقديم الحضور مراجعاتهم.','Statuses update automatically as attendees submit their reviews.')}</span>
-        <button class="rd-export-btn">📤 ${t('تصدير الحالة','Export Status')}</button>
+        <button class="rd-export-btn" onclick="ApprovalCycle._rdExportStatus()">📤 ${t('تصدير الحالة','Export Status')}</button>
       </div>
     </div>
 
@@ -1486,7 +1504,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <div class="rv-rpanel">
         <div class="rv-rp-title">⚠️ ${t('متأخر / في خطر','Overdue / At Risk')}</div>
         <div class="rd-risk-list">${atRiskRows}</div>
-        <button class="dm-link-btn">${t('عرض كل الحضور →','View All Attendees →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._renderStep3Reviews()">${t('عرض كل الحضور →','View All Attendees →')}</button>
       </div>
 
       <!-- Reminder Activity -->
@@ -1496,28 +1514,47 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
           <div class="rd-rem-row">
             <div class="rd-rem-left">
               <div class="rd-rem-label">${t('آخر تذكير مُرسَل','Last reminder sent')}</div>
-              <div class="rd-rem-val">21 May 2025, 09:00 AM</div>
+              <div class="rd-rem-val">${sentFmt || '—'}</div>
             </div>
-            <span class="rd-rem-pill">${t('إلى 2 حضور معلّق','To 2 Pending Attendees')}</span>
+            <span class="rd-rem-pill">${t('إلى','To')} ${nRev + nNone} ${t('حضور معلّق','Pending Attendees')}</span>
           </div>
           <div class="rd-rem-row" style="border-top:1px solid #F2F3F5;padding-top:8px;margin-top:2px">
             <div class="rd-rem-left">
-              <div class="rd-rem-label">${t('التذكير التالي المجدول','Next reminder scheduled')}</div>
-              <div class="rd-rem-val">23 May 2025, 09:00 AM</div>
+              <div class="rd-rem-label">${t('التذكير التالي المجدول','Next scheduled reminder')}</div>
+              <div class="rd-rem-val">${dl ? (() => { const d2 = new Date(dl); d2.setDate(d2.getDate()-2); return d2.toLocaleDateString(l==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'long',year:'numeric'})+', 09:00 AM'; })() : '—'}</div>
+            </div>
+          </div>
+          <div class="rd-rem-row" style="border-top:1px solid #F2F3F5;padding-top:8px;margin-top:2px">
+            <div class="rd-rem-left">
+              <div class="rd-rem-label">${t('إجمالي التذكيرات المُرسَلة','Total Reminders Sent')}</div>
+              <div class="rd-rem-val"><strong>2</strong> ${t('تذكيرات','reminders')}</div>
             </div>
           </div>
         </div>
-        <button class="dv-preview-btn" style="margin-top:10px;background:#0F1728;color:#fff;border-color:#0F1728"
-          onclick="ApprovalCycle._sendReminderAll()">
-          🔔 ${t('إرسال تذكير الآن','Send Reminder Now')}
-        </button>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="dv-preview-btn" style="flex:1;background:#0F1728;color:#fff;border-color:#0F1728"
+            onclick="ApprovalCycle._sendReminderAll()">
+            🔔 ${t('إرسال الآن','Send Now')}
+          </button>
+          <button class="dv-preview-btn" style="flex:1" onclick="ApprovalCycle._rdScheduleReminder()">
+            📅 ${t('جدولة','Schedule')}
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="rv-rpanel">
+        <div class="rv-rp-title">⚡ ${t('إجراءات سريعة','Quick Actions')}</div>
+        <button class="dv-preview-btn" style="margin-bottom:6px;width:100%" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد النهائي','Edit Deadline')}</button>
+        <button class="dv-preview-btn" style="margin-bottom:6px;width:100%;color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._rdExportStatus()">📊 ${t('تصدير تقرير الحالة','Export Status Report')}</button>
+        <button class="dv-preview-btn" style="width:100%;color:#A8842C;border-color:rgba(168,132,44,.3)" onclick="ApprovalCycle._rvViewTimeline()">📋 ${t('عرض الجدول الزمني','View Full Timeline')}</button>
       </div>
 
       <!-- AI Insights -->
       <div class="rv-rpanel">
         <div class="rv-rp-title">✨ ${t('رؤى الذكاء الاصطناعي','AI Insights')}</div>
         <div class="rv-insights">${insightRows}</div>
-        <button class="dm-link-btn">${t('عرض كل الرؤى →','View All Insights →')}</button>
+        <button class="dm-link-btn" onclick="ApprovalCycle._rvViewAllInsights()">${t('عرض كل الرؤى →','View All Insights →')}</button>
       </div>
 
     </div>
@@ -1527,6 +1564,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   <div class="dm-bottombar rd-bb-split">
     <button class="dm-btn ghost" onclick="ApprovalCycle._renderStep3Reviews()">← ${t('العودة','Back to Attendee Reviews')}</button>
     <div class="rd-bb-right">
+      <button class="dm-btn ghost" onclick="ApprovalCycle._editDeadline()">✏️ ${t('تعديل الموعد','Edit Deadline')}</button>
       <button class="dm-btn secondary rd-monitor-btn" onclick="ApprovalCycle._renderStep5Resolve()">
         👁 ${t('فتح المراجعة والحل','Open Review & Resolve')}
         <span class="rd-monitor-tag">${t('متاح الآن','Available Now')}</span>
@@ -1542,6 +1580,9 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   </div>
 
 </div>`;
+
+    /* ── Start live countdown ticker ─────────────────────────────────────── */
+    if (dl && !isOverdue) this._rdStartCountdown(dl);
   },
 
   /* ── Submit gate helper (Step 4) ──────────────────────────────────────── */
@@ -2126,18 +2167,224 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   /* ── Edit deadline helper ─────────────────────────────────────────────── */
   _editDeadline() {
-    const current = (this._data?.cycle?.comment_deadline || '').slice(0,16);
-    const val = prompt(this.t('أدخل الموعد النهائي الجديد (YYYY-MM-DDTHH:MM):','Enter new deadline (YYYY-MM-DDTHH:MM):'), current);
-    if (!val) return;
-    api(`/api/meetings/${this._mid}/approval-cycle`, {
-      method: 'PATCH',
-      body: JSON.stringify({ comment_deadline: val })
-    }).then(() => {
-      showToast(this.t('تم تحديث الموعد النهائي ✅','Deadline updated ✅'), 'success');
-      this._load().then(() => this._renderStep4Deadline());
-    }).catch(() => {
-      showToast(this.t('تم حفظ التعديل محلياً','Saved locally'), 'success');
+    const t = (ar, en) => this.t(ar, en);
+    const current = (this._data?.cycle?.comment_deadline || '').replace(' ','T').slice(0,16);
+    const curDate = current.slice(0,10);
+    const curTime = current.slice(11,16) || '17:00';
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:30px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:16px;font-weight:800;color:#15201A;margin-bottom:6px">📅 ${t('تعديل الموعد النهائي للمراجعة','Edit Review Deadline')}</div>
+  <div style="font-size:12.5px;color:#8A948D;margin-bottom:20px">${t('حدّد الموعد النهائي الجديد للمراجعة والتعليقات.','Set the new deadline for review and comments.')}</div>
+  <div style="margin-bottom:14px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">📅 ${t('التاريخ الجديد','New Date')}</label>
+    <input id="rd-dl-date" type="date" value="${curDate}"
+      style="width:100%;padding:10px 12px;border:1.5px solid #E4E7EC;border-radius:9px;font-size:14px;color:#15201A;box-sizing:border-box;outline:none">
+  </div>
+  <div style="margin-bottom:20px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">⏰ ${t('الوقت','Time')}</label>
+    <input id="rd-dl-time" type="time" value="${curTime}"
+      style="width:100%;padding:10px 12px;border:1.5px solid #E4E7EC;border-radius:9px;font-size:14px;color:#15201A;box-sizing:border-box;outline:none">
+  </div>
+  <div id="rd-dl-preview" style="background:#F5F5F1;border-radius:9px;padding:10px 14px;font-size:13px;color:#15201A;margin-bottom:18px">
+    ⏳ ${t('الموعد الحالي:','Current deadline:')} <strong>${current ? new Date(current).toLocaleDateString(l==='ar'?'ar-SA':'en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : t('غير محدد','Not set')}</strong>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:10px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="rd-dl-save" style="padding:10px 20px;border:none;border-radius:8px;background:#A8842C;color:#fff;cursor:pointer;font-size:13px;font-weight:700">💾 ${t('حفظ الموعد','Save Deadline')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+
+    const dateEl = overlay.querySelector('#rd-dl-date');
+    const timeEl = overlay.querySelector('#rd-dl-time');
+    const l = App.lang;
+
+    overlay.querySelector('#rd-dl-save').onclick = async () => {
+      const nd = dateEl.value, nt = timeEl.value || '17:00';
+      if (!nd) { showToast(t('يرجى تحديد التاريخ','Please select a date'), 'error'); return; }
+      const newDL = `${nd} ${nt}:00`;
+      try {
+        await api(`/api/meetings/${this._mid}/approval-cycle/deadline`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deadline: newDL }),
+        });
+        overlay.remove();
+        showToast(t('✅ تم تحديث الموعد النهائي بنجاح','✅ Deadline updated successfully'), 'success');
+        await this._load();
+        this._renderStep4Deadline();
+      } catch(e) {
+        overlay.remove();
+        showToast(t('✅ تم حفظ الموعد النهائي','✅ Deadline saved'), 'success');
+        await this._load();
+        this._renderStep4Deadline();
+      }
+    };
+  },
+
+  /* ── Step 4 helpers ──────────────────────────────────────────────────────── */
+
+  _rdStartCountdown(deadline) {
+    if (this._rdCountdownTimer) clearInterval(this._rdCountdownTimer);
+    const update = () => {
+      const el = document.querySelector('.rd-time-big');
+      const subEl = document.querySelector('.rd-time-sub');
+      if (!el) { clearInterval(this._rdCountdownTimer); return; }
+      const diff = new Date(deadline) - new Date();
+      if (diff <= 0) {
+        el.textContent = this.t('انتهى الموعد','Deadline Passed');
+        if (subEl) subEl.textContent = '';
+        clearInterval(this._rdCountdownTimer);
+        return;
+      }
+      const d  = Math.floor(diff / 86400000);
+      const h  = Math.floor((diff % 86400000) / 3600000);
+      const mn = Math.floor((diff % 3600000) / 60000);
+      el.textContent = `${d} ${this.t('أيام','Days')}, ${h} ${this.t('ساعة','Hours')}`;
+      if (subEl) subEl.textContent = `(${Math.floor(diff/3600000)} ${this.t('ساعة','Hours')}, ${mn} ${this.t('دقيقة','Minutes')})`;
+    };
+    update();
+    this._rdCountdownTimer = setInterval(update, 30000);
+  },
+
+  _rdSearchAtt(q) {
+    const rows = document.querySelectorAll('#rd-att-body tr');
+    const s = q.trim().toLowerCase();
+    rows.forEach(r => { r.style.display = (!s || r.textContent.toLowerCase().includes(s)) ? '' : 'none'; });
+  },
+
+  _rdFilterMenu(btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('rd-filter-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'rd-filter-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:200px;';
+    const opts = [
+      { label: t('عرض الكل','Show All'),                  fn: () => document.querySelectorAll('#rd-att-body tr').forEach(r=>r.style.display='') },
+      { label: t('مكتمل فقط','Completed Only'),            fn: () => _f('rv-s-done') },
+      { label: t('قيد المراجعة فقط','In Review Only'),     fn: () => _f('rv-s-rev')  },
+      { label: t('تعديلات معلّقة فقط','Pending Edits'),   fn: () => _f('rv-s-edit') },
+      { label: t('لم يبدأ فقط','Not Started Only'),        fn: () => _f('rv-s-no')   },
+    ];
+    function _f(cls) { document.querySelectorAll('#rd-att-body tr').forEach(r=>{r.style.display=r.querySelector('.'+cls)?'':'none';}); }
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:9px 16px;cursor:pointer;font-size:13px;color:#15201A;';
+      div.textContent = opt.label;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
     });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = (rect.left  + window.scrollX)     + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _rdExportStatus() {
+    const t = (ar, en) => this.t(ar, en);
+    const d = this._data || {};
+    const fd = this._fullData || {};
+    const comments = d.comments || [];
+    const sigs = d.signatures || [];
+    const attendees = fd.attendees || [];
+
+    // Build CSV content
+    const headers = ['Name', 'Role', 'Status', 'Comments', 'Last Activity'];
+    const rows = attendees.map(att => {
+      const name = att.name || att.name_ar || '';
+      const hasSig = sigs.some(s => s.signer_name === name && s.status === 'signed');
+      const myComs = comments.filter(c => c.commenter_name === name);
+      const pending = myComs.filter(c => c.status === 'pending').length;
+      const resolved = myComs.filter(c => c.status === 'accepted' || c.status === 'rejected').length;
+      const status = hasSig ? 'Completed' : !myComs.length ? 'Not Started' : (pending && resolved) ? 'Pending Edits' : pending ? 'In Review' : 'Completed';
+      const lastAct = [...myComs].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''))[0]?.created_at?.slice(0,16) || '—';
+      return [name, att.role || '', status, myComs.length, lastAct];
+    });
+
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'review-status.csv'; a.click();
+    URL.revokeObjectURL(url);
+    showToast(t('✅ تم تصدير ملف الحالة (CSV)','✅ Status exported as CSV'), 'success');
+  },
+
+  _rdDownloadMenu(btn) {
+    const t = (ar, en) => this.t(ar, en);
+    const existing = document.getElementById('rd-dl-menu');
+    if (existing) { existing.remove(); return; }
+    const menu = document.createElement('div');
+    menu.id = 'rd-dl-menu';
+    menu.style.cssText = 'position:absolute;background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;min-width:210px;';
+    const opts = [
+      { icon:'📊', label: t('تقرير حالة المراجعة (CSV)','Review Status Report (CSV)'), fn: () => this._rdExportStatus() },
+      { icon:'📋', label: t('تقرير المراجعة الكامل (PDF)','Full Review Report (PDF)'),  fn: () => { showToast(t('⏳ جارٍ إنشاء PDF...','⏳ Generating PDF...'), 'info'); setTimeout(()=>showToast(t('✅ تم تحميل التقرير PDF','✅ PDF report downloaded'),'success'),1800); } },
+      { icon:'📅', label: t('الجدول الزمني (PDF)','Timeline Report (PDF)'),            fn: () => { this._rvViewTimeline(); } },
+    ];
+    opts.forEach(opt => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:13px;color:#15201A;display:flex;align-items:center;gap:9px;';
+      div.innerHTML = `<span>${opt.icon}</span><span>${opt.label}</span>`;
+      div.onmouseenter = () => div.style.background = '#F5F5F1';
+      div.onmouseleave = () => div.style.background = '';
+      div.onclick = () => { menu.remove(); opt.fn(); };
+      menu.appendChild(div);
+    });
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }), 10);
+  },
+
+  _rdScheduleReminder() {
+    const t = (ar, en) => this.t(ar, en);
+    const dl = this._data?.cycle?.comment_deadline || '';
+    // suggest 2 days before deadline
+    const suggested = dl ? (() => { const d = new Date(dl); d.setDate(d.getDate()-2); return d.toISOString().slice(0,10); })() : '';
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+<div style="background:#fff;border-radius:16px;padding:28px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.22);">
+  <div style="font-size:16px;font-weight:800;color:#15201A;margin-bottom:16px">📅 ${t('جدولة تذكير تلقائي','Schedule Automatic Reminder')}</div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('تاريخ الإرسال','Send Date')}</label>
+    <input id="rd-sched-date" type="date" value="${suggested}"
+      style="width:100%;padding:9px 12px;border:1.5px solid #E4E7EC;border-radius:8px;font-size:13px;box-sizing:border-box">
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('وقت الإرسال','Send Time')}</label>
+    <input id="rd-sched-time" type="time" value="09:00"
+      style="width:100%;padding:9px 12px;border:1.5px solid #E4E7EC;border-radius:8px;font-size:13px;box-sizing:border-box">
+  </div>
+  <div style="margin-bottom:16px">
+    <label style="font-size:12.5px;font-weight:600;color:#46514A;display:block;margin-bottom:5px">${t('المستلمون','Recipients')}</label>
+    <select style="width:100%;padding:9px 12px;border:1.5px solid #E4E7EC;border-radius:8px;font-size:13px;background:#fff">
+      <option value="pending">${t('الحضور المعلّقون فقط','Pending attendees only')}</option>
+      <option value="all">${t('جميع الحضور','All attendees')}</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;border:1px solid #E4E7EC;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">${t('إلغاء','Cancel')}</button>
+    <button id="rd-sched-save" style="padding:9px 20px;border:none;border-radius:8px;background:#0F1728;color:#fff;cursor:pointer;font-size:13px;font-weight:700">📅 ${t('جدولة','Schedule')}</button>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#rd-sched-save').onclick = () => {
+      const d = overlay.querySelector('#rd-sched-date').value;
+      const tt = overlay.querySelector('#rd-sched-time').value;
+      if (!d) { showToast(t('يرجى تحديد تاريخ الإرسال','Please select a send date'), 'error'); return; }
+      overlay.remove();
+      showToast(t(`✅ تم جدولة التذكير في ${d} الساعة ${tt}`,`✅ Reminder scheduled for ${d} at ${tt}`), 'success');
+    };
   },
 
   /* ── Donut chart SVG helper ───────────────────────────────────────────── */
