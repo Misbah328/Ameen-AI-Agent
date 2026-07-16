@@ -383,7 +383,7 @@ const BC = {
     root.innerHTML = `
       <div class="modal-overlay open" id="bc-form-modal" onclick="if(event.target===this) BC.closeModal()">
         <div class="modal" style="max-width:560px">
-          <div class="modal-title">${editing ? bcT("تعديل", "Edit") + " " + bcT(b.type === "board" ? "المجلس" : "اللجنة", b.type === "board" ? "Board" : "Committee") : bcT("إنشاء مجلس / لجنة جديدة", "Create New Board / Committee")}</div>
+          <div class="modal-title">${editing ? bcT("تعديل المجموعة", "Edit Group") + ": " + esc(bcT(b.nameAr, b.nameEn)) : bcT("إنشاء مجموعة جديدة", "Create New Group")}</div>
           <div class="fs">
             <div class="fr2">
               <div class="frow">
@@ -399,8 +399,16 @@ const BC = {
               <div class="frow">
                 <div class="fl">${bcT("النوع", "Type")}</div>
                 <select class="fi" id="bcf-type" ${editing ? "disabled" : ""}>
-                  <option value="board" ${b && b.type === "board" ? "selected" : ""}>${bcT("مجلس", "Board")}</option>
-                  <option value="committee" ${!b || b.type === "committee" ? "selected" : ""}>${bcT("لجنة", "Committee")}</option>
+                  <option value="board" ${b && b.type === "board" ? "selected" : ""}>${bcT("🏛️ مجلس", "🏛️ Board")}</option>
+                  <option value="committee" ${b && b.type === "committee" ? "selected" : ""}>${bcT("🧩 لجنة", "🧩 Committee")}</option>
+                  <option value="sub_committee" ${b && b.type === "sub_committee" ? "selected" : ""}>${bcT("📋 لجنة فرعية", "📋 Sub-Committee")}</option>
+                  <option value="steering" ${b && b.type === "steering" ? "selected" : ""}>${bcT("🧭 لجنة توجيهية", "🧭 Steering Committee")}</option>
+                  <option value="executive" ${b && b.type === "executive" ? "selected" : ""}>${bcT("⚡ لجنة تنفيذية", "⚡ Executive Committee")}</option>
+                  <option value="advisory" ${b && b.type === "advisory" ? "selected" : ""}>${bcT("💡 لجنة استشارية", "💡 Advisory Panel")}</option>
+                  <option value="technical" ${b && b.type === "technical" ? "selected" : ""}>${bcT("🔧 لجنة فنية", "🔧 Technical Committee")}</option>
+                  <option value="team" ${b && b.type === "team" ? "selected" : ""}>${bcT("👥 فريق", "👥 Team")}</option>
+                  <option value="working_group" ${b && b.type === "working_group" ? "selected" : ""}>${bcT("🛠️ مجموعة عمل", "🛠️ Working Group")}</option>
+                  <option value="task_force" ${(!b || !b.type) ? "selected" : b.type === "task_force" ? "selected" : ""}>${bcT("🎯 فرقة مهام", "🎯 Task Force")}</option>
                 </select>
               </div>
               <div class="frow">
@@ -477,11 +485,24 @@ const BC = {
       return;
     }
 
+    const _grpMeta = {
+      board:        { icon: "🏛️", ar: "مجلس",          en: "Board" },
+      committee:    { icon: "🧩", ar: "لجنة دائمة",     en: "Standing Committee" },
+      sub_committee:{ icon: "📋", ar: "لجنة فرعية",     en: "Sub-Committee" },
+      steering:     { icon: "🧭", ar: "لجنة توجيهية",   en: "Steering Committee" },
+      executive:    { icon: "⚡", ar: "لجنة تنفيذية",   en: "Executive Committee" },
+      advisory:     { icon: "💡", ar: "لجنة استشارية",  en: "Advisory Panel" },
+      technical:    { icon: "🔧", ar: "لجنة فنية",      en: "Technical Committee" },
+      team:         { icon: "👥", ar: "فريق",            en: "Team" },
+      working_group:{ icon: "🛠️", ar: "مجموعة عمل",    en: "Working Group" },
+      task_force:   { icon: "🎯", ar: "فرقة مهام",      en: "Task Force" },
+    };
+    const _gm = _grpMeta[type] || _grpMeta.committee;
     const newItem = {
-      id: bcNextId(type), type, icon: type === "board" ? "🏛️" : "🧩",
+      id: bcNextId(type), type, icon: _gm.icon,
       nameAr, nameEn, subtitleAr: nameAr, subtitleEn: nameEn,
-      descAr: descAr || bcT("", ""), descEn: descEn || "",
-      status, committeeType: { ar: type === "board" ? "مجلس" : "لجنة دائمة", en: type === "board" ? "Board" : "Standing Committee" },
+      descAr: descAr || "", descEn: descEn || "",
+      status, committeeType: { ar: _gm.ar, en: _gm.en },
       chairperson: chair, secretariat: "Ameen Secretary Team",
       established: new Date().toISOString().slice(0, 10),
       frequency: { ar: freq === "Monthly" ? "شهري" : freq === "Semi-Annual" ? "نصف سنوي" : "ربع سنوي", en: freq },
@@ -695,7 +716,7 @@ const BC = {
             <div class="ptitle">${bcT("المجالس واللجان", "Boards & Committees")}</div>
             <div class="ptitle-sub">${bcT("إدارة المجالس واللجان والأعضاء والاجتماعات وهيكل الحوكمة", "Manage boards, committees, members, meetings, and governance structure.")}</div>
           </div>
-          <button class="btn-gold" onclick="BC.openFormModal('create')">+ ${bcT("إنشاء مجلس / لجنة", "Create Board / Committee")}</button>
+          <button class="btn-gold" onclick="BC.openFormModal('create')">+ ${bcT("إنشاء مجموعة", "Create Group")}</button>
         </div>
       </div>
       <div class="pbody">
@@ -753,7 +774,7 @@ const BC = {
           <div class="bc-sidebar">
             <div class="bc-side-card">
               <div class="bc-side-title">${bcT("إجراءات سريعة", "Quick Actions")}</div>
-              <button class="bc-qa-btn" onclick="BC.openFormModal('create')">➕ ${bcT("إنشاء مجلس / لجنة", "Create Board / Committee")}</button>
+              <button class="bc-qa-btn" onclick="BC.openFormModal('create')">➕ ${bcT("إنشاء مجموعة", "Create Group")}</button>
               <button class="bc-qa-btn" onclick="BC.data[0]&&BC.openQuickModal('member', BC.data[0].id)">✉️ ${bcT("دعوة عضو", "Invite Member")}</button>
               <button class="bc-qa-btn" onclick="BC.setFilter('type','')">🗂️ ${bcT("عرض هيكل الحوكمة", "View Governance Structure")}</button>
               <button class="bc-qa-btn" onclick="BC.data[0]&&BC.openDetail(BC.data[0].id, 'members')">👥 ${bcT("إدارة الأعضاء", "Manage Members")}</button>
