@@ -7771,7 +7771,7 @@ h1{font-size:18pt;font-weight:700;margin-bottom:4px}
   <div class="doc-date">${date}</div>
 </div>
 <div class="content">${safeContent}</div>
-<div class="footer"><span>Ameen · أمين</span><span>${date}</span></div>
+<div class="footer"><span style="color:#C9A84C;font-weight:600">Powered by Ameen · مدعوم من أمين</span><span>${date}</span></div>
 </div>
 <script>window.addEventListener('load',()=>setTimeout(()=>{window.focus();window.print();},800));</script>
 </body></html>`;
@@ -7911,7 +7911,7 @@ h1{font-size:18pt;font-weight:700;margin-bottom:4px}
   <div class="doc-date">${displayDate}</div>
 </div>
 ${sections}
-<div class="footer"><span>Ameen · أمين</span><span>${displayDate}</span></div>
+<div class="footer"><span style="color:#C9A84C;font-weight:600">Powered by Ameen · مدعوم من أمين</span><span>${displayDate}</span></div>
 </div>
 <script>window.addEventListener('load',()=>setTimeout(()=>{window.focus();window.print();},800));</script>
 </body></html>`;

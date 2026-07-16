@@ -120,14 +120,21 @@ async function buildPdf({ title, lang, content, sections }) {
       }
     }
 
-    // Page numbers (requires bufferPages:true)
+    // Page numbers + "Powered by Ameen" footer (requires bufferPages:true)
     const range = doc.bufferedPageRange();
     const total = range.count;
     for (let i = 0; i < total; i++) {
       doc.switchToPage(range.start + i);
+      const footerY = doc.page.height - 40;
+      // Powered by Ameen — left side
+      doc.font(arabicFontPath ? 'Arabic' : 'Helvetica').fontSize(8).fillColor('#C9A84C')
+        .text(shapeArabicText('Powered by Ameen · مدعوم من أمين'), 60, footerY, {
+          width: doc.page.width - 180, align: isAr ? 'right' : 'left'
+        });
+      // Page number — right side
       doc.font('Helvetica').fontSize(8.5).fillColor('#bbbbbb')
-        .text(`${i + 1} / ${total}`, 0, doc.page.height - 40, {
-          align: 'center', width: doc.page.width
+        .text(`${i + 1} / ${total}`, doc.page.width - 110, footerY, {
+          width: 80, align: 'right'
         });
     }
     doc.flushPages();
