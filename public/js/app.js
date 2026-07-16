@@ -6554,7 +6554,12 @@ const Modals = {
     if (attSec) attSec.style.display = "none";
     $("modal-task").classList.add("open");
   },
-  close() {
+  close(id) {
+    if (id && id !== "modal-task") {
+      const el = $(id);
+      if (el) el.classList.remove("open");
+      return;
+    }
     $("modal-task").classList.remove("open");
     this._editingId = null;
     this._resetTitle();
