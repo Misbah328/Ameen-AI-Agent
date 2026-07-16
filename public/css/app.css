@@ -1944,3 +1944,84 @@ button.mt2-chev-open:hover{background:#F2F4F7;color:#A8842C}
 .rp-perm-role-val{text-align:center}
 .rp-perm-yes{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#16A34A18;color:#16A34A;font-weight:600}
 .rp-perm-no{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#DC262618;color:#DC2626;font-weight:600}
+
+/* ── Ameen Calendar Panel redesign (.cp-*) ───────────────────────────────── */
+.cp-wrap{display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--navy)}
+.cp-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px 12px;border-bottom:1px solid var(--border2);flex-shrink:0;flex-wrap:wrap;background:var(--navy)}
+.cp-title{font-size:22px;font-weight:800;color:var(--text);line-height:1.2}
+.cp-subtitle{font-size:12.5px;color:var(--text3);margin-top:2px}
+.cp-topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cp-newmtg-btn{background:var(--gold);color:#0a0c14;border:none;border-radius:8px;padding:8px 18px;font-size:13.5px;font-weight:700;cursor:pointer;transition:var(--t)}
+.cp-newmtg-btn:hover{filter:brightness(1.1)}
+.cp-settings-btn{background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:var(--t)}
+.cp-settings-btn:hover{border-color:var(--gold);color:var(--gold)}
+
+.cp-tabrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 20px;border-bottom:1px solid var(--border2);flex-shrink:0;background:var(--navy);flex-wrap:wrap}
+.cp-tabs{display:flex;gap:0}
+.cp-tab{background:transparent;border:none;border-bottom:2.5px solid transparent;color:var(--text3);padding:10px 18px 11px;font-size:13.5px;font-weight:600;cursor:pointer;transition:var(--t);display:flex;align-items:center;gap:6px;margin-bottom:-1px;white-space:nowrap}
+.cp-tab:hover{color:var(--text)}
+.cp-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.cp-viewrow{display:flex;align-items:center;gap:2px;padding:6px 0}
+.cp-vbtn{background:transparent;border:none;color:var(--text3);padding:5px 12px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:var(--t)}
+.cp-vbtn:hover{color:var(--text);background:var(--navy3)}
+.cp-vbtn.active{color:var(--gold);font-weight:700;background:rgba(201,168,76,.1)}
+.cp-today-btn{background:transparent;border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;transition:var(--t);margin-inline-start:6px;white-space:nowrap}
+.cp-today-btn:hover{border-color:var(--gold);color:var(--gold)}
+
+.cp-body{display:flex;flex:1;overflow:hidden;min-height:0}
+.cp-left{display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden;border-inline-end:1px solid var(--border2)}
+.cp-nav-row{display:flex;align-items:center;gap:6px;padding:10px 16px 8px;flex-shrink:0;background:var(--navy)}
+.cp-nav-arr{background:transparent;border:1px solid var(--border2);color:var(--text2);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:var(--t);padding:0}
+.cp-nav-arr:hover{border-color:var(--gold);color:var(--gold)}
+.cp-monthlabel{font-size:17px;font-weight:700;color:var(--text);margin-inline-start:8px}
+.cp-grid{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.cp-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 16px;border-top:1px solid var(--border2);flex-shrink:0;background:var(--navy2)}
+.cp-legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text3)}
+.cp-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+.cp-coming-soon{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3);background:var(--navy)}
+.cp-cs-icon{font-size:36px;opacity:.5}
+.cp-cs-msg{font-size:15px;font-weight:500;color:var(--text3)}
+
+/* Sidebar */
+.cp-sidebar{width:272px;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto;background:var(--navy)}
+.cp-sync-card{padding:14px 16px;border-bottom:1px solid var(--border2);flex-shrink:0}
+.cp-sync-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cp-sync-title{font-size:13.5px;font-weight:700;color:var(--text)}
+.cp-sync-soon{background:rgba(46,204,138,.15);color:#2ECC8A;border-radius:20px;padding:2px 9px;font-size:10.5px;font-weight:600}
+.cp-sync-body{display:flex;align-items:center;gap:10px}
+.cp-sync-icon{width:36px;height:36px;background:linear-gradient(135deg,#4285F4 0%,#34A853 33%,#FBBC05 66%,#EA4335 100%);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:800;flex-shrink:0}
+.cp-sync-provider{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px}
+.cp-sync-desc{font-size:11.5px;color:var(--text3);line-height:1.4}
+
+.cp-up-section{flex:1;padding:14px 16px;overflow-y:auto;min-height:0;border-bottom:1px solid var(--border2)}
+.cp-up-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cp-up-title{font-size:13.5px;font-weight:700;color:var(--text)}
+.cp-up-all{font-size:12px;color:var(--gold);cursor:pointer;font-weight:600}
+.cp-up-all:hover{text-decoration:underline}
+.cp-up-card{border:1px solid var(--border2);border-radius:9px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:var(--t);background:var(--navy2)}
+.cp-up-card:hover{border-color:rgba(201,168,76,.4);background:var(--navy3)}
+.cp-up-inner{display:flex;align-items:flex-start;gap:8px}
+.cp-up-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.cp-up-info{flex:1;min-width:0}
+.cp-up-name{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-up-meta{font-size:11px;color:var(--text3);margin-bottom:1px}
+.cp-up-chev{color:var(--text3);font-size:17px;line-height:1;flex-shrink:0;margin-top:1px;align-self:center}
+.cp-up-empty{color:var(--text3);font-size:12.5px;text-align:center;padding:18px 0}
+
+.cp-connect-btn{margin:12px 16px 14px;background:transparent;border:1px dashed var(--border2);color:var(--text3);border-radius:8px;padding:9px 12px;font-size:12.5px;font-weight:500;cursor:pointer;transition:var(--t);text-align:center;flex-shrink:0;display:block;width:calc(100% - 32px)}
+.cp-connect-btn:hover{border-color:var(--gold);color:var(--gold)}
+
+/* Stats bar */
+.cp-statsbar{display:flex;gap:0;border-top:1px solid var(--border2);flex-shrink:0;overflow-x:auto;background:var(--navy)}
+.cp-stat-card{display:flex;align-items:center;gap:10px;flex:1;min-width:120px;padding:10px 14px;border-inline-end:1px solid var(--border2)}
+.cp-stat-card:last-child{border-inline-end:none}
+.cp-stat-icon{width:36px;height:36px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.cp-stat-lbl{font-size:10px;font-weight:700;margin-bottom:2px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.cp-stat-val{font-size:20px;font-weight:800;color:var(--text);line-height:1.15}
+.cp-stat-sub{font-size:10.5px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.cp-stat-cmp{font-size:9.5px;color:var(--text3)}
+
+/* Ensure gcal-month-view fills cp-grid properly */
+.cp-grid .gcal-month-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.cp-grid .gcal-time-view{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}

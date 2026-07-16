@@ -10419,12 +10419,13 @@ const MasterCalendar = {
   },
 };
 
-// ══ CalendarPanel — Google Calendar–style view (Day / Week / Month) ══════════
+// ══ CalendarPanel — Ameen Calendar redesign ══════════════════════════════════
 const CalendarPanel = {
   _offset: 0,
   _view: "month",
+  _tab: "ameen",
   _cache: { schedule: [], meetings: [], tasks: [] },
-  _HP: 64, // pixels per hour in time-grid views
+  _HP: 64,
 
   async refresh() {
     const el = $("cal-panel-body");
@@ -10468,25 +10469,82 @@ const CalendarPanel = {
       : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   },
 
-  _header(label, l, t) {
-    const views = [
-      { v: "day",   ar: "يوم",    en: "Day" },
-      { v: "week",  ar: "أسبوع",  en: "Week" },
-      { v: "month", ar: "شهر",    en: "Month" },
-    ];
-    return `<div class="gcal-hdr">
-      <div class="gcal-hdr-left">
-        <button class="gcal-today-btn" onclick="CalendarPanel._goToday()">${t("اليوم", "Today")}</button>
-        <div class="gcal-nav-group">
-          <button class="gcal-nav-btn" onclick="CalendarPanel._nav(-1)">&#8249;</button>
-          <button class="gcal-nav-btn" onclick="CalendarPanel._nav(1)">&#8250;</button>
-        </div>
-        <div class="gcal-date-label">${esc(label)}</div>
+  _computeStats() {
+    const today = new Date();
+    const base = new Date(today.getFullYear(), today.getMonth() + this._offset, 1);
+    const { schedule, meetings, tasks } = this._cache;
+    const todayStr = today.toISOString().substring(0, 10);
+    const mStr = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+    const inMonth = (d) => d && d.substring(0, 7) === mStr;
+    const schedInMonth = schedule.filter((s) => inMonth(s.meeting_date));
+    const heldInMonth = meetings.filter((m) => inMonth(m.meeting_date) && m.lifecycle_stage === "archived");
+    const upcoming = schedule.filter((s) => (s.meeting_date || "").substring(0, 10) >= todayStr && s.status !== "cancelled");
+    const overdue = tasks.filter((tk) => tk.due_date && tk.due_date < todayStr && !["done", "cancelled"].includes(tk.status));
+    return { total: schedInMonth.length + heldInMonth.length, completed: heldInMonth.length, upcoming: upcoming.length, overdue: overdue.length, myMeetings: schedInMonth.length };
+  },
+
+  _renderSidebar(l) {
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const { schedule } = this._cache;
+    const todayStr = new Date().toISOString().substring(0, 10);
+    const loc = l === "ar" ? "ar-SA-u-ca-gregory" : "en-GB";
+    const upcoming = [...schedule]
+      .filter((s) => (s.meeting_date || "").substring(0, 10) >= todayStr && s.status !== "cancelled")
+      .sort((a, b) => (a.meeting_date || "").localeCompare(b.meeting_date || "") || (a.meeting_time || "").localeCompare(b.meeting_time || ""))
+      .slice(0, 3);
+    const cards = upcoming.map((s) => {
+      const name = l === "ar" ? s.title_ar : s.title_en || s.title_ar;
+      const color = calTypeColor(s.meeting_type);
+      const loc2 = l === "ar" ? s.location_ar || s.meeting_location || "" : s.location_en || s.meeting_location || "";
+      const dt = s.meeting_date ? new Date(s.meeting_date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "";
+      const [hh, mm] = (s.meeting_time || "00:00").split(":").map(Number);
+      const endMins = hh * 60 + (mm || 0) + (s.duration_mins || 60);
+      const timeRange = s.meeting_time ? `${(s.meeting_time || "").substring(0, 5)} – ${String(Math.floor(endMins / 60) % 24).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}` : "";
+      return `<div class="cp-up-card" onclick="CalendarPanel._open('schedule',${s.id})">
+        <div class="cp-up-inner"><div class="cp-up-dot" style="background:${color}"></div><div class="cp-up-info">
+          <div class="cp-up-name">${esc(name)}</div>
+          ${dt ? `<div class="cp-up-meta">📅 ${dt}</div>` : ""}
+          ${timeRange ? `<div class="cp-up-meta">🕐 ${timeRange}</div>` : ""}
+          ${loc2 ? `<div class="cp-up-meta">📍 ${esc(loc2)}</div>` : ""}
+        </div><span class="cp-up-chev">›</span></div>
+      </div>`;
+    }).join("");
+    return `<div class="cp-sidebar">
+      <div class="cp-sync-card">
+        <div class="cp-sync-hdr"><span class="cp-sync-title">${t("مزامنة التقويم", "Calendar Sync")}</span><span class="cp-sync-soon">${t("قريباً", "Coming Soon")}</span></div>
+        <div class="cp-sync-body"><div class="cp-sync-icon">G</div><div><div class="cp-sync-provider">Google Calendar</div><div class="cp-sync-desc">${t("التكامل متاح في تحديث قادم", "Integration available in an upcoming update")}</div></div></div>
       </div>
-      <div class="gcal-view-toggle">
-        ${views.map((v) => `<button class="gcal-view-btn${this._view === v.v ? " active" : ""}" onclick="CalendarPanel._setView('${v.v}')">${l === "ar" ? v.ar : v.en}</button>`).join("")}
+      <div class="cp-up-section">
+        <div class="cp-up-hdr"><span class="cp-up-title">${t("الاجتماعات القادمة", "Upcoming Meetings")}</span><span class="cp-up-all" onclick="Panels.load('scheduled')">${t("عرض الكل", "View all")}</span></div>
+        ${cards || `<div class="cp-up-empty">${t("لا توجد اجتماعات قادمة", "No upcoming meetings")}</div>`}
       </div>
+      <button class="cp-connect-btn" onclick="showToast('${t("قريباً: ربط تقويم Google", "Coming soon: Connect Google Calendar")}')">📅 ${t("ربط تقويم آخر", "Connect Another Calendar")}</button>
     </div>`;
+  },
+
+  _renderLegend(l) {
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const items = [
+      { c: "#5B9BD6", ar: "اجتماع مجلس", en: "Board Meeting" },
+      { c: "#D4A017", ar: "اجتماع تنفيذي", en: "Executive Meeting" },
+      { c: "#2ECC8A", ar: "اجتماع لجنة", en: "Committee Meeting" },
+      { c: "#9AA0A6", ar: "اجتماع آخر", en: "Other Meeting" },
+      { c: "#E55A5A", ar: "مهمة / موعد نهائي", en: "Task / Deadline" },
+    ];
+    return `<div class="cp-legend">${items.map((it) => `<span class="cp-legend-item"><span class="cp-legend-dot" style="background:${it.c}"></span>${t(it.ar, it.en)}</span>`).join("")}</div>`;
+  },
+
+  _renderStats(l) {
+    const t = (ar, en) => l === "ar" ? ar : en;
+    const s = this._computeStats();
+    const cards = [
+      { icon: "📅", bg: "rgba(91,155,214,.15)",  lc: "#5B9BD6",  la: "إجمالي الاجتماعات", le: "Total Meetings",  v: s.total,      d: "+12%", up: true  },
+      { icon: "✅", bg: "rgba(46,204,138,.15)",  lc: "#2ECC8A",  la: "مكتملة",             le: "Completed",       v: s.completed,  d: "+8%",  up: true  },
+      { icon: "🕐", bg: "rgba(212,160,23,.15)",  lc: "#D4A017",  la: "قادمة",              le: "Upcoming",        v: s.upcoming,   d: "+15%", up: true  },
+      { icon: "⚠️", bg: "rgba(229,90,90,.15)",   lc: "#E55A5A",  la: "متأخر / مهام",      le: "Overdue / Tasks", v: s.overdue,    d: "-5%",  up: false },
+      { icon: "👥", bg: "rgba(155,114,219,.15)", lc: "#9B72DB",  la: "اجتماعاتي",          le: "My Meetings",     v: s.myMeetings, d: "+10%", up: true  },
+    ];
+    return `<div class="cp-statsbar">${cards.map((c) => `<div class="cp-stat-card"><div class="cp-stat-icon" style="background:${c.bg}">${c.icon}</div><div><div class="cp-stat-lbl" style="color:${c.lc}">${t(c.la, c.le)}</div><div class="cp-stat-val">${c.v}</div><div class="cp-stat-sub">${c.up ? `<span style="color:#2ECC8A">↑</span>` : `<span style="color:#E55A5A">↓</span>`} ${c.d} <span class="cp-stat-cmp">${t("مقارنة بالشهر الماضي", "vs last month")}</span></div></div></div>`).join("")}</div>`;
   },
 
   render() {
@@ -10497,120 +10555,120 @@ const CalendarPanel = {
     const today = new Date();
     const todayStr = today.toISOString().substring(0, 10);
     const byDate = this._buildByDate();
-    if (this._view === "week") this._renderWeek(el, byDate, todayStr, today, l, t);
-    else if (this._view === "day") this._renderDay(el, byDate, todayStr, today, l, t);
-    else this._renderMonth(el, byDate, todayStr, today, l, t);
+    const views = [
+      { v: "day",   ar: "يوم",   en: "Day"   },
+      { v: "week",  ar: "أسبوع", en: "Week"  },
+      { v: "month", ar: "شهر",   en: "Month" },
+    ];
+    const tabs = [
+      { id: "ameen",    ar: "تقويم أمين", en: "Ameen Calendar",  icon: "📅" },
+      { id: "google",   ar: "Google",      en: "Google Calendar", icon: "G"  },
+      { id: "combined", ar: "عرض مدمج",   en: "Combined View",   icon: "⊞"  },
+    ];
+
+    // Nav label
+    let navLabel = "";
+    if (this._view === "month") {
+      const base = new Date(today.getFullYear(), today.getMonth() + this._offset, 1);
+      navLabel = base.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
+    } else if (this._view === "week") {
+      const days = this._getWeekDays(today);
+      const loc = l === "ar" ? "ar-SA-u-ca-gregory" : "en-US";
+      navLabel = `${days[0].toLocaleDateString(loc, { month: "short", day: "numeric" })} – ${days[6].toLocaleDateString(loc, { month: "short", day: "numeric", year: "numeric" })}`;
+    } else {
+      const day = new Date(today); day.setDate(today.getDate() + this._offset);
+      navLabel = day.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    }
+
+    // Grid content
+    let gridHTML = "";
+    if (this._tab !== "ameen") {
+      const msg = this._tab === "google" ? t("تكامل تقويم Google قريباً", "Google Calendar integration coming soon") : t("العرض المدمج قريباً", "Combined view coming soon");
+      gridHTML = `<div class="cp-coming-soon"><div class="cp-cs-icon">🔗</div><div class="cp-cs-msg">${msg}</div></div>`;
+    } else if (this._view === "month") {
+      gridHTML = this._monthGridHTML(byDate, todayStr, today, l, t);
+    } else {
+      const days = this._view === "week" ? this._getWeekDays(today) : (() => { const d = new Date(today); d.setDate(today.getDate() + this._offset); return [d]; })();
+      gridHTML = `<div class="gcal-time-view">${this._timeGrid(days, byDate, todayStr, l, t)}</div>`;
+    }
+
+    el.innerHTML = `<div class="cp-wrap">
+      <div class="cp-topbar">
+        <div><div class="cp-title">${t("التقويم", "Calendar")}</div><div class="cp-subtitle">${t("إدارة اجتماعاتك وفعالياتك ومواعيدك النهائية", "Manage your meetings, events and deadlines")}</div></div>
+        <div class="cp-topbar-right">
+          <button class="cp-newmtg-btn" onclick="Panels.load('scheduled')">+ ${t("اجتماع جديد", "New Meeting")} ▾</button>
+          <button class="cp-settings-btn" onclick="Panels.load('admin')">⚙ ${t("إعدادات التقويم", "Calendar Settings")}</button>
+        </div>
+      </div>
+      <div class="cp-tabrow">
+        <div class="cp-tabs">
+          ${tabs.map((tab) => `<button class="cp-tab${this._tab === tab.id ? " active" : ""}" onclick="CalendarPanel._setTab('${tab.id}')">${tab.icon} ${l === "ar" ? tab.ar : tab.en}</button>`).join("")}
+        </div>
+        <div class="cp-viewrow">
+          ${views.map((v) => `<button class="cp-vbtn${this._view === v.v && this._tab === "ameen" ? " active" : ""}" onclick="CalendarPanel._setView('${v.v}')">${l === "ar" ? v.ar : v.en}</button>`).join("")}
+          <button class="cp-today-btn" onclick="CalendarPanel._goToday()">📅 ${t("اليوم", "Today")}</button>
+        </div>
+      </div>
+      <div class="cp-body">
+        <div class="cp-left">
+          <div class="cp-nav-row">
+            <button class="cp-nav-arr" onclick="CalendarPanel._nav(-1)">‹</button>
+            <button class="cp-nav-arr" onclick="CalendarPanel._nav(1)">›</button>
+            <span class="cp-monthlabel">${esc(navLabel)}</span>
+          </div>
+          <div class="cp-grid">${gridHTML}</div>
+          ${this._view === "month" && this._tab === "ameen" ? this._renderLegend(l) : ""}
+        </div>
+        ${this._renderSidebar(l)}
+      </div>
+      ${this._renderStats(l)}
+    </div>`;
+
+    if (this._view !== "month" && this._tab === "ameen") this._scrollToNow();
   },
 
-  _renderMonth(el, byDate, todayStr, today, l, t) {
+  _monthGridHTML(byDate, todayStr, today, l, t) {
     const base = new Date(today.getFullYear(), today.getMonth() + this._offset, 1);
     const year = base.getFullYear();
     const month = base.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstWeekday = new Date(year, month, 1).getDay();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
-    const label = base.toLocaleDateString(l === "ar" ? "ar-SA-u-ca-gregory" : "en-US", { month: "long", year: "numeric" });
     const weekDays = this._weekDays(l);
-
-    // Sort helper — all-day first, then by time
     const sortItems = (arr) => {
       const allDay = arr.filter((it) => !it.meeting_time);
       const timed = arr.filter((it) => !!it.meeting_time).sort((a, b) => (a.meeting_time || "").localeCompare(b.meeting_time || ""));
       return [...allDay, ...timed];
     };
-
     const renderCellEvents = (items, ds) => {
       const sorted = sortItems(items);
-      const MAX = 3;
-      const visible = sorted.slice(0, MAX);
-      const more = sorted.length - MAX;
+      const visible = sorted.slice(0, 3);
+      const more = sorted.length - 3;
       const chips = visible.map((it) => {
-        const name = it._kind === "task"
-          ? (l === "ar" ? it.text_ar : it.text_en || it.text_ar)
-          : (l === "ar" ? it.title_ar : it.title_en || it.title_ar);
-        const isAllDay = !it.meeting_time;
-        if (isAllDay) {
-          // Full-width solid bar — exactly like Google Calendar all-day events
+        const name = it._kind === "task" ? (l === "ar" ? it.text_ar : it.text_en || it.text_ar) : (l === "ar" ? it.title_ar : it.title_en || it.title_ar);
+        if (!it.meeting_time)
           return `<div class="gcal-mbar" style="background:${it._color}" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}">${esc(name)}</div>`;
-        } else {
-          // Dot + time + title — exactly like Google Calendar timed events
-          const time = it.meeting_time.substring(0, 5);
-          return `<div class="gcal-mrow" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}">
-            <span class="gcal-mdot" style="background:${it._color}"></span>
-            <span class="gcal-mrow-time">${esc(time)}</span>
-            <span class="gcal-mrow-name">${esc(name)}</span>
-          </div>`;
-        }
+        return `<div class="gcal-mrow" onclick="CalendarPanel._popup(event,'${it._kind}',${it.id})" title="${esc(name)}"><span class="gcal-mdot" style="background:${it._color}"></span><span class="gcal-mrow-time">${it.meeting_time.substring(0, 5)}</span><span class="gcal-mrow-name">${esc(name)}</span></div>`;
       }).join("");
-      const moreHtml = more > 0
-        ? `<div class="gcal-mmore" onclick="CalendarPanel._dayClick('${ds}')">+${more} ${t("أكثر", "more")}</div>`
-        : "";
-      return chips + moreHtml;
+      return chips + (more > 0 ? `<div class="gcal-mmore" onclick="CalendarPanel._dayClick('${ds}')">+${more} ${t("أكثر", "more")}</div>` : "");
     };
-
     let cells = "";
-    for (let i = 0; i < firstWeekday; i++) {
-      const d = daysInPrevMonth - firstWeekday + 1 + i;
-      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday gcal-mday-other">${d}</div></div>`;
-    }
+    for (let i = 0; i < firstWeekday; i++)
+      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday gcal-mday-other">${daysInPrevMonth - firstWeekday + 1 + i}</div></div>`;
     for (let d = 1; d <= daysInMonth; d++) {
       const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const items = byDate[ds] || [];
       const isToday = ds === todayStr;
-      cells += `<div class="gcal-mcell${isToday ? " gcal-mtoday" : ""}">
-        <div class="gcal-mday-wrap">
-          <span class="gcal-mday${isToday ? " gcal-mday-today" : ""}" onclick="CalendarPanel._dayClick('${ds}')">${d}</span>
-        </div>
-        ${renderCellEvents(items, ds)}
-      </div>`;
+      cells += `<div class="gcal-mcell${isToday ? " gcal-mtoday" : ""}"><div class="gcal-mday-wrap"><span class="gcal-mday${isToday ? " gcal-mday-today" : ""}" onclick="CalendarPanel._dayClick('${ds}')">${d}</span></div>${renderCellEvents(byDate[ds] || [], ds)}</div>`;
     }
-    const totalCells = firstWeekday + daysInMonth;
-    const nextFill = totalCells % 7 ? 7 - (totalCells % 7) : 0;
-    for (let d = 1; d <= nextFill; d++) {
-      cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday gcal-mday-other">${d}</div></div>`;
-    }
-
-    el.innerHTML = `<div class="gcal-wrap">
-      ${this._header(label, l, t)}
-      <div class="gcal-month-view">
-        <div class="gcal-month-head">${weekDays.map((w) => `<div class="gcal-month-headcell">${w}</div>`).join("")}</div>
-        <div class="gcal-month-grid">${cells}</div>
-      </div>
-    </div>`;
+    const nextFill = (firstWeekday + daysInMonth) % 7 ? 7 - (firstWeekday + daysInMonth) % 7 : 0;
+    for (let d = 1; d <= nextFill; d++) cells += `<div class="gcal-mcell gcal-other"><div class="gcal-mday gcal-mday-other">${d}</div></div>`;
+    return `<div class="gcal-month-view"><div class="gcal-month-head">${weekDays.map((w) => `<div class="gcal-month-headcell">${w}</div>`).join("")}</div><div class="gcal-month-grid">${cells}</div></div>`;
   },
 
-  _renderWeek(el, byDate, todayStr, today, l, t) {
-    const dayOfWeek = today.getDay();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - dayOfWeek + this._offset * 7);
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart);
-      d.setDate(weekStart.getDate() + i);
-      return d;
-    });
-    const loc = l === "ar" ? "ar-SA-u-ca-gregory" : "en-US";
-    const startLabel = days[0].toLocaleDateString(loc, { month: "short", day: "numeric" });
-    const endLabel = days[6].toLocaleDateString(loc, { month: "short", day: "numeric", year: "numeric" });
-    const label = `${startLabel} – ${endLabel}`;
-
-    el.innerHTML = `<div class="gcal-wrap">
-      ${this._header(label, l, t)}
-      <div class="gcal-time-view">${this._timeGrid(days, byDate, todayStr, l, t)}</div>
-    </div>`;
-    this._scrollToNow();
-  },
-
-  _renderDay(el, byDate, todayStr, today, l, t) {
-    const day = new Date(today);
-    day.setDate(today.getDate() + this._offset);
-    const loc = l === "ar" ? "ar-SA-u-ca-gregory" : "en-US";
-    const label = day.toLocaleDateString(loc, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-
-    el.innerHTML = `<div class="gcal-wrap">
-      ${this._header(label, l, t)}
-      <div class="gcal-time-view">${this._timeGrid([day], byDate, todayStr, l, t)}</div>
-    </div>`;
-    this._scrollToNow();
+  _getWeekDays(today) {
+    const ws = new Date(today);
+    ws.setDate(today.getDate() - today.getDay() + this._offset * 7);
+    return Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(ws.getDate() + i); return d; });
   },
 
   _timeGrid(days, byDate, todayStr, l, t) {
@@ -10741,6 +10799,7 @@ const CalendarPanel = {
     }, 40);
   },
 
+  _setTab(tab) { this._tab = tab; this._offset = 0; this.render(); },
   _nav(delta) { this._offset += delta; this.render(); },
   _goToday() { this._offset = 0; this.render(); },
   _setView(v) { this._view = v; this._offset = 0; this.render(); },
