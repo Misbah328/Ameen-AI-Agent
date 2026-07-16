@@ -29,20 +29,23 @@ const ApprovalCycle = {
   },
 
   // Returns 'full' | 'readonly' | 'none' for a given step index and current role
+  // secretary & chairman = full access everywhere; attendee = restricted per step
   _stepAccessLevel(idx) {
     const r = this._acRole();
-    const M = [
-      { secretary:'full',     chairman:'readonly', attendee:'none'     }, // 0 Draft Minutes
-      { secretary:'full',     chairman:'readonly', attendee:'none'     }, // 1 Deliver to Attendees
-      { secretary:'full',     chairman:'full',     attendee:'full'     }, // 2 Attendee Reviews
-      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 3 Review Deadline
-      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 4 Review & Resolve
-      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 5 Final Version
-      { secretary:'full',     chairman:'full',     attendee:'full'     }, // 6 Attendee Signatures
-      { secretary:'readonly', chairman:'full',     attendee:'none'     }, // 7 Final Approval
-      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 8 Archive & Activate
+    if (r === 'secretary' || r === 'chairman') return 'full';
+    // Attendee-only restrictions
+    const attendeeAccess = [
+      'none',     // 0 Draft Minutes        — internal secretary work
+      'none',     // 1 Deliver to Attendees — internal secretary work
+      'full',     // 2 Attendee Reviews     — attendees must be able to comment
+      'readonly', // 3 Review Deadline      — view only
+      'readonly', // 4 Review & Resolve     — view only
+      'readonly', // 5 Final Version        — view only
+      'full',     // 6 Attendee Signatures  — attendees must be able to sign
+      'none',     // 7 Final Approval       — chairman/secretary only
+      'readonly', // 8 Archive & Activate   — view only
     ];
-    return (M[idx] || { secretary:'full', chairman:'readonly', attendee:'none' })[r] || 'none';
+    return attendeeAccess[idx] ?? 'none';
   },
 
   // Renders a "no access" panel replacing the body content
