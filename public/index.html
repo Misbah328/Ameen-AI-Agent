@@ -61,7 +61,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/css/app.css?v=20260714g"/>
+<link rel="stylesheet" href="/css/app.css?v=20260716b"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713m"/>
 <link rel="stylesheet" href="/css/approval-cycle.css?v=20260715ak"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
@@ -1062,11 +1062,19 @@
   <div class="ph">
     <div class="ph-row">
       <div>
-        <div class="ptitle" data-ar="مهامي" data-en="My Tasks">مهامي</div>
-        <div class="ptitle-sub" data-ar="تتبع وإدارة جميع مهامك ومتابعاتك" data-en="Track and manage all your tasks and follow-ups.">تتبع وإدارة جميع مهامك ومتابعاتك</div>
+        <div class="ptitle" data-ar="المتابعة والتنفيذ" data-en="Follow-Up &amp; Execution">المتابعة والتنفيذ</div>
+        <div class="ptitle-sub" data-ar="التتبع النشط والمتابعات وتقارير الحالة" data-en="Active tracking, check-ins and status reports">التتبع النشط والمتابعات وتقارير الحالة</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-gold" onclick="Modals.addTask()">+ <span data-ar="مهمة جديدة" data-en="New Task">مهمة جديدة</span></button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="fue-header-search">
+          <svg width="15" height="15" viewBox="0 0 15 15"><circle cx="6.5" cy="6.5" r="4.5" stroke="#9CA3AF" stroke-width="1.3" fill="none"/><path d="M10.5 10.5l3 3" stroke="#9CA3AF" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <input type="search" placeholder="Search tasks, owners..." oninput="TK.onSearch(this.value)" style="border:none;outline:none;font-size:13px;background:transparent;min-width:150px;color:#344054"/>
+        </div>
+        <button class="fue-btn-dark" onclick="Modals.addTask()">+ <span data-ar="إضافة مهمة" data-en="Add Task">Add Task</span></button>
+        <button class="fue-btn-outline">
+          <svg width="15" height="15" viewBox="0 0 15 15"><rect x="1.5" y="3.5" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4.5 7.5h6M4.5 10h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <span data-ar="إنشاء تقرير الحالة" data-en="Generate Status Report">Generate Status Report</span>
+        </button>
       </div>
     </div>
   </div>
@@ -1952,7 +1960,7 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260714h"></script>
+<script src="/js/app.js?v=20260716a"></script>
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260713e"></script>
 <script src="/js/meetings.js?v=20260714b"></script>
@@ -2024,5 +2032,6 @@
   </button>
 </nav>
 
+<div id="fue-detail-panel"></div>
 </body>
 </html>

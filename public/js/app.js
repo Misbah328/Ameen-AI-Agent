@@ -5651,11 +5651,10 @@ const TaskView = {
 
 // ══ Tasks page state (tab / search / filters / page) ══════════════════════════
 const TK = {
-  tab: "my",      // "my" | "others" | "all"
+  tab: "active",
   q: "",
+  owner: "",
   status: "",
-  priority: "",
-  dueBefore: "",
   meeting: "",
   page: 1,
   _searchTimer: null,
@@ -5666,8 +5665,8 @@ const TK = {
   },
   setFilter(k, v) { this[k] = v; this.page = 1; renderTasks(); },
   setPage(v) { this.page = v; renderTasks(); },
-  reset() { this.q = ""; this.status = ""; this.priority = ""; this.dueBefore = ""; this.meeting = ""; this.page = 1; renderTasks(); },
-  isActive() { return !!(this.q || this.status || this.priority || this.dueBefore || this.meeting); },
+  reset() { this.q = ""; this.owner = ""; this.status = ""; this.meeting = ""; this.page = 1; renderTasks(); },
+  isActive() { return !!(this.q || this.owner || this.status || this.meeting); },
   closeMenus() {
     document.querySelectorAll(".tk-rm-drop.open").forEach(m => m.classList.remove("open"));
   },
@@ -5685,9 +5684,8 @@ async function renderTasks() {
   const body = $("tasks-body");
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
-    const [tasksRaw, decisions, members] = await Promise.all([
+    const [tasksRaw, members] = await Promise.all([
       api("/api/tasks"),
-      api("/api/decisions"),
       api("/api/members"),
     ]);
     App.tasksCache = tasksRaw;
@@ -5696,54 +5694,124 @@ async function renderTasks() {
     const ar = (a, e) => l === "ar" ? a : e;
 
     const pendingReviewTasks = tasksRaw.filter(t => t.review_status === "pending");
-    // Always show a task to its assignee regardless of review_status so they
-    // can see work assigned to them even before a secretary approves the AI batch.
     const tasks = tasksRaw.filter(t => {
       if (App.user && t.owner_id === App.user.id) return true;
       return t.review_status !== "pending" && t.review_status !== "rejected";
     });
 
     const canFullyManage = App.can("actions.assign");
-    const ownerDept = {};
-    members.forEach(m => { ownerDept[m.id] = m.department || ""; });
-
     const today = new Date().toISOString().substring(0, 10);
-    const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+    const now = Date.now();
+    const in48h = new Date(now + 48 * 3600000).toISOString().substring(0, 10);
 
-    // ── KPI counts ───────────────────────────────────────────────────────────
-    const allCount = tasks.length;
-    const overdueCount = tasks.filter(t => t.status === "overdue").length;
-    const dueWeekCount = tasks.filter(t =>
-      t.due_date && t.due_date >= today && t.due_date <= weekEnd &&
-      !["done","cancelled"].includes(t.status)
-    ).length;
+    // ── Classification helpers ─────────────────────────────────────────────
+    const isTaskOverdue = (t) =>
+      t.status === "overdue" ||
+      (t.due_date && t.due_date < today && !["done","cancelled"].includes(t.status));
+    const isTaskAtRisk = (t) =>
+      !isTaskOverdue(t) && t.due_date && t.due_date >= today && t.due_date <= in48h &&
+      !["done","cancelled"].includes(t.status);
+    const isTaskActive = (t) => !["done","cancelled"].includes(t.status);
+    const isTaskOnTrack = (t) => isTaskActive(t) && !isTaskOverdue(t) && !isTaskAtRisk(t);
+
+    // ── KPI counts ─────────────────────────────────────────────────────────
+    const activeCount    = tasks.filter(isTaskActive).length;
+    const overdueCount   = tasks.filter(isTaskOverdue).length;
+    const atRiskCount    = tasks.filter(isTaskAtRisk).length;
+    const onTrackCount   = tasks.filter(isTaskOnTrack).length;
     const completedCount = tasks.filter(t => t.status === "done").length;
-    const inProgressCount = tasks.filter(t =>
-      ["inprogress","assigned","open","waiting","blocked"].includes(taskStatusKey(t.status))
-    ).length;
+    const onTrackPct  = activeCount > 0 ? Math.round(onTrackCount / activeCount * 100) : 0;
+    const atRiskPct   = activeCount > 0 ? Math.round(atRiskCount  / activeCount * 100) : 0;
+    const overduePct  = activeCount > 0 ? Math.round(overdueCount / activeCount * 100) : 0;
 
-    // ── tab filter ───────────────────────────────────────────────────────────
-    const tab = TK.tab || "my";
-    const tabTasks = tab === "my"
-      ? tasks.filter(t => App.user && t.owner_id === App.user.id)
-      : tab === "others"
-        ? tasks.filter(t => !App.user || t.owner_id !== App.user.id)
-        : tasks;
+    // ── KPI HTML ───────────────────────────────────────────────────────────
+    const kpiHtml = `<div class="fue-kpi-row">
+      <div class="fue-kpi">
+        <div class="fue-kpi-label">${ar("المهام النشطة","Active Tasks")}</div>
+        <div class="fue-kpi-val">${activeCount}</div>
+        <div class="fue-kpi-sub">${ar("الإجمالي","Total")}</div>
+        <div class="fue-kpi-sparkline"><svg viewBox="0 0 80 28" fill="none"><polyline points="0,22 14,18 28,20 42,12 56,15 70,8 80,5" stroke="#A8842C" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="fue-kpi">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="fue-kpi-label" style="margin-bottom:0">${ar("في المسار","On Track")}</div>
+          <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" stroke="#22C55E" stroke-width="1.5" fill="none"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#22C55E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        <div class="fue-kpi-val fue-green">${onTrackCount}</div>
+        <div class="fue-kpi-pct fue-green">${onTrackPct}%</div>
+      </div>
+      <div class="fue-kpi">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="fue-kpi-label" style="margin-bottom:0">${ar("في خطر (≤48س)","At Risk (≤48h)")}</div>
+          <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2.5L18 16.5H2L10 2.5Z" stroke="#F59E0B" stroke-width="1.5" fill="none" stroke-linejoin="round"/><line x1="10" y1="8.5" x2="10" y2="12" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="14" r="0.75" fill="#F59E0B"/></svg>
+        </div>
+        <div class="fue-kpi-val fue-amber">${atRiskCount}</div>
+        <div class="fue-kpi-pct fue-amber">${atRiskPct}%</div>
+      </div>
+      <div class="fue-kpi">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="fue-kpi-label" style="margin-bottom:0">${ar("متأخرة","Overdue")}</div>
+          <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" stroke="#EF4444" stroke-width="1.5" fill="none"/><path d="M10 6v4.5l2.5 2" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="fue-kpi-val fue-red">${overdueCount}</div>
+        <div class="fue-kpi-pct fue-red">${overduePct}%</div>
+      </div>
+      <div class="fue-kpi">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="fue-kpi-label" style="margin-bottom:0">${ar("مكتملة (هذه الفترة)","Completed (This Period)")}</div>
+          <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" stroke="#9CA3AF" stroke-width="1.5" fill="none"/><path d="M6.5 10.5l2.5 2.5 4-4.5" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        <div class="fue-kpi-val">${completedCount}</div>
+        <div class="fue-kpi-sub">${ar("منذ آخر تقرير","Since last report")}</div>
+      </div>
+    </div>`;
 
-    // ── meeting titles for filter dropdown ───────────────────────────────────
+    // ── Tab setup ──────────────────────────────────────────────────────────
+    const tab = TK.tab || "active";
+    const myActiveCount = tasks.filter(t => App.user && t.owner_id === App.user.id && isTaskActive(t)).length;
+    const tabDefs = [
+      { key: "active",  ar: "كل النشطة",  en: "All Active", count: tasks.filter(isTaskActive).length },
+      { key: "my",      ar: "مهامي",       en: "My Tasks",   count: myActiveCount },
+      { key: "risk",    ar: "في خطر",      en: "At Risk",    count: atRiskCount, badgeCls: "risk" },
+      { key: "overdue", ar: "متأخرة",      en: "Overdue",    count: overdueCount, badgeCls: "overdue" },
+      { key: "done",    ar: "مكتملة",      en: "Completed",  count: completedCount },
+    ];
+    const tabHtml = `<div class="fue-tabs">
+      ${tabDefs.map(td => `<button class="fue-tab${tab === td.key ? " active" : ""}" onclick="TK.setTab('${td.key}')">${ar(td.ar, td.en)}${td.count > 0 ? ` <span class="fue-tab-n${td.badgeCls ? " " + td.badgeCls : ""}">${td.count}</span>` : ""}</button>`).join("")}
+      ${pendingReviewTasks.length ? `<button class="fue-tab${tab === "review" ? " active" : ""}" style="color:#B87018" onclick="TK.setTab('review')">${ar("بانتظار المراجعة","Pending Review")} <span class="fue-tab-n" style="background:rgba(212,160,23,.2);color:#B87018">${pendingReviewTasks.length}</span></button>` : ""}
+    </div>`;
+
+    // ── Get tab tasks ──────────────────────────────────────────────────────
+    let tabTasks;
+    switch (tab) {
+      case "my":      tabTasks = tasks.filter(t => App.user && t.owner_id === App.user.id && isTaskActive(t)); break;
+      case "risk":    tabTasks = tasks.filter(isTaskAtRisk); break;
+      case "overdue": tabTasks = tasks.filter(isTaskOverdue); break;
+      case "done":    tabTasks = tasks.filter(t => t.status === "done"); break;
+      case "review":  tabTasks = pendingReviewTasks; break;
+      default:        tabTasks = tasks.filter(isTaskActive);
+    }
+
+    // ── Owner map / meeting titles for filter dropdowns ────────────────────
+    const ownerMap = {};
+    tasks.forEach(t => {
+      if (t.owner_id) {
+        const name = l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar;
+        if (name) ownerMap[t.owner_id] = name;
+      }
+    });
     const meetingTitles = [...new Set(tasks.map(t =>
       (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar)
     ).filter(Boolean))];
 
-    // ── search & filters ─────────────────────────────────────────────────────
+    // ── Filters ────────────────────────────────────────────────────────────
     const filtered = tabTasks.filter(t => {
-      if (TK.status && taskStatusKey(t.status) !== TK.status) return false;
-      if (TK.priority && taskPriorityKey(t.priority) !== TK.priority) return false;
-      if (TK.dueBefore && (!t.due_date || t.due_date > TK.dueBefore)) return false;
+      if (TK.owner && String(t.owner_id) !== TK.owner) return false;
       if (TK.meeting) {
         const mtg = l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar;
         if (mtg !== TK.meeting) return false;
       }
+      if (TK.status && taskStatusKey(t.status) !== TK.status) return false;
       if (TK.q) {
         const hay = [t.text_ar, t.text_en, t.owner_name_ar, t.owner_name_en, t.source_meeting_title_ar, t.source_meeting_title_en].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(TK.q)) return false;
@@ -5751,159 +5819,104 @@ async function renderTasks() {
       return true;
     });
 
-    // ── sort: overdue first, then due_date asc, then id desc ─────────────────
+    // ── Sort ───────────────────────────────────────────────────────────────
     const sorted = [...filtered].sort((a, b) => {
-      const ao = a.status === "overdue" ? 0 : 1, bo = b.status === "overdue" ? 0 : 1;
+      const ao = isTaskOverdue(a) ? 0 : isTaskAtRisk(a) ? 1 : 2;
+      const bo = isTaskOverdue(b) ? 0 : isTaskAtRisk(b) ? 1 : 2;
       if (ao !== bo) return ao - bo;
       if (a.due_date && b.due_date) return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0;
       if (a.due_date) return -1; if (b.due_date) return 1;
       return b.id - a.id;
     });
 
-    // ── pagination ────────────────────────────────────────────────────────────
-    const PAGE_SIZE = 10;
+    // ── Pagination ─────────────────────────────────────────────────────────
+    const PAGE_SIZE = 5;
     const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
     const page = Math.min(Math.max(1, TK.page || 1), totalPages);
     const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-    // ── helpers ───────────────────────────────────────────────────────────────
-    const tkStatusMeta = (status) => {
-      const key = taskStatusKey(status);
-      const m = {
-        open:       { ar: "لم تبدأ",     en: "Not Started", cls: "tk-st-gray"  },
-        assigned:   { ar: "مُسندة",      en: "Assigned",    cls: "tk-st-gray"  },
-        inprogress: { ar: "قيد التنفيذ", en: "In Progress", cls: "tk-st-blue"  },
-        waiting:    { ar: "بانتظار",     en: "Pending",     cls: "tk-st-amber" },
-        blocked:    { ar: "معلّقة",      en: "Pending",     cls: "tk-st-amber" },
-        done:       { ar: "مكتملة",      en: "Completed",   cls: "tk-st-green" },
-        cancelled:  { ar: "ملغاة",       en: "Cancelled",   cls: "tk-st-gray"  },
-        overdue:    { ar: "متأخرة",      en: "Overdue",     cls: "tk-st-red"   },
-      };
-      return m[key] || m.open;
-    };
-    const tkPriMeta = (priority) => {
-      const key = taskPriorityKey(priority);
-      const m = {
-        low:      { ar: "منخفض", en: "Low",      cls: "tk-pri-gray"  },
-        medium:   { ar: "متوسط", en: "Medium",   cls: "tk-pri-blue"  },
-        high:     { ar: "عالٍ",  en: "High",     cls: "tk-pri-amber" },
-        critical: { ar: "حرج",   en: "Critical", cls: "tk-pri-red"   },
-      };
-      return m[key] || m.medium;
-    };
-    const initials = (name) => (name || "").trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]||"").join("").toUpperCase() || "?";
+    // ── Render helpers ─────────────────────────────────────────────────────
+    const avatarColors = ["#4A6FA5","#6B7C93","#8B6BA8","#5B9BD5","#4CAF7D","#E08A3C","#C0785A"];
+    const ownerColor = (id) => avatarColors[(id || 0) % avatarColors.length];
+    const initials = (name) => (name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
     const fmtDate = (ds) => {
       if (!ds) return "";
       const d = new Date(ds + "T00:00:00");
-      return isNaN(d) ? ds : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day:"numeric", month:"short", year:"numeric" });
+      return isNaN(d) ? ds : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
     };
-    const fmtDateShort = (ds) => {
-      if (!ds) return "";
+    const daysDiff = (ds) => {
+      if (!ds) return null;
       const d = new Date(ds + "T00:00:00");
-      return isNaN(d) ? ds : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day:"numeric", month:"short" });
+      if (isNaN(d)) return null;
+      return Math.round((d.getTime() - now) / 86400000);
     };
-    const avatarColors = ["#4A6FA5","#6B7C93","#8B6BA8","#5B9BD5","#4CAF7D","#E08A3C","#C0785A"];
-    const ownerColor = (id) => avatarColors[(id || 0) % avatarColors.length];
 
-    // ── KPI cards ─────────────────────────────────────────────────────────────
-    const kpiCard = (icon, label_ar, label_en, val, sub_ar, sub_en, accent) => `
-      <div class="tk-kpi">
-        <div class="tk-kpi-icon" style="color:${accent}">${icon}</div>
-        <div class="tk-kpi-val" style="color:${accent}">${val}</div>
-        <div class="tk-kpi-label">${ar(label_ar, label_en)}</div>
-        <a class="tk-kpi-link" href="javascript:void(0)" onclick="void(0)">${ar(sub_ar, sub_en)} →</a>
-      </div>`;
+    const statusBadge = (t) => {
+      if (isTaskOverdue(t))                             return `<span class="fue-badge fue-badge-overdue">${ar("متأخرة","Overdue")}</span>`;
+      if (isTaskAtRisk(t))                              return `<span class="fue-badge fue-badge-risk">${ar("في خطر","At Risk")}</span>`;
+      if (t.status === "done")                          return `<span class="fue-badge fue-badge-done">${ar("مكتملة","Done")}</span>`;
+      if (taskStatusKey(t.status) === "inprogress")     return `<span class="fue-badge fue-badge-inprogress">${ar("جارٍ","In Progress")}</span>`;
+      return `<span class="fue-badge fue-badge-ontrack">${ar("في المسار","On Track")}</span>`;
+    };
 
-    const kpiHtml = `<div class="tk-kpi-row">
-      ${kpiCard("📋", "كل المهام",       "All Tasks",       allCount,        "عرض كل المهام",       "View all tasks",    "var(--text)")}
-      ${kpiCard("⚠️", "متأخرة",          "Overdue",         overdueCount,    "عرض المتأخرة",        "View overdue",      overdueCount > 0 ? "var(--red)" : "var(--text)")}
-      ${kpiCard("📅", "مستحقة هذا الأسبوع","Due This Week",   dueWeekCount,    "عرض هذا الأسبوع",     "View this week",    "var(--blue)")}
-      ${kpiCard("✅", "مكتملة",           "Completed",       completedCount,  "عرض المكتملة",        "View completed",    "var(--green)")}
-      ${kpiCard("🔄", "قيد التنفيذ",      "In Progress",     inProgressCount, "عرض الجارية",         "View in progress",  "var(--amber)")}
-    </div>`;
+    const checkinCell = (t) => {
+      if (isTaskOverdue(t)) return `<div class="fue-checkin"><div><span class="fue-checkin-dot red"></span>${ar("اليوم","Today")}</div><small>${ar("يومي","Daily")}</small></div>`;
+      if (isTaskAtRisk(t))  return `<div class="fue-checkin"><div><span class="fue-checkin-dot amber"></span>${ar("اليوم","Today")}</div><small>${ar("48 ساعة قبل الموعد","48h before due")}</small></div>`;
+      const d3 = new Date(now + 3 * 86400000);
+      const d3s = d3.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short" });
+      return `<div class="fue-checkin"><div><span class="fue-checkin-dot green"></span>${d3s}</div><small>${ar("كل 3 أيام","In 3 days")}</small></div>`;
+    };
 
-    // ── table tabs ────────────────────────────────────────────────────────────
-    const myCount  = tasks.filter(t => App.user && t.owner_id === App.user.id).length;
-    const othCount = tasks.filter(t => !App.user || t.owner_id !== App.user.id).length;
-    const tabHtml = `<div class="tk-tabs">
-      <button class="tk-tab${tab==="my"?" active":""}"    onclick="TK.setTab('my')">${ar("مهامي","My Tasks")} <span class="tk-tab-n">${myCount}</span></button>
-      <button class="tk-tab${tab==="others"?" active":""}" onclick="TK.setTab('others')">${ar("مُسندة للآخرين","Assigned to Others")} <span class="tk-tab-n">${othCount}</span></button>
-      <button class="tk-tab${tab==="all"?" active":""}"    onclick="TK.setTab('all')">${ar("كل المهام","All Tasks")} <span class="tk-tab-n">${tasks.length}</span></button>
-      ${pendingReviewTasks.length ? `<button class="tk-tab${tab==="review"?" active":""}" onclick="TK.setTab('review')" style="color:var(--amber)">⏳ ${ar("بانتظار المراجعة","Pending Review")} <span class="tk-tab-n" style="background:rgba(212,160,23,.25);color:var(--amber)">${pendingReviewTasks.length}</span></button>` : ""}
-    </div>`;
+    const dueDateCell = (t) => {
+      if (!t.due_date) return `<span class="fue-empty">—</span>`;
+      const diff = daysDiff(t.due_date);
+      const overdue = isTaskOverdue(t);
+      const risk = isTaskAtRisk(t);
+      const cls = overdue ? "fue-red" : risk ? "fue-amber" : "";
+      const diffLabel = diff === null ? "" :
+        (overdue && diff < 0) ? ar(`تأخرت ${Math.abs(diff)} يوم`, `${Math.abs(diff)}d ago`) :
+        diff === 0 ? ar("اليوم","Today") :
+        diff === 1 ? ar("غداً","Tomorrow") :
+        ar(`${diff} أيام`, `Due in ${diff}d`);
+      return `<div class="${cls}" style="white-space:nowrap"><div style="font-size:13px;font-weight:600">${fmtDate(t.due_date)}</div>${diffLabel ? `<div style="font-size:11.5px;margin-top:1px;opacity:.85">${diffLabel}</div>` : ""}</div>`;
+    };
 
-    // ── filter bar ────────────────────────────────────────────────────────────
-    const _opt = (val, lbl, sel) => `<option value="${esc(val)}"${sel?" selected":""}>${esc(lbl)}</option>`;
-    const filterBar = `<div class="tk-filters">
-      <div class="tk-search-wrap">
-        <span class="tk-search-ico">🔍</span>
-        <input class="tk-search-inp" type="search" placeholder="${ar("بحث في المهام...","Search tasks...")}"
-          value="${esc(TK.q)}" oninput="TK.onSearch(this.value)"/>
-      </div>
-      <select class="tk-fil-sel" onchange="TK.setFilter('status',this.value)">
-        ${_opt("", ar("الحالة","Status"), !TK.status)}
-        ${TASK_ASSIGNABLE_STATUSES.concat(["overdue"]).map(k =>
-          _opt(k, l==="ar" ? TASK_STATUS_META[k].ar : TASK_STATUS_META[k].en, TK.status===k)
-        ).join("")}
-      </select>
-      <select class="tk-fil-sel" onchange="TK.setFilter('priority',this.value)">
-        ${_opt("", ar("الأولوية","Priority"), !TK.priority)}
-        ${TASK_ASSIGNABLE_PRIORITIES.map(k =>
-          _opt(k, l==="ar" ? TASK_PRIORITY_META[k].ar : TASK_PRIORITY_META[k].en, TK.priority===k)
-        ).join("")}
-      </select>
-      <input class="tk-fil-sel" type="date" title="${ar("مستحق قبل أو في","Due on or before")}"
-        value="${esc(TK.dueBefore)}" onchange="TK.setFilter('dueBefore',this.value)"
-        style="color:${TK.dueBefore ? "var(--text)" : "var(--text3)"}"/>
-      <select class="tk-fil-sel" onchange="TK.setFilter('meeting',this.value)">
-        ${_opt("", ar("الاجتماع","Meeting"), !TK.meeting)}
-        ${meetingTitles.map(mt => _opt(mt, mt.length>32?mt.substring(0,32)+"…":mt, TK.meeting===mt)).join("")}
-      </select>
-      ${TK.isActive() ? `<button class="tk-fil-reset" onclick="TK.reset()">✕ ${ar("إعادة تعيين","Reset")}</button>` : ""}
-    </div>`;
-
-    // ── task row renderer ─────────────────────────────────────────────────────
+    // ── Task row ───────────────────────────────────────────────────────────
     const taskRow = (t) => {
       const text  = (l === "ar" ? t.text_ar : t.text_en || t.text_ar) || "";
       const owner = (l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar) || "";
-      const mtg   = (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
-      const sm = tkStatusMeta(t.status);
-      const pm = tkPriMeta(t.priority);
-      const isOverdue = t.status === "overdue";
-      return `<tr class="tk-tr${isOverdue?" tk-tr-overdue":""}" id="tr-${t.id}">
-        <td class="tk-td" style="width:32px;padding:8px">
-          <input type="checkbox" class="tk-row-chk" data-id="${t.id}" style="width:14px;height:14px;cursor:pointer;accent-color:var(--gold)" onchange="BulkTasks.onCheck()">
+      const mtgTitle = (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
+      const priColor = (t.priority === "urgent" || t.priority === "critical") ? "#EF4444" : t.priority === "high" ? "#F59E0B" : "#22C55E";
+      const overdue = isTaskOverdue(t);
+      return `<tr class="fue-tr${overdue ? " fue-tr-overdue" : ""}" id="tr-${t.id}" onclick="FUE.openDetail(${t.id})" style="cursor:pointer">
+        <td class="fue-td fue-td-task">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span style="width:8px;height:8px;border-radius:50%;background:${priColor};flex-shrink:0;margin-top:5px"></span>
+            <div>
+              <div class="fue-task-t">${esc(text)}</div>
+              ${mtgTitle ? `<div class="fue-task-s">${esc(mtgTitle.length > 34 ? mtgTitle.substring(0, 34) + "…" : mtgTitle)}</div>` : ""}
+            </div>
+          </div>
         </td>
-        <td class="tk-td tk-td-task">
-          <div class="tk-task-t">${esc(text)}</div>
-          ${t.due_date && isOverdue ? `<div class="tk-task-s" style="color:var(--red)">⚠ ${ar("تأخرت","Overdue")} · ${fmtDate(t.due_date)}</div>` : ""}
-        </td>
-        <td class="tk-td tk-td-rel">
-          ${mtg ? `<a class="tk-mtg-link" href="javascript:void(0)"
-            onclick="${t.source_meeting_id ? `MT.openDetail(${t.source_meeting_id},'actions')` : "void(0)"}"
-            title="${esc(mtg)}">${esc(mtg.length>28?mtg.substring(0,28)+"…":mtg)}</a>` : `<span class="tk-empty-cell">—</span>`}
-        </td>
-        <td class="tk-td tk-td-owner">
+        <td class="fue-td fue-td-owner">
           ${owner
-            ? `<div class="tk-owner-wrap"><span class="tk-av" style="background:${ownerColor(t.owner_id)}">${esc(initials(owner))}</span><span class="tk-owner-n">${esc(owner)}</span></div>`
-            : `<span class="tk-empty-cell">—</span>`}
+            ? `<div class="fue-owner-wrap"><span class="fue-av" style="background:${ownerColor(t.owner_id)}">${esc(initials(owner))}</span><div><div class="fue-owner-n">${esc(owner)}</div></div></div>`
+            : `<span class="fue-empty">—</span>`}
         </td>
-        <td class="tk-td tk-td-date" style="color:${isOverdue?"var(--red)":"var(--text2)"}">
-          ${t.due_date ? fmtDate(t.due_date) : `<span class="tk-empty-cell">—</span>`}
+        <td class="fue-td fue-td-mtg">
+          ${mtgTitle
+            ? `<div style="font-size:13px;color:#344054;font-weight:500;line-height:1.4">${esc(mtgTitle.length > 28 ? mtgTitle.substring(0, 28) + "…" : mtgTitle)}</div>
+               ${t.created_at ? `<div style="font-size:11.5px;color:#9CA3AF;margin-top:1px">${fmtDate(t.created_at.substring(0, 10))}</div>` : ""}`
+            : `<span class="fue-empty">—</span>`}
         </td>
-        <td class="tk-td"><span class="tk-pri ${pm.cls}">${ar(pm.ar, pm.en)}</span></td>
-        <td class="tk-td">
-          <select class="tk-st-sel ${sm.cls}" onchange="Tasks.updateStatus(${t.id},this.value)" title="${ar("تحديث الحالة","Update status")}">
-            ${TASK_ASSIGNABLE_STATUSES.map(k =>
-              `<option value="${k}"${taskStatusKey(t.status)===k?" selected":""}>${l==="ar"?TASK_STATUS_META[k].ar:TASK_STATUS_META[k].en}</option>`
-            ).join("")}
-            ${t.status==="overdue" ? `<option value="overdue" selected>${l==="ar"?TASK_STATUS_META.overdue.ar:TASK_STATUS_META.overdue.en}</option>` : ""}
-          </select>
-        </td>
-        <td class="tk-td tk-td-actions">
-          <div class="tk-rm-wrap">
-            <button class="tk-rm-btn" onclick="TK.toggleMenu(${t.id},this)" aria-label="${ar("إجراءات","Actions")}">⋮</button>
+        <td class="fue-td fue-td-date">${dueDateCell(t)}</td>
+        <td class="fue-td fue-td-status">${statusBadge(t)}</td>
+        <td class="fue-td fue-td-checkin">${checkinCell(t)}</td>
+        <td class="fue-td fue-td-actions" onclick="event.stopPropagation()">
+          <div class="fue-rm-wrap">
+            <button class="fue-rm-btn" onclick="TK.toggleMenu(${t.id},this)" aria-label="${ar("إجراءات","Actions")}">⋮</button>
             <div class="tk-rm-drop" id="tk-rm-${t.id}">
+              <button onclick="TK.closeMenus();FUE.openDetail(${t.id})">👁 ${ar("عرض التفاصيل","View Details")}</button>
               <button onclick="TK.closeMenus();Tasks.edit(${t.id})">✏️ ${ar("تعديل","Edit")}</button>
               ${canFullyManage ? `<button onclick="TK.closeMenus();Tasks.delete(${t.id})" style="color:var(--red)">🗑 ${ar("حذف","Delete")}</button>` : ""}
             </div>
@@ -5912,275 +5925,171 @@ async function renderTasks() {
       </tr>`;
     };
 
-    // ── main task table ───────────────────────────────────────────────────────
-    const tableHtml = sorted.length === 0
-      ? `<div class="tk-empty"><div style="font-size:32px;margin-bottom:10px">📋</div>
-          <div style="font-size:14px;font-weight:700;color:var(--text2);margin-bottom:4px">${ar("لا توجد مهام مطابقة","No matching tasks")}</div>
-          <div style="font-size:12px;color:var(--text3)">${ar("جرّب تعديل الفلاتر أو إنشاء مهمة جديدة","Try adjusting filters or creating a new task")}</div>
-          ${TK.isActive() ? `<button class="btn-ghost btn-sm" style="margin-top:12px" onclick="TK.reset()">✕ ${ar("إعادة تعيين","Reset filters")}</button>` : ""}</div>`
-      : `<div id="tk-bulk-bar" style="display:none;align-items:center;gap:8px;padding:8px 14px;background:rgba(168,132,44,.08);border-bottom:1px solid rgba(168,132,44,.2)">
-          <span id="tk-bulk-count" style="font-size:12px;font-weight:700;color:var(--gold)"></span>
-          <button class="btn-ghost btn-sm" onclick="BulkTasks.markAll('done')" style="font-size:11px">✓ ${ar("اعتماد","Mark Done")}</button>
-          <button class="btn-ghost btn-sm" onclick="BulkTasks.markAll('inprogress')" style="font-size:11px">🔄 ${ar("قيد التنفيذ","In Progress")}</button>
-          <button class="btn-ghost btn-sm" onclick="BulkTasks.markAll('open')" style="font-size:11px">📥 ${ar("مفتوحة","Open")}</button>
-          <button class="btn-ghost btn-sm" onclick="BulkTasks.deselect()" style="font-size:11px;margin-inline-start:auto">✕ ${ar("إلغاء","Clear")}</button>
-        </div>
-        <div class="tk-tbl-wrap">
-          <table class="tk-tbl">
-            <thead>
-              <tr>
-                <th class="tk-th" style="width:32px;padding:8px"><input type="checkbox" id="tk-chk-all" style="width:14px;height:14px;cursor:pointer;accent-color:var(--gold)" onchange="BulkTasks.toggleAll(this.checked)"></th>
-                <th class="tk-th">${ar("المهمة","Task")}</th>
-                <th class="tk-th">${ar("مرتبط بـ","Related To")}</th>
-                <th class="tk-th">${ar("المسؤول","Owner")}</th>
-                <th class="tk-th">${ar("تاريخ الاستحقاق","Due Date")}</th>
-                <th class="tk-th">${ar("الأولوية","Priority")}</th>
-                <th class="tk-th">${ar("الحالة","Status")}</th>
-                <th class="tk-th"></th>
-              </tr>
-            </thead>
+    // ── Filter bar ─────────────────────────────────────────────────────────
+    const _opt = (val, lbl, sel) => `<option value="${esc(val)}"${sel ? " selected" : ""}>${esc(lbl)}</option>`;
+    const filterBar = `<div class="fue-filterbar">
+      <select class="fue-fil-sel" onchange="TK.setFilter('owner',this.value)">
+        ${_opt("", ar("كل المسؤولين","All Owners"), !TK.owner)}
+        ${Object.entries(ownerMap).map(([id, name]) => _opt(id, name, TK.owner === id)).join("")}
+      </select>
+      <select class="fue-fil-sel" onchange="TK.setFilter('meeting',this.value)">
+        ${_opt("", ar("كل الاجتماعات","All Meetings"), !TK.meeting)}
+        ${meetingTitles.map(mt => _opt(mt, mt.length > 32 ? mt.substring(0, 32) + "…" : mt, TK.meeting === mt)).join("")}
+      </select>
+      <select class="fue-fil-sel" onchange="TK.setFilter('status',this.value)">
+        ${_opt("", ar("كل الحالات","All Statuses"), !TK.status)}
+        ${[["inprogress",ar("جارٍ","In Progress")],["open",ar("لم تبدأ","Not Started")],["overdue",ar("متأخرة","Overdue")],["done",ar("مكتملة","Completed")]].map(([v,lbl]) => _opt(v, lbl, TK.status===v)).join("")}
+      </select>
+      <button class="fue-fil-icon" title="${ar("فلاتر","Filter")}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      ${TK.isActive() ? `<button class="fue-fil-reset" onclick="TK.reset()">✕ ${ar("إعادة تعيين","Reset")}</button>` : ""}
+    </div>`;
+
+    // ── Table / empty state ────────────────────────────────────────────────
+    const tableContent = sorted.length === 0
+      ? `<div class="fue-empty-state">
+          <div style="font-size:36px;margin-bottom:12px">📋</div>
+          <div style="font-size:15px;font-weight:700;color:#344054;margin-bottom:4px">${ar("لا توجد مهام مطابقة","No matching tasks")}</div>
+          <div style="font-size:13px;color:#9CA3AF">${ar("جرّب تعديل الفلاتر أو إنشاء مهمة جديدة","Try adjusting filters or creating a new task")}</div>
+          ${TK.isActive() ? `<button class="fue-fil-reset" style="margin-top:14px" onclick="TK.reset()">✕ ${ar("إعادة تعيين","Reset filters")}</button>` : ""}
+        </div>`
+      : `<div class="fue-tbl-wrap">
+          <table class="fue-tbl">
+            <thead><tr>
+              <th class="fue-th">${ar("المهمة","Task")}</th>
+              <th class="fue-th">${ar("المسؤول","Owner")}</th>
+              <th class="fue-th">${ar("اجتماع المصدر","Source Meeting")}</th>
+              <th class="fue-th">${ar("تاريخ الاستحقاق","Due Date")}</th>
+              <th class="fue-th">${ar("الحالة","Status")}</th>
+              <th class="fue-th">${ar("المتابعة القادمة","Next Check-in")}</th>
+              <th class="fue-th fue-th-actions">${ar("إجراءات","Actions")}</th>
+            </tr></thead>
             <tbody>${paginated.map(taskRow).join("")}</tbody>
           </table>
         </div>
-        <div class="tk-tbl-foot">
-          <span class="tk-count">${ar(`عرض ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} من ${sorted.length} مهمة`, `Showing ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} of ${sorted.length} task${sorted.length!==1?"s":""}`)}</span>
-          <div class="tk-pages">
-            <button class="tk-pg-btn" ${page<=1?"disabled":""} onclick="TK.setPage(${page-1})">◀</button>
-            ${Array.from({length:Math.min(totalPages,7)}, (_,i)=>{
-              let p;
-              if (totalPages<=7) p=i+1;
-              else if (page<=4) p=i+1;
-              else if (page>=totalPages-3) p=totalPages-6+i;
-              else p=page-3+i;
-              return `<button class="tk-pg-btn${p===page?" active":""}" onclick="TK.setPage(${p})">${p}</button>`;
-            }).join("")}
-            ${totalPages>7 ? `<span style="color:var(--text3);padding:0 4px">…</span><button class="tk-pg-btn${page===totalPages?" active":""}" onclick="TK.setPage(${totalPages})">${totalPages}</button>` : ""}
-            <button class="tk-pg-btn" ${page>=totalPages?"disabled":""} onclick="TK.setPage(${page+1})">▶</button>
-          </div>
+        <div class="fue-tbl-foot">
+          <span class="fue-count">${ar(`عرض ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} من ${sorted.length} مهمة`,`Showing ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} of ${sorted.length} task${sorted.length !== 1 ? "s" : ""}`)}</span>
+          <a href="javascript:void(0)" class="fue-viewall" onclick="TK.setTab('active');TK.reset()">${ar("عرض كل المهام","View all tasks")} →</a>
         </div>`;
 
-    // ── right sidebar ─────────────────────────────────────────────────────────
-    // Tasks by status donut chart
-    const stCounts = {
-      inprogress: tasks.filter(t => ["inprogress"].includes(taskStatusKey(t.status))).length,
-      pending:    tasks.filter(t => ["waiting","blocked","assigned"].includes(taskStatusKey(t.status))).length,
-      notstarted: tasks.filter(t => taskStatusKey(t.status) === "open").length,
-      done:       tasks.filter(t => t.status === "done").length,
-    };
-    const stTotal = tasks.length || 1;
-    const stColors = { inprogress: "#4A90D9", pending: "#E08A3C", notstarted: "#9CA3AF", done: "#4CAF7D" };
-    const stLabels = {
-      inprogress: ar("قيد التنفيذ","In Progress"),
-      pending:    ar("بانتظار","Pending"),
-      notstarted: ar("لم تبدأ","Not Started"),
-      done:       ar("مكتملة","Completed"),
-    };
-    let cumDeg = 0;
-    const donutSegs = Object.entries(stCounts).map(([k, cnt]) => {
-      const pct = cnt / stTotal;
-      const deg = pct * 360;
-      const seg = `<div style="position:absolute;inset:0;border-radius:50%;background:conic-gradient(transparent ${cumDeg}deg, ${stColors[k]} ${cumDeg}deg ${cumDeg+deg}deg, transparent ${cumDeg+deg}deg)"></div>`;
-      cumDeg += deg;
-      return seg;
-    }).join("");
-    const donutChart = `<div class="tk-donut-wrap">
-      <div class="tk-donut" style="position:relative">
-        ${donutSegs}
-        <div class="tk-donut-hole">
-          <div class="tk-donut-n">${tasks.length}</div>
-          <div class="tk-donut-l">${ar("الإجمالي","Total")}</div>
-        </div>
-      </div>
-      <div class="tk-donut-legend">
-        ${Object.entries(stCounts).map(([k,cnt]) => `
-          <div class="tk-legend-row">
-            <span class="tk-legend-dot" style="background:${stColors[k]}"></span>
-            <span class="tk-legend-lbl">${stLabels[k]}</span>
-            <span class="tk-legend-cnt">${cnt} <span class="tk-legend-pct">(${Math.round(cnt/stTotal*100)}%)</span></span>
-          </div>`).join("")}
-      </div>
-    </div>`;
-
-    // Upcoming deadlines (next 5, not done, has due_date)
-    const upcoming = tasks
-      .filter(t => t.due_date && t.due_date >= today && !["done","cancelled"].includes(t.status))
-      .sort((a,b) => a.due_date < b.due_date ? -1 : 1)
-      .slice(0, 5);
-    const upcomingHtml = upcoming.length === 0
-      ? `<div class="tk-side-empty">${ar("لا مواعيد قادمة","No upcoming deadlines")}</div>`
-      : upcoming.map(t => {
-          const d = new Date(t.due_date + "T00:00:00");
-          const pm2 = tkPriMeta(t.priority);
-          const dayNum = isNaN(d) ? "" : d.getDate();
-          const mon = isNaN(d) ? "" : d.toLocaleDateString(l==="ar"?"ar-EG":"en-US",{month:"short"}).toUpperCase();
-          const text = (l==="ar" ? t.text_ar : t.text_en || t.text_ar) || "";
-          const mtg  = (l==="ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
-          return `<div class="tk-dead-row">
-            <div class="tk-dead-date">
-              <div class="tk-dead-day">${dayNum}</div>
-              <div class="tk-dead-mon">${mon}</div>
-            </div>
-            <div class="tk-dead-info">
-              <div class="tk-dead-t">${esc(text.length>42?text.substring(0,42)+"…":text)}</div>
-              ${mtg ? `<div class="tk-dead-s">${esc(mtg.length>30?mtg.substring(0,30)+"…":mtg)}</div>` : ""}
-            </div>
-            <span class="tk-pri ${pm2.cls}" style="flex-shrink:0">${ar(pm2.ar,pm2.en)}</span>
-          </div>`;
-        }).join("");
-
-    // Recent completed
-    const recentDone = tasks
-      .filter(t => t.status === "done")
-      .sort((a,b) => (b.updated_at||b.created_at||"").localeCompare(a.updated_at||a.created_at||""))
-      .slice(0, 4);
-    const recentDoneHtml = recentDone.length === 0
-      ? `<div class="tk-side-empty">${ar("لا مهام مكتملة بعد","No completed tasks yet")}</div>`
-      : recentDone.map(t => {
-          const text = (l==="ar" ? t.text_ar : t.text_en || t.text_ar) || "";
-          const mtg  = (l==="ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
-          const doneDate = fmtDate((t.updated_at||t.created_at||"").substring(0,10));
-          return `<div class="tk-done-row">
-            <span class="tk-done-ico">✓</span>
-            <div class="tk-done-info">
-              <div class="tk-done-t">${esc(text.length>40?text.substring(0,40)+"…":text)}</div>
-              <div class="tk-done-s">${esc(mtg.length>28?mtg.substring(0,28)+"…":mtg)||"—"} · ${doneDate}</div>
-            </div>
-          </div>`;
-        }).join("");
-
-    const sidebarHtml = `<div class="tk-sidebar">
-      <div class="tk-side-card">
-        <div class="tk-side-title">${ar("المهام حسب الحالة","Tasks by Status")}</div>
-        ${donutChart}
-      </div>
-      <div class="tk-side-card">
-        <div class="tk-side-title">${ar("المواعيد القادمة","Upcoming Deadlines")}</div>
-        ${upcomingHtml}
-        ${upcoming.length >= 3 ? `<a class="tk-side-link" href="javascript:void(0)" onclick="TK.setFilter('status','')">
-          ${ar("عرض كل المواعيد","View All Deadlines")} →</a>` : ""}
-      </div>
-      <div class="tk-side-card">
-        <div class="tk-side-title">${ar("المكتملة مؤخراً","Recent Completed Tasks")}</div>
-        ${recentDoneHtml}
-        ${recentDone.length >= 3 ? `<a class="tk-side-link" href="javascript:void(0)" onclick="TK.setTab('all');TK.setFilter('status','done')">
-          ${ar("عرض كل المكتملة","View All Completed")} →</a>` : ""}
-      </div>
-    </div>`;
-
-    // ── Pending Review section ────────────────────────────────────────────────
-    const pendingReviewBodyHtml = pendingReviewTasks.length === 0
-      ? `<div class="tk-empty"><div style="font-size:28px;margin-bottom:8px">✅</div><div style="font-size:13px;color:var(--text2)">${ar("لا مهام بانتظار المراجعة","No tasks pending review")}</div></div>`
+    // ── Pending review tab ─────────────────────────────────────────────────
+    const reviewContent = pendingReviewTasks.length === 0
+      ? `<div class="fue-empty-state"><div style="font-size:28px;margin-bottom:8px">✅</div><div style="font-size:13px;color:var(--text2)">${ar("لا مهام بانتظار المراجعة","No tasks pending review")}</div></div>`
       : `<div class="tk-rv-grid">
-        ${pendingReviewTasks.map(t => {
-          const text  = (l==="ar" ? t.text_ar||t.text_en : t.text_en||t.text_ar) || "";
-          const owner = (l==="ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar) || "";
-          const pm2   = tkPriMeta(t.priority);
-          const mtg   = (l==="ar" ? t.source_meeting_title_ar : t.source_meeting_title_en||t.source_meeting_title_ar)||"";
-          return `<div class="tk-side-card" style="border-inline-start:3px solid var(--gold)">
-            <div class="tk-task-t" style="margin-bottom:8px">${esc(text)}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-              <span class="tk-pri ${pm2.cls}">${ar(pm2.ar,pm2.en)}</span>
-              ${owner ? `<span style="font-size:11px;color:var(--text3)">👤 ${esc(owner)}</span>` : ""}
-              ${mtg ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length>30?mtg.substring(0,30)+"…":mtg)}</span>` : ""}
-              ${t.due_date ? `<span style="font-size:11px;color:var(--text3)">📅 ${esc(t.due_date)}</span>` : ""}
-            </div>
-            <div style="display:flex;gap:6px">
-              <button class="btn-ghost btn-sm" onclick="Tasks.edit(${t.id})">✏️ ${ar("تعديل","Edit")}</button>
-              <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ReviewQueue.reject(${t.id})">✕ ${ar("رفض","Reject")}</button>
-              <button class="btn-gold btn-sm" onclick="ReviewQueue.approve(${t.id})">✓ ${ar("اعتماد","Approve")}</button>
-            </div>
-          </div>`;
-        }).join("")}
-        </div>`;
-
-    // ── Smart Suggestions ─────────────────────────────────────────────────────
-    const suggestions = [];
-    if (overdueCount > 0)
-      suggestions.push({ ico: "📅", ar: `${overdueCount} مهام تجاوزت الموعد`, en: `${overdueCount} task${overdueCount!==1?"s":""} ${overdueCount===1?"has":"have"} passed their deadline`,
-        sub_ar: "راجع مهامك المتأخرة", sub_en: "Review your overdue tasks",
-        btn_ar: "عرض المتأخرة", btn_en: "View Tasks", onclick: `TK.setTab('all');TK.setFilter('status','overdue')` });
-    if (pendingReviewTasks.length > 0)
-      suggestions.push({ ico: "⏳", ar: `${pendingReviewTasks.length} مهام بانتظار مراجعتك`, en: `${pendingReviewTasks.length} task${pendingReviewTasks.length!==1?"s":""} waiting for your review`,
-        sub_ar: "قدّم ملاحظاتك للمضي قدماً", sub_en: "Provide feedback to move forward",
-        btn_ar: "مراجعة الآن", btn_en: "Review Now", onclick: `TK.setTab('review')` });
-    if (dueWeekCount > 0)
-      suggestions.push({ ico: "📄", ar: `${dueWeekCount} مهام مستحقة هذا الأسبوع`, en: `${dueWeekCount} task${dueWeekCount!==1?"s":""} due this week`,
-        sub_ar: "تابع المهام المستحقة قريباً", sub_en: "Follow up on tasks due soon",
-        btn_ar: "عرض المهام", btn_en: "View Tasks", onclick: `TK.setFilter('dueBefore','${weekEnd}')` });
-
-    const suggestionsHtml = suggestions.length === 0 ? "" : `
-      <div class="tk-suggestions">
-        <div class="tk-sug-header">
-          <span>⚡</span>
-          <span class="tk-sug-title">${ar("اقتراحات ذكية من أمين","Smart Suggestions from Ameen")}</span>
-          <button class="tk-sug-close" onclick="this.closest('.tk-suggestions').style.display='none'">✕</button>
-        </div>
-        <div class="tk-sug-cards">
-          ${suggestions.map(s => `
-            <div class="tk-sug-card">
-              <div class="tk-sug-ico">${s.ico}</div>
-              <div class="tk-sug-body">
-                <div class="tk-sug-t">${ar(s.ar,s.en)}</div>
-                <div class="tk-sug-s">${ar(s.sub_ar,s.sub_en)}</div>
+          ${pendingReviewTasks.map(t => {
+            const text  = (l === "ar" ? t.text_ar || t.text_en : t.text_en || t.text_ar) || "";
+            const owner = (l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar) || "";
+            const mtg   = (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
+            return `<div class="tk-side-card" style="border-inline-start:3px solid var(--gold)">
+              <div class="fue-task-t" style="margin-bottom:8px">${esc(text)}</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+                ${owner ? `<span style="font-size:11px;color:var(--text3)">👤 ${esc(owner)}</span>` : ""}
+                ${mtg   ? `<span style="font-size:11px;color:var(--text3)">📝 ${esc(mtg.length > 30 ? mtg.substring(0, 30) + "…" : mtg)}</span>` : ""}
+                ${t.due_date ? `<span style="font-size:11px;color:var(--text3)">📅 ${esc(t.due_date)}</span>` : ""}
               </div>
-              <a class="tk-sug-btn" href="javascript:void(0)" onclick="${s.onclick}">${ar(s.btn_ar,s.btn_en)} →</a>
-            </div>`).join("")}
-        </div>
-      </div>`;
-
-    // ── view switcher ─────────────────────────────────────────────────────────
-    const currentView = TaskView.get();
-    const viewSwitcherHtml = `<div class="tk-view-bar">
-      <button class="tk-view-btn${currentView==='list'?' active':''}" onclick="TaskView.set('list')">☰ ${ar("قائمة","List")}</button>
-      <button class="tk-view-btn${currentView==='board'?' active':''}" onclick="TaskView.set('board')">⬛ ${ar("لوحة","Board")}</button>
-    </div>`;
-
-    // ── kanban board ──────────────────────────────────────────────────────────
-    const boardCols = [
-      { keys: ["open","assigned"], icon: "📥", ar: "لم تبدأ", en: "Not Started", color: "#697386" },
-      { keys: ["inprogress"],      icon: "🔄", ar: "قيد التنفيذ", en: "In Progress", color: "#2E6FD8" },
-      { keys: ["waiting","blocked","overdue"], icon: "⏳", ar: "معلّقة / متأخرة", en: "Pending / Overdue", color: "#B87018" },
-      { keys: ["done"],            icon: "✅", ar: "مكتملة", en: "Done", color: "#12905C" },
-    ];
-    const boardCard = (t) => {
-      const text  = (l==="ar" ? t.text_ar : t.text_en||t.text_ar)||"";
-      const owner = (l==="ar" ? t.owner_name_ar : t.owner_name_en||t.owner_name_ar)||"";
-      const pm2   = tkPriMeta(t.priority);
-      const isOD  = t.status==="overdue";
-      return `<div class="tk-board-card${isOD?" tk-board-overdue":""}" onclick="Tasks.edit(${t.id})">
-        <div class="tk-board-t">${esc(text)}</div>
-        <div style="display:flex;align-items:center;gap:5px;margin-top:7px;flex-wrap:wrap">
-          <span class="tk-pri ${pm2.cls}" style="font-size:10px;padding:1px 5px">${ar(pm2.ar,pm2.en)}</span>
-          ${owner?`<span style="font-size:10px;color:var(--text3)">👤 ${esc(owner)}</span>`:""}
-          ${t.due_date?`<span style="font-size:10px;color:${isOD?"var(--red)":"var(--text3)"}">📅 ${fmtDateShort(t.due_date)}</span>`:""}
-        </div>
-      </div>`;
-    };
-    const boardHtml = `<div class="tk-board">
-      ${boardCols.map(col=>{
-        const colTasks = filtered.filter(t=>col.keys.includes(taskStatusKey(t.status)));
-        return `<div class="tk-board-col">
-          <div class="tk-board-col-h" style="color:${col.color}">${col.icon} ${ar(col.ar,col.en)} <span class="tk-tab-n">${colTasks.length}</span></div>
-          <div class="tk-board-col-body">${colTasks.length
-            ? colTasks.map(boardCard).join("")
-            : `<div style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">${ar("لا توجد مهام","No tasks")}</div>`}
-          </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn-ghost btn-sm" onclick="Tasks.edit(${t.id})">✏️ ${ar("تعديل","Edit")}</button>
+                <button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="ReviewQueue.reject(${t.id})">✕ ${ar("رفض","Reject")}</button>
+                <button class="btn-gold btn-sm" onclick="ReviewQueue.approve(${t.id})">✓ ${ar("اعتماد","Approve")}</button>
+              </div>
+            </div>`;
+          }).join("")}
         </div>`;
-      }).join("")}
+
+    // ── Bottom 3-column section ────────────────────────────────────────────
+    const bottomHtml = `<div class="fue-bottom-row">
+      <div class="fue-bottom-card">
+        <div class="fue-bottom-title">${ar("أحدث تقرير حالة","LATEST STATUS REPORT")}</div>
+        <div class="fue-report-box">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:34px;height:40px;background:#F2F4F7;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📄</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;color:#101828">${ar("تقرير الحالة الأسبوعي","Weekly Status Report")}</div></div>
+            <span class="fue-sent-badge">${ar("مُرسَل","Sent")}</span>
+          </div>
+          <div class="fue-report-summary">
+            <div class="fue-rep-row"><span class="fue-rep-dot green"></span><span class="fue-rep-lbl">${ar("مكتملة","Completed")}</span><span class="fue-rep-val">${completedCount}</span></div>
+            <div class="fue-rep-row"><span class="fue-rep-dot blue"></span><span class="fue-rep-lbl">${ar("في المسار","On Track")}</span><span class="fue-rep-val">${onTrackCount}</span></div>
+            <div class="fue-rep-row"><span class="fue-rep-dot amber"></span><span class="fue-rep-lbl">${ar("في خطر","At Risk")}</span><span class="fue-rep-val">${atRiskCount}</span></div>
+            <div class="fue-rep-row"><span class="fue-rep-dot red"></span><span class="fue-rep-lbl">${ar("متأخرة","Overdue")}</span><span class="fue-rep-val">${overdueCount}</span></div>
+          </div>
+        </div>
+        <button class="fue-view-report-btn">${ar("عرض التقرير","View Report")} <svg width="13" height="13" viewBox="0 0 13 13"><path d="M2 6.5h9M6.5 2l4.5 4.5-4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button>
+      </div>
+      <div class="fue-bottom-card">
+        <div class="fue-bottom-title">${ar("جدول التقارير التلقائي","AUTOMATIC REPORT SCHEDULE")}</div>
+        <div class="fue-schedule-list">
+          <div class="fue-schedule-item">
+            <div class="fue-schedule-ico">📅</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:#101828">${ar("تقرير الحالة الأسبوعي","Weekly Status Report")}</div>
+              <div style="font-size:11.5px;color:#697386;margin-top:1px">${ar("كل أحد 9:00 صباحاً","Every Sunday, 09:00 AM")}</div>
+              <div style="font-size:11px;color:#9CA3AF">${ar("المستلمون: أمانة الاجتماع، رئيس القسم، الرئيس","Recipients: Meeting Secretary, Dept Head, Chairman")}</div>
+            </div>
+            <span class="fue-active-badge">${ar("نشط","Active")}</span>
+          </div>
+          <div class="fue-schedule-item">
+            <div class="fue-schedule-ico">📋</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:#101828">${ar("تقرير ما قبل الاجتماع","Pre-Meeting Report")}</div>
+              <div style="font-size:11.5px;color:#697386;margin-top:1px">${ar("يوم قبل كل اجتماع 8:00 صباحاً","1 day before every meeting at 08:00 AM")}</div>
+              <div style="font-size:11px;color:#9CA3AF">${ar("المستلمون: حضور الاجتماع","Recipients: Meeting attendees")}</div>
+            </div>
+            <span class="fue-active-badge">${ar("نشط","Active")}</span>
+          </div>
+          <div class="fue-schedule-item">
+            <div class="fue-schedule-ico">📊</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:#101828">${ar("الملخص التنفيذي الشهري","Monthly Executive Summary")}</div>
+              <div style="font-size:11.5px;color:#697386;margin-top:1px">${ar("أول يوم من كل شهر 9:00 صباحاً","First day of every month at 09:00 AM")}</div>
+              <div style="font-size:11px;color:#9CA3AF">${ar("المستلمون: رئيس مجلس الإدارة، المدير التنفيذي","Recipients: Board Chairman, CEO")}</div>
+            </div>
+            <span class="fue-active-badge">${ar("نشط","Active")}</span>
+          </div>
+        </div>
+        <button class="fue-manage-btn">${ar("إدارة جداول التقارير","Manage Report Schedules")} →</button>
+      </div>
+      <div class="fue-bottom-card">
+        <div class="fue-bottom-title">${ar("إعدادات المتابعة","CHECK-IN SETTINGS")}</div>
+        <div class="fue-checkin-list">
+          <div class="fue-checkin-rule">
+            <div class="fue-checkin-rule-ico green">
+              <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="#16A34A" stroke-width="1.2" fill="none"/><path d="M5 8l2 2 4-3" stroke="#16A34A" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#101828">${ar("المهام العادية","Normal Tasks")}</div>
+              <div style="font-size:11.5px;color:#697386">${ar("متابعة كل 3 أيام","Check-in every 3 days")}</div>
+            </div>
+          </div>
+          <div class="fue-checkin-rule">
+            <div class="fue-checkin-rule-ico amber">
+              <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1.5L14.5 13H1.5L8 1.5Z" stroke="#D97706" stroke-width="1.2" fill="none" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9.5" stroke="#D97706" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11.2" r="0.6" fill="#D97706"/></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#101828">${ar("المهام في خطر (≤48س)","At Risk Tasks (≤48h)")}</div>
+              <div style="font-size:11.5px;color:#697386">${ar("متابعة كل 24 ساعة","Check-in every 24 hours")}</div>
+            </div>
+          </div>
+          <div class="fue-checkin-rule">
+            <div class="fue-checkin-rule-ico red">
+              <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="#DC2626" stroke-width="1.2" fill="none"/><path d="M8 5v3.5l1.8 1.8" stroke="#DC2626" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#101828">${ar("المهام المتأخرة","Overdue Tasks")}</div>
+              <div style="font-size:11.5px;color:#697386">${ar("متابعة يومية حتى الحل","Daily check-in until resolved")}</div>
+            </div>
+          </div>
+        </div>
+        <button class="fue-manage-btn">${ar("إدارة قواعد المتابعة","Manage Check-in Rules")} →</button>
+      </div>
     </div>`;
 
-    // ── final assembly ────────────────────────────────────────────────────────
-    const mainContent = tab === "review"
-      ? `<div class="tk-main">${tabHtml}${pendingReviewBodyHtml}</div>`
-      : `<div class="tk-main">${tabHtml}${viewSwitcherHtml}${filterBar}${currentView==="board" ? boardHtml : tableHtml}</div>`;
-
+    // ── Final assembly ─────────────────────────────────────────────────────
     body.innerHTML = `
       ${kpiHtml}
-      <div class="tk-layout">
-        ${mainContent}
-        ${sidebarHtml}
-      </div>
-      ${suggestionsHtml}`;
+      <div class="fue-main-card">${tabHtml}${filterBar}${tab === "review" ? reviewContent : tableContent}</div>
+      ${tab !== "review" ? bottomHtml : ""}
+      <div class="fue-footer-note">${ar("جميع التحديثات مسجّلة وقابلة للتدقيق. الأوقات بالتوقيت العربي السعودي (GMT+3).","All updates are logged and auditable. Times are shown in Arabia Standard Time (GMT+3).")}</div>`;
 
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
@@ -6310,6 +6219,193 @@ const Tasks = {
       return;
     }
     renderTasks();
+  },
+};
+
+// ══ FUE — Task Detail Slide-in Panel ═════════════════════════════════════════
+const FUE = {
+  _taskId: null,
+  _pendingStatus: null,
+
+  async openDetail(id) {
+    this._taskId = id;
+    this._pendingStatus = null;
+    const panel = document.getElementById("fue-detail-panel");
+    if (!panel) return;
+    const l = App.lang;
+    panel.innerHTML = `<div class="fue-dp-header"><span class="fue-dp-title-label">${l === "ar" ? "تفاصيل المهمة" : "TASK DETAILS"}</span><button class="fue-dp-close" onclick="FUE.closeDetail()">✕</button></div><div style="text-align:center;padding:40px"><div class="loading"></div></div>`;
+    panel.classList.add("open");
+    await this._renderDetail(id);
+  },
+
+  closeDetail() {
+    const panel = document.getElementById("fue-detail-panel");
+    if (panel) panel.classList.remove("open");
+  },
+
+  setStatus(status) {
+    this._pendingStatus = status;
+    document.querySelectorAll(".fue-qu-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.status === status);
+    });
+  },
+
+  async submitUpdate() {
+    const id = this._taskId;
+    if (!id) return;
+    const commentEl = document.getElementById("fue-detail-comment");
+    const comment = commentEl ? commentEl.value.trim() : "";
+    const status = this._pendingStatus;
+    if (!status && !comment) {
+      alert(App.lang === "ar" ? "اختر حالة أو أضف تعليقاً." : "Please select a status or add a comment.");
+      return;
+    }
+    const submitBtn = document.getElementById("fue-submit-btn");
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = App.lang === "ar" ? "جارٍ الإرسال..." : "Submitting..."; }
+    try {
+      if (status) await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      if (comment) await api(`/api/tasks/${id}/updates`, { method: "POST", body: JSON.stringify({ update_text: comment, status_snapshot: status || undefined }) });
+      this._pendingStatus = null;
+      await loadBadges();
+      renderTasks();
+      await this._renderDetail(id);
+    } catch (e) {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = App.lang === "ar" ? "إرسال التحديث" : "Submit Update"; }
+      alert(e.message);
+    }
+  },
+
+  async _renderDetail(id) {
+    const panel = document.getElementById("fue-detail-panel");
+    if (!panel) return;
+    const l = App.lang;
+    const ar = (a, e) => l === "ar" ? a : e;
+    const t = (App.tasksCache || []).find(x => x.id === id);
+    if (!t) return;
+
+    const today = new Date().toISOString().substring(0, 10);
+    const now2 = Date.now();
+    const in48h = new Date(now2 + 48 * 3600000).toISOString().substring(0, 10);
+    const isOD = t.status === "overdue" || (t.due_date && t.due_date < today && !["done","cancelled"].includes(t.status));
+    const isAR = !isOD && t.due_date && t.due_date >= today && t.due_date <= in48h && !["done","cancelled"].includes(t.status);
+
+    const text     = (l === "ar" ? t.text_ar : t.text_en || t.text_ar) || "";
+    const owner    = (l === "ar" ? t.owner_name_ar : t.owner_name_en || t.owner_name_ar) || "";
+    const mtgTitle = (l === "ar" ? t.source_meeting_title_ar : t.source_meeting_title_en || t.source_meeting_title_ar) || "";
+    const fmtD = (ds) => { if (!ds) return "—"; const d = new Date(ds + "T00:00:00"); return isNaN(d) ? ds : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+    const fmtDT = (dt) => { if (!dt) return ""; const d = new Date(dt); return isNaN(d) ? "" : d.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short" }) + ", " + d.toLocaleTimeString(l === "ar" ? "ar-EG" : "en-US", { hour: "numeric", minute: "2-digit" }); };
+
+    const avatarColors = ["#4A6FA5","#6B7C93","#8B6BA8","#5B9BD5","#4CAF7D","#E08A3C","#C0785A"];
+    const ownerColor = avatarColors[(t.owner_id || 0) % avatarColors.length];
+    const initials = (name) => (name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
+
+    const priColor = (t.priority === "urgent" || t.priority === "critical") ? "#EF4444" : t.priority === "high" ? "#F59E0B" : "#22C55E";
+    const priLabel = (t.priority === "urgent" || t.priority === "critical") ? ar("حرج","Critical") : t.priority === "high" ? ar("عالٍ","High") : ar("متوسط","Medium");
+
+    const statusLabel = isOD ? ar("متأخرة","Overdue") : isAR ? ar("في خطر","At Risk") : t.status === "done" ? ar("مكتملة","Done") : ar("في المسار","On Track");
+    const statusCls   = isOD ? "fue-badge-overdue" : isAR ? "fue-badge-risk" : t.status === "done" ? "fue-badge-done" : "fue-badge-ontrack";
+
+    const checkinText = isOD ? ar("اليوم — متابعة يومية","Due today — Daily check-in") :
+      isAR ? ar("اليوم — 48 ساعة قبل الموعد","Today — 48h before due") :
+      ar("كل 3 أيام","Every 3 days");
+    const checkinSub = isOD ? ar("سنتابع يومياً حتى تكتمل هذه المهمة.","We'll keep checking in daily until this task is completed.") :
+      isAR ? ar("المهمة تقترب من موعد استحقاقها.","Task is approaching its due date.") :
+      ar("جدول متابعة منتظم.","Regular check-in schedule.");
+
+    const checkinBg = isOD ? "background:#FFF7F7;border:1px solid #FECACA" :
+      isAR ? "background:#FFFBEB;border:1px solid #FDE68A" :
+      "background:#F0FDF4;border:1px solid #BBF7D0";
+
+    let updates = [];
+    try { updates = await api(`/api/tasks/${id}/updates`); } catch (_) {}
+
+    const historyHtml = updates.length === 0
+      ? `<div style="font-size:12.5px;color:#9CA3AF;text-align:center;padding:14px 0">${ar("لا يوجد سجل تحديثات بعد","No update history yet")}</div>`
+      : updates.slice(0, 6).map(u => {
+          const sk = u.status_snapshot ? taskStatusKey(u.status_snapshot) : null;
+          const slbl = sk && TASK_STATUS_META[sk] ? (l === "ar" ? TASK_STATUS_META[sk].ar : TASK_STATUS_META[sk].en) : "";
+          const scls = sk === "done" ? "fue-badge-done" : sk === "inprogress" ? "fue-badge-inprogress" : sk === "overdue" ? "fue-badge-overdue" : "fue-badge-ontrack";
+          return `<div class="fue-hist-row">
+            <span class="fue-hist-dot fue-badge ${scls}" style="width:10px;height:10px;padding:0;border-radius:50%;flex-shrink:0;margin-top:5px;display:inline-block"></span>
+            <div class="fue-hist-body">
+              ${slbl ? `<span class="fue-badge ${scls}" style="font-size:10.5px;padding:2px 8px;display:inline-block;margin-bottom:4px">${slbl}</span>` : ""}
+              <div class="fue-hist-text">${esc(u.update_text || "")}</div>
+              <div class="fue-hist-meta">${fmtDT(u.created_at)}<br>${ar("بواسطة","by")} ${esc(u.author_name || "")}</div>
+            </div>
+          </div>`;
+        }).join("");
+
+    const ownerMember = (App._members || []).find(m => m.id === t.owner_id);
+    const ownerTitle = ownerMember ? (ownerMember.role || ownerMember.department || "") : "";
+
+    panel.innerHTML = `
+      <div class="fue-dp-header">
+        <span class="fue-dp-title-label">${ar("تفاصيل المهمة","TASK DETAILS")}</span>
+        <button class="fue-dp-close" onclick="FUE.closeDetail()">✕</button>
+      </div>
+      <div class="fue-dp-body">
+        <div class="fue-dp-task-title">
+          <span style="width:10px;height:10px;border-radius:50%;background:${priColor};display:inline-block;margin-inline-end:8px;vertical-align:middle;flex-shrink:0"></span>${esc(text)}
+        </div>
+        ${mtgTitle ? `<div class="fue-dp-source">${ar("اجتماع المصدر:","Source Meeting:")} ${esc(mtgTitle)}</div>` : ""}
+
+        ${owner ? `<div class="fue-dp-field">
+          <label>${ar("المسؤول","Owner")}</label>
+          <div class="fue-owner-wrap" style="margin-top:6px">
+            <span class="fue-av" style="background:${ownerColor}">${esc(initials(owner))}</span>
+            <div>
+              <div class="fue-owner-n" style="font-size:13.5px">${esc(owner)}</div>
+              ${ownerTitle ? `<div style="font-size:11.5px;color:#9CA3AF">${esc(ownerTitle)}</div>` : ""}
+            </div>
+          </div>
+        </div>` : ""}
+
+        <div class="fue-dp-meta-grid">
+          <div class="fue-dp-meta-item">
+            <span class="fue-dp-meta-label">${ar("تاريخ الاستحقاق","Due Date")}</span>
+            <span class="fue-dp-meta-val${isOD ? " fue-red" : ""}">${fmtD(t.due_date)}${isOD ? ` <span class="fue-badge fue-badge-overdue" style="font-size:10px;padding:1px 6px">${ar("متأخرة","Overdue")}</span>` : ""}</span>
+          </div>
+          <div class="fue-dp-meta-item">
+            <span class="fue-dp-meta-label">${ar("الأولوية","Priority")}</span>
+            <span style="font-size:13px;font-weight:700;color:${priColor}">${priLabel}</span>
+          </div>
+          <div class="fue-dp-meta-item" style="grid-column:1/-1">
+            <span class="fue-dp-meta-label">${ar("الحالة","Status")}</span>
+            <span class="fue-badge ${statusCls}">${statusLabel}</span>
+          </div>
+        </div>
+
+        <div class="fue-dp-checkin-box" style="${checkinBg};border-radius:10px;padding:12px 14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="11" rx="2" stroke="#697386" stroke-width="1.2" fill="none"/><line x1="5" y1="1.5" x2="5" y2="4.5" stroke="#697386" stroke-width="1.2" stroke-linecap="round"/><line x1="11" y1="1.5" x2="11" y2="4.5" stroke="#697386" stroke-width="1.2" stroke-linecap="round"/><line x1="2" y1="7" x2="14" y2="7" stroke="#697386" stroke-width="1.2"/></svg>
+            <span style="font-size:12.5px;font-weight:700;color:#344054">${checkinText}</span>
+          </div>
+          <div style="font-size:11.5px;color:#697386">${checkinSub}</div>
+        </div>
+
+        <div class="fue-dp-section">
+          <div class="fue-dp-section-title">${ar("تحديث سريع","QUICK UPDATE")}</div>
+          <div style="font-size:12.5px;color:#697386;margin-bottom:12px">${ar("ما هي الحالة الحالية لهذه المهمة؟","What's the current status of this task?")}</div>
+          <div class="fue-qu-row">
+            <button class="fue-qu-btn" data-status="open" onclick="FUE.setStatus('open')">${ar("لم تبدأ","Not Started")}</button>
+            <button class="fue-qu-btn" data-status="inprogress" onclick="FUE.setStatus('inprogress')">${ar("جارٍ","In Progress")}</button>
+            <button class="fue-qu-btn" data-status="done" onclick="FUE.setStatus('done')">${ar("مكتمل","Done")}</button>
+            <button class="fue-qu-btn" data-status="blocked" onclick="FUE.setStatus('blocked')">${ar("يحتاج وقتاً","Need More Time")}</button>
+          </div>
+          <div style="margin-top:14px">
+            <label style="font-size:12.5px;font-weight:600;color:#344054;display:block;margin-bottom:6px">${ar("إضافة تعليق (اختياري)","Add a comment (optional)")}</label>
+            <textarea id="fue-detail-comment" class="fue-comment-area" maxlength="500" placeholder="${ar("أضف ملاحظتك هنا...","Add your comment here...")}"></textarea>
+            <div style="font-size:11px;color:#9CA3AF;text-align:end;margin-top:2px">Max 500 characters</div>
+          </div>
+          <button id="fue-submit-btn" class="fue-submit-btn" onclick="FUE.submitUpdate()">${ar("إرسال التحديث","Submit Update")}</button>
+        </div>
+
+        <div class="fue-dp-section">
+          <div class="fue-dp-section-title">${ar("سجل التحديثات","UPDATE HISTORY")}</div>
+          <div class="fue-hist-list">${historyHtml}</div>
+          ${updates.length > 6 ? `<a href="javascript:void(0)" style="font-size:12.5px;color:#A8842C;font-weight:600;display:block;text-align:center;margin-top:10px" onclick="Tasks.edit(${id})">${ar("عرض كل السجل","View full history")} →</a>` : ""}
+        </div>
+      </div>`;
   },
 };
 

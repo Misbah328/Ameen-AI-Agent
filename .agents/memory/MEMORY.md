@@ -8,3 +8,4 @@
 - [Meeting provider integrations](meeting-provider-integrations.md) — Zoom/Teams/Meet are UI-only manual-URL; never label "Connected" without real API wiring.
 - [Button wiring & "do nothing" audits](button-wiring-audit.md) — inline onclick resolves top-level const; nav is delegated & downloads are <a> — both false-positive onclick-only audits; full audit found 0 broken buttons.
 - [AC step renderer body element](ac-step-body.md) — all AC step renderers must use `document.getElementById('ac-page-body')`, never `this.main` (undefined); wrong reference silently exits and leaves the AC overview visible.
+- [FUE flex-shrink collapse](fue-flex-shrink.md) — overflow:hidden on a .pbody flex child sets min-height:0, crushing it to ~2px; fix with flex-shrink:0 on every direct .pbody child that has overflow.
