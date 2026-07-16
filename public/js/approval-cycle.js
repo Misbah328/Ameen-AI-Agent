@@ -19,6 +19,89 @@ const ApprovalCycle = {
 
   t(ar, en) { return App.lang === 'ar' ? ar : en; },
 
+  /* ─── Role detection ────────────────────────────────────────────────────── */
+  // Returns 'secretary' | 'chairman' | 'attendee' based on App.systemRole
+  _acRole() {
+    const sr = App.systemRole || 'Admin';
+    if (['Admin','Super Admin','Organization Admin','Board Secretary'].includes(sr)) return 'secretary';
+    if (['CEO','Executive','Manager','Committee Chair'].includes(sr)) return 'chairman';
+    return 'attendee'; // Board Member, Employee, Observer, Guest, etc.
+  },
+
+  // Returns 'full' | 'readonly' | 'none' for a given step index and current role
+  _stepAccessLevel(idx) {
+    const r = this._acRole();
+    const M = [
+      { secretary:'full',     chairman:'readonly', attendee:'none'     }, // 0 Draft Minutes
+      { secretary:'full',     chairman:'readonly', attendee:'none'     }, // 1 Deliver to Attendees
+      { secretary:'full',     chairman:'full',     attendee:'full'     }, // 2 Attendee Reviews
+      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 3 Review Deadline
+      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 4 Review & Resolve
+      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 5 Final Version
+      { secretary:'full',     chairman:'full',     attendee:'full'     }, // 6 Attendee Signatures
+      { secretary:'readonly', chairman:'full',     attendee:'none'     }, // 7 Final Approval
+      { secretary:'full',     chairman:'readonly', attendee:'readonly' }, // 8 Archive & Activate
+    ];
+    return (M[idx] || { secretary:'full', chairman:'readonly', attendee:'none' })[r] || 'none';
+  },
+
+  // Renders a "no access" panel replacing the body content
+  _renderNoAccess(idx) {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const t = (ar, en) => this.t(ar, en);
+    const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
+    const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
+    const stepName = App.lang === 'ar' ? STEPS_AR[idx] : STEPS_EN[idx];
+    body.innerHTML = `
+<div class="ac-wrap">
+  <div class="ac-topbar">
+    <div class="ac-topbar-left">
+      <button class="ac-back-btn" onclick="ApprovalCycle._render()">← ${t('العودة','Back to Cycle')}</button>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;text-align:center">
+    <div style="font-size:56px;margin-bottom:20px;opacity:.85">🔒</div>
+    <div style="font-size:20px;font-weight:700;color:#15201A;margin-bottom:10px">${t('هذه الخطوة غير متاحة لك','Access Restricted')}</div>
+    <div style="font-size:13.5px;color:#8A948D;max-width:400px;margin:0 auto 8px;line-height:1.7">
+      ${t('ليس لديك صلاحية للوصول إلى هذه الخطوة','You do not have permission to access this step')}
+    </div>
+    <div style="display:inline-block;background:#F0F2F0;border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;color:#46514A;margin-bottom:28px">
+      ${idx + 1}. ${stepName}
+    </div>
+    <button class="dm-btn ghost" onclick="ApprovalCycle._render()">← ${t('العودة لدورة الاعتماد','Back to Approval Cycle')}</button>
+  </div>
+</div>`;
+  },
+
+  // Injects a read-only banner at the top of the current step content
+  _injectReadOnlyBanner() {
+    const body = document.getElementById('ac-page-body');
+    if (!body || body.querySelector('.ac-ro-banner')) return;
+    const t = (ar, en) => this.t(ar, en);
+    const banner = document.createElement('div');
+    banner.className = 'ac-ro-banner';
+    banner.style.cssText = 'display:flex;align-items:center;gap:10px;background:#FFF8E6;border:1.5px solid #EAB308;border-radius:10px;padding:11px 18px;margin:0 0 20px;font-size:13px;color:#7A5C00;font-weight:500';
+    banner.innerHTML = `<span style="font-size:20px;flex-shrink:0">👁️</span><span>${t('أنت في وضع القراءة فقط — لا يمكنك إجراء أي تعديلات في هذه المرحلة.','You are in read-only mode — no changes can be made at this stage.')}</span>`;
+    const target = body.querySelector('.dm-page') || body.querySelector('.ac-cols') || body.firstElementChild;
+    if (target) target.prepend(banner);
+    // Disable action buttons (keep ghost back-navigation enabled)
+    this._disableActionsForReadOnly();
+  },
+
+  // Disables action buttons for read-only users
+  _disableActionsForReadOnly() {
+    const body = document.getElementById('ac-page-body');
+    if (!body) return;
+    const selectors = '.dm-btn.primary, .dm-btn.secondary, .btn-gold, .dv-send-btn, .rv-act-btn, .rr-act-btn, .dv-preview-btn';
+    body.querySelectorAll(selectors).forEach(btn => {
+      btn.disabled = true;
+      btn.style.opacity = '0.4';
+      btn.style.cursor = 'not-allowed';
+      btn.onclick = (e) => { e.stopPropagation(); e.preventDefault(); showToast(this.t('وضع القراءة فقط','Read-only mode'), 'info'); return false; };
+    });
+  },
+
   /* ─── Entry points ─────────────────────────────────────────────────────── */
   open(mid) {
     this._mid = mid;
@@ -119,6 +202,7 @@ const ApprovalCycle = {
 
   /* ─── Main dashboard render ───────────────────────────────────────────── */
   _render() {
+    this._readOnly = false; // reset when returning to main dashboard
     const body = document.getElementById('ac-page-body');
     if (!body) return;
     const t = (ar, en) => this.t(ar, en);
@@ -211,8 +295,17 @@ const ApprovalCycle = {
       const cls = done ? 'done' : active ? 'cur' : '';
       const subLabel = done ? t('مكتمل ✓','Done ✓') : active ? (s.sub || t('الآن','Current')) : (s.sub || t('قيد الانتظار','Pending'));
 
+      // Role-based access badge
+      const access = this._stepAccessLevel(i);
+      const accessBadge = access === 'none'
+        ? `<span style="font-size:9px;background:#FDECEA;color:#C4453C;border-radius:4px;padding:1px 4px;font-weight:700;margin-top:2px;display:block">🔒 ${t('مقيّد','Locked')}</span>`
+        : access === 'readonly'
+          ? `<span style="font-size:9px;background:#FFF8E6;color:#A07800;border-radius:4px;padding:1px 4px;font-weight:700;margin-top:2px;display:block">👁 ${t('قراءة','Read')}</span>`
+          : '';
+      const stepOpacity = access === 'none' ? 'opacity:.45;' : '';
+
       return `
-<div class="ac-step ${cls}" onclick="ApprovalCycle._onStepClick(${i})" title="${t(s.ar, s.en)}">
+<div class="ac-step ${cls}" onclick="ApprovalCycle._onStepClick(${i})" title="${t(s.ar, s.en)}" style="${stepOpacity}">
   <div class="ac-step-num-label">${i + 1}</div>
   <div class="ac-step-dot">
     ${done ? `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
@@ -220,6 +313,7 @@ const ApprovalCycle = {
   </div>
   <div class="ac-step-label">${t(s.ar, s.en)}</div>
   <div class="ac-step-sub">${subLabel}</div>
+  ${accessBadge}
 </div>
 ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' : ''}">
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -231,23 +325,26 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   /* ─── Step click handler ─────────────────────────────────────────────── */
   _onStepClick(i) {
-    if (i === 0) { this._renderStep1Draft();   return; }
-    if (i === 1) { this._renderStep2Deliver(); return; }
-    if (i === 2) { this._renderStep3Reviews(); return; }
-    if (i === 3) { this._renderStep4Deadline(); return; }
-    if (i === 4) { this._renderStep5Resolve();  return; }
-    if (i === 5) { this._renderStep6FinalVersion();       return; }
-    if (i === 6) { this._renderStep7AttendeeSignatures(); return; }
-    if (i === 7) { this._renderStep8FinalApproval();       return; }
-    if (i === 8) { this._renderStep9ArchiveActivate();     return; }
-    const t = (ar, en) => this.t(ar, en);
-    const STEPS_EN = ['Draft Minutes','Deliver to Attendees','Attendee Reviews','Review Deadline','Review & Resolve','Final Version','Attendee Signatures','Final Approval','Archive & Activate'];
-    const STEPS_AR = ['إنشاء المسودة','تسليم للحضور','تعليقات الحضور','موعد المراجعة','مراجعة وحل','النسخة النهائية','توقيعات الحضور','الاعتماد النهائي','أرشفة وتفعيل'];
-    const stepName = App.lang === 'ar' ? STEPS_AR[i] : STEPS_EN[i];
-    showToast(`${i + 1}. ${stepName}`, 'info');
-    document.querySelectorAll('.ac-step').forEach((el, idx) => {
-      el.classList.toggle('ac-step-focus', idx === i);
-    });
+    // ── Role-based access gate ────────────────────────────────────────────
+    const access = this._stepAccessLevel(i);
+    if (access === 'none') { this._renderNoAccess(i); return; }
+    this._readOnly = (access === 'readonly');
+
+    // Dispatch to the appropriate step renderer
+    if (i === 0) this._renderStep1Draft();
+    else if (i === 1) this._renderStep2Deliver();
+    else if (i === 2) this._renderStep3Reviews();
+    else if (i === 3) this._renderStep4Deadline();
+    else if (i === 4) this._renderStep5Resolve();
+    else if (i === 5) this._renderStep6FinalVersion();
+    else if (i === 6) this._renderStep7AttendeeSignatures();
+    else if (i === 7) this._renderStep8FinalApproval();
+    else if (i === 8) this._renderStep9ArchiveActivate();
+
+    // Inject read-only banner AFTER render (multiple delays to catch async renders)
+    if (this._readOnly) {
+      [120, 500, 1200].forEach(ms => setTimeout(() => this._injectReadOnlyBanner(), ms));
+    }
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
