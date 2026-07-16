@@ -6084,7 +6084,12 @@ ${docBody ? docBody.innerHTML : ''}`;
 
   _s7SignNow() {
     const t = (ar,en) => this.t(ar,en);
-    let isDrawing = false, lastX = 0, lastY = 0;
+    let isDrawing = false, lastX = 0, lastY = 0, hasDrawn = false;
+    let signMode = 'draw', uploadedDataUrl = null;
+
+    const tabStyle      = 'flex:1;padding:8px 10px;border:none;background:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:#6B7280;transition:all .15s;';
+    const tabActiveStyle= 'flex:1;padding:8px 10px;border:none;background:#fff;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:#0F1728;box-shadow:0 1px 4px rgba(0,0,0,.12);transition:all .15s;';
+
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px;';
     overlay.innerHTML = `
@@ -6092,14 +6097,48 @@ ${docBody ? docBody.innerHTML : ''}`;
   <div style="background:#0F1728;padding:18px 24px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
     <div>
       <div style="color:#fff;font-size:15px;font-weight:800">✍️ ${t('التوقيع الإلكتروني','Electronic Signature')}</div>
-      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${t('ارسم توقيعك في المربع أدناه','Draw your signature in the box below')}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:2px">${t('اختر طريقة التوقيع','Choose your signature method')}</div>
     </div>
     <button id="s7-close-sign" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:16px">×</button>
   </div>
   <div style="padding:20px 24px">
-    <div style="font-size:12px;color:#8A948D;margin-bottom:8px">${t('يُرجى التوقيع باستخدام الماوس أو إصبعك:','Please sign using your mouse or finger:')}</div>
-    <canvas id="s7-sig-canvas" width="468" height="160" style="width:100%;height:160px;border:1.5px dashed #C7D4E8;border-radius:10px;background:#F8FAFF;cursor:crosshair;touch-action:none;display:block"></canvas>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;background:#F3F4F6;border-radius:9px;padding:3px;margin-bottom:16px">
+      <button id="s7-tab-draw"   style="${tabActiveStyle}" onclick="_s7SwitchTab('draw')">✏️ ${t('رسم التوقيع','Draw')}</button>
+      <button id="s7-tab-type"   style="${tabStyle}"       onclick="_s7SwitchTab('type')">🔤 ${t('كتابة الاسم','Type Name')}</button>
+      <button id="s7-tab-upload" style="${tabStyle}"       onclick="_s7SwitchTab('upload')">📎 ${t('رفع صورة','Upload Image')}</button>
+    </div>
+    <!-- Draw pane -->
+    <div id="s7-pane-draw">
+      <div style="font-size:12px;color:#8A948D;margin-bottom:8px">${t('يُرجى التوقيع باستخدام الماوس أو إصبعك:','Please sign using your mouse or finger:')}</div>
+      <canvas id="s7-sig-canvas" width="468" height="160" style="width:100%;height:160px;border:1.5px dashed #C7D4E8;border-radius:10px;background:#F8FAFF;cursor:crosshair;touch-action:none;display:block"></canvas>
+    </div>
+    <!-- Type pane -->
+    <div id="s7-pane-type" style="display:none">
+      <div style="font-size:12px;color:#8A948D;margin-bottom:8px">${t('اكتب اسمك الكامل ليظهر كتوقيع:','Type your full name to appear as a signature:')}</div>
+      <input id="s7-type-input" type="text" placeholder="${t('اكتب اسمك هنا…','Type your name here…')}" style="width:100%;padding:14px 16px;font-size:22px;font-family:Georgia,serif;font-style:italic;text-align:center;border:1.5px solid #D0D5DD;border-radius:10px;color:#0F1728;box-sizing:border-box;background:#FAFAFA"/>
+    </div>
+    <!-- Upload pane -->
+    <div id="s7-pane-upload" style="display:none">
+      <div id="s7-upload-zone" style="border:2px dashed #D0D5DD;border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:#FAFAFA"
+           onclick="document.getElementById('s7-upload-input').click()"
+           ondragover="event.preventDefault();this.style.borderColor='#C9A84C';this.style.background='rgba(201,168,76,.05)'"
+           ondragleave="this.style.borderColor='#D0D5DD';this.style.background='#FAFAFA'"
+           ondrop="event.preventDefault();this.style.borderColor='#D0D5DD';this.style.background='#FAFAFA';_s7HandleUpload(event.dataTransfer.files[0])">
+        <div id="s7-upload-placeholder">
+          <div style="font-size:30px;margin-bottom:8px">📎</div>
+          <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:4px">${t('اضغط لرفع صورة التوقيع','Click to upload a signature image')}</div>
+          <div style="font-size:11px;color:#9CA3AF">${t('أو اسحب وأفلت هنا · PNG · JPG · WEBP','or drag & drop here · PNG · JPG · WEBP')}</div>
+        </div>
+        <div id="s7-upload-preview-wrap" style="display:none">
+          <img id="s7-upload-preview" style="max-width:100%;max-height:130px;border-radius:8px;object-fit:contain" alt="signature"/>
+          <div style="font-size:11px;color:#9CA3AF;margin-top:6px">${t('اضغط لاستبدال الصورة','Click to replace image')}</div>
+        </div>
+      </div>
+      <input type="file" id="s7-upload-input" accept="image/png,image/jpeg,image/jpg,image/webp" style="display:none" onchange="_s7HandleUpload(this.files[0])"/>
+    </div>
+    <!-- Footer row -->
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
       <div style="flex:1;font-size:11px;color:#8A948D">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
           <input type="checkbox" id="s7-sign-consent" style="width:14px;height:14px;accent-color:#0F1728">
@@ -6118,10 +6157,11 @@ ${docBody ? docBody.innerHTML : ''}`;
   </div>
 </div>`;
     document.body.appendChild(overlay);
-    const canvas  = overlay.querySelector('#s7-sig-canvas');
-    const ctx     = canvas.getContext('2d');
+
+    // Canvas drawing setup
+    const canvas = overlay.querySelector('#s7-sig-canvas');
+    const ctx    = canvas.getContext('2d');
     ctx.strokeStyle = '#1a3a5c'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    let hasDrawn = false;
 
     const getPos = e => {
       const r = canvas.getBoundingClientRect();
@@ -6131,17 +6171,78 @@ ${docBody ? docBody.innerHTML : ''}`;
     };
     const start = e => { e.preventDefault(); isDrawing=true; [lastX,lastY]=getPos(e); hasDrawn=true; };
     const draw  = e => { e.preventDefault(); if(!isDrawing) return; const [x,y]=getPos(e); ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke(); [lastX,lastY]=[x,y]; };
-    const stop  = e => { isDrawing=false; };
+    const stop  = () => { isDrawing=false; };
     canvas.addEventListener('mousedown',start); canvas.addEventListener('mousemove',draw); canvas.addEventListener('mouseup',stop); canvas.addEventListener('mouseleave',stop);
-    canvas.addEventListener('touchstart',start); canvas.addEventListener('touchmove',draw); canvas.addEventListener('touchend',stop);
+    canvas.addEventListener('touchstart',start,{passive:false}); canvas.addEventListener('touchmove',draw,{passive:false}); canvas.addEventListener('touchend',stop);
 
-    overlay.querySelector('#s7-clear-btn').onclick = () => { ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn=false; };
-    overlay.querySelector('#s7-close-sign').onclick = () => overlay.remove();
-    overlay.querySelector('#s7-cancel-sign').onclick = () => overlay.remove();
-    overlay.querySelector('#s7-submit-sign').onclick = () => {
-      if (!hasDrawn) { showToast(t('⚠️ يرجى رسم توقيعك أولاً','⚠️ Please draw your signature first'), 'warning'); return; }
-      if (!overlay.querySelector('#s7-sign-consent').checked) { showToast(t('⚠️ يرجى الموافقة على الشروط','⚠️ Please accept the terms'), 'warning'); return; }
+    // Tab switcher (scoped to this overlay via globals temporarily)
+    window._s7SwitchTab = (mode) => {
+      signMode = mode;
+      const tabActiveS = tabActiveStyle;
+      const tabS       = tabStyle;
+      overlay.querySelector('#s7-tab-draw').style.cssText   = mode==='draw'   ? tabActiveS : tabS;
+      overlay.querySelector('#s7-tab-type').style.cssText   = mode==='type'   ? tabActiveS : tabS;
+      overlay.querySelector('#s7-tab-upload').style.cssText = mode==='upload' ? tabActiveS : tabS;
+      overlay.querySelector('#s7-pane-draw').style.display   = mode==='draw'   ? '' : 'none';
+      overlay.querySelector('#s7-pane-type').style.display   = mode==='type'   ? '' : 'none';
+      overlay.querySelector('#s7-pane-upload').style.display = mode==='upload' ? '' : 'none';
+    };
+
+    // Upload handler (scoped globally temporarily)
+    window._s7HandleUpload = (file) => {
+      if (!file || !file.type.startsWith('image/')) {
+        showToast(t('يرجى رفع ملف صورة صحيح','Please upload a valid image file'), 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        uploadedDataUrl = e.target.result;
+        const previewWrap = overlay.querySelector('#s7-upload-preview-wrap');
+        const placeholder = overlay.querySelector('#s7-upload-placeholder');
+        const previewImg  = overlay.querySelector('#s7-upload-preview');
+        if (previewImg)  previewImg.src = e.target.result;
+        if (previewWrap) previewWrap.style.display = '';
+        if (placeholder) placeholder.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // Clear button
+    overlay.querySelector('#s7-clear-btn').onclick = () => {
+      if (signMode === 'draw') {
+        ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn=false;
+      } else if (signMode === 'type') {
+        const inp = overlay.querySelector('#s7-type-input'); if (inp) inp.value='';
+      } else if (signMode === 'upload') {
+        uploadedDataUrl=null;
+        overlay.querySelector('#s7-upload-preview-wrap').style.display='none';
+        overlay.querySelector('#s7-upload-placeholder').style.display='';
+        overlay.querySelector('#s7-upload-input').value='';
+      }
+    };
+
+    const closeModal = () => {
+      delete window._s7SwitchTab;
+      delete window._s7HandleUpload;
       overlay.remove();
+    };
+
+    overlay.querySelector('#s7-close-sign').onclick  = closeModal;
+    overlay.querySelector('#s7-cancel-sign').onclick  = closeModal;
+    overlay.querySelector('#s7-submit-sign').onclick  = () => {
+      const consent = overlay.querySelector('#s7-sign-consent').checked;
+      if (signMode === 'draw' && !hasDrawn) {
+        showToast(t('⚠️ يرجى رسم توقيعك أولاً','⚠️ Please draw your signature first'), 'warning'); return;
+      }
+      if (signMode === 'type') {
+        const v = (overlay.querySelector('#s7-type-input')||{}).value||'';
+        if (!v.trim()) { showToast(t('⚠️ يرجى كتابة اسمك كتوقيع','⚠️ Please type your name as a signature'), 'warning'); return; }
+      }
+      if (signMode === 'upload' && !uploadedDataUrl) {
+        showToast(t('⚠️ يرجى رفع صورة التوقيع','⚠️ Please upload a signature image'), 'warning'); return;
+      }
+      if (!consent) { showToast(t('⚠️ يرجى الموافقة على الشروط','⚠️ Please accept the terms'), 'warning'); return; }
+      closeModal();
       showToast(t('⏳ جارٍ تسجيل توقيعك الإلكتروني...','⏳ Recording your electronic signature...'), 'info');
       setTimeout(() => showToast(t('✅ تم تسجيل توقيعك بنجاح · رقم الشهادة: ESC-D9F2A1-2025','✅ Signature recorded successfully · Certificate: ESC-D9F2A1-2025'), 'success'), 1800);
     };
