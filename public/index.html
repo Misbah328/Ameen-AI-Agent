@@ -63,7 +63,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/css/app.css?v=20260716f"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713m"/>
-<link rel="stylesheet" href="/css/approval-cycle.css?v=20260715ak"/>
+<link rel="stylesheet" href="/css/approval-cycle.css?v=20260716i"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
 </head>
 <body>
@@ -1601,10 +1601,11 @@
 <div class="ac-esign-overlay" id="ac-esign-overlay" onclick="if(event.target===this)ApprovalCycle.closeSignModal()">
   <div class="ac-esign-modal">
     <div class="ac-esign-title">✍️ <span data-ar="التوقيع الإلكتروني" data-en="Electronic Signature">التوقيع الإلكتروني</span></div>
-    <div class="ac-esign-sub"><span data-ar="وقّع على المحضر الرسمي باستخدام التوقيع المرسوم أو المكتوب." data-en="Sign the official minutes using drawn or typed signature.">وقّع على المحضر الرسمي باستخدام التوقيع المرسوم أو المكتوب.</span></div>
+    <div class="ac-esign-sub"><span data-ar="وقّع على المحضر الرسمي باستخدام أحد الخيارات الثلاثة: رسم التوقيع، كتابة الاسم، أو رفع صورة التوقيع." data-en="Sign the official minutes using one of three options: draw, type your name, or upload a signature image.">وقّع على المحضر الرسمي باستخدام أحد الخيارات الثلاثة: رسم التوقيع، كتابة الاسم، أو رفع صورة التوقيع.</span></div>
     <div class="ac-esign-tabs">
-      <button class="ac-esign-tab active" id="esign-tab-draw" onclick="ApprovalCycle.switchEsignMode('draw')"><span data-ar="رسم التوقيع" data-en="Draw Signature">رسم التوقيع</span></button>
-      <button class="ac-esign-tab" id="esign-tab-type" onclick="ApprovalCycle.switchEsignMode('type')"><span data-ar="كتابة الاسم" data-en="Type Name">كتابة الاسم</span></button>
+      <button class="ac-esign-tab active" id="esign-tab-draw" onclick="ApprovalCycle.switchEsignMode('draw')"><span data-ar="✏️ رسم التوقيع" data-en="✏️ Draw">✏️ رسم التوقيع</span></button>
+      <button class="ac-esign-tab" id="esign-tab-type" onclick="ApprovalCycle.switchEsignMode('type')"><span data-ar="🔤 كتابة الاسم" data-en="🔤 Type Name">🔤 كتابة الاسم</span></button>
+      <button class="ac-esign-tab" id="esign-tab-upload" onclick="ApprovalCycle.switchEsignMode('upload')"><span data-ar="📎 رفع صورة" data-en="📎 Upload Image">📎 رفع صورة</span></button>
     </div>
     <div id="esign-draw-wrap" class="ac-esign-canvas-wrap">
       <canvas id="ac-esign-canvas" class="ac-esign-canvas" width="480" height="150"></canvas>
@@ -1613,8 +1614,26 @@
     <div id="esign-type-wrap" class="ac-esign-type-wrap" style="display:none">
       <input type="text" id="ac-esign-type-input" class="ac-esign-type-input" data-ph-ar="اكتب اسمك بالكامل…" data-ph-en="Type your full name…" placeholder="اكتب اسمك بالكامل…"/>
     </div>
+    <div id="esign-upload-wrap" style="display:none;margin-bottom:12px">
+      <div class="ac-esign-upload-area" id="esign-upload-dropzone"
+           onclick="ApprovalCycle._triggerUpload()"
+           ondragover="event.preventDefault();this.style.borderColor='var(--gold)'"
+           ondragleave="this.style.borderColor=''"
+           ondrop="event.preventDefault();this.style.borderColor='';ApprovalCycle._handleUploadFile(event.dataTransfer.files[0])">
+        <div id="esign-upload-preview-wrap" style="display:none">
+          <img id="esign-upload-preview" style="max-width:100%;max-height:120px;border-radius:6px;object-fit:contain" alt="signature preview"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px"><span data-ar="اضغط لاستبدال الصورة" data-en="Click to replace image">اضغط لاستبدال الصورة</span></div>
+        </div>
+        <div id="esign-upload-placeholder">
+          <div class="ac-esign-upload-icon">📎</div>
+          <div class="ac-esign-upload-text"><span data-ar="اضغط لرفع صورة التوقيع، أو اسحب وأفلت هنا" data-en="Click to upload a signature image, or drag & drop here">اضغط لرفع صورة التوقيع، أو اسحب وأفلت هنا</span></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">PNG · JPG · WEBP</div>
+        </div>
+      </div>
+      <input type="file" id="esign-upload-input" accept="image/png,image/jpeg,image/jpg,image/webp" style="display:none" onchange="ApprovalCycle._handleUploadFile(this.files[0])"/>
+    </div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-      <button class="ac-esign-clear-btn" onclick="ApprovalCycle.clearCanvas()"><span data-ar="مسح" data-en="Clear">مسح</span></button>
+      <button class="ac-esign-clear-btn" onclick="ApprovalCycle.clearCanvas()"><span data-ar="مسح / إعادة تعيين" data-en="Clear / Reset">مسح</span></button>
     </div>
     <div class="ac-esign-confirm"><span data-ar="بالنقر على «تأكيد التوقيع» أؤكد أنني أوافق على مضمون المحضر وأن هذا التوقيع يُعدّ توقيعاً قانونياً ملزماً." data-en="By clicking «Confirm Signature» I confirm my agreement to the minutes content and that this signature is legally binding.">بالنقر على «تأكيد التوقيع» أؤكد موافقتي.</span></div>
     <div class="ac-esign-actions">
@@ -2028,7 +2047,7 @@
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260716h"></script>
 <script src="/js/meetings.js?v=20260714b"></script>
-<script src="/js/approval-cycle.js?v=20260715ak"></script>
+<script src="/js/approval-cycle.js?v=20260716i"></script>
 
 <!-- ═══ Change Password Modal ══════════════════════════════════════════════ -->
 <div id="modal-change-password" onclick="if(event.target===this)closeChangePassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">

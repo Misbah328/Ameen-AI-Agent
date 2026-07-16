@@ -4191,19 +4191,31 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   openSignModal(purpose) {
     this._eSignPurpose = purpose;
     this._eSignMode = 'draw';
+    this._uploadSignatureData = null;
     const overlay = document.getElementById('ac-esign-overlay');
     if (!overlay) return;
-    // Reset UI
-    const drawTab = document.getElementById('esign-tab-draw');
-    const typeTab = document.getElementById('esign-tab-type');
-    const drawWrap = document.getElementById('esign-draw-wrap');
-    const typeWrap = document.getElementById('esign-type-wrap');
-    if (drawTab) drawTab.classList.add('active');
-    if (typeTab) typeTab.classList.remove('active');
-    if (drawWrap) drawWrap.style.display = '';
-    if (typeWrap) typeWrap.style.display = 'none';
+    // Reset UI — all three tabs
+    const drawTab   = document.getElementById('esign-tab-draw');
+    const typeTab   = document.getElementById('esign-tab-type');
+    const uploadTab = document.getElementById('esign-tab-upload');
+    const drawWrap   = document.getElementById('esign-draw-wrap');
+    const typeWrap   = document.getElementById('esign-type-wrap');
+    const uploadWrap = document.getElementById('esign-upload-wrap');
+    if (drawTab)   drawTab.classList.add('active');
+    if (typeTab)   typeTab.classList.remove('active');
+    if (uploadTab) uploadTab.classList.remove('active');
+    if (drawWrap)   drawWrap.style.display = '';
+    if (typeWrap)   typeWrap.style.display = 'none';
+    if (uploadWrap) uploadWrap.style.display = 'none';
     const typeInput = document.getElementById('ac-esign-type-input');
     if (typeInput) typeInput.value = '';
+    // Reset upload preview
+    const prevWrap    = document.getElementById('esign-upload-preview-wrap');
+    const placeholder = document.getElementById('esign-upload-placeholder');
+    const fileInput   = document.getElementById('esign-upload-input');
+    if (prevWrap)    prevWrap.style.display = 'none';
+    if (placeholder) placeholder.style.display = '';
+    if (fileInput)   fileInput.value = '';
     overlay.classList.add('open');
     this._initCanvas();
   },
@@ -4236,14 +4248,18 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
 
   switchEsignMode(mode) {
     this._eSignMode = mode;
-    const drawTab  = document.getElementById('esign-tab-draw');
-    const typeTab  = document.getElementById('esign-tab-type');
-    const drawWrap = document.getElementById('esign-draw-wrap');
-    const typeWrap = document.getElementById('esign-type-wrap');
-    if (drawTab)  drawTab.classList.toggle('active', mode === 'draw');
-    if (typeTab)  typeTab.classList.toggle('active', mode === 'type');
-    if (drawWrap) drawWrap.style.display = mode === 'draw' ? '' : 'none';
-    if (typeWrap) typeWrap.style.display = mode === 'type' ? '' : 'none';
+    const drawTab    = document.getElementById('esign-tab-draw');
+    const typeTab    = document.getElementById('esign-tab-type');
+    const uploadTab  = document.getElementById('esign-tab-upload');
+    const drawWrap   = document.getElementById('esign-draw-wrap');
+    const typeWrap   = document.getElementById('esign-type-wrap');
+    const uploadWrap = document.getElementById('esign-upload-wrap');
+    if (drawTab)    drawTab.classList.toggle('active',   mode === 'draw');
+    if (typeTab)    typeTab.classList.toggle('active',   mode === 'type');
+    if (uploadTab)  uploadTab.classList.toggle('active', mode === 'upload');
+    if (drawWrap)   drawWrap.style.display   = mode === 'draw'   ? '' : 'none';
+    if (typeWrap)   typeWrap.style.display   = mode === 'type'   ? '' : 'none';
+    if (uploadWrap) uploadWrap.style.display = mode === 'upload' ? '' : 'none';
     if (mode === 'draw') this._initCanvas();
   },
 
@@ -4252,10 +4268,37 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       const v = (document.getElementById('ac-esign-type-input') || {}).value || '';
       return { data: v.trim() || null, type: 'type' };
     }
+    if (this._eSignMode === 'upload') {
+      return { data: this._uploadSignatureData || null, type: 'upload' };
+    }
     if (this._hasDrawing && this._canvas) {
       return { data: this._canvas.toDataURL(), type: 'draw' };
     }
     return { data: null, type: 'draw' };
+  },
+
+  _triggerUpload() {
+    const inp = document.getElementById('esign-upload-input');
+    if (inp) inp.click();
+  },
+
+  _handleUploadFile(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast(this.t('يرجى رفع ملف صورة صحيح (PNG أو JPG)', 'Please upload a valid image file (PNG or JPG)'), 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this._uploadSignatureData = e.target.result;
+      const prevWrap    = document.getElementById('esign-upload-preview-wrap');
+      const previewImg  = document.getElementById('esign-upload-preview');
+      const placeholder = document.getElementById('esign-upload-placeholder');
+      if (previewImg)  previewImg.src = e.target.result;
+      if (prevWrap)    prevWrap.style.display = '';
+      if (placeholder) placeholder.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
   },
 
   _initCanvas() {
@@ -4293,6 +4336,16 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
   },
 
   clearCanvas() {
+    if (this._eSignMode === 'upload') {
+      this._uploadSignatureData = null;
+      const prevWrap    = document.getElementById('esign-upload-preview-wrap');
+      const placeholder = document.getElementById('esign-upload-placeholder');
+      const fileInput   = document.getElementById('esign-upload-input');
+      if (prevWrap)    prevWrap.style.display = 'none';
+      if (placeholder) placeholder.style.display = '';
+      if (fileInput)   fileInput.value = '';
+      return;
+    }
     if (this._ctx && this._canvas) {
       this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
       this._hasDrawing = false;
