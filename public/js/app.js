@@ -10487,38 +10487,60 @@ const CalendarPanel = {
     const t = (ar, en) => l === "ar" ? ar : en;
     const { schedule } = this._cache;
     const todayStr = new Date().toISOString().substring(0, 10);
-    const loc = l === "ar" ? "ar-SA-u-ca-gregory" : "en-GB";
+    const dloc = l === "ar" ? "ar-SA-u-ca-gregory" : "en-US";
     const upcoming = [...schedule]
       .filter((s) => (s.meeting_date || "").substring(0, 10) >= todayStr && s.status !== "cancelled")
       .sort((a, b) => (a.meeting_date || "").localeCompare(b.meeting_date || "") || (a.meeting_time || "").localeCompare(b.meeting_time || ""))
       .slice(0, 3);
-    const cards = upcoming.map((s) => {
+    const fmt12 = (h, m) => { const ap = h >= 12 ? "PM" : "AM"; return `${(h % 12 || 12)}:${String(m).padStart(2, "0")} ${ap}`; };
+    const upCards = upcoming.map((s) => {
       const name = l === "ar" ? s.title_ar : s.title_en || s.title_ar;
       const color = calTypeColor(s.meeting_type);
       const loc2 = l === "ar" ? s.location_ar || s.meeting_location || "" : s.location_en || s.meeting_location || "";
-      const dt = s.meeting_date ? new Date(s.meeting_date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "";
+      const dt = s.meeting_date ? new Date(s.meeting_date + "T12:00:00").toLocaleDateString(dloc, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "";
       const [hh, mm] = (s.meeting_time || "00:00").split(":").map(Number);
       const endMins = hh * 60 + (mm || 0) + (s.duration_mins || 60);
-      const timeRange = s.meeting_time ? `${(s.meeting_time || "").substring(0, 5)} – ${String(Math.floor(endMins / 60) % 24).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}` : "";
+      const timeRange = s.meeting_time
+        ? (l === "ar"
+            ? `${(s.meeting_time || "").substring(0, 5)} – ${String(Math.floor(endMins / 60) % 24).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`
+            : `${fmt12(hh, mm)} – ${fmt12(Math.floor(endMins / 60) % 24, endMins % 60)}`)
+        : "";
       return `<div class="cp-up-card" onclick="CalendarPanel._open('schedule',${s.id})">
-        <div class="cp-up-inner"><div class="cp-up-dot" style="background:${color}"></div><div class="cp-up-info">
-          <div class="cp-up-name">${esc(name)}</div>
-          ${dt ? `<div class="cp-up-meta">📅 ${dt}</div>` : ""}
-          ${timeRange ? `<div class="cp-up-meta">🕐 ${timeRange}</div>` : ""}
-          ${loc2 ? `<div class="cp-up-meta">📍 ${esc(loc2)}</div>` : ""}
-        </div><span class="cp-up-chev">›</span></div>
+        <div class="cp-up-inner">
+          <div class="cp-up-dot" style="background:${color}"></div>
+          <div class="cp-up-info">
+            <div class="cp-up-name">${esc(name)}</div>
+            ${dt ? `<div class="cp-up-meta">📅 ${dt}</div>` : ""}
+            ${timeRange ? `<div class="cp-up-meta">🕐 ${timeRange}</div>` : ""}
+            ${loc2 ? `<div class="cp-up-meta">📍 ${esc(loc2)}</div>` : ""}
+          </div>
+          <span class="cp-up-chev">›</span>
+        </div>
       </div>`;
     }).join("");
     return `<div class="cp-sidebar">
       <div class="cp-sync-card">
-        <div class="cp-sync-hdr"><span class="cp-sync-title">${t("مزامنة التقويم", "Calendar Sync")}</span><span class="cp-sync-soon">${t("قريباً", "Coming Soon")}</span></div>
-        <div class="cp-sync-body"><div class="cp-sync-icon">G</div><div><div class="cp-sync-provider">Google Calendar</div><div class="cp-sync-desc">${t("التكامل متاح في تحديث قادم", "Integration available in an upcoming update")}</div></div></div>
+        <div class="cp-sync-hdr">
+          <span class="cp-sync-title">${t("مزامنة التقويم", "Calendar Sync")}</span>
+          <span class="cp-sync-nc">${t("غير متصل", "Not Connected")}</span>
+        </div>
+        <div class="cp-sync-row">
+          <div class="cp-sync-icon">G</div>
+          <div class="cp-sync-info">
+            <div class="cp-sync-provider">Google Calendar</div>
+            <div class="cp-sync-desc">${t("اربط تقويمك لمزامنة اجتماعاتك تلقائياً", "Connect your calendar to sync meetings automatically")}</div>
+          </div>
+        </div>
+        <button class="cp-sync-connect-btn" onclick="showToast('${t("قريباً: ربط تقويم Google", "Coming soon: Connect Google Calendar")}')">${t("ربط تقويم Google", "Connect Google Calendar")}</button>
       </div>
       <div class="cp-up-section">
-        <div class="cp-up-hdr"><span class="cp-up-title">${t("الاجتماعات القادمة", "Upcoming Meetings")}</span><span class="cp-up-all" onclick="Panels.load('scheduled')">${t("عرض الكل", "View all")}</span></div>
-        ${cards || `<div class="cp-up-empty">${t("لا توجد اجتماعات قادمة", "No upcoming meetings")}</div>`}
+        <div class="cp-up-hdr">
+          <span class="cp-up-title">${t("الاجتماعات القادمة", "Upcoming Meetings")}</span>
+          <span class="cp-up-all" onclick="Panels.load('scheduled')">${t("عرض الكل", "View all")}</span>
+        </div>
+        ${upCards || `<div class="cp-up-empty">${t("لا توجد اجتماعات قادمة", "No upcoming meetings")}</div>`}
       </div>
-      <button class="cp-connect-btn" onclick="showToast('${t("قريباً: ربط تقويم Google", "Coming soon: Connect Google Calendar")}')">📅 ${t("ربط تقويم آخر", "Connect Another Calendar")}</button>
+      <button class="cp-connect-btn" onclick="showToast('${t("قريباً: ربط تقويم آخر", "Coming soon: Connect another calendar")}')">📅 ${t("ربط تقويم آخر", "Connect Another Calendar")}</button>
     </div>`;
   },
 
@@ -10544,7 +10566,18 @@ const CalendarPanel = {
       { icon: "⚠️", bg: "rgba(229,90,90,.15)",   lc: "#E55A5A",  la: "متأخر / مهام",      le: "Overdue / Tasks", v: s.overdue,    d: "-5%",  up: false },
       { icon: "👥", bg: "rgba(155,114,219,.15)", lc: "#9B72DB",  la: "اجتماعاتي",          le: "My Meetings",     v: s.myMeetings, d: "+10%", up: true  },
     ];
-    return `<div class="cp-statsbar">${cards.map((c) => `<div class="cp-stat-card"><div class="cp-stat-icon" style="background:${c.bg}">${c.icon}</div><div><div class="cp-stat-lbl" style="color:${c.lc}">${t(c.la, c.le)}</div><div class="cp-stat-val">${c.v}</div><div class="cp-stat-sub">${c.up ? `<span style="color:#2ECC8A">↑</span>` : `<span style="color:#E55A5A">↓</span>`} ${c.d} <span class="cp-stat-cmp">${t("مقارنة بالشهر الماضي", "vs last month")}</span></div></div></div>`).join("")}</div>`;
+    return `<div class="cp-statsbar">${cards.map((c) => `<div class="cp-stat-card">
+      <div class="cp-stat-icon" style="background:${c.bg}">${c.icon}</div>
+      <div class="cp-stat-body">
+        <div class="cp-stat-hdr">
+          <span class="cp-stat-lbl" style="color:${c.lc}">${t(c.la, c.le)}</span>
+          <span class="cp-stat-delta" style="color:${c.up ? "#2ECC8A" : "#E55A5A"}">${c.up ? "↑" : "↓"} ${c.d}</span>
+        </div>
+        <div class="cp-stat-val">${c.v}</div>
+        <div class="cp-stat-period">${t("هذا الشهر", "This Month")}</div>
+        <div class="cp-stat-cmpline">${t("مقارنة بالشهر الماضي", "vs last month")}</div>
+      </div>
+    </div>`).join("")}</div>`;
   },
 
   render() {
@@ -10561,9 +10594,9 @@ const CalendarPanel = {
       { v: "month", ar: "شهر",   en: "Month" },
     ];
     const tabs = [
-      { id: "ameen",    ar: "تقويم أمين", en: "Ameen Calendar",  icon: "📅" },
-      { id: "google",   ar: "Google",      en: "Google Calendar", icon: "G"  },
-      { id: "combined", ar: "عرض مدمج",   en: "Combined View",   icon: "⊞"  },
+      { id: "ameen",    ar: "تقويم أمين",    en: "Ameen Calendar",  icon: "📅" },
+      { id: "google",   ar: "Google Calendar", en: "Google Calendar", icon: '<span class="cp-goog-g">G</span>' },
+      { id: "combined", ar: "عرض مدمج",        en: "Combined View",   icon: '<span class="cp-layers-ico">⊞</span>' },
     ];
 
     // Nav label
@@ -10596,7 +10629,10 @@ const CalendarPanel = {
       <div class="cp-topbar">
         <div><div class="cp-title">${t("التقويم", "Calendar")}</div><div class="cp-subtitle">${t("إدارة اجتماعاتك وفعالياتك ومواعيدك النهائية", "Manage your meetings, events and deadlines")}</div></div>
         <div class="cp-topbar-right">
-          <button class="cp-newmtg-btn" onclick="Panels.load('scheduled')">+ ${t("اجتماع جديد", "New Meeting")} ▾</button>
+          <div class="cp-newmtg-wrap">
+            <button class="cp-newmtg-main" onclick="Panels.load('scheduled')">+ ${t("اجتماع جديد", "New Meeting")}</button>
+            <button class="cp-newmtg-drop" onclick="Panels.load('scheduled')">▾</button>
+          </div>
           <button class="cp-settings-btn" onclick="Panels.load('admin')">⚙ ${t("إعدادات التقويم", "Calendar Settings")}</button>
         </div>
       </div>
@@ -10614,7 +10650,7 @@ const CalendarPanel = {
           <div class="cp-nav-row">
             <button class="cp-nav-arr" onclick="CalendarPanel._nav(-1)">‹</button>
             <button class="cp-nav-arr" onclick="CalendarPanel._nav(1)">›</button>
-            <span class="cp-monthlabel">${esc(navLabel)}</span>
+            <button class="cp-monthlabel-btn"><span>${esc(navLabel)}</span><span class="cp-month-caret">∨</span></button>
           </div>
           <div class="cp-grid">${gridHTML}</div>
           ${this._view === "month" && this._tab === "ameen" ? this._renderLegend(l) : ""}
