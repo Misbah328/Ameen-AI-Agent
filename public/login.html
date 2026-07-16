@@ -3,228 +3,317 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ameen Secretary — تسجيل الدخول / Login</title>
+  <title>Ameen Secretary — تسجيل الدخول / Sign In</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0f0f1a;
-      --surface: #1a1a2e;
-      --border: #2a2a45;
+      --bg: #0a0c14;
+      --surface: #12151f;
+      --surface2: #1a1e2e;
+      --border: #252a3d;
+      --border-focus: #C9A84C;
       --accent: #C9A84C;
-      --text: #e8e8f0;
-      --muted: #888899;
+      --accent-dim: rgba(201,168,76,0.12);
+      --text: #e8eaf0;
+      --muted: #7a809a;
       --danger: #e05a5a;
-      --radius: 12px;
+      --success: #3cc47c;
+      --radius: 14px;
+      --radius-sm: 9px;
     }
     body {
       background: var(--bg);
+      background-image: radial-gradient(ellipse at 30% 10%, rgba(201,168,76,0.07) 0%, transparent 55%),
+                        radial-gradient(ellipse at 80% 80%, rgba(60,100,196,0.06) 0%, transparent 50%);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      padding: 1.5rem 1rem;
     }
-    .card {
+    .panel {
+      display: flex;
+      width: 100%;
+      max-width: 860px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 2.5rem 2rem;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+      overflow: hidden;
     }
-    .logo {
-      text-align: center;
-      margin-bottom: 1.5rem;
-    }
-    .logo h1 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.02em;
-    }
-    .logo p {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-top: 0.25rem;
-    }
-    .lang-toggle {
+    /* ── Left brand panel ── */
+    .brand-side {
+      flex: 0 0 300px;
+      background: linear-gradient(160deg, #0f1728 0%, #0a0c14 100%);
+      border-inline-end: 1px solid var(--border);
       display: flex;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
+      padding: 3rem 2rem;
+      gap: 1.5rem;
+      text-align: center;
     }
+    .brand-logo img { width: 130px; height: 130px; object-fit: contain; filter: drop-shadow(0 2px 20px rgba(201,168,76,0.28)); }
+    .brand-tagline { font-size: 0.8rem; color: var(--muted); line-height: 1.7; max-width: 210px; }
+    .brand-features { display: flex; flex-direction: column; gap: 0.7rem; width: 100%; margin-top: 0.5rem; }
+    .brand-feat {
+      display: flex; align-items: center; gap: 0.6rem; font-size: 0.78rem; color: var(--muted);
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.5rem 0.85rem; text-align: start;
+    }
+    .brand-feat span:first-child { font-size: 0.95rem; flex-shrink: 0; }
+    /* ── Right form panel ── */
+    .form-side {
+      flex: 1;
+      padding: 3rem 2.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 2rem;
+    }
+    .form-title { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+    .form-subtitle { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+    .lang-toggle { display: flex; gap: 0.35rem; flex-shrink: 0; margin-inline-start: 1rem; }
     .lang-toggle button {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 0.25rem 0.75rem;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 0.8rem;
-      transition: all 0.2s;
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 0.22rem 0.7rem; border-radius: 20px; cursor: pointer; font-size: 0.78rem; transition: all 0.18s;
     }
-    .lang-toggle button.active {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-    label {
-      display: block;
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-bottom: 0.35rem;
-    }
+    .lang-toggle button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .field-group { margin-bottom: 1.1rem; }
+    label { display: block; font-size: 0.79rem; font-weight: 600; color: var(--muted); margin-bottom: 0.38rem; }
     input {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 8px;
-      padding: 0.7rem 1rem;
-      font-size: 0.95rem;
-      margin-bottom: 1rem;
-      outline: none;
-      transition: border-color 0.2s;
-      direction: ltr;
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      border-radius: var(--radius-sm); padding: 0.75rem 1rem; font-size: 0.94rem;
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s; direction: ltr;
     }
-    input:focus { border-color: var(--accent); }
-    button[type="submit"] {
-      width: 100%;
-      background: var(--accent);
-      color: #1a1a2e;
-      border: none;
-      border-radius: 8px;
-      padding: 0.8rem;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.2s;
-      margin-top: 0.25rem;
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,168,76,0.1); }
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-inline-end: 2.8rem; }
+    .pw-eye {
+      position: absolute; inset-inline-end: 0.75rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
     }
-    button[type="submit"]:hover { opacity: 0.9; }
-    button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
-    .error-msg {
-      background: rgba(224,90,90,0.12);
-      border: 1px solid var(--danger);
-      color: var(--danger);
-      border-radius: 8px;
-      padding: 0.6rem 1rem;
-      font-size: 0.85rem;
-      margin-bottom: 1rem;
-      display: none;
-      text-align: center;
+    .pw-eye:hover { color: var(--accent); }
+    .forgot-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: -0.6rem;
+      margin-bottom: 1.1rem;
     }
-    .error-msg.visible { display: block; }
-    .footer-note {
-      text-align: center;
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 1.5rem;
+    .forgot-link { font-size: 0.78rem; color: var(--accent); text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; }
+    .alert {
+      border-radius: var(--radius-sm); padding: 0.65rem 1rem; font-size: 0.84rem;
+      margin-bottom: 1.2rem; display: none; text-align: center;
+    }
+    .alert.error  { background: rgba(224,90,90,0.1); border: 1px solid var(--danger); color: var(--danger); display: block; }
+    .submit-btn {
+      width: 100%; background: var(--accent); color: #0f1728; border: none;
+      border-radius: var(--radius-sm); padding: 0.88rem; font-size: 0.97rem;
+      font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.01em;
+    }
+    .submit-btn:hover:not(:disabled) { opacity: 0.92; }
+    .submit-btn:active:not(:disabled) { transform: scale(0.99); }
+    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .divider {
+      display: flex; align-items: center; gap: 0.75rem; margin: 1.4rem 0;
+      color: var(--muted); font-size: 0.75rem;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .signup-link { text-align: center; font-size: 0.82rem; color: var(--muted); }
+    .signup-link a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .signup-link a:hover { text-decoration: underline; }
+    @media (max-width: 640px) {
+      .panel { flex-direction: column; max-width: 420px; }
+      .brand-side { flex: none; padding: 1.75rem 1.5rem; border-inline-end: none; border-bottom: 1px solid var(--border); }
+      .brand-logo img { width: 90px; height: 90px; }
+      .brand-features { display: none; }
+      .form-side { padding: 2rem 1.5rem; }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">
-      <div style="display:flex;align-items:center;justify-content:center;margin:0 auto 10px">
-        <img src="/logo.png" alt="Ameen" style="width:140px;height:140px;object-fit:contain;filter:drop-shadow(0 2px 12px rgba(255,255,255,0.18))"/>
+<div class="panel">
+
+  <!-- ── Brand side ── -->
+  <aside class="brand-side">
+    <div class="brand-logo">
+      <img src="/logo.png" alt="Ameen" />
+    </div>
+    <p class="brand-tagline" id="brand-tag">نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية</p>
+    <div class="brand-features">
+      <div class="brand-feat"><span>📋</span><span id="f1">إدارة محاضر الاجتماعات بالذكاء الاصطناعي</span></div>
+      <div class="brand-feat"><span>🏛️</span><span id="f2">إدارة الحوكمة والمجالس</span></div>
+      <div class="brand-feat"><span>🔒</span><span id="f3">أمان وخصوصية على مستوى المؤسسات</span></div>
+    </div>
+  </aside>
+
+  <!-- ── Form side ── -->
+  <main class="form-side">
+    <div class="form-header">
+      <div>
+        <div class="form-title" id="form-title">مرحباً بعودتك</div>
+        <div class="form-subtitle" id="form-sub">سجّل الدخول للمتابعة</div>
       </div>
-      <p class="subtitle-ar" id="subtitle-text">نظام الأمانة التنفيذية الذكية</p>
+      <div class="lang-toggle">
+        <button id="btn-ar" onclick="setLang('ar')">عربي</button>
+        <button id="btn-en" onclick="setLang('en')">English</button>
+      </div>
     </div>
 
-    <div class="lang-toggle">
-      <button id="btn-ar" class="active" onclick="setLang('ar')">عربي</button>
-      <button id="btn-en" onclick="setLang('en')">English</button>
-    </div>
+    <div class="alert" id="alert-box"></div>
 
-    <div class="error-msg" id="error-msg"></div>
+    <form id="login-form" novalidate autocomplete="on">
+      <div class="field-group">
+        <label for="email" id="lbl-email">البريد الإلكتروني</label>
+        <input type="email" id="email" name="email" autocomplete="username email" placeholder="ahmad@example.com" dir="ltr" />
+      </div>
 
-    <form id="login-form" method="post" action="/auth/login" novalidate>
-      <label for="email" id="lbl-email">البريد الإلكتروني</label>
-      <input type="email" id="email" name="email" autocomplete="username email" placeholder="you@ameen.ai" />
+      <div class="field-group">
+        <label for="password" id="lbl-pw">كلمة المرور</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" dir="ltr" />
+          <button type="button" class="pw-eye" onclick="togglePw()">👁</button>
+        </div>
+      </div>
 
-      <label for="password" id="lbl-password">كلمة المرور</label>
-      <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" />
+      <div class="forgot-row">
+        <a href="#" class="forgot-link" id="forgot-link" onclick="handleForgot(event)">نسيت كلمة المرور؟</a>
+      </div>
 
-      <button type="submit" id="login-btn">
+      <button type="submit" class="submit-btn" id="submit-btn">
         <span id="btn-text">تسجيل الدخول</span>
       </button>
     </form>
 
-    <p class="footer-note" id="footer-note">Ameen Executive Secretary v3</p>
-  </div>
+    <div class="divider"><span id="div-or">أو</span></div>
+    <div class="signup-link">
+      <span id="signup-txt">ليس لديك حساب؟</span>
+      <a href="/signup.html" id="signup-link"> إنشاء حساب جديد</a>
+    </div>
+  </main>
+</div>
 
-  <script>
-    const T = {
-      ar: { email: 'البريد الإلكتروني', password: 'كلمة المرور', btn: 'تسجيل الدخول', loading: 'جارٍ التحقق...', subtitle: 'نظام الأمانة التنفيذية الذكية', footer: 'نظام الأمانة التنفيذية الذكية', badCreds: 'البريد الإلكتروني أو كلمة المرور غير صحيحة', networkErr: 'خطأ في الاتصال بالخادم' },
-      en: { email: 'Email Address', password: 'Password', btn: 'Sign In', loading: 'Signing in...', subtitle: 'Smart Executive Secretariat System', footer: 'Ameen Executive Secretary v3', badCreds: 'Invalid email or password', networkErr: 'Could not connect to server' }
-    };
-    let lang = localStorage.getItem('lang') || 'ar';
-    function setLang(l) {
-      lang = l;
-      localStorage.setItem('lang', l);
-      document.documentElement.lang = l;
-      document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
-      document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
-      document.getElementById('btn-en').classList.toggle('active', l === 'en');
-      document.getElementById('lbl-email').textContent = T[l].email;
-      document.getElementById('lbl-password').textContent = T[l].password;
-      document.getElementById('btn-text').textContent = T[l].btn;
-      document.getElementById('footer-note').textContent = T[l].footer;
-      document.getElementById('subtitle-text').textContent = T[l].subtitle;
+<script>
+  const T = {
+    ar: {
+      title: 'مرحباً بعودتك', sub: 'سجّل الدخول للمتابعة',
+      email: 'البريد الإلكتروني', pw: 'كلمة المرور',
+      btn: 'تسجيل الدخول', loading: 'جارٍ التحقق...',
+      forgot: 'نسيت كلمة المرور؟',
+      divOr: 'أو', signupTxt: 'ليس لديك حساب؟', signupLink: ' إنشاء حساب جديد',
+      brandTag: 'نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية',
+      f1: 'إدارة محاضر الاجتماعات بالذكاء الاصطناعي',
+      f2: 'إدارة الحوكمة والمجالس', f3: 'أمان وخصوصية على مستوى المؤسسات',
+      badCreds: 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
+      emptyFields: 'يرجى إدخال البريد الإلكتروني وكلمة المرور',
+      networkErr: 'خطأ في الاتصال بالخادم',
+      forgotMsg: 'تواصل مع مسؤول النظام لإعادة تعيين كلمة المرور.',
+    },
+    en: {
+      title: 'Welcome back', sub: 'Sign in to continue',
+      email: 'Email Address', pw: 'Password',
+      btn: 'Sign In', loading: 'Signing in...',
+      forgot: 'Forgot password?',
+      divOr: 'or', signupTxt: "Don't have an account?", signupLink: ' Create one',
+      brandTag: 'Smart Executive Secretariat — Trusted intelligence. ROi you can see.',
+      f1: 'AI-powered meeting minutes',
+      f2: 'Board & governance management', f3: 'Enterprise-grade security',
+      badCreds: 'Invalid email or password',
+      emptyFields: 'Please enter your email and password',
+      networkErr: 'Could not connect to the server',
+      forgotMsg: 'Please contact your system administrator to reset your password.',
     }
-    setLang(lang);
+  };
 
-    // Real <form> submit: enables password managers/autofill, browser
-    // save-password prompts, and Enter-to-submit from any field.
-    document.getElementById('login-form').addEventListener('submit', e => {
-      e.preventDefault();
-      doLogin();
-    });
+  let lang = localStorage.getItem('lang') || 'ar';
 
-    function showError(msg) {
-      const el = document.getElementById('error-msg');
-      el.textContent = msg;
-      el.classList.add('visible');
-    }
-    function hideError() { document.getElementById('error-msg').classList.remove('visible'); }
+  function setLang(l) {
+    lang = l;
+    localStorage.setItem('lang', l);
+    document.documentElement.lang = l;
+    document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+    document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
+    document.getElementById('btn-en').classList.toggle('active', l === 'en');
+    const t = T[l];
+    document.getElementById('form-title').textContent = t.title;
+    document.getElementById('form-sub').textContent = t.sub;
+    document.getElementById('lbl-email').textContent = t.email;
+    document.getElementById('lbl-pw').textContent = t.pw;
+    document.getElementById('btn-text').textContent = t.btn;
+    document.getElementById('forgot-link').textContent = t.forgot;
+    document.getElementById('div-or').textContent = t.divOr;
+    document.getElementById('signup-txt').textContent = t.signupTxt;
+    document.getElementById('signup-link').textContent = t.signupLink;
+    document.getElementById('brand-tag').textContent = t.brandTag;
+    document.getElementById('f1').textContent = t.f1;
+    document.getElementById('f2').textContent = t.f2;
+    document.getElementById('f3').textContent = t.f3;
+  }
+  setLang(lang);
 
-    async function doLogin() {
-      hideError();
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      if (!email || !password) { showError(lang === 'ar' ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور' : 'Please enter email and password'); return; }
-      const btn = document.getElementById('login-btn');
-      btn.disabled = true;
-      document.getElementById('btn-text').textContent = T[lang].loading;
-      try {
-        const res = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ email, password })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          if (data.user && data.user.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
-          // Fallback for browsers that block the auth cookie (strict
-          // third-party-cookie settings / embedded previews): keep the token
-          // in sessionStorage and send it as an Authorization header.
-          if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
-          window.location.replace('/');
-        } else {
-          showError(data.error || T[lang].badCreds);
-          btn.disabled = false;
-          document.getElementById('btn-text').textContent = T[lang].btn;
-        }
-      } catch (err) {
-        showError(T[lang].networkErr);
+  function togglePw() {
+    const inp = document.getElementById('password');
+    const btn = document.querySelector('.pw-eye');
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? '🙈' : '👁';
+  }
+
+  function handleForgot(e) {
+    e.preventDefault();
+    alert(T[lang].forgotMsg);
+  }
+
+  function showAlert(msg) {
+    const el = document.getElementById('alert-box');
+    el.textContent = msg;
+    el.className = 'alert error';
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const t = T[lang];
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) { showAlert(t.emptyFields); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    document.getElementById('btn-text').textContent = t.loading;
+
+    try {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.user && data.user.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
+        if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
+        window.location.replace('/');
+      } else {
+        showAlert(data.error || t.badCreds);
         btn.disabled = false;
-        document.getElementById('btn-text').textContent = T[lang].btn;
+        document.getElementById('btn-text').textContent = t.btn;
       }
+    } catch {
+      showAlert(t.networkErr);
+      btn.disabled = false;
+      document.getElementById('btn-text').textContent = t.btn;
     }
-  </script>
+  });
+</script>
 </body>
 </html>

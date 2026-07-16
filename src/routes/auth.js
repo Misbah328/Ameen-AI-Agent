@@ -49,6 +49,53 @@ router.post('/login', (req, res) => {
   res.json({ success: true, user: safeUser });
 });
 
+// ── POST /auth/signup ─────────────────────────────────────────────────────────
+router.post('/signup', (req, res) => {
+  const { nameEn, nameAr, email, password, org } = req.body;
+
+  // Validation
+  if (!nameEn || !nameEn.trim()) return res.status(400).json({ error: 'Full name (English) is required' });
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ error: 'Valid email is required' });
+  if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Duplicate check
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+  if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
+
+  const hashed = bcrypt.hashSync(password, 10);
+  const roleNote = org ? org.trim() : '';
+
+  const result = db.prepare(
+    `INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, lang_pref, system_role, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+  ).run(
+    (nameAr && nameAr.trim()) || nameEn.trim(),
+    nameEn.trim(),
+    cleanEmail,
+    hashed,
+    roleNote || 'عضو',
+    roleNote || 'Member',
+    'ar',
+    'Employee'
+  );
+
+  const user = db.prepare(
+    'SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?'
+  ).get(result.lastInsertRowid);
+
+  const token = jwt.sign(
+    { id: user.id, email: user.email, system_role: user.system_role },
+    JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+
+  res.cookie('ameen_token', token, COOKIE_OPTS);
+  if (IS_REPLIT_DEV) return res.status(201).json({ success: true, user, token });
+  res.status(201).json({ success: true, user });
+});
+
 // ── POST /auth/logout ─────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
   res.clearCookie('ameen_token', { httpOnly: true, sameSite: COOKIE_OPTS.sameSite, secure: COOKIE_OPTS.secure });
