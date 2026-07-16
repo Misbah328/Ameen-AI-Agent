@@ -350,6 +350,7 @@ const BC = {
           };
         });
 
+        const _memberCount = b.total_members || apiMembers.length || 1;
         return {
           // Use numeric id as string for routing
           id: String(b.id),
@@ -368,8 +369,21 @@ const BC = {
           secretariat: match?.secretariat || "Ameen Secretary Team",
           established: b.created_at?.split(" ")[0] || match?.established || "2024-01-01",
           frequency: match?.frequency || { ar: "ربع سنوي", en: "Quarterly" },
+          nextMeeting: match?.nextMeeting || new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+          location: match?.location || { ar: "القاعة الرئيسية", en: "Main Boardroom" },
           quorum: { required: b.default_quorum || 3, total: b.total_members || 5 },
-          membersCount: b.total_members || apiMembers.length,
+          membersCount: _memberCount,
+          meetingsCount: match?.meetingsCount || 0,
+          tasksCount: match?.tasksCount || 0,
+          documentsCount: match?.documentsCount || 0,
+          resolutionsCount: match?.resolutionsCount || 0,
+          attendanceAvg: match?.attendanceAvg || 0,
+          memberSummary: match?.memberSummary || [
+            { label: { ar: "تنفيذي", en: "Executive" }, n: Math.ceil(_memberCount / 2), color: "#4A6FA5" },
+            { label: { ar: "مستقل", en: "Independent" }, n: Math.max(1, Math.floor(_memberCount / 2)), color: "#4CAF7D" },
+          ],
+          purposeAr: match?.purposeAr || b.description || "",
+          purposeEn: match?.purposeEn || b.description || "",
           members: apiMembers.length ? apiMembers : (match?.members || BC_MEMBERS.slice(0, 3)),
           committees: b.committees || match?.committees || [],
           responsibilities: match?.responsibilities || [],
@@ -888,6 +902,18 @@ const BC = {
     const b = bcById(this.activeId);
     const body = $("boards-body");
     if (!b) { this.backToList(); return; }
+    // Safety: ensure all required display properties exist
+    b.memberSummary = b.memberSummary || [{ label: { ar: "أعضاء", en: "Members" }, n: b.membersCount || 1, color: "#4A6FA5" }];
+    b.location = b.location || { ar: "القاعة الرئيسية", en: "Main Boardroom" };
+    b.nextMeeting = b.nextMeeting || new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+    b.frequency = b.frequency || { ar: "ربع سنوي", en: "Quarterly" };
+    b.meetingsCount = b.meetingsCount || 0;
+    b.tasksCount = b.tasksCount || 0;
+    b.documentsCount = b.documentsCount || 0;
+    b.resolutionsCount = b.resolutionsCount || 0;
+    b.responsibilities = b.responsibilities || [];
+    b.activity = b.activity || [];
+    b.members = b.members || [];
     const isBoard = b.type === "board";
     const crumbLabel = isBoard ? bcT("مجلس الإدارة", "Board of Directors") : esc(bcT(b.nameAr, b.nameEn));
 
