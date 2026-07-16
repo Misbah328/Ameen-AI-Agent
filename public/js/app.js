@@ -341,6 +341,7 @@ Object.values(ROLE_ACCESS).forEach((set) => {
   if (set.has("scheduled") || set.has("tasks")) set.add("calendar");
   // Activity Log sidebar entry mirrors the "activity" permission.
   if (set.has("activity")) set.add("logs");
+  if (set.has("approval-cycle")) set.add("meeting-archive");
 });
 
 // ══ Executive Action taxonomy ══════════════════════════════════════════════
@@ -1027,6 +1028,9 @@ const Panels = {
         break;
       case "approval-cycle":
         if (window.ApprovalCycle) await ApprovalCycle.refresh();
+        break;
+      case "meeting-archive":
+        await MeetingArchive.render();
         break;
       case "logs":
         await ActivityLog.refresh();
@@ -4147,6 +4151,137 @@ const MeetingRecent = {
     } catch (e) {
       return [];
     }
+  },
+};
+
+// ══ Meeting Archive ════════════════════════════════════════════════════════════
+// Shows all meetings that completed the full approval cycle (lifecycle_stage=
+// 'archived' or minutes_status='final_approved'). Each row links back into the
+// approval-cycle panel so the user can view the full certificate + signatures.
+const MeetingArchive = {
+  _all: [],
+  _search: '',
+
+  async render() {
+    const body = document.getElementById('meeting-archive-body');
+    if (!body) return;
+    const l = App.lang;
+    const t = (ar, en) => l === 'ar' ? ar : en;
+
+    body.innerHTML = `<div class="es"><div class="loading"></div></div>`;
+    try {
+      const meetings = await api('/api/meetings');
+      this._all = (meetings || []).filter(m =>
+        m.lifecycle_stage === 'archived' || m.minutes_status === 'final_approved'
+      ).sort((a, b) => new Date(b.meeting_date || 0) - new Date(a.meeting_date || 0));
+    } catch (e) {
+      body.innerHTML = `<div class="es">${t('تعذّر تحميل الأرشيف','Failed to load archive')}: ${e.message}</div>`;
+      return;
+    }
+    this._renderList(body);
+  },
+
+  _renderList(body) {
+    const l = App.lang;
+    const t = (ar, en) => l === 'ar' ? ar : en;
+    const q = (this._search || '').toLowerCase();
+    const items = q
+      ? this._all.filter(m => (m.title || '').toLowerCase().includes(q) || (m.meeting_type || '').toLowerCase().includes(q))
+      : this._all;
+
+    const certNo  = m => `APC-${new Date(m.meeting_date||m.created_at||Date.now()).getFullYear()}-${String(m.id).padStart(3,'0')}`;
+    const archId  = m => `MM-${new Date(m.meeting_date||m.created_at||Date.now()).getFullYear()}-${String(m.id).padStart(3,'0')}-ARC`;
+    const fmtDate = iso => { try { return new Date(iso).toLocaleDateString(l==='ar'?'ar-SA':'en-GB',{day:'numeric',month:'short',year:'numeric'}); } catch { return iso||'—'; } };
+
+    const typeLabel = (m) => {
+      const map = { board: t('مجلس الإدارة','Board Meeting'), committee: t('لجنة','Committee'), executive: t('تنفيذي','Executive'), general: t('عام','General') };
+      return map[(m.meeting_type||'').toLowerCase()] || m.meeting_type || t('اجتماع','Meeting');
+    };
+
+    if (!items.length) {
+      body.innerHTML = `
+        <div class="es" style="padding:60px 20px;flex-direction:column;gap:12px">
+          <div style="font-size:48px">🏛️</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text)">${t('لا توجد محاضر مؤرشفة بعد','No archived minutes yet')}</div>
+          <div style="font-size:13px;color:var(--text3);max-width:340px;text-align:center">${t('عندما تكتمل دورة الاعتماد الكاملة للمحضر سيظهر هنا تلقائياً.','Once a minutes approval cycle is fully completed it will appear here automatically.')}</div>
+          <button class="btn-ghost btn-sm" style="margin-top:8px" onclick="Panels.load('approval-cycle')">
+            ${t('← الذهاب إلى اعتماد المحاضر','← Go to Minutes Approval')}
+          </button>
+        </div>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <div style="padding:0 0 24px">
+        <!-- Stats row -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+          <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;flex:1;min-width:140px">
+            <div style="font-size:22px;font-weight:800;color:var(--gold)">${this._all.length}</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${t('إجمالي المحاضر المؤرشفة','Total Archived Minutes')}</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;flex:1;min-width:140px">
+            <div style="font-size:22px;font-weight:800;color:var(--green)">🔒</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${t('سجل مقفل وآمن','Locked & Secured Record')}</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;flex:1;min-width:140px">
+            <div style="font-size:22px;font-weight:800;color:var(--blue)">7 ${t('سنوات','yrs')}</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${t('سياسة الاحتفاظ','Retention Policy')}</div>
+          </div>
+        </div>
+        <!-- Search -->
+        <div style="margin-bottom:16px">
+          <input class="fi" id="arch-search-inp" placeholder="${t('بحث بعنوان الاجتماع أو النوع…','Search by meeting title or type…')}"
+            value="${(this._search||'').replace(/"/g,'&quot;')}"
+            oninput="MeetingArchive._onSearch(this.value)"
+            style="max-width:360px"/>
+        </div>
+        <!-- Archive list -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${items.map(m => {
+            const cn = certNo(m), ai = archId(m);
+            const archivedDate = fmtDate(m.lifecycle_updated_at || m.meeting_date);
+            const meetDate = fmtDate(m.meeting_date);
+            return `
+            <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:18px 20px;display:flex;gap:16px;align-items:flex-start;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)'">
+              <!-- Archive stamp icon -->
+              <div style="width:44px;height:44px;background:#ECFDF5;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px">🏛️</div>
+              <!-- Info -->
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+                  <span style="font-size:14px;font-weight:700;color:var(--text)">${m.title || t('اجتماع','Meeting')}</span>
+                  <span style="background:rgba(12,122,61,.12);color:#0C7A3D;border-radius:20px;padding:2px 10px;font-size:10.5px;font-weight:700">✅ ${t('مؤرشف','Archived')}</span>
+                  <span style="background:var(--navy4);color:var(--text3);border-radius:20px;padding:2px 10px;font-size:10.5px">${typeLabel(m)}</span>
+                </div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-bottom:10px">
+                  <span>📅 ${meetDate}</span>
+                  <span style="font-family:monospace;font-size:10.5px;color:var(--gold)">🔖 ${cn}</span>
+                  <span style="font-family:monospace;font-size:10.5px;color:var(--text3)">🗂 ${ai}</span>
+                  <span>🗓 ${t('أُرشف:','Archived:')} ${archivedDate}</span>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn-ghost btn-sm" onclick="MeetingArchive._openCycle(${m.id})" style="font-size:11.5px">
+                    📋 ${t('عرض المحضر والشهادة','View Minutes & Certificate')}
+                  </button>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    App.applyLang(App.lang);
+  },
+
+  _onSearch(v) {
+    this._search = v;
+    const body = document.getElementById('meeting-archive-body');
+    if (body) this._renderList(body);
+  },
+
+  _openCycle(meetingId) {
+    if (window.ApprovalCycle) {
+      ApprovalCycle._selectedMeetingId = meetingId;
+    }
+    Panels.load('approval-cycle');
   },
 };
 

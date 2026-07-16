@@ -128,6 +128,10 @@
     <span class="nb-icon">✅</span>
     <span class="nb-label" data-ar="اعتماد المحاضر" data-en="Minutes Approval">اعتماد المحاضر</span>
   </button>
+  <button class="nb nb-sub" data-p="meeting-archive">
+    <span class="nb-icon">🏛️</span>
+    <span class="nb-label" data-ar="أرشيف المحاضر" data-en="Meeting Archive">أرشيف المحاضر</span>
+  </button>
   <button class="nb" data-p="calendar">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/><rect x="10.5" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg></span>
     <span class="nb-label" data-ar="التقويم" data-en="Calendar">التقويم</span>
@@ -1589,6 +1593,22 @@
   </div>
 </section>
 
+<!-- ══ MEETING ARCHIVE ════════════════════════════════════════════════════════ -->
+<section class="panel" id="panel-meeting-archive">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="أرشيف المحاضر الرسمية" data-en="Meeting Archive">أرشيف المحاضر الرسمية</div>
+        <div class="ptitle-sub" data-ar="المحاضر المعتمدة والمؤرشفة رسمياً · سجل دائم وغير قابل للتعديل" data-en="Officially approved & archived minutes · Permanent, tamper-proof record">المحاضر المعتمدة والمؤرشفة رسمياً · سجل دائم وغير قابل للتعديل</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="MeetingArchive.render()">↺ <span data-ar="تحديث" data-en="Refresh">تحديث</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="meeting-archive-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
 <!-- ══ MINUTES APPROVAL CYCLE ════════════════════════════════════════════════ -->
 <section class="panel" id="panel-approval-cycle">
   <div id="ac-page-body" style="flex:1;overflow-y:auto;min-height:0"></div>
@@ -2043,7 +2063,7 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260716f"></script>
+<script src="/js/app.js?v=20260716k"></script>
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260716h"></script>
 <script src="/js/meetings.js?v=20260714b"></script>
