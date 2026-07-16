@@ -1894,3 +1894,53 @@ button.mt2-chev-open:hover{background:#F2F4F7;color:#A8842C}
 .al-entity{font-size:12px;color:var(--text2);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .al-detail{font-size:12.5px;color:var(--text2)}
 .al-reason{font-size:11.5px;color:var(--text3);margin-top:3px;font-style:italic}
+
+/* ══ Roles & Permissions panel ═══════════════════════════════════════════════ */
+.rp-tabs{display:flex;gap:0;border-bottom:1px solid var(--border2);padding:0 2px}
+.rp-tab{background:none;border:none;border-bottom:2.5px solid transparent;padding:11px 18px 9px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;white-space:nowrap;margin-bottom:-1px;font-family:inherit;transition:color .15s,border-color .15s}
+.rp-tab:hover{color:var(--text)}
+.rp-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+.rp-section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.rp-section-title{font-size:14px;font-weight:700;color:var(--text)}
+.rp-section-desc{font-size:12px;color:var(--text3);flex:1;min-width:0}
+.rp-count{display:inline-flex;align-items:center;justify-content:center;background:var(--navy3);border:1px solid var(--border2);color:var(--text2);font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;margin-inline-start:4px;vertical-align:middle}
+
+.rp-roles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-bottom:8px}
+
+.rp-role-card{background:var(--navy2);border:1px solid var(--border2);border-radius:12px;padding:16px;border-inline-start:3px solid var(--rc,var(--gold));transition:border-color .15s,box-shadow .15s;display:flex;flex-direction:column}
+.rp-role-card:hover{border-color:var(--rc,var(--gold));box-shadow:0 0 0 3px color-mix(in srgb,var(--rc,var(--gold)) 10%,transparent)}
+.rp-role-disabled{opacity:.55}
+
+.rp-role-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.rp-role-icon{font-size:20px;flex-shrink:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--navy3);border-radius:8px}
+.rp-role-meta{flex:1;min-width:0}
+.rp-role-name{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3}
+.rp-role-type{font-size:11px;color:var(--text3);margin-top:2px}
+.rp-role-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;border:1px solid;white-space:nowrap;flex-shrink:0;line-height:1.4}
+.rp-role-desc{font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.55;flex:1}
+.rp-role-perm-bar{height:4px;background:var(--navy3);border-radius:4px;margin-bottom:5px;overflow:hidden}
+.rp-role-perm-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.rp-role-perm-label{font-size:11px;color:var(--text3);margin-bottom:12px}
+.rp-role-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+
+.btn-xs{font-size:11px !important;padding:4px 9px !important;gap:4px;border-radius:6px !important}
+.rp-danger:hover{color:var(--red) !important;border-color:var(--red) !important}
+
+.rp-empty-custom{background:var(--navy2);border:1px dashed var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--text3);font-size:13px;line-height:1.6}
+
+.rp-member-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.rp-mem-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.rp-mem-tbl th{padding:10px 16px;background:var(--navy3);color:var(--text3);font-size:11px;font-weight:700;text-align:start;border-bottom:1px solid var(--border2)}
+.rp-mem-tbl td{padding:11px 16px;border-top:1px solid var(--border2);color:var(--text2);vertical-align:middle}
+.rp-mem-tbl tbody tr:hover{background:var(--navy3)}
+
+.rp-perm-cat{margin-bottom:20px}
+.rp-perm-cat-title{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border2)}
+.rp-perm-rows{display:flex;flex-direction:column;gap:2px}
+.rp-perm-row{display:grid;grid-template-columns:1fr 90px 170px;align-items:center;gap:12px;padding:7px 10px;border-radius:8px;transition:background .12s}
+.rp-perm-row:hover{background:var(--navy3)}
+.rp-perm-label{min-width:0}
+.rp-perm-role-val{text-align:center}
+.rp-perm-yes{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#16A34A18;color:#16A34A;font-weight:600}
+.rp-perm-no{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#DC262618;color:#DC2626;font-weight:600}

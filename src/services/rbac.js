@@ -170,9 +170,27 @@ function getRolePermissions(db, roleKey) {
 }
 
 function hasPermission(db, userId, permissionKey) {
+  try {
+    const override = db.prepare('SELECT granted FROM user_permissions WHERE user_id=? AND permission_key=?').get(userId, permissionKey);
+    if (override !== undefined) return override.granted === 1;
+  } catch (_) { /* user_permissions table may not exist on very old DBs */ }
   const u = db.prepare('SELECT system_role FROM users WHERE id=?').get(userId);
   const roleKey = (u && u.system_role) || 'Employee';
   return getRolePermissions(db, roleKey).has(permissionKey);
+}
+
+function getEffectivePermissions(db, userId) {
+  const u = db.prepare('SELECT system_role FROM users WHERE id=?').get(userId);
+  const roleKey = (u && u.system_role) || 'Employee';
+  const base = new Set(getRolePermissions(db, roleKey));
+  try {
+    const overrides = db.prepare('SELECT permission_key, granted FROM user_permissions WHERE user_id=?').all(userId);
+    for (const o of overrides) {
+      if (o.granted === 1) base.add(o.permission_key);
+      else base.delete(o.permission_key);
+    }
+  } catch (_) {}
+  return base;
 }
 
 module.exports = {
@@ -184,4 +202,5 @@ module.exports = {
   seedRbac,
   getRolePermissions,
   hasPermission,
+  getEffectivePermissions,
 };

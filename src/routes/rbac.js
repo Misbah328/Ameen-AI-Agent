@@ -33,7 +33,7 @@ router.get('/roles-lookup', auth, (req, res) => {
 router.get('/my-permissions', auth, (req, res) => {
   const u = db.prepare('SELECT system_role FROM users WHERE id=?').get(req.user.id);
   const roleKey = (u && u.system_role) || 'Employee';
-  res.json({ role: roleKey, permissions: [...rbac.getRolePermissions(db, roleKey)] });
+  res.json({ role: roleKey, permissions: [...rbac.getEffectivePermissions(db, req.user.id)] });
 });
 
 router.get('/roles', auth, requirePermission('admin.roles'), (req, res) => {
@@ -151,7 +151,40 @@ router.delete('/roles/:id', auth, requirePermission('admin.roles'), (req, res) =
 router.get('/audit-log', auth, requirePermission('admin.roles'), (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 100, 500);
   const rows = db.prepare('SELECT * FROM permission_audit_log ORDER BY created_at DESC LIMIT ?').all(limit);
-  res.json(rows.map((r) => ({ ...r, old_value: JSON.parse(r.old_value || '[]'), new_value: JSON.parse(r.new_value || '[]') })));
+  const safeArr = (v) => { try { const p = JSON.parse(v || '[]'); return Array.isArray(p) ? p : []; } catch (_) { return []; } };
+  res.json(rows.map((r) => ({ ...r, old_value: safeArr(r.old_value), new_value: safeArr(r.new_value) })));
+});
+
+// ── Users with their roles (for the Roles panel Members tab) ──────────────────
+router.get('/users-with-roles', auth, requirePermission('admin.roles'), (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.name_ar, u.name_en, u.email, u.system_role, u.created_at,
+           r.name_ar AS role_name_ar, r.name_en AS role_name_en, r.is_builtin
+    FROM users u
+    LEFT JOIN roles r ON r.role_key = u.system_role
+    ORDER BY u.name_ar
+  `).all();
+  res.json(users);
+});
+
+// ── Per-user permission overrides ─────────────────────────────────────────────
+router.get('/user-permissions/:userId', auth, requirePermission('admin.roles'), (req, res) => {
+  const rows = db.prepare('SELECT permission_key, granted FROM user_permissions WHERE user_id=?').all(req.params.userId);
+  res.json(rows);
+});
+
+router.put('/user-permissions/:userId', auth, requirePermission('admin.roles'), (req, res) => {
+  const userId = parseInt(req.params.userId);
+  if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+  const catalogKeys = new Set(rbac.PERMISSION_CATALOG.map(p => p.key));
+  const overrides = (Array.isArray(req.body.overrides) ? req.body.overrides : [])
+    .filter(o => catalogKeys.has(o.permission_key) && (o.granted === 0 || o.granted === 1));
+  db.transaction(() => {
+    db.prepare('DELETE FROM user_permissions WHERE user_id=?').run(userId);
+    const ins = db.prepare('INSERT INTO user_permissions (user_id, permission_key, granted, created_by) VALUES (?,?,?,?)');
+    for (const o of overrides) ins.run(userId, o.permission_key, o.granted, req.user.id);
+  })();
+  res.json({ success: true, count: overrides.length });
 });
 
 module.exports = router;

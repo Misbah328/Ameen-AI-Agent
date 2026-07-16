@@ -237,7 +237,7 @@ const ROLE_ACCESS = {
     "analytics", "activity",
     "governance", "boards",
     "integrations",
-    "admin",
+    "roles", "admin",
     "approval-cycle",
   ]),
   CEO: new Set([
@@ -314,12 +314,12 @@ const ROLE_ACCESS = {
   "Super Admin": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
-    "governance", "boards", "integrations", "admin", "approval-cycle",
+    "governance", "boards", "integrations", "roles", "admin", "approval-cycle",
   ]),
   "Organization Admin": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
     "documents", "schedule", "series", "team", "overview", "analytics", "activity",
-    "governance", "boards", "integrations", "admin", "approval-cycle",
+    "governance", "boards", "integrations", "roles", "admin", "approval-cycle",
   ]),
   "Board Secretary": new Set([
     "create-meeting", "scheduled", "live", "transcripts", "history", "lastmeeting", "tasks", "ask",
@@ -506,8 +506,11 @@ function applySidebarRoles() {
   // "admin" key in ROLE_ACCESS — see Role Management too, not just "Admin".
   const adminNav = $("nav-admin");
   const adminSec = $("nsec-admin");
+  const rolesNav = $("nav-roles");
+  const showSystem = allowed.has("admin") || allowed.has("roles");
   if (adminNav) adminNav.style.display = allowed.has("admin") ? "" : "none";
-  if (adminSec) adminSec.style.display = allowed.has("admin") ? "" : "none";
+  if (rolesNav) rolesNav.style.display = allowed.has("roles") ? "" : "none";
+  if (adminSec) adminSec.style.display = showSystem ? "" : "none";
 
   // Hide developer/admin-only UI elements from end users
   const adminRoles = new Set(["Admin", "Super Admin", "Organization Admin"]);
@@ -993,6 +996,9 @@ const Panels = {
         break;
       case "boards":
         await BC.init();
+        break;
+      case "roles":
+        await renderRolesPanel();
         break;
       case "admin":
         await renderAdminPanel();
@@ -12112,8 +12118,16 @@ const AdminPanel = {
         await api("/api/rbac/roles", { method: "POST", body: JSON.stringify(Object.assign({ permissions: [] }, payload)) });
       }
       this.closeRoleModal();
-      await this.renderMatrixTab($("admin-body"));
+      this._rolesCache = null;
       showToast(l === "ar" ? "✓ تم الحفظ" : "✓ Saved");
+      // Refresh whichever panel is currently active
+      const adminBody = $("admin-body");
+      if (adminBody) this.renderMatrixTab(adminBody).catch(() => {});
+      if (typeof RolesPanel !== "undefined") {
+        RolesPanel._rolesCache = null;
+        const rolesBody = $("roles-body");
+        if (rolesBody) RolesPanel.render().catch(() => {});
+      }
     } catch (e) {
       alert(e.message);
     }
@@ -12194,6 +12208,428 @@ const AdminPanel = {
           </div>`
           : `<div class="es"><div style="color:var(--text3);font-size:12px">${l === "ar" ? "لا يوجد سجل تدقيق بعد" : "No audit history yet"}</div></div>`}
       </div>`;
+  },
+};
+
+// ══ Roles & Permissions Panel ══════════════════════════════════════════════════
+async function renderRolesPanel() {
+  await RolesPanel.init();
+}
+
+const RolesPanel = {
+  _tab: "roles",
+  _rolesCache: null,
+  _usersCache: null,
+  _customUserId: null,
+
+  async init() {
+    this._tab = "roles";
+    document.querySelectorAll("#rp-tabs .rp-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === "roles"));
+    await this.render();
+  },
+
+  async render() {
+    const body = $("roles-body");
+    if (!body) return;
+    body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+    try {
+      if (this._tab === "roles") await this._renderRolesTab(body);
+      else if (this._tab === "members") await this._renderMembersTab(body);
+      else if (this._tab === "custom") await this._renderCustomTab(body);
+      else if (this._tab === "activity") await this._renderActivityTab(body);
+    } catch (e) {
+      body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  },
+
+  setTab(tab) {
+    this._tab = tab;
+    document.querySelectorAll("#rp-tabs .rp-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+    this.render();
+  },
+
+  async _loadRoles(force) {
+    if (!this._rolesCache || force) this._rolesCache = await api("/api/rbac/roles");
+    return this._rolesCache;
+  },
+  async _loadUsers(force) {
+    if (!this._usersCache || force) this._usersCache = await api("/api/rbac/users-with-roles");
+    return this._usersCache;
+  },
+
+  // ── Tab 1: Roles grid ───────────────────────────────────────────────────────
+  async _renderRolesTab(body) {
+    const l = App.lang;
+    const roles = await this._loadRoles(true);
+    const TOTAL_PERMS = 34;
+    const ICONS = {
+      "Super Admin": "👑", Admin: "🛡️", "Organization Admin": "🏛️", CEO: "💼",
+      "Board Secretary": "📋", "Board Member": "🏛️", "Committee Chair": "⚡",
+      "Committee Member": "👥", Executive: "📊", Manager: "🗂️",
+      Employee: "👤", Auditor: "🔍", Guest: "🎟️", Observer: "👁️",
+    };
+    const card = (r) => {
+      const name = l === "ar" ? r.name_ar : (r.name_en || r.name_ar);
+      const desc = l === "ar" ? r.description_ar : (r.description_en || r.description_ar);
+      const color = ROLE_COLORS[r.role_key] || "#888";
+      const icon = ICONS[r.role_key] || "🔧";
+      const pct = Math.round((r.permissions.length / TOTAL_PERMS) * 100);
+      return `<div class="rp-role-card${!r.is_active ? " rp-role-disabled" : ""}" style="--rc:${color}">
+        <div class="rp-role-head">
+          <div class="rp-role-icon">${icon}</div>
+          <div class="rp-role-meta">
+            <div class="rp-role-name">${esc(name)}</div>
+            <div class="rp-role-type">${r.is_builtin ? (l === "ar" ? "مدمج" : "Built-in") : (l === "ar" ? "مخصص" : "Custom")}${!r.is_active ? ` · ${l === "ar" ? "معطّل" : "disabled"}` : ""}</div>
+          </div>
+          <div class="rp-role-badge" style="background:${color}18;color:${color};border-color:${color}44">
+            ${r.user_count} ${l === "ar" ? "عضو" : r.user_count !== 1 ? "members" : "member"}
+          </div>
+        </div>
+        <div class="rp-role-desc">${esc(desc || (l === "ar" ? "—" : "—"))}</div>
+        <div class="rp-role-perm-bar"><div class="rp-role-perm-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="rp-role-perm-label"><span style="color:${color}">${r.permissions.length}</span> ${l === "ar" ? `من ${TOTAL_PERMS} صلاحية` : `of ${TOTAL_PERMS} permissions`}</div>
+        <div class="rp-role-actions">
+          <button class="btn-ghost btn-xs" onclick="RolesPanel.editPermissions(${r.id})">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            ${l === "ar" ? "تعديل الصلاحيات" : "Edit Permissions"}
+          </button>
+          <button class="btn-ghost btn-xs" onclick="RolesPanel.cloneRole(${r.id})">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            ${l === "ar" ? "نسخ" : "Clone"}
+          </button>
+          ${!r.is_builtin ? `<button class="btn-ghost btn-xs rp-danger" onclick="RolesPanel.deleteRole(${r.id},'${esc(r.role_key)}')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            ${l === "ar" ? "حذف" : "Delete"}
+          </button>` : ""}
+        </div>
+      </div>`;
+    };
+
+    const builtin = roles.filter((r) => r.is_builtin);
+    const custom = roles.filter((r) => !r.is_builtin);
+
+    body.innerHTML = `
+      <div class="rp-section-head">
+        <div class="rp-section-title">${l === "ar" ? "الأدوار المدمجة" : "Built-in Roles"}<span class="rp-count">${builtin.length}</span></div>
+        <div class="rp-section-desc">${l === "ar" ? "الأدوار الافتراضية بحسب المستوى الوظيفي — لا يمكن حذفها" : "Default roles by job level — cannot be deleted"}</div>
+      </div>
+      <div class="rp-roles-grid">${builtin.map(card).join("")}</div>
+
+      <div class="rp-section-head" style="margin-top:28px">
+        <div class="rp-section-title">${l === "ar" ? "الأدوار المخصصة" : "Custom Roles"}<span class="rp-count">${custom.length}</span></div>
+        <div class="rp-section-desc">${l === "ar" ? "أدوار أنشأها مدير النظام" : "Roles created by administrators"}</div>
+        <button class="btn-gold btn-sm" style="margin-inline-start:auto" onclick="RolesPanel.openCreateRole()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          ${l === "ar" ? "دور جديد" : "New Role"}
+        </button>
+      </div>
+      ${custom.length > 0
+        ? `<div class="rp-roles-grid">${custom.map(card).join("")}</div>`
+        : `<div class="rp-empty-custom">${l === "ar" ? "لا توجد أدوار مخصصة بعد. أنشئ دوراً جديداً أو استنسخ دوراً موجوداً." : "No custom roles yet. Create a new role or clone an existing one."}</div>`}
+    `;
+  },
+
+  // ── Tab 2: Members ─────────────────────────────────────────────────────────
+  async _renderMembersTab(body) {
+    const l = App.lang;
+    const [users, roles] = await Promise.all([this._loadUsers(true), this._loadRoles()]);
+    const activeRoles = roles.filter((r) => r.is_active);
+    body.innerHTML = `
+      <div class="rp-member-toolbar">
+        <div style="font-size:13px;color:var(--text3)">${users.length} ${l === "ar" ? "مستخدم" : `user${users.length !== 1 ? "s" : ""}`}</div>
+        <button class="btn-gold btn-sm" onclick="RolesPanel.openAddMember()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          ${l === "ar" ? "إضافة عضو" : "Add Member"}
+        </button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="rp-mem-tbl">
+          <thead><tr>
+            <th>${l === "ar" ? "العضو" : "Member"}</th>
+            <th>${l === "ar" ? "البريد الإلكتروني" : "Email"}</th>
+            <th>${l === "ar" ? "الدور الحالي" : "Current Role"}</th>
+            <th>${l === "ar" ? "تغيير الدور" : "Change Role"}</th>
+            <th>${l === "ar" ? "تخصيص" : "Customize"}</th>
+          </tr></thead>
+          <tbody>
+            ${users.map((u) => {
+              const name = l === "ar" ? u.name_ar : (u.name_en || u.name_ar);
+              const initials = name.split(" ").slice(0, 2).map((w) => w[0] || "").join("");
+              const roleKey = u.system_role || "Employee";
+              const color = ROLE_COLORS[roleKey] || "#888";
+              const roleName = l === "ar" ? (u.role_name_ar || roleKey) : (u.role_name_en || roleKey);
+              return `<tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <div class="uav" style="width:32px;height:32px;font-size:11px;flex-shrink:0">${esc(initials)}</div>
+                    <span style="font-size:13px;font-weight:600;color:var(--text)">${esc(name)}</span>
+                  </div>
+                </td>
+                <td style="font-size:12px;color:var(--text3)">${esc(u.email)}</td>
+                <td><span style="font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid ${color}44;color:${color};background:${color}14">${esc(roleName)}</span></td>
+                <td>
+                  <select class="fi" style="font-size:12px;padding:5px 8px;width:auto;min-width:150px"
+                    onchange="RolesPanel.changeRole(${u.id}, this.value)">
+                    ${activeRoles.map((r) => `<option value="${esc(r.role_key)}"${roleKey === r.role_key ? " selected" : ""}>${esc(l === "ar" ? r.name_ar : r.name_en)}</option>`).join("")}
+                  </select>
+                </td>
+                <td>
+                  <button class="btn-ghost btn-xs" onclick="RolesPanel.openCustomAccess(${u.id})">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+                    ${l === "ar" ? "تخصيص الصلاحيات" : "Customize Access"}
+                  </button>
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  // ── Tab 3: Custom Access ───────────────────────────────────────────────────
+  async _renderCustomTab(body) {
+    const l = App.lang;
+    const [users, { catalog, categories }] = await Promise.all([
+      this._loadUsers(),
+      api("/api/rbac/permissions"),
+    ]);
+
+    const uid = this._customUserId;
+    let overrideSection = "";
+
+    if (uid) {
+      const [overrides, roles] = await Promise.all([
+        api(`/api/rbac/user-permissions/${uid}`),
+        this._loadRoles(),
+      ]);
+      const overrideMap = {};
+      overrides.forEach((o) => (overrideMap[o.permission_key] = o.granted));
+      const user = users.find((u) => u.id === uid);
+      const userName = user ? (l === "ar" ? user.name_ar : (user.name_en || user.name_ar)) : "";
+      const roleObj = roles.find((r) => r.role_key === (user?.system_role || "Employee"));
+      const rolePerms = new Set(roleObj?.permissions || []);
+
+      const catKeys = [...new Set(catalog.map((p) => p.category))];
+      const catSections = catKeys.map((cat) => {
+        const catPerms = catalog.filter((p) => p.category === cat);
+        const catMeta = categories[cat] || { ar: cat, en: cat };
+        return `<div class="rp-perm-cat">
+          <div class="rp-perm-cat-title">${l === "ar" ? catMeta.ar : catMeta.en}</div>
+          <div class="rp-perm-rows">
+            ${catPerms.map((p) => {
+              const fromRole = rolePerms.has(p.key);
+              const ov = overrideMap[p.key];
+              return `<div class="rp-perm-row">
+                <div class="rp-perm-label">
+                  <div style="font-size:12.5px;font-weight:500;color:var(--text)">${l === "ar" ? p.label_ar : p.label_en}</div>
+                  <div style="font-size:10.5px;color:var(--text3);direction:ltr;text-align:start">${p.key}</div>
+                </div>
+                <div class="rp-perm-role-val">
+                  ${fromRole
+                    ? `<span class="rp-perm-yes">${l === "ar" ? "ممنوح" : "Granted"}</span>`
+                    : `<span class="rp-perm-no">${l === "ar" ? "محجوب" : "Denied"}</span>`}
+                  <div style="font-size:10px;color:var(--text3);margin-top:2px">${l === "ar" ? "من الدور" : "from role"}</div>
+                </div>
+                <div class="rp-perm-override">
+                  <select class="fi" style="font-size:11px;padding:4px 8px;width:100%" data-pkey="${p.key}">
+                    <option value="" ${ov === undefined ? "selected" : ""}>${l === "ar" ? "— بلا تخصيص —" : "— No override —"}</option>
+                    <option value="1" ${ov === 1 ? "selected" : ""}>✓ ${l === "ar" ? "منح صلاحية" : "Grant"}</option>
+                    <option value="0" ${ov === 0 ? "selected" : ""}>✗ ${l === "ar" ? "حجب صلاحية" : "Deny"}</option>
+                  </select>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>`;
+      }).join("");
+
+      overrideSection = `<div class="card" style="margin-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="ct">${l === "ar" ? `صلاحيات مخصصة: ${userName}` : `Custom Access: ${userName}`}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">${l === "ar" ? "يمكنك منح أو حجب صلاحيات بعينها فوق دور هذا المستخدم أو تحته" : "Grant or deny specific permissions above/below this user's role"}</div>
+          </div>
+          <button class="btn-gold btn-sm" onclick="RolesPanel.saveOverrides(${uid})">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13"/><polyline points="7 3 7 8 15 8"/></svg>
+            ${l === "ar" ? "حفظ التخصيصات" : "Save Overrides"}
+          </button>
+        </div>
+        <div id="rp-overrides-form">${catSections}</div>
+      </div>`;
+    }
+
+    body.innerHTML = `
+      <div class="card">
+        <div class="ct" style="margin-bottom:10px">${l === "ar" ? "اختر مستخدماً لتخصيص صلاحياته" : "Select a user to customize their permissions"}</div>
+        <select class="fi" style="max-width:340px" onchange="RolesPanel.selectCustomUser(+this.value)">
+          <option value="0">${l === "ar" ? "— اختر مستخدماً —" : "— Select a user —"}</option>
+          ${users.map((u) => {
+            const name = l === "ar" ? u.name_ar : (u.name_en || u.name_ar);
+            return `<option value="${u.id}"${uid === u.id ? " selected" : ""}>${esc(name)}</option>`;
+          }).join("")}
+        </select>
+      </div>
+      ${overrideSection}
+    `;
+  },
+
+  async selectCustomUser(uid) {
+    this._customUserId = uid || null;
+    const body = $("roles-body");
+    if (body) {
+      body.innerHTML = '<div class="es"><div class="loading"></div></div>';
+      await this._renderCustomTab(body).catch((e) => {
+        body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
+      });
+    }
+  },
+
+  async saveOverrides(uid) {
+    const l = App.lang;
+    const selects = document.querySelectorAll("#rp-overrides-form select[data-pkey]");
+    const overrides = [];
+    selects.forEach((sel) => {
+      if (sel.value !== "") overrides.push({ permission_key: sel.dataset.pkey, granted: parseInt(sel.value) });
+    });
+    try {
+      await api(`/api/rbac/user-permissions/${uid}`, { method: "PUT", body: JSON.stringify({ overrides }) });
+      showToast(l === "ar" ? "✓ تم حفظ التخصيصات" : "✓ Custom access saved");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async openCustomAccess(uid) {
+    this._customUserId = uid;
+    this.setTab("custom");
+  },
+
+  // ── Tab 4: Activity log ────────────────────────────────────────────────────
+  async _renderActivityTab(body) {
+    const l = App.lang;
+    const rows = await api("/api/rbac/audit-log?limit=50");
+    const ACTION_COLOR = { create: "#16A34A", update: "#D97706", delete: "#DC2626", clone: "#6366F1", enable: "#0EA5E9", disable: "#9CA3AF" };
+    const fmtDate = (s) => s ? new Date(s).toLocaleDateString(l === "ar" ? "ar-SA" : "en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+    if (!rows.length) {
+      body.innerHTML = `<div class="es">${l === "ar" ? "لا توجد سجلات بعد" : "No activity yet"}</div>`;
+      return;
+    }
+    body.innerHTML = `
+      <div class="card" style="padding:0;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr style="background:var(--navy3)">
+            <th style="padding:10px 14px;text-align:start;color:var(--text3);font-size:11px;font-weight:700">${l === "ar" ? "الإجراء" : "Action"}</th>
+            <th style="padding:10px 14px;text-align:start;color:var(--text3);font-size:11px;font-weight:700">${l === "ar" ? "الدور" : "Role"}</th>
+            <th style="padding:10px 14px;text-align:start;color:var(--text3);font-size:11px;font-weight:700">${l === "ar" ? "المنفذ" : "By"}</th>
+            <th style="padding:10px 14px;text-align:start;color:var(--text3);font-size:11px;font-weight:700">${l === "ar" ? "التغييرات" : "Changes"}</th>
+            <th style="padding:10px 14px;text-align:start;color:var(--text3);font-size:11px;font-weight:700">${l === "ar" ? "التاريخ" : "Date"}</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => {
+              const color = ACTION_COLOR[r.action] || "#888";
+              const added = r.new_value.filter((k) => !r.old_value.includes(k));
+              const removed = r.old_value.filter((k) => !r.new_value.includes(k));
+              return `<tr style="border-top:1px solid var(--border2)">
+                <td style="padding:10px 14px"><span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:${color}18;color:${color};font-weight:700">${r.action.toUpperCase()}</span></td>
+                <td style="padding:10px 14px;font-weight:600;color:var(--text)">${esc(r.role_key)}</td>
+                <td style="padding:10px 14px;color:var(--text2)">${esc(r.actor_name || "—")}</td>
+                <td style="padding:10px 14px;font-size:11px">
+                  ${added.length ? `<div style="color:#16A34A">+ ${added.slice(0, 4).join(", ")}${added.length > 4 ? ` +${added.length - 4}` : ""}</div>` : ""}
+                  ${removed.length ? `<div style="color:#DC2626">− ${removed.slice(0, 4).join(", ")}${removed.length > 4 ? ` +${removed.length - 4}` : ""}</div>` : ""}
+                  ${!added.length && !removed.length ? "<span style='color:var(--text3)'>—</span>" : ""}
+                </td>
+                <td style="padding:10px 14px;color:var(--text3);font-size:11px;white-space:nowrap">${fmtDate(r.created_at)}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  },
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+  openCreateRole() {
+    AdminPanel._cloneSourceId = null;
+    AdminPanel.openCreateRole();
+  },
+
+  async cloneRole(id) {
+    const roles = await this._loadRoles();
+    const r = roles.find((x) => x.id === id);
+    if (!r) return;
+    AdminPanel._cloneSourceId = id;
+    AdminPanel.openCloneRole(id);
+  },
+
+  async deleteRole(id, key) {
+    const l = App.lang;
+    if (!confirm(l === "ar" ? `حذف الدور "${key}"؟ لا يمكن التراجع.` : `Delete role "${key}"? This cannot be undone.`)) return;
+    try {
+      await api(`/api/rbac/roles/${id}`, { method: "DELETE" });
+      this._rolesCache = null;
+      showToast(l === "ar" ? "تم حذف الدور" : "Role deleted");
+      this.render();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  editPermissions(id) {
+    Panels.load("admin");
+    setTimeout(() => AdminPanel.setTab("matrix"), 400);
+  },
+
+  async changeRole(userId, role) {
+    const l = App.lang;
+    try {
+      await api(`/api/members/${userId}/role`, { method: "PATCH", body: JSON.stringify({ system_role: role }) });
+      this._usersCache = null;
+      if (App.user && userId == App.user.id) {
+        App.systemRole = role;
+        applySidebarRoles();
+        App.renderUser();
+        try { const mp = await api("/api/rbac/my-permissions"); App.permissions = new Set(mp.permissions || []); } catch (_) {}
+      }
+      showToast(l === "ar" ? `تم تحديث الدور إلى ${role}` : `Role updated to ${role}`);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  },
+
+  async openAddMember() {
+    const roles = await this._loadRoles();
+    const l = App.lang;
+    const sel = $("amr-role");
+    if (sel) {
+      sel.innerHTML = roles.filter((r) => r.is_active).map((r) =>
+        `<option value="${esc(r.role_key)}">${esc(l === "ar" ? r.name_ar : r.name_en)}</option>`
+      ).join("");
+    }
+    ["amr-name-ar", "amr-name-en", "amr-email", "amr-password"].forEach((id) => { if ($(id)) $(id).value = ""; });
+    $("modal-add-member-role").classList.add("open");
+  },
+
+  async submitAddMember() {
+    const l = App.lang;
+    const nameAr = $("amr-name-ar").value.trim();
+    const nameEn = $("amr-name-en").value.trim();
+    const email = $("amr-email").value.trim();
+    const password = $("amr-password").value;
+    const role = $("amr-role")?.value || "Employee";
+    if (!nameAr || !email || !password) {
+      showToast(l === "ar" ? "يرجى ملء الحقول المطلوبة" : "Please fill required fields", "error");
+      return;
+    }
+    try {
+      await api("/api/members", { method: "POST", body: JSON.stringify({ name_ar: nameAr, name_en: nameEn || nameAr, email, password, system_role: role, role_ar: role, role_en: role }) });
+      $("modal-add-member-role").classList.remove("open");
+      this._usersCache = null;
+      showToast(l === "ar" ? "✓ تم إضافة العضو" : "✓ Member added");
+      this.render();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
   },
 };
 

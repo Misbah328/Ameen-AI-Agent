@@ -61,7 +61,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/css/app.css?v=20260716b"/>
+<link rel="stylesheet" href="/css/app.css?v=20260716c"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713m"/>
 <link rel="stylesheet" href="/css/approval-cycle.css?v=20260715ak"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
@@ -174,9 +174,13 @@
     <span class="nb-label" data-ar="الإعدادات" data-en="Settings">الإعدادات</span>
   </button>
   <div class="nsec" id="nsec-admin" data-ar="النظام" data-en="System" style="display:none">النظام</div>
+  <button class="nb" data-p="roles" id="nav-roles" style="display:none">
+    <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+    <span class="nb-label" data-ar="الصلاحيات والأدوار" data-en="Roles & Permissions">الصلاحيات والأدوار</span>
+  </button>
   <button class="nb" data-p="admin" id="nav-admin" style="display:none">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
-    <span class="nb-label" data-ar="إدارة الصلاحيات" data-en="Role Management">إدارة الصلاحيات</span>
+    <span class="nb-label" data-ar="مصفوفة الصلاحيات" data-en="Permission Matrix">مصفوفة الصلاحيات</span>
   </button>
   <div class="sf">
     <div class="urow">
@@ -1491,6 +1495,66 @@
   </div>
 </div>
 
+<!-- ══ ROLES & PERMISSIONS ════════════════════════════════════════════════ -->
+<section class="panel" id="panel-roles">
+  <div class="ph">
+    <div class="ph-row">
+      <div>
+        <div class="ptitle" data-ar="الصلاحيات والأدوار" data-en="Roles & Permissions">الصلاحيات والأدوار</div>
+        <div class="ptitle-sub" data-ar="إدارة الأدوار وتخصيص صلاحيات كل مستخدم" data-en="Manage roles and customize per-user permissions">إدارة الأدوار وتخصيص صلاحيات كل مستخدم</div>
+      </div>
+      <button class="btn-gold btn-sm" onclick="RolesPanel.openCreateRole()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-ar="دور جديد" data-en="New Role">دور جديد</span>
+      </button>
+    </div>
+    <div class="rp-tabs" id="rp-tabs" style="margin-top:10px">
+      <button class="rp-tab active" data-tab="roles" onclick="RolesPanel.setTab('roles')"><span data-ar="الأدوار" data-en="Roles">الأدوار</span></button>
+      <button class="rp-tab" data-tab="members" onclick="RolesPanel.setTab('members')"><span data-ar="الأعضاء" data-en="Members">الأعضاء</span></button>
+      <button class="rp-tab" data-tab="custom" onclick="RolesPanel.setTab('custom')"><span data-ar="وصول مخصص" data-en="Custom Access">وصول مخصص</span></button>
+      <button class="rp-tab" data-tab="activity" onclick="RolesPanel.setTab('activity')"><span data-ar="السجل" data-en="Activity">السجل</span></button>
+    </div>
+  </div>
+  <div class="pbody" id="roles-body">
+    <div class="es"><div class="loading"></div></div>
+  </div>
+</section>
+
+<!-- Add Member modal (used by Roles panel Members tab) -->
+<div class="modal-overlay" id="modal-add-member-role">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title" data-ar="إضافة عضو جديد" data-en="Add New Member">إضافة عضو جديد</div>
+    <div class="fs">
+      <div class="fr2">
+        <div class="frow">
+          <div class="fl" data-ar="الاسم (عربي)" data-en="Name (Arabic)">الاسم (عربي)</div>
+          <input class="fi" id="amr-name-ar" placeholder="محمد أحمد"/>
+        </div>
+        <div class="frow">
+          <div class="fl" data-ar="الاسم (إنجليزي)" data-en="Name (English)">الاسم (إنجليزي)</div>
+          <input class="fi" id="amr-name-en" dir="ltr" style="text-align:left" placeholder="Mohammed Ahmed"/>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني</div>
+        <input class="fi" id="amr-email" type="email" dir="ltr" style="text-align:left" placeholder="name@company.com"/>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="كلمة المرور الأولية" data-en="Initial Password">كلمة المرور الأولية</div>
+        <input class="fi" id="amr-password" type="password" placeholder="••••••••"/>
+      </div>
+      <div class="frow">
+        <div class="fl" data-ar="الدور" data-en="Role">الدور</div>
+        <select class="fi" id="amr-role"></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="Modals.close('modal-add-member-role')"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
+      <button class="btn-gold" onclick="RolesPanel.submitAddMember()"><span data-ar="إضافة العضو" data-en="Add Member">إضافة العضو</span></button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ INTEGRATIONS ══════════════════════════════════════════════ -->
 <section class="panel" id="panel-integrations">
   <div class="ph">
@@ -1960,7 +2024,7 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260716a"></script>
+<script src="/js/app.js?v=20260716c"></script>
 <script src="/js/governance.js?v=20260713e"></script>
 <script src="/js/boards.js?v=20260713e"></script>
 <script src="/js/meetings.js?v=20260714b"></script>
