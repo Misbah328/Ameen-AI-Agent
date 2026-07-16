@@ -262,6 +262,42 @@ function bcEnsureModalRoot() {
   return root;
 }
 
+// ── Standard group name presets ────────────────────────────────────────────
+const BC_TEMPLATES = [
+  { val: "",       labelAr: "— اختر قالباً أو ابدأ من الصفر —",      labelEn: "— Select a template, or start from scratch —", type: "",             nameAr: "",                              nameEn: "" },
+  // ── Boards
+  { val: "bod",    labelAr: "🏛️ مجلس الإدارة",                       labelEn: "🏛️ Board of Directors",                        type: "board",        nameAr: "مجلس الإدارة",                  nameEn: "Board of Directors" },
+  { val: "abrd",   labelAr: "💡 مجلس استشاري",                        labelEn: "💡 Advisory Board",                            type: "advisory",     nameAr: "المجلس الاستشاري",              nameEn: "Advisory Board" },
+  // ── Standing Committees
+  { val: "audit",  labelAr: "🛡️ لجنة المراجعة والتدقيق",              labelEn: "🛡️ Audit Committee",                           type: "committee",    nameAr: "لجنة المراجعة والتدقيق",        nameEn: "Audit Committee" },
+  { val: "exec",   labelAr: "⚡ اللجنة التنفيذية",                    labelEn: "⚡ Executive Committee",                        type: "executive",    nameAr: "اللجنة التنفيذية",              nameEn: "Executive Committee" },
+  { val: "risk",   labelAr: "⚠️ لجنة المخاطر",                       labelEn: "⚠️ Risk Committee",                            type: "committee",    nameAr: "لجنة المخاطر",                  nameEn: "Risk Committee" },
+  { val: "fin",    labelAr: "💰 لجنة المالية",                        labelEn: "💰 Finance Committee",                          type: "committee",    nameAr: "لجنة المالية",                  nameEn: "Finance Committee" },
+  { val: "nom",    labelAr: "🏆 لجنة الترشيحات والمكافآت",             labelEn: "🏆 Nomination & Remuneration Committee",         type: "committee",    nameAr: "لجنة الترشيحات والمكافآت",      nameEn: "Nomination & Remuneration Committee" },
+  { val: "inv",    labelAr: "💹 لجنة الاستثمار",                      labelEn: "💹 Investment Committee",                       type: "committee",    nameAr: "لجنة الاستثمار",                nameEn: "Investment Committee" },
+  { val: "gov",    labelAr: "🏦 لجنة الحوكمة",                        labelEn: "🏦 Governance Committee",                       type: "committee",    nameAr: "لجنة الحوكمة",                  nameEn: "Governance Committee" },
+  { val: "sust",   labelAr: "🌱 لجنة الاستدامة",                      labelEn: "🌱 Sustainability Committee",                    type: "committee",    nameAr: "لجنة الاستدامة",                nameEn: "Sustainability Committee" },
+  { val: "tech",   labelAr: "💻 لجنة التقنية والابتكار",               labelEn: "💻 Technology & Innovation Committee",           type: "technical",    nameAr: "لجنة التقنية والابتكار",        nameEn: "Technology & Innovation Committee" },
+  { val: "legal",  labelAr: "⚖️ اللجنة القانونية",                    labelEn: "⚖️ Legal Committee",                           type: "committee",    nameAr: "اللجنة القانونية",              nameEn: "Legal Committee" },
+  { val: "comp_c", labelAr: "✅ لجنة الامتثال",                       labelEn: "✅ Compliance Committee",                       type: "committee",    nameAr: "لجنة الامتثال والرقابة",        nameEn: "Compliance & Control Committee" },
+  { val: "steer",  labelAr: "🧭 لجنة التوجيه الاستراتيجي",            labelEn: "🧭 Strategic Steering Committee",               type: "steering",     nameAr: "لجنة التوجيه الاستراتيجي",     nameEn: "Strategic Steering Committee" },
+  // ── Department Teams
+  { val: "hr",     labelAr: "👤 فريق الموارد البشرية",                 labelEn: "👤 Human Resources (HR) Team",                  type: "team",         nameAr: "فريق الموارد البشرية",          nameEn: "Human Resources Team" },
+  { val: "fteam",  labelAr: "💰 فريق المالية",                        labelEn: "💰 Finance Team",                               type: "team",         nameAr: "فريق المالية",                  nameEn: "Finance Team" },
+  { val: "lteam",  labelAr: "⚖️ الفريق القانوني",                     labelEn: "⚖️ Legal Team",                                type: "team",         nameAr: "الفريق القانوني",               nameEn: "Legal Team" },
+  { val: "iteam",  labelAr: "💻 فريق تقنية المعلومات (IT)",            labelEn: "💻 IT Team",                                   type: "technical",    nameAr: "فريق تقنية المعلومات",          nameEn: "Information Technology Team" },
+  { val: "ops",    labelAr: "⚙️ فريق العمليات",                       labelEn: "⚙️ Operations Team",                           type: "team",         nameAr: "فريق العمليات",                 nameEn: "Operations Team" },
+  { val: "mktg",   labelAr: "📣 فريق التسويق والاتصالات",              labelEn: "📣 Marketing & Communications Team",             type: "team",         nameAr: "فريق التسويق والاتصالات",       nameEn: "Marketing & Communications Team" },
+  { val: "comp",   labelAr: "✅ فريق الامتثال",                       labelEn: "✅ Compliance Team",                            type: "team",         nameAr: "فريق الامتثال",                 nameEn: "Compliance Team" },
+  { val: "strat",  labelAr: "🎯 فريق الاستراتيجية والتخطيط",           labelEn: "🎯 Strategy & Planning Team",                   type: "working_group",nameAr: "فريق الاستراتيجية والتخطيط",   nameEn: "Strategy & Planning Team" },
+  { val: "proc",   labelAr: "📋 فريق المشتريات",                      labelEn: "📋 Procurement Team",                           type: "team",         nameAr: "فريق المشتريات",                nameEn: "Procurement Team" },
+  // ── Task Forces & Working Groups
+  { val: "dt",     labelAr: "🚀 فرقة التحول الرقمي",                   labelEn: "🚀 Digital Transformation Task Force",           type: "task_force",   nameAr: "فرقة التحول الرقمي",            nameEn: "Digital Transformation Task Force" },
+  { val: "proj",   labelAr: "📐 مجموعة عمل المشروع",                  labelEn: "📐 Project Working Group",                      type: "working_group",nameAr: "مجموعة عمل المشروع",            nameEn: "Project Working Group" },
+  // ── Other
+  { val: "other",  labelAr: "✏️ أخرى — أكتب الاسم بنفسك",             labelEn: "✏️ Other — type your own name",                 type: "",             nameAr: "",                              nameEn: "" },
+];
+
 const BC = {
   view: "list",
   activeId: null,
@@ -375,6 +411,23 @@ const BC = {
     if (root) root.innerHTML = "";
   },
 
+  applyTemplate() {
+    const val = $("bcf-template") && $("bcf-template").value;
+    if (!val) return;
+    if (val === "other") {
+      $("bcf-name-ar").value = "";
+      $("bcf-name-en").value = "";
+      setTimeout(() => $("bcf-name-ar").focus(), 50);
+      return;
+    }
+    const tpl = BC_TEMPLATES.find(t => t.val === val);
+    if (!tpl) return;
+    $("bcf-name-ar").value = tpl.nameAr;
+    $("bcf-name-en").value = tpl.nameEn;
+    const typeEl = $("bcf-type");
+    if (tpl.type && typeEl && !typeEl.disabled) typeEl.value = tpl.type;
+  },
+
   openFormModal(mode, id) {
     const editing = mode === "edit" && id;
     const b = editing ? bcById(id) : null;
@@ -385,14 +438,22 @@ const BC = {
         <div class="modal" style="max-width:560px">
           <div class="modal-title">${editing ? bcT("تعديل المجموعة", "Edit Group") + ": " + esc(bcT(b.nameAr, b.nameEn)) : bcT("إنشاء مجموعة جديدة", "Create New Group")}</div>
           <div class="fs">
+            ${!editing ? `<div class="frow">
+              <div class="fl">${bcT("قالب سريع", "Quick Template")}</div>
+              <select class="fi" id="bcf-template" onchange="BC.applyTemplate()" style="color:var(--text)">
+                ${BC_TEMPLATES.map(t => `<option value="${t.val}">${bcT(t.labelAr, t.labelEn)}</option>`).join("")}
+              </select>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">${bcT("اختر قالباً ليملأ الاسم والنوع تلقائياً — أو اختر «أخرى» لكتابة اسم مخصص", "Pick a template to auto-fill the name & type — or choose «Other» to enter a custom name")}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0 8px"><div style="flex:1;height:1px;background:var(--border2)"></div><span style="font-size:11px;color:var(--text3);white-space:nowrap">${bcT("أو أدخل الاسم يدوياً", "or enter name manually")}</span><div style="flex:1;height:1px;background:var(--border2)"></div></div>` : ""}
             <div class="fr2">
               <div class="frow">
                 <div class="fl">${bcT("الاسم (عربي)", "Name (Arabic)")}</div>
-                <input class="fi" id="bcf-name-ar" value="${b ? esc(b.nameAr) : ""}" placeholder="لجنة المخاطر">
+                <input class="fi" id="bcf-name-ar" value="${b ? esc(b.nameAr) : ""}" placeholder="${bcT("لجنة المخاطر", "e.g. Risk Committee")}">
               </div>
               <div class="frow">
                 <div class="fl">${bcT("الاسم (إنجليزي)", "Name (English)")}</div>
-                <input class="fi" id="bcf-name-en" dir="ltr" style="text-align:left" value="${b ? esc(b.nameEn) : ""}" placeholder="Risk Committee">
+                <input class="fi" id="bcf-name-en" dir="ltr" style="text-align:left" value="${b ? esc(b.nameEn) : ""}" placeholder="e.g. Risk Committee">
               </div>
             </div>
             <div class="fr2">
