@@ -258,10 +258,10 @@ select.fi option{background:var(--navy3)}
 .gcal-view-btn.active{background:var(--gold);color:var(--navy);font-weight:700}
 /* ── Month view ── */
 .gcal-month-view{display:flex;flex-direction:column;flex:1;overflow:hidden}
-.gcal-month-head{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border2);background:var(--navy2);flex-shrink:0}
+.gcal-month-head{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border2);background:var(--navy2);flex-shrink:0;min-width:0;width:100%}
 .gcal-month-headcell{text-align:center;font-size:12px;font-weight:600;color:var(--text3);padding:9px 4px;letter-spacing:.8px;text-transform:uppercase}
-.gcal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;overflow-y:auto;align-content:start}
-.gcal-mcell{border-inline-end:1px solid var(--border2);border-bottom:1px solid var(--border2);min-height:120px;padding:4px 3px 2px;cursor:default;box-sizing:border-box}
+.gcal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;overflow-y:auto;align-content:start;min-width:0;width:100%}
+.gcal-mcell{border-inline-end:1px solid var(--border2);border-bottom:1px solid var(--border2);min-height:120px;padding:4px 3px 2px;cursor:default;box-sizing:border-box;overflow:hidden;min-width:0}
 .gcal-mcell:last-child,.gcal-mcell:nth-child(7n){border-inline-end:none}
 .gcal-other{background:var(--navy2)}
 .gcal-mtoday{background:var(--navy)}
