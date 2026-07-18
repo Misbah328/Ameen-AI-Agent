@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ameen Secretary — تأكيد البريد الإلكتروني</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #C9A84C;
+      --gold-dim: rgba(201,168,76,0.14);
+      --navy: #0a0c14;
+      --navy3: #12151f;
+      --navy4: #1a1e2e;
+      --border: rgba(255,255,255,0.08);
+      --text: #f0f1f5;
+      --text2: #b4b8cc;
+      --text3: #6b7190;
+      --red: #e05a5a;
+      --green: #3cc47c;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--navy);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+    }
+
+    /* ══ LEFT BRAND PANEL ══ */
+    .brand {
+      flex: 0 0 400px;
+      background: linear-gradient(145deg, #0d1f3c 0%, #0a0c14 50%, #12100a 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2.5rem;
+      overflow: hidden;
+    }
+    .brand::before {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.1);
+      top: -120px; left: -120px;
+      pointer-events: none;
+    }
+    .brand::after {
+      content: '';
+      position: absolute;
+      width: 340px; height: 340px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.07);
+      bottom: -80px; right: -80px;
+      pointer-events: none;
+    }
+    .brand-glow {
+      position: absolute;
+      width: 320px; height: 320px;
+      background: radial-gradient(ellipse, rgba(201,168,76,0.12) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .brand-content { position: relative; z-index: 1; text-align: center; width: 100%; }
+    .brand-logo {
+      width: 90px; height: 90px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 24px rgba(201,168,76,0.35));
+      margin-bottom: 1.35rem;
+    }
+    .brand-name {
+      font-size: 1.45rem; font-weight: 800;
+      color: var(--text); letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+    .brand-name span { color: var(--gold); }
+    .brand-tagline {
+      font-size: 0.81rem; color: var(--text3);
+      line-height: 1.7; max-width: 250px;
+      margin: 0 auto 2rem;
+    }
+
+    /* Shield illustration */
+    .shield-wrap {
+      width: 120px; height: 120px;
+      background: var(--gold-dim);
+      border: 2px solid rgba(201,168,76,0.25);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.5rem;
+      font-size: 3rem;
+    }
+    .verify-steps { display: flex; flex-direction: column; gap: 0; width: 100%; }
+    .vstep {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .vstep:last-child { border-bottom: none; }
+    .vstep-icon {
+      width: 30px; height: 30px;
+      background: var(--gold-dim);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; flex-shrink: 0;
+    }
+    .vstep-text { font-size: 0.8rem; color: var(--text2); line-height: 1.4; text-align: start; }
+
+    /* ══ RIGHT FORM PANEL ══ */
+    .form-panel {
+      flex: 1;
+      background: var(--navy3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+    }
+    .form-box { width: 100%; max-width: 400px; }
+
+    .form-top {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; margin-bottom: 2rem;
+    }
+    .form-title { font-size: 1.5rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; line-height: 1.2; }
+    .form-sub { font-size: 0.83rem; color: var(--text3); margin-top: 5px; line-height: 1.5; }
+    .form-sub strong { color: var(--gold); font-weight: 600; }
+    .lang-sw { display: flex; gap: 0.3rem; }
+    .lang-sw button {
+      background: none; border: 1px solid var(--border);
+      color: var(--text3); padding: 0.2rem 0.75rem;
+      border-radius: 20px; cursor: pointer; font-size: 0.75rem;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .lang-sw button.on { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+
+    /* OTP boxes */
+    .otp-label {
+      font-size: 0.77rem; font-weight: 600;
+      color: var(--text3); margin-bottom: 0.75rem;
+      letter-spacing: 0.01em;
+    }
+    .otp-row {
+      display: flex;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      direction: ltr;
+    }
+    .otp-box {
+      width: 52px; height: 60px;
+      background: var(--navy4);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      text-align: center;
+      font-size: 1.6rem; font-weight: 800;
+      color: var(--text);
+      font-family: 'Inter', monospace;
+      outline: none;
+      caret-color: var(--gold);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .otp-box:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.15);
+    }
+    .otp-box.filled { border-color: rgba(201,168,76,0.4); }
+    .otp-box.err { border-color: var(--red); box-shadow: 0 0 0 3px rgba(224,90,90,0.12); }
+
+    /* Alert */
+    .alert {
+      border-radius: 10px; padding: 0.7rem 1rem;
+      font-size: 0.84rem; margin-bottom: 1.1rem;
+      text-align: center; line-height: 1.5; display: none;
+    }
+    .alert.error   { background: rgba(224,90,90,0.1); border: 1px solid rgba(224,90,90,0.3); color: var(--red); display: block; }
+    .alert.success { background: rgba(60,196,124,0.1); border: 1px solid rgba(60,196,124,0.3); color: var(--green); display: block; }
+    .alert.info    { background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.2); color: var(--gold); display: block; }
+
+    /* Submit */
+    .submit {
+      width: 100%; background: var(--gold); color: #0f1728;
+      border: none; border-radius: 10px; padding: 0.9rem;
+      font-size: 0.97rem; font-weight: 800; font-family: inherit;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.01em; margin-bottom: 1.25rem;
+    }
+    .submit:hover:not(:disabled) { opacity: 0.9; }
+    .submit:active:not(:disabled) { transform: scale(0.99); }
+    .submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Resend */
+    .resend-row { text-align: center; font-size: 0.82rem; color: var(--text3); margin-bottom: 1rem; }
+    .resend-btn {
+      background: none; border: none; color: var(--gold);
+      font-weight: 600; font-size: 0.82rem; cursor: pointer;
+      font-family: inherit; padding: 0; text-decoration: underline;
+    }
+    .resend-btn:disabled { color: var(--text3); text-decoration: none; cursor: default; }
+    .timer { color: var(--text3); font-variant-numeric: tabular-nums; }
+
+    /* Back link */
+    .back-link { text-align: center; font-size: 0.82rem; color: var(--text3); }
+    .back-link a { color: var(--gold); text-decoration: none; font-weight: 600; }
+    .back-link a:hover { text-decoration: underline; }
+
+    /* Success state */
+    .success-state { display: none; text-align: center; }
+    .success-state .checkmark {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: rgba(60,196,124,0.12);
+      border: 2px solid var(--green);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; margin: 0 auto 1.25rem;
+    }
+    .success-state p { color: var(--text2); font-size: 0.9rem; line-height: 1.6; margin-bottom: 1.25rem; }
+
+    /* Mobile */
+    @media (max-width: 720px) {
+      body { flex-direction: column; }
+      .brand { flex: none; min-height: auto; padding: 2.5rem 1.5rem 2rem; }
+      .verify-steps { display: none; }
+      .brand-logo { width: 72px; height: 72px; margin-bottom: 1rem; }
+      .brand-name { font-size: 1.2rem; }
+      .brand::before, .brand::after { display: none; }
+      .form-panel { min-height: auto; padding: 2rem 1.25rem 3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Brand left ── -->
+<aside class="brand">
+  <div class="brand-glow"></div>
+  <div class="brand-content">
+    <img src="/logo.png" alt="Ameen" class="brand-logo" />
+    <div class="brand-name">أمـيـن <span>Secretary</span></div>
+    <p class="brand-tagline" id="brand-tag">نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية</p>
+    <div class="shield-wrap">🔐</div>
+    <div class="verify-steps">
+      <div class="vstep">
+        <div class="vstep-icon">📧</div>
+        <div class="vstep-text" id="vs1">تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام</div>
+      </div>
+      <div class="vstep">
+        <div class="vstep-icon">✏️</div>
+        <div class="vstep-text" id="vs2">أدخل الرمز في الحقل المخصص</div>
+      </div>
+      <div class="vstep">
+        <div class="vstep-icon">✅</div>
+        <div class="vstep-text" id="vs3">سيتم توجيهك تلقائياً إلى لوحة التحكم بعد التحقق</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Form right ── -->
+<main class="form-panel">
+  <div class="form-box">
+
+    <!-- Verify form -->
+    <div id="verify-form-wrap">
+      <div class="form-top">
+        <div>
+          <div class="form-title" id="form-title">تأكيد البريد الإلكتروني</div>
+          <div class="form-sub" id="form-sub">أرسلنا رمز مكون من 6 أرقام إلى<br><strong id="email-display"></strong></div>
+        </div>
+        <div class="lang-sw">
+          <button id="btn-ar" onclick="setLang('ar')">عربي</button>
+          <button id="btn-en" onclick="setLang('en')">English</button>
+        </div>
+      </div>
+
+      <div class="alert" id="alert-box"></div>
+
+      <div class="otp-label" id="otp-label">رمز التحقق</div>
+      <div class="otp-row" id="otp-row">
+        <input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-i="0" />
+        <input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-i="1" />
+        <input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-i="2" />
+        <input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-i="3" />
+        <input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-i="4" />
+        <input class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-i="5" />
+      </div>
+
+      <button class="submit" id="submit-btn" onclick="submitCode()">
+        <span id="btn-text">تأكيد الرمز</span>
+      </button>
+
+      <div class="resend-row">
+        <span id="resend-pre">لم يصل الرمز؟ </span>
+        <button class="resend-btn" id="resend-btn" onclick="resendCode()" disabled>
+          <span id="resend-label">إعادة الإرسال</span>
+        </button>
+        <span class="timer" id="timer-txt"></span>
+      </div>
+
+      <div class="back-link">
+        <a href="/signup.html" id="back-link">← العودة إلى إنشاء حساب</a>
+      </div>
+    </div>
+
+    <!-- Success state -->
+    <div class="success-state" id="success-state">
+      <div class="checkmark">✅</div>
+      <div class="form-title" style="margin-bottom:0.5rem" id="succ-title">تم التحقق بنجاح!</div>
+      <p id="succ-sub">تم تأكيد بريدك الإلكتروني. جارٍ توجيهك إلى لوحة التحكم…</p>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  const T = {
+    ar: {
+      title: 'تأكيد البريد الإلكتروني',
+      sub: 'أرسلنا رمز مكون من 6 أرقام إلى',
+      otpLabel: 'رمز التحقق',
+      btn: 'تأكيد الرمز', loading: 'جارٍ التحقق...',
+      resendPre: 'لم يصل الرمز؟ ',
+      resendLabel: 'إعادة الإرسال',
+      back: '← العودة إلى إنشاء حساب',
+      succTitle: 'تم التحقق بنجاح!',
+      succSub: 'تم تأكيد بريدك الإلكتروني. جارٍ توجيهك إلى لوحة التحكم…',
+      errInvalid: 'الرمز غير صحيح. يرجى التحقق والمحاولة مجدداً.',
+      errExpired: 'انتهت صلاحية الرمز. يرجى طلب رمز جديد.',
+      errEmpty: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً.',
+      errNetwork: 'خطأ في الاتصال بالخادم.',
+      resentOk: '✅ تم إرسال رمز جديد. تحقق من بريدك.',
+      brandTag: 'نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية',
+      vs1: 'تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام',
+      vs2: 'أدخل الرمز في الحقل المخصص',
+      vs3: 'سيتم توجيهك تلقائياً إلى لوحة التحكم بعد التحقق',
+    },
+    en: {
+      title: 'Verify your email',
+      sub: 'We sent a 6-digit code to',
+      otpLabel: 'Verification code',
+      btn: 'Verify code', loading: 'Verifying...',
+      resendPre: "Didn't receive it? ",
+      resendLabel: 'Resend code',
+      back: '← Back to sign up',
+      succTitle: 'Email verified!',
+      succSub: 'Your email has been confirmed. Redirecting to your dashboard…',
+      errInvalid: 'Incorrect code. Please check and try again.',
+      errExpired: 'This code has expired. Please request a new one.',
+      errEmpty: 'Please enter the complete 6-digit code.',
+      errNetwork: 'Could not connect to the server.',
+      resentOk: '✅ A new code was sent. Check your inbox.',
+      brandTag: 'Smart Executive Secretariat — Trusted intelligence. ROI you can see.',
+      vs1: 'Check your email inbox for the 6-digit code',
+      vs2: 'Enter the code in the field provided',
+      vs3: 'You\'ll be redirected to your dashboard automatically',
+    }
+  };
+
+  let lang = localStorage.getItem('lang') || 'ar';
+  const params = new URLSearchParams(location.search);
+  const emailAddr = params.get('email') || '';
+
+  function setLang(l) {
+    lang = l;
+    localStorage.setItem('lang', l);
+    document.documentElement.lang = l;
+    document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+    document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
+    document.getElementById('btn-en').classList.toggle('on', l === 'en');
+    const t = T[l];
+    document.getElementById('form-title').textContent   = t.title;
+    document.getElementById('form-sub').innerHTML       = t.sub + '<br><strong id="email-display">' + emailAddr + '</strong>';
+    document.getElementById('otp-label').textContent    = t.otpLabel;
+    document.getElementById('btn-text').textContent     = t.btn;
+    document.getElementById('resend-pre').textContent   = t.resendPre;
+    document.getElementById('resend-label').textContent = t.resendLabel;
+    document.getElementById('back-link').textContent    = t.back;
+    document.getElementById('succ-title').textContent   = t.succTitle;
+    document.getElementById('succ-sub').textContent     = t.succSub;
+    document.getElementById('brand-tag').textContent    = t.brandTag;
+    document.getElementById('vs1').textContent = t.vs1;
+    document.getElementById('vs2').textContent = t.vs2;
+    document.getElementById('vs3').textContent = t.vs3;
+  }
+  setLang(lang);
+
+  if (!emailAddr) window.location.replace('/signup.html');
+
+  // ── OTP Input wiring ─────────────────────────────────────────────────────
+  const boxes = Array.from(document.querySelectorAll('.otp-box'));
+
+  boxes.forEach((box, i) => {
+    box.addEventListener('input', e => {
+      const val = e.target.value.replace(/\D/g, '');
+      e.target.value = val ? val[val.length - 1] : '';
+      e.target.classList.toggle('filled', !!e.target.value);
+      clearErr();
+      if (e.target.value && i < boxes.length - 1) boxes[i + 1].focus();
+    });
+
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !e.target.value && i > 0) {
+        boxes[i - 1].value = '';
+        boxes[i - 1].classList.remove('filled');
+        boxes[i - 1].focus();
+      }
+      if (e.key === 'ArrowLeft') { if (i > 0) boxes[i - 1].focus(); }
+      if (e.key === 'ArrowRight') { if (i < boxes.length - 1) boxes[i + 1].focus(); }
+      if (e.key === 'Enter') submitCode();
+    });
+
+    box.addEventListener('paste', e => {
+      e.preventDefault();
+      const paste = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+      paste.split('').forEach((ch, j) => {
+        if (boxes[j]) { boxes[j].value = ch; boxes[j].classList.add('filled'); }
+      });
+      const next = Math.min(paste.length, boxes.length - 1);
+      boxes[next].focus();
+      clearErr();
+    });
+  });
+
+  boxes[0].focus();
+
+  function getCode() { return boxes.map(b => b.value).join(''); }
+
+  function showAlert(msg, type) {
+    const el = document.getElementById('alert-box');
+    el.innerHTML = msg; el.className = 'alert ' + type;
+  }
+  function clearAlert() {
+    const el = document.getElementById('alert-box');
+    el.className = 'alert'; el.textContent = '';
+  }
+  function clearErr() {
+    boxes.forEach(b => b.classList.remove('err'));
+    clearAlert();
+  }
+  function markErr() { boxes.forEach(b => b.classList.add('err')); }
+
+  // ── Submit ───────────────────────────────────────────────────────────────
+  async function submitCode() {
+    const code = getCode();
+    const t = T[lang];
+    if (code.length < 6) { showAlert(t.errEmpty, 'error'); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    document.getElementById('btn-text').textContent = t.loading;
+    clearAlert();
+
+    try {
+      const res  = await fetch('/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: emailAddr, code })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
+        document.getElementById('verify-form-wrap').style.display = 'none';
+        document.getElementById('success-state').style.display = 'block';
+        setTimeout(() => window.location.replace('/'), 1500);
+      } else {
+        markErr();
+        if (data.error === 'code_expired') showAlert(t.errExpired, 'error');
+        else showAlert(t.errInvalid, 'error');
+        btn.disabled = false;
+        document.getElementById('btn-text').textContent = t.btn;
+      }
+    } catch {
+      showAlert(T[lang].errNetwork, 'error');
+      btn.disabled = false;
+      document.getElementById('btn-text').textContent = t.btn;
+    }
+  }
+
+  // ── Resend + timer ───────────────────────────────────────────────────────
+  let timerInterval = null;
+  let resendCooldown = 60;
+
+  function startTimer(seconds) {
+    clearInterval(timerInterval);
+    resendCooldown = seconds;
+    const btn = document.getElementById('resend-btn');
+    const timerEl = document.getElementById('timer-txt');
+    btn.disabled = true;
+
+    timerInterval = setInterval(() => {
+      resendCooldown--;
+      timerEl.textContent = ` (${resendCooldown}s)`;
+      if (resendCooldown <= 0) {
+        clearInterval(timerInterval);
+        timerEl.textContent = '';
+        btn.disabled = false;
+      }
+    }, 1000);
+    timerEl.textContent = ` (${resendCooldown}s)`;
+  }
+
+  startTimer(60);
+
+  async function resendCode() {
+    const btn = document.getElementById('resend-btn');
+    btn.disabled = true;
+    clearAlert();
+
+    try {
+      const res  = await fetch('/auth/resend-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailAddr })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showAlert(T[lang].resentOk, 'info');
+        startTimer(60);
+      } else if (data.wait) {
+        showAlert(T[lang].errNetwork, 'error');
+        startTimer(data.wait);
+      } else {
+        showAlert(data.error || T[lang].errNetwork, 'error');
+        startTimer(30);
+      }
+    } catch {
+      showAlert(T[lang].errNetwork, 'error');
+      startTimer(30);
+    }
+  }
+</script>
+</body>
+</html>

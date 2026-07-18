@@ -455,11 +455,9 @@
         body: JSON.stringify({ nameEn, email, password: pw })
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        if (data.user?.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
-        if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
-        showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ التحويل...' : '✅ Account created! Redirecting...', 'success');
-        setTimeout(() => window.location.replace('/'), 1200);
+      if ((res.ok || res.status === 201) && data.success && data.pending) {
+        showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ إرسال رمز التحقق...' : '✅ Account created! Sending verification code…', 'success');
+        setTimeout(() => window.location.replace('/verify-email.html?email=' + encodeURIComponent(data.email)), 1200);
       } else {
         if (data.error?.includes('email')) { fieldErr('err-email', t.errEmailUsed); document.getElementById('email').classList.add('err-field'); }
         else showAlert(data.error || t.errNetwork, 'error');

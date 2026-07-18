@@ -181,6 +181,21 @@ ensureColumn('meeting_documents', 'doc_classification', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'recurrence', "TEXT DEFAULT 'none'");
 ensureColumn('schedule', 'recurrence_group_id', 'TEXT');
 
+// ── Email verification ────────────────────────────────────────────────────────
+ensureColumn('users', 'email_verified', 'INTEGER DEFAULT 0');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS email_verifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    email       TEXT NOT NULL,
+    code        TEXT NOT NULL,
+    expires_at  DATETIME NOT NULL,
+    used        INTEGER DEFAULT 0,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
 // Minutes Approval Workflow columns
 ensureColumn('meetings', 'minutes_status', "TEXT DEFAULT 'draft'");
 ensureColumn('meetings', 'minutes_version', 'INTEGER DEFAULT 1');

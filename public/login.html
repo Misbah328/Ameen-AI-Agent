@@ -385,6 +385,8 @@
         if (data.user?.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
         if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
         window.location.replace('/');
+      } else if (res.status === 403 && data.error === 'email_not_verified') {
+        window.location.replace('/verify-email.html?email=' + encodeURIComponent(data.email));
       } else {
         showAlert(data.error || t.badCreds);
         btn.disabled = false;
