@@ -1,753 +1,907 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>أمين السكرتير — نظام الأمانة التنفيذية الذكية</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <style>
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{
-      --gold:#C9A84C;--gold2:#e2c46a;--gold3:#f5d980;
-      --gold-dim:rgba(201,168,76,.12);--gold-glow:rgba(201,168,76,.25);
-      --navy:#060810;--navy2:#0a0c14;--navy3:#0f1320;--navy4:#12151f;
-      --text:#f2f3f7;--text2:#b0b5cc;--text3:#5c6180;
-      --green:#3cc47c;--blue:#4a90d9;--purple:#7c6fff;
-    }
-    html{scroll-behavior:smooth}
-    body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--navy);color:var(--text);overflow-x:hidden}
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>أمين السكرتير — نظام الأمانة التنفيذية الذكية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g0:#030a05;--g1:#051009;--g2:#07160b;--g3:#0d2818;--g4:#1a4030;--g5:#2d6b4a;
+  --gold:#C9A84C;--gold2:#ddb85e;--gold3:#f2d170;--gold-dim:rgba(201,168,76,.12);--gold-glow:rgba(201,168,76,.3);
+  --teal:#1a4d3a;--teal2:#0d3328;--teal3:rgba(26,77,58,.5);
+  --text:#eef4f0;--text2:#8ab09a;--text3:#456055;
+  --r:0.75rem;--r2:1.25rem;--r3:1.75rem;
+}
+html{scroll-behavior:smooth;overflow-x:hidden}
+body{font-family:'Tajawal','Inter',system-ui,sans-serif;background:var(--g0);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+[lang="en"] body,[dir="ltr"] body{font-family:'Inter',system-ui,sans-serif}
 
-    /* scroll progress */
-    #scroll-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--gold3),var(--gold));z-index:200;width:0;transition:width .08s linear;border-radius:0 2px 2px 0}
+/* ─── SCROLL BAR ─────────────────────────────── */
+#sp{position:fixed;top:0;left:0;height:2.5px;background:linear-gradient(90deg,var(--gold),var(--gold3));z-index:500;width:0;transition:width .08s}
 
-    /* ── NAV ─────────────────────────────────── */
-    nav{position:fixed;top:0;inset-inline:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:1rem 3rem;background:rgba(6,8,16,.55);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.05);transition:background .4s,box-shadow .4s}
-    nav.scrolled{background:rgba(6,8,16,.92);box-shadow:0 1px 30px rgba(0,0,0,.4)}
-    .nav-logo{display:flex;align-items:center;gap:.75rem;text-decoration:none}
-    .nav-logo img{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 10px rgba(201,168,76,.5));transition:filter .3s}
-    .nav-logo:hover img{filter:drop-shadow(0 2px 22px rgba(201,168,76,.85))}
-    .nav-logo-text{font-size:1.05rem;font-weight:800;color:var(--text);letter-spacing:-.01em}
-    .nav-logo-text span{color:var(--gold)}
-    .nav-links{display:flex;align-items:center;gap:2rem}
-    .nav-link{color:var(--text2);text-decoration:none;font-size:.88rem;font-weight:500;transition:color .2s;position:relative;padding-bottom:2px}
-    .nav-link::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1.5px;background:var(--gold);transform:scaleX(0);transition:transform .25s;border-radius:2px}
-    .nav-link:hover{color:var(--gold)}.nav-link:hover::after{transform:scaleX(1)}
-    .nav-ctas{display:flex;align-items:center;gap:.75rem}
-    .btn-login{color:var(--text2);text-decoration:none;font-size:.88rem;font-weight:600;padding:.45rem 1.1rem;border:1px solid rgba(255,255,255,.12);border-radius:8px;transition:all .2s}
-    .btn-login:hover{border-color:var(--gold);color:var(--gold);box-shadow:0 0 20px rgba(201,168,76,.1)}
-    .btn-start{background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a10;text-decoration:none;font-size:.88rem;font-weight:800;padding:.5rem 1.25rem;border-radius:8px;transition:all .2s;box-shadow:0 4px 20px rgba(201,168,76,.3)}
-    .btn-start:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 30px rgba(201,168,76,.4)}
-    .lang-nav{display:flex;gap:.3rem;margin-inline-start:.5rem}
-    .lang-nav button{background:none;border:1px solid rgba(255,255,255,.1);color:var(--text3);padding:.2rem .6rem;border-radius:20px;cursor:pointer;font-size:.72rem;font-family:inherit;transition:all .15s}
-    .lang-nav button.on{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
+/* ─── NAV ────────────────────────────────────── */
+nav{position:fixed;inset:0 0 auto 0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:.9rem 3rem;transition:background .4s,box-shadow .4s;height:68px}
+nav.stuck{background:rgba(3,10,5,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 1px 0 rgba(201,168,76,.1)}
+.nav-brand{display:flex;align-items:center;gap:.7rem;text-decoration:none;flex-shrink:0}
+.nav-brand img{width:32px;height:32px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(201,168,76,.5))}
+.nav-brand-txt{font-size:1.05rem;font-weight:900;color:var(--text);letter-spacing:-.01em}
+.nav-brand-txt em{color:var(--gold);font-style:normal}
+.nav-links{display:flex;gap:2rem;align-items:center}
+.nav-link{color:var(--text2);text-decoration:none;font-size:.88rem;font-weight:500;transition:color .2s;position:relative}
+.nav-link::after{content:'';position:absolute;bottom:-3px;left:0;right:0;height:1px;background:var(--gold);transform:scaleX(0);transition:transform .22s}
+.nav-link:hover{color:var(--gold)}.nav-link:hover::after{transform:scaleX(1)}
+.nav-r{display:flex;align-items:center;gap:.65rem}
+.lang-sw{display:flex;gap:.25rem}
+.lang-sw button{background:none;border:1px solid rgba(255,255,255,.1);color:var(--text3);padding:.2rem .55rem;border-radius:20px;cursor:pointer;font-size:.7rem;font-family:inherit;transition:all .15s}
+.lang-sw button.on{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
+.nav-login{color:var(--text2);text-decoration:none;font-size:.86rem;font-weight:600;padding:.4rem 1rem;border:1px solid rgba(255,255,255,.1);border-radius:8px;transition:all .2s}
+.nav-login:hover{border-color:var(--gold);color:var(--gold)}
+.nav-cta{background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a04;text-decoration:none;font-size:.86rem;font-weight:900;padding:.45rem 1.2rem;border-radius:8px;transition:all .2s;box-shadow:0 4px 20px rgba(201,168,76,.3)}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(201,168,76,.45)}
 
-    /* ── HERO ─────────────────────────────────── */
-    .hero{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:7rem 3rem 5rem}
-    #hero-canvas{position:absolute;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
-    .hero-grad{position:absolute;inset:0;z-index:0;pointer-events:none;
-      background:radial-gradient(ellipse 60% 50% at 72% 38%,rgba(201,168,76,.11) 0%,transparent 65%),
-                 radial-gradient(ellipse 45% 40% at 15% 65%,rgba(74,144,217,.07) 0%,transparent 60%),
-                 radial-gradient(ellipse 35% 30% at 50% 100%,rgba(124,111,255,.05) 0%,transparent 55%)}
-    .hero-inner{position:relative;z-index:2;text-align:center;max-width:800px;margin:0 auto}
+/* ─── HERO ───────────────────────────────────── */
+.hero{min-height:100vh;position:relative;overflow:hidden;display:flex;align-items:center;padding:5rem 3rem 4rem}
+#hero-canvas{position:absolute;inset:0;pointer-events:none;z-index:0}
+.hero-gfx{position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 70% at 65% 50%,rgba(26,77,58,.35) 0%,transparent 65%),
+             radial-gradient(ellipse 40% 50% at 10% 60%,rgba(7,22,11,.8) 0%,transparent 70%),
+             radial-gradient(ellipse 50% 40% at 50% 0%,rgba(201,168,76,.06) 0%,transparent 50%)}
 
-    .hero-badge{display:inline-flex;align-items:center;gap:.5rem;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.22);border-radius:20px;padding:.35rem 1rem;font-size:.78rem;font-weight:600;color:var(--gold);margin-bottom:1.75rem;animation:fadeUp .7s ease both}
-    .badge-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 2s ease infinite}
+.hero-inner{position:relative;z-index:2;display:flex;align-items:center;gap:4rem;max-width:1300px;margin:0 auto;width:100%}
+.hero-text{flex:0 0 auto;max-width:480px}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:.5rem;background:rgba(201,168,76,.09);border:1px solid rgba(201,168,76,.22);border-radius:20px;padding:.3rem 1rem;font-size:.78rem;font-weight:700;color:var(--gold);margin-bottom:1.5rem;animation:fu .6s ease both}
+.hero-eyebrow-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 2s ease infinite}
+h1.hero-h{font-size:clamp(2.2rem,5vw,4rem);font-weight:900;line-height:1.1;letter-spacing:-.03em;color:var(--text);margin-bottom:1.1rem;animation:fu .7s ease .1s both}
+h1.hero-h .gold-t{background:linear-gradient(135deg,#a07428,var(--gold3),var(--gold),var(--gold3),#a07428);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 4s linear infinite}
+@keyframes shine{to{background-position:200% center}}
+.hero-sub{font-size:1.05rem;color:var(--text2);line-height:1.8;margin-bottom:2rem;animation:fu .7s ease .2s both}
+.hero-btns{display:flex;gap:.9rem;flex-wrap:wrap;animation:fu .7s ease .3s both}
+.btn-gold{display:inline-flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a04;text-decoration:none;font-size:.95rem;font-weight:900;padding:.85rem 1.9rem;border-radius:12px;transition:all .25s;box-shadow:0 8px 30px rgba(201,168,76,.35)}
+.btn-gold:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 16px 44px rgba(201,168,76,.5)}
+.btn-ghost{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text);text-decoration:none;font-size:.95rem;font-weight:600;padding:.85rem 1.9rem;border-radius:12px;transition:all .25s;backdrop-filter:blur(10px)}
+.btn-ghost:hover{background:rgba(255,255,255,.08);border-color:var(--gold);color:var(--gold);transform:translateY(-2px)}
+.hero-trust{display:flex;align-items:center;gap:.75rem;margin-top:2rem;animation:fu .7s ease .4s both}
+.trust-ava{display:flex}
+.trust-ava span{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));border:2px solid var(--g0);margin-inline-end:-8px;font-size:.65rem;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+.trust-txt{font-size:.78rem;color:var(--text2)}.trust-txt strong{color:var(--gold)}
 
-    .hero-title{font-size:clamp(2.4rem,6vw,4.8rem);font-weight:900;line-height:1.08;letter-spacing:-.04em;color:var(--text);margin-bottom:1.25rem;animation:fadeUp .7s ease .1s both}
-    .hero-title .gold{
-      background:linear-gradient(135deg,#a07830 0%,var(--gold3) 35%,var(--gold) 55%,var(--gold3) 75%,#a07830 100%);
-      background-size:300% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
-      animation:shimmer 5s linear infinite,fadeUp .7s ease .1s both;
-    }
-    @keyframes shimmer{to{background-position:300% center}}
-    .hero-title .line2{display:block}
-    .hero-sub{font-size:clamp(.95rem,1.8vw,1.12rem);color:var(--text2);max-width:540px;margin:0 auto 2.5rem;line-height:1.8;animation:fadeUp .7s ease .2s both}
+/* ─── HERO VISUAL (Dashboard + Exec profiles) ── */
+.hero-visual{flex:1;position:relative;display:flex;justify-content:center;align-items:center;min-height:560px;animation:fu .9s ease .35s both}
 
-    .hero-ctas{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:3.5rem;animation:fadeUp .7s ease .3s both}
-    .cta-primary{display:inline-flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a10;text-decoration:none;font-size:1rem;font-weight:800;padding:.9rem 2rem;border-radius:12px;transition:all .25s;box-shadow:0 8px 32px rgba(201,168,76,.35)}
-    .cta-primary:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 16px 48px rgba(201,168,76,.5)}
-    .cta-secondary{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text);text-decoration:none;font-size:1rem;font-weight:600;padding:.9rem 2rem;border-radius:12px;transition:all .25s;backdrop-filter:blur(8px)}
-    .cta-secondary:hover{background:rgba(255,255,255,.08);border-color:var(--gold);color:var(--gold);transform:translateY(-2px)}
+/* Executive profile cards */
+.exec-card{position:absolute;display:flex;flex-direction:column;align-items:center;gap:.45rem;z-index:4;animation:float var(--fd,6s) ease-in-out infinite;animation-delay:var(--dl,0s)}
+@keyframes float{0%,100%{transform:translateY(0) rotate(var(--rot,0deg))}50%{transform:translateY(-12px) rotate(var(--rot,0deg))}}
+.exec-card.ec1{top:2%;left:2%;--fd:5.5s;--dl:0s;--rot:-1.5deg}
+.exec-card.ec2{top:0%;right:0%;--fd:6.5s;--dl:-1.5s;--rot:1.5deg}
+.exec-card.ec3{bottom:10%;left:0%;--fd:7s;--dl:-3s;--rot:-2deg}
+.exec-card.ec4{bottom:8%;right:0%;--fd:5.8s;--dl:-4.5s;--rot:1.8deg}
+.exec-ring-wrap{width:78px;height:78px;border-radius:50%;position:relative}
+.exec-ring{position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,var(--gold) 0%,var(--g5) 40%,var(--gold3) 70%,var(--gold) 100%);animation:spin 8s linear infinite var(--dl,0s)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.exec-ring.rev{animation-direction:reverse;animation-duration:10s}
+.exec-avatar{width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,var(--g3),var(--g5));border:3px solid var(--g0);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:var(--gold);position:relative;z-index:1}
+.exec-badge{background:rgba(5,16,9,.85);backdrop-filter:blur(16px);border:1px solid rgba(201,168,76,.18);border-radius:10px;padding:.4rem .75rem;text-align:center;min-width:140px}
+.exec-badge strong{display:block;font-size:.78rem;font-weight:800;color:var(--text);white-space:nowrap}
+.exec-badge span{font-size:.66rem;color:var(--gold);display:block;white-space:nowrap}
 
-    /* ── DASHBOARD 3D ─────────────────────────── */
-    .hero-visual{position:relative;max-width:780px;margin:0 auto;animation:fadeUp .9s ease .45s both;perspective:1400px}
-    .dash-frame{background:rgba(14,17,28,.88);border:1px solid rgba(255,255,255,.09);border-radius:18px;overflow:hidden;box-shadow:0 0 0 1px rgba(201,168,76,.09),0 40px 120px rgba(0,0,0,.7),0 0 80px rgba(201,168,76,.06);transform:rotateX(7deg);transform-style:preserve-3d;transition:transform .12s ease;will-change:transform;backdrop-filter:blur(20px)}
-    .dash-scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(201,168,76,.5),transparent);z-index:5;animation:scanline 3.5s ease-in-out infinite;pointer-events:none}
-    @keyframes scanline{0%{top:-2px;opacity:0}8%{opacity:1}92%{opacity:.8}100%{top:100%;opacity:0}}
-    .dash-top{background:rgba(8,10,18,.9);padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid rgba(255,255,255,.05)}
-    .dot{width:10px;height:10px;border-radius:50%}.dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
-    .dash-url{flex:1;background:rgba(255,255,255,.04);border-radius:6px;padding:.2rem .75rem;font-size:.7rem;color:var(--text3);font-family:monospace;margin:0 .5rem}
-    .dash-body{padding:1.2rem;display:grid;grid-template-columns:165px 1fr;gap:1rem;min-height:270px}
-    .dash-sidebar{background:rgba(255,255,255,.02);border-radius:10px;padding:.6rem;display:flex;flex-direction:column;gap:.3rem;border:1px solid rgba(255,255,255,.04)}
-    .dash-nav-item{display:flex;align-items:center;gap:.5rem;padding:.35rem .55rem;border-radius:7px;font-size:.68rem;color:var(--text3);transition:all .2s}
-    .dash-nav-item.active{background:var(--gold-dim);color:var(--gold)}
-    .dash-nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5}
-    .dash-main{display:flex;flex-direction:column;gap:.65rem}
-    .dash-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
-    .dash-stat{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:.7rem;position:relative;overflow:hidden}
-    .dash-stat::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(201,168,76,.04),transparent);pointer-events:none}
-    .dash-stat-num{font-size:1.25rem;font-weight:900;color:var(--gold);margin-bottom:2px}
-    .dash-stat-lbl{font-size:.6rem;color:var(--text3)}
-    .dash-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:.72rem}
-    .dash-card-title{font-size:.68rem;font-weight:700;color:var(--text2);margin-bottom:.45rem}
-    .dash-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem}
-    .dash-avatar{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#7c6fff);font-size:.5rem;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0}
-    .dash-line{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden}
-    .dash-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold),var(--gold3));animation:fillBar 2.5s ease 1.8s both}
-    @keyframes fillBar{from{width:0%}to{width:78%}}
-    .dash-tag{font-size:.57rem;padding:.1rem .38rem;border-radius:4px;font-weight:700;white-space:nowrap}
-    .tag-g{background:rgba(60,196,124,.15);color:var(--green)}.tag-y{background:rgba(201,168,76,.15);color:var(--gold)}
-    .dash-ai-row{display:flex;gap:.4rem;align-items:center;background:rgba(201,168,76,.05);border:1px solid rgba(201,168,76,.1);border-radius:7px;padding:.42rem .6rem;margin-top:.3rem}
-    .ai-typing{display:flex;gap:3px;align-items:center}
-    .ai-dot{width:4px;height:4px;border-radius:50%;background:var(--gold);animation:aiB .9s ease infinite}
-    .ai-dot:nth-child(2){animation-delay:.18s}.ai-dot:nth-child(3){animation-delay:.36s}
-    @keyframes aiB{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-5px);opacity:1}}
-    .hero-glow{position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);width:65%;height:90px;background:radial-gradient(ellipse,rgba(201,168,76,.2) 0%,transparent 70%);filter:blur(24px);z-index:-1;pointer-events:none}
+/* Dashboard mockup */
+.dash-wrap{width:620px;max-width:100%;position:relative;z-index:3;transform-style:preserve-3d;perspective:1200px}
+.dash-frame{
+  background:rgba(11,30,20,.92);border:1px solid rgba(201,168,76,.15);border-radius:18px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(201,168,76,.08),0 40px 120px rgba(0,0,0,.7),0 0 80px rgba(26,77,58,.15),inset 0 1px 0 rgba(255,255,255,.05);
+  transform:perspective(1200px) rotateX(4deg) rotateY(-5deg);
+  transition:transform .15s ease;will-change:transform;
+}
+.dash-topbar{background:rgba(5,14,9,.9);padding:.55rem 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid rgba(255,255,255,.05)}
+.tbd{width:10px;height:10px;border-radius:50%}.tbd-r{background:#ff5f57}.tbd-y{background:#febc2e}.tbd-g{background:#28c840}
+.tbd-brand{display:flex;align-items:center;gap:.4rem;margin-inline-start:.5rem}
+.tbd-brand img{width:18px;height:18px;object-fit:contain}
+.tbd-brand span{font-size:.68rem;font-weight:800;color:var(--text2)}
+.tbd-brand em{color:var(--gold);font-style:normal}
+.tbd-url{flex:1;background:rgba(255,255,255,.04);border-radius:5px;padding:.18rem .7rem;font-size:.62rem;color:var(--text3);font-family:monospace;text-align:center}
+.tbd-avatar{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));font-size:.55rem;font-weight:900;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 
-    /* ── STATS ────────────────────────────────── */
-    .stats-bar{border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);padding:2rem 3rem;display:flex;justify-content:center;background:rgba(8,10,18,.7);backdrop-filter:blur(20px)}
-    .stat-item{flex:1;max-width:220px;text-align:center;padding:0 2rem}
-    .stat-item:not(:last-child){border-inline-end:1px solid rgba(255,255,255,.06)}
-    .stat-num{font-size:2.2rem;font-weight:900;color:var(--gold);letter-spacing:-.04em;line-height:1}
-    .stat-lbl{font-size:.82rem;color:var(--text3);margin-top:4px}
+.dash-body{display:grid;grid-template-columns:148px 1fr 120px;gap:0;height:340px}
+.dash-sb{background:rgba(5,14,9,.7);border-inline-end:1px solid rgba(255,255,255,.05);padding:.7rem .5rem;display:flex;flex-direction:column;gap:.2rem}
+.dsb-logo{padding:.3rem .4rem;margin-bottom:.4rem;display:flex;align-items:center;gap:.35rem}
+.dsb-logo-ic{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--g5));display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:900;color:#fff}
+.dsb-logo-txt{font-size:.68rem;font-weight:900;color:var(--text2)}
+.sb-item{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:7px;font-size:.66rem;color:var(--text3);transition:all .2s;cursor:pointer}
+.sb-item:hover{background:rgba(255,255,255,.04);color:var(--text2)}
+.sb-item.act{background:var(--gold-dim);color:var(--gold)}
+.sb-icon{font-size:.8rem;flex-shrink:0;width:16px;text-align:center}
+.sb-sep{height:1px;background:rgba(255,255,255,.05);margin:.3rem 0}
 
-    /* ── SECTIONS ─────────────────────────────── */
-    section{padding:6rem 3rem;max-width:1100px;margin:0 auto}
-    .section-badge{display:inline-flex;align-items:center;gap:.4rem;background:var(--gold-dim);border:1px solid rgba(201,168,76,.2);border-radius:20px;padding:.3rem .85rem;font-size:.75rem;font-weight:700;color:var(--gold);margin-bottom:1rem}
-    .section-title{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:900;letter-spacing:-.03em;color:var(--text);margin-bottom:1rem;line-height:1.15}
-    .section-sub{font-size:1rem;color:var(--text2);max-width:520px;line-height:1.75}
-    .centered{text-align:center}.centered .section-sub{margin:0 auto}
+.dash-main{padding:.85rem;overflow:hidden;display:flex;flex-direction:column;gap:.65rem}
+.dm-head{font-size:.75rem;font-weight:800;color:var(--text);margin-bottom:.1rem}
+.dm-tabs{display:flex;gap:.3rem;margin-bottom:.05rem}
+.dm-tab{font-size:.6rem;padding:.15rem .5rem;border-radius:5px;cursor:pointer;font-weight:600}
+.dm-tab.on{background:var(--gold-dim);color:var(--gold)}
+.dm-tab:not(.on){color:var(--text3)}
+.meet-card{background:rgba(26,64,48,.35);border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:.55rem .65rem;transition:border-color .2s}
+.meet-card:hover{border-color:rgba(201,168,76,.2)}
+.meet-card-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem}
+.meet-ic{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,rgba(201,168,76,.2),rgba(26,77,58,.3));display:flex;align-items:center;justify-content:center;font-size:.72rem;flex-shrink:0}
+.meet-title{font-size:.68rem;font-weight:800;color:var(--text);flex:1}
+.meet-badge{font-size:.56rem;padding:.1rem .38rem;border-radius:4px;font-weight:800;white-space:nowrap}
+.mb-g{background:rgba(60,196,124,.15);color:#3cc47c}.mb-y{background:rgba(201,168,76,.15);color:var(--gold)}.mb-b{background:rgba(74,144,217,.15);color:#4a90d9}
+.meet-meta{font-size:.6rem;color:var(--text3);display:flex;align-items:center;gap:.5rem}
+.meet-avatars{display:flex}
+.mav{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));border:1.5px solid var(--g0);margin-inline-end:-5px;font-size:.48rem;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900}
+.dash-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem}
+.ds{background:rgba(26,64,48,.25);border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:.5rem .6rem;text-align:center}
+.ds-n{font-size:1.1rem;font-weight:900;color:var(--gold);line-height:1}
+.ds-l{font-size:.58rem;color:var(--text3);margin-top:2px}
+.ai-strip{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.12);border-radius:8px;padding:.4rem .65rem;display:flex;align-items:center;gap:.5rem}
+.ai-dots{display:flex;gap:2px}.ai-d{width:4px;height:4px;border-radius:50%;background:var(--gold);animation:aiB .9s ease infinite}
+.ai-d:nth-child(2){animation-delay:.18s}.ai-d:nth-child(3){animation-delay:.36s}
+@keyframes aiB{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-4px);opacity:1}}
+.ai-txt{font-size:.62rem;color:var(--gold);flex:1}
+.ai-pct{font-size:.62rem;font-weight:800;color:var(--gold3)}
 
-    /* ── FEATURES ─────────────────────────────── */
-    .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:3.5rem}
-    .feat-card{
-      background:rgba(16,20,32,.75);border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:1.75rem;
-      position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s;
-      transform-style:preserve-3d;will-change:transform;cursor:default;
-    }
-    .card-gloss{position:absolute;inset:0;border-radius:18px;pointer-events:none;z-index:0;transition:background .12s}
-    .feat-card:hover{border-color:rgba(201,168,76,.28);box-shadow:0 20px 70px rgba(0,0,0,.5),inset 0 1px 0 rgba(201,168,76,.12)}
-    .feat-icon-wrap{width:50px;height:50px;border-radius:14px;background:linear-gradient(135deg,rgba(201,168,76,.15),rgba(201,168,76,.04));border:1px solid rgba(201,168,76,.18);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:1.1rem;position:relative;z-index:1;transition:transform .3s,box-shadow .3s}
-    .feat-card:hover .feat-icon-wrap{transform:scale(1.1) translateZ(8px);box-shadow:0 8px 24px rgba(201,168,76,.2)}
-    .feat-card-title{font-size:1rem;font-weight:800;color:var(--text);margin-bottom:.5rem;position:relative;z-index:1}
-    .feat-card-desc{font-size:.83rem;color:var(--text2);line-height:1.7;position:relative;z-index:1}
+.dash-cal{padding:.7rem .65rem;display:flex;flex-direction:column;gap:.5rem;border-inline-start:1px solid rgba(255,255,255,.05);background:rgba(5,14,9,.4)}
+.cal-head{font-size:.62rem;font-weight:800;color:var(--text2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.cal-day{font-size:.52rem;color:var(--text3);text-align:center;padding:.12rem 0}
+.cal-day.today{background:var(--gold);color:#080a04;border-radius:3px;font-weight:900}
+.cal-day.has{color:var(--gold);font-weight:700}
+.task-mini{background:rgba(26,64,48,.3);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:.35rem .5rem}
+.task-mini-h{font-size:.58rem;font-weight:800;color:var(--text2);margin-bottom:.25rem}
+.task-row{display:flex;align-items:center;gap:.35rem;margin-bottom:.2rem}
+.task-chk{width:10px;height:10px;border-radius:3px;border:1px solid rgba(201,168,76,.4);flex-shrink:0}
+.task-chk.done{background:var(--gold);border-color:var(--gold)}
+.task-t{font-size:.6rem;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-t.done{text-decoration:line-through;color:var(--text3);opacity:.5}
 
-    /* ── HOW IT WORKS ─────────────────────────── */
-    .how-outer{background:rgba(8,10,18,.65);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);padding:6rem 3rem}
-    .how-wrap{display:flex;gap:0;margin-top:3.5rem;position:relative}
-    .how-track{position:absolute;top:28px;inset-inline-start:28px;inset-inline-end:0;height:2px;background:rgba(255,255,255,.06);z-index:0;border-radius:2px}
-    .how-track-fill{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold3));transition:width 1.8s cubic-bezier(.4,0,.2,1);border-radius:2px}
-    .how-step{flex:1;padding:0 1.5rem;position:relative;z-index:1}
-    .how-step:first-child{padding-inline-start:0}
-    .how-num{width:56px;height:56px;border-radius:50%;background:var(--navy4);border:2px solid rgba(201,168,76,.35);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:900;color:rgba(201,168,76,.5);margin-bottom:1.25rem;transition:all .5s;position:relative}
-    .how-num .ring-pulse{position:absolute;inset:-8px;border-radius:50%;border:1.5px solid rgba(201,168,76,.2);animation:rPulse 2.5s ease infinite;pointer-events:none}
-    .how-step:nth-child(2) .ring-pulse{animation-delay:.65s}
-    .how-step:nth-child(3) .ring-pulse{animation-delay:1.3s}
-    .how-step:nth-child(4) .ring-pulse{animation-delay:1.95s}
-    @keyframes rPulse{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.5)}}
-    .how-step.lit .how-num{background:linear-gradient(135deg,var(--gold),var(--gold3));border-color:var(--gold);color:#080a10;box-shadow:0 0 30px rgba(201,168,76,.45)}
-    .how-title{font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:.45rem}
-    .how-desc{font-size:.82rem;color:var(--text2);line-height:1.7}
+/* Scan line animation */
+.dash-scan{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:5}
+.dash-scan::after{content:'';position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(201,168,76,.35),transparent);animation:scan 4s ease-in-out infinite;top:0}
+@keyframes scan{0%{top:-2px;opacity:0}8%{opacity:1}92%{opacity:.6}100%{top:100%;opacity:0}}
+.hero-glow-bottom{position:absolute;bottom:-60px;left:50%;transform:translateX(-50%);width:60%;height:120px;background:radial-gradient(ellipse,rgba(26,77,58,.4),transparent);filter:blur(30px);pointer-events:none;z-index:2}
 
-    /* ── PRICING ──────────────────────────────── */
-    .plan-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:3.5rem}
-    .plan-box{background:rgba(16,20,32,.8);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:2rem 1.75rem;position:relative;display:flex;flex-direction:column;transition:transform .3s,box-shadow .3s;backdrop-filter:blur(12px)}
-    .plan-box:hover{transform:translateY(-6px);box-shadow:0 30px 80px rgba(0,0,0,.5)}
-    .plan-box.featured{border-color:var(--gold);background:linear-gradient(145deg,rgba(201,168,76,.08),rgba(16,20,32,.9));box-shadow:0 0 40px rgba(201,168,76,.1)}
-    .plan-pop{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,var(--gold),var(--gold3));color:#080a10;font-size:.72rem;font-weight:800;padding:.3rem 1rem;border-radius:20px;white-space:nowrap}
-    .plan-box-name{font-size:1rem;font-weight:800;color:var(--text2);margin-bottom:.3rem}
-    .plan-box-price{font-size:2.6rem;font-weight:900;color:var(--text);letter-spacing:-.05em;margin-bottom:.25rem}
-    .plan-box-price sub{font-size:.9rem;font-weight:500;color:var(--text3);vertical-align:super}
-    .plan-box-price span{font-size:.85rem;font-weight:500;color:var(--text3)}
-    .plan-box-desc{font-size:.82rem;color:var(--text3);margin-bottom:1.5rem;line-height:1.6}
-    .plan-box-feats{flex:1;display:flex;flex-direction:column;gap:.55rem;margin-bottom:1.75rem}
-    .plan-feat-item{display:flex;align-items:center;gap:.6rem;font-size:.82rem;color:var(--text2)}
-    .plan-feat-item .chk{color:var(--green)}.plan-feat-item .no{color:var(--text3)}
-    .plan-btn{display:block;text-align:center;text-decoration:none;font-weight:800;font-size:.92rem;padding:.85rem;border-radius:12px;transition:all .2s;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--text)}
-    .plan-btn:hover{background:rgba(255,255,255,.13)}
-    .plan-box.featured .plan-btn{background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a10;border-color:transparent;box-shadow:0 6px 24px rgba(201,168,76,.3)}
-    .plan-box.featured .plan-btn:hover{opacity:.9;transform:translateY(-1px)}
+/* ─── STATS BAR ─────────────────────────────── */
+.stats-bar{border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);background:rgba(7,22,11,.8);backdrop-filter:blur(20px)}
+.stats-inner{max-width:1100px;margin:0 auto;padding:1.75rem 3rem;display:flex;justify-content:center;gap:0}
+.si{flex:1;max-width:200px;text-align:center;padding:0 1.5rem}
+.si:not(:last-child){border-inline-end:1px solid rgba(255,255,255,.06)}
+.si-n{font-size:2rem;font-weight:900;color:var(--gold);letter-spacing:-.04em;line-height:1}
+.si-l{font-size:.78rem;color:var(--text3);margin-top:3px}
 
-    /* ── CTA ──────────────────────────────────── */
-    .cta-section{margin:0 3rem 6rem;background:linear-gradient(135deg,rgba(13,28,55,.85),rgba(8,10,18,.9),rgba(20,14,4,.85));border:1px solid rgba(201,168,76,.14);border-radius:24px;padding:5rem 3rem;text-align:center;position:relative;overflow:hidden;backdrop-filter:blur(20px)}
-    .cta-section::before{content:'';position:absolute;top:-80px;left:50%;transform:translateX(-50%);width:700px;height:350px;background:radial-gradient(ellipse,rgba(201,168,76,.1),transparent);pointer-events:none}
-    .cta-section .section-title,.cta-section p,.cta-section .hero-ctas{position:relative;z-index:1}
-    .cta-section p{font-size:1rem;color:var(--text2);margin-bottom:2rem}
+/* ─── SECTION HELPERS ───────────────────────── */
+.sec{padding:6rem 3rem;max-width:1200px;margin:0 auto}
+.sec-dark{background:var(--g1)}
+.sec-wrap{max-width:1200px;margin:0 auto;padding:6rem 3rem}
+.chip{display:inline-flex;align-items:center;gap:.4rem;background:var(--gold-dim);border:1px solid rgba(201,168,76,.22);border-radius:20px;padding:.28rem .85rem;font-size:.73rem;font-weight:800;color:var(--gold);margin-bottom:.9rem;text-transform:uppercase;letter-spacing:.06em}
+.sec-h{font-size:clamp(1.8rem,4vw,2.9rem);font-weight:900;letter-spacing:-.03em;color:var(--text);line-height:1.12;margin-bottom:.85rem}
+.sec-sub{font-size:.98rem;color:var(--text2);line-height:1.8;max-width:520px}
+.center{text-align:center}.center .sec-sub{margin:0 auto}
 
-    /* ── FOOTER ───────────────────────────────── */
-    footer{border-top:1px solid rgba(255,255,255,.06);padding:2.5rem 3rem;display:flex;align-items:center;justify-content:space-between;background:var(--navy2)}
-    .footer-logo{display:flex;align-items:center;gap:.6rem;text-decoration:none}
-    .footer-logo img{width:28px;height:28px;object-fit:contain}
-    .footer-logo span{font-size:.9rem;font-weight:800;color:var(--text2)}
-    .footer-logo strong{color:var(--gold)}
-    .footer-copy{font-size:.78rem;color:var(--text3)}
-    .footer-links{display:flex;gap:1.5rem}
-    .footer-links a{font-size:.78rem;color:var(--text3);text-decoration:none;transition:color .2s}
-    .footer-links a:hover{color:var(--gold)}
+/* ─── FEATURES ──────────────────────────────── */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
+.feat-card{background:rgba(13,40,24,.55);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:1.75rem;position:relative;overflow:hidden;transition:border-color .3s,transform .1s,box-shadow .3s;transform-style:preserve-3d;will-change:transform;cursor:default}
+.feat-card .cg{position:absolute;inset:0;border-radius:20px;pointer-events:none;transition:background .12s}
+.feat-card:hover{border-color:rgba(201,168,76,.25);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(201,168,76,.1)}
+.fi{width:52px;height:52px;border-radius:15px;background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(26,77,58,.15));border:1px solid rgba(201,168,76,.2);display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin-bottom:1.1rem;position:relative;z-index:1;transition:transform .3s,box-shadow .3s}
+.feat-card:hover .fi{transform:scale(1.1) translateZ(10px);box-shadow:0 6px 20px rgba(201,168,76,.18)}
+.ft{font-size:1rem;font-weight:900;color:var(--text);margin-bottom:.45rem;position:relative;z-index:1}
+.fd{font-size:.82rem;color:var(--text2);line-height:1.7;position:relative;z-index:1}
 
-    /* ── ANIM ─────────────────────────────────── */
-    @keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-    .reveal{opacity:0;transform:translateY(32px);transition:opacity .75s ease,transform .75s ease}
-    .reveal.shown{opacity:1;transform:translateY(0)}
+/* ─── WORKFLOW ──────────────────────────────── */
+.wf-bg{background:linear-gradient(180deg,var(--g1),var(--g0));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04)}
+.wf-steps{display:flex;gap:0;margin-top:3.5rem;position:relative;max-width:1100px;margin-inline:auto}
+.wf-track{position:absolute;top:30px;inset-inline-start:30px;inset-inline-end:0;height:2px;background:rgba(255,255,255,.06);z-index:0;border-radius:2px}
+.wf-fill{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold3));transition:width 1.8s cubic-bezier(.4,0,.2,1);border-radius:2px}
+.wf-step{flex:1;padding:0 1.5rem;position:relative;z-index:1}
+.wf-step:first-child{padding-inline-start:0}
+.wf-num{width:60px;height:60px;border-radius:50%;background:var(--g2);border:2px solid rgba(201,168,76,.25);display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:900;color:rgba(201,168,76,.4);margin-bottom:1.2rem;transition:all .5s;position:relative}
+.wf-num .rp{position:absolute;inset:-8px;border-radius:50%;border:1.5px solid rgba(201,168,76,.18);animation:rp 2.5s ease infinite;pointer-events:none}
+.wf-step:nth-child(2) .rp{animation-delay:.65s}
+.wf-step:nth-child(3) .rp{animation-delay:1.3s}
+.wf-step:nth-child(4) .rp{animation-delay:1.95s}
+@keyframes rp{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.55)}}
+.wf-step.lit .wf-num{background:linear-gradient(135deg,var(--gold),var(--gold3));border-color:var(--gold);color:#080a04;box-shadow:0 0 28px rgba(201,168,76,.4)}
+.wf-icon{font-size:1.3rem;margin-bottom:.6rem}
+.wf-t{font-size:.92rem;font-weight:900;color:var(--text);margin-bottom:.4rem}
+.wf-d{font-size:.8rem;color:var(--text2);line-height:1.7}
 
-    /* ── RESP ─────────────────────────────────── */
-    @media(max-width:900px){
-      nav{padding:1rem 1.5rem}.nav-links{display:none}
-      .hero{padding:6rem 1.5rem 3rem}
-      section{padding:4rem 1.5rem}.how-outer{padding:4rem 1.5rem}
-      .feat-grid{grid-template-columns:1fr 1fr}
-      .plan-row{grid-template-columns:1fr;max-width:400px;margin-inline:auto}
-      .how-wrap{flex-direction:column;gap:1.5rem}.how-track{display:none}
-      .stats-bar{flex-direction:column;gap:1.5rem;align-items:center;padding:2rem 1.5rem}
-      .stat-item{border:none!important}
-      .cta-section{margin:0 1.5rem 4rem;padding:3rem 1.5rem}
-      footer{flex-direction:column;gap:1rem;text-align:center;padding:2rem 1.5rem}
-      .dash-body{grid-template-columns:1fr}.dash-sidebar{display:none}
-    }
-    @media(max-width:600px){.feat-grid{grid-template-columns:1fr}.hero-title{font-size:2.2rem}}
-  </style>
+/* ─── GOVERNANCE VISUAL ─────────────────────── */
+.gov-wrap{display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center}
+.gov-pts{display:flex;flex-direction:column;gap:1.5rem;margin-top:2rem}
+.gov-pt{display:flex;gap:1.1rem;align-items:flex-start}
+.gov-pt-ic{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(26,77,58,.2));border:1px solid rgba(201,168,76,.18);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;margin-top:.1rem}
+.gov-pt-t{font-size:.92rem;font-weight:800;color:var(--text);margin-bottom:.2rem}
+.gov-pt-d{font-size:.8rem;color:var(--text2);line-height:1.65}
+
+/* Gov visual widget */
+.gov-visual{position:relative;display:flex;justify-content:center;align-items:center}
+.gov-card-stack{position:relative;width:340px;height:380px}
+.gov-card{position:absolute;background:rgba(13,40,24,.7);border:1px solid rgba(201,168,76,.15);border-radius:16px;backdrop-filter:blur(20px);padding:1.2rem}
+.gc-main{left:0;right:0;top:40px;z-index:3;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.gc-back1{left:15px;right:15px;top:0px;z-index:1;opacity:.6;transform:rotate(-3deg)}
+.gc-back2{left:25px;right:25px;top:20px;z-index:2;opacity:.8;transform:rotate(1.5deg)}
+.gc-title{font-size:.8rem;font-weight:800;color:var(--gold);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+.gc-row{display:flex;align-items:center;gap:.7rem;padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.gc-row:last-child{border-bottom:none}
+.gc-ava{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));font-size:.6rem;font-weight:900;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
+.gc-name{flex:1;font-size:.72rem;color:var(--text)}
+.gc-sig{display:flex;align-items:center;gap:.3rem;font-size:.65rem}
+.sig-done{color:#3cc47c}.sig-pend{color:var(--gold)}.sig-wait{color:var(--text3)}
+.gc-prog{margin-top:.75rem}
+.gc-prog-l{display:flex;justify-content:space-between;font-size:.65rem;color:var(--text2);margin-bottom:.3rem}
+.gc-prog-bar{height:4px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.gc-prog-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold3));border-radius:4px;width:75%;animation:fillProg 2s ease 1s both}
+@keyframes fillProg{from{width:0%}to{width:75%}}
+.gc-badge{display:inline-flex;align-items:center;gap:.35rem;background:rgba(60,196,124,.1);border:1px solid rgba(60,196,124,.2);border-radius:6px;padding:.25rem .6rem;font-size:.65rem;color:#3cc47c;margin-top:.6rem;font-weight:700}
+
+/* ─── PRICING ───────────────────────────────── */
+.plan-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
+.plan-box{background:rgba(13,40,24,.6);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:2rem 1.75rem;display:flex;flex-direction:column;position:relative;transition:transform .3s,box-shadow .3s;backdrop-filter:blur(16px)}
+.plan-box:hover{transform:translateY(-5px);box-shadow:0 28px 70px rgba(0,0,0,.5)}
+.plan-box.feat{border-color:var(--gold);background:linear-gradient(145deg,rgba(201,168,76,.09),rgba(13,40,24,.8));box-shadow:0 0 40px rgba(201,168,76,.1)}
+.plan-pop{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,var(--gold),var(--gold3));color:#080a04;font-size:.7rem;font-weight:900;padding:.28rem .9rem;border-radius:20px;white-space:nowrap}
+.plan-name{font-size:.95rem;font-weight:800;color:var(--text2);margin-bottom:.25rem}
+.plan-price{font-size:2.5rem;font-weight:900;color:var(--text);letter-spacing:-.05em;margin-bottom:.2rem}
+.plan-price sub{font-size:.88rem;font-weight:500;color:var(--text3);vertical-align:super}
+.plan-price span{font-size:.82rem;font-weight:500;color:var(--text3)}
+.plan-desc{font-size:.8rem;color:var(--text3);margin-bottom:1.4rem;line-height:1.6}
+.plan-feats{flex:1;display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.6rem}
+.pf-item{display:flex;align-items:center;gap:.55rem;font-size:.8rem;color:var(--text2)}
+.pf-yes{color:#3cc47c;font-size:.85rem;flex-shrink:0}.pf-no{color:var(--text3);font-size:.85rem;flex-shrink:0}
+.plan-btn{display:block;text-align:center;text-decoration:none;font-weight:900;font-size:.9rem;padding:.82rem;border-radius:12px;transition:all .2s;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--text)}
+.plan-btn:hover{background:rgba(255,255,255,.13)}
+.plan-box.feat .plan-btn{background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a04;border:none;box-shadow:0 6px 22px rgba(201,168,76,.3)}
+.plan-box.feat .plan-btn:hover{opacity:.9;transform:translateY(-1px)}
+
+/* ─── TESTIMONIALS ──────────────────────────── */
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
+.testi-card{background:rgba(13,40,24,.45);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:1.75rem;position:relative;transition:transform .25s,box-shadow .25s;backdrop-filter:blur(12px)}
+.testi-card:hover{transform:translateY(-4px);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.testi-stars{color:var(--gold);font-size:.9rem;margin-bottom:1rem;letter-spacing:.1em}
+.testi-quote{font-size:.88rem;color:var(--text2);line-height:1.75;margin-bottom:1.25rem;font-style:italic}
+.testi-quote::before{content:'\201C';font-size:2rem;color:var(--gold);line-height:0;vertical-align:-.5rem;margin-inline-end:.25rem}
+.testi-person{display:flex;align-items:center;gap:.75rem}
+.tp-ava{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:900;color:#fff;flex-shrink:0}
+.tp-name{font-size:.82rem;font-weight:800;color:var(--text)}
+.tp-role{font-size:.72rem;color:var(--text3)}
+.testi-card .tc-mark{position:absolute;top:1.5rem;inset-inline-end:1.5rem;font-size:2.5rem;color:rgba(201,168,76,.1);font-family:Georgia,serif;line-height:1}
+
+/* ─── FAQ ───────────────────────────────────── */
+.faq-list{display:flex;flex-direction:column;gap:.65rem;margin-top:3rem;max-width:780px;margin-inline:auto}
+.faq-item{background:rgba(13,40,24,.45);border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.faq-item.open{border-color:rgba(201,168,76,.2);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.faq-q{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;cursor:pointer;font-size:.9rem;font-weight:700;color:var(--text);gap:1rem;user-select:none}
+.faq-arr{width:22px;height:22px;border-radius:50%;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.2);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--gold);transition:transform .3s,background .2s;flex-shrink:0}
+.faq-item.open .faq-arr{transform:rotate(180deg);background:var(--gold-dim)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .35s ease,padding .35s ease;padding:0 1.4rem;font-size:.85rem;color:var(--text2);line-height:1.75}
+.faq-item.open .faq-a{max-height:200px;padding:.1rem 1.4rem 1.2rem}
+
+/* ─── CTA ───────────────────────────────────── */
+.cta-wrap{margin:0 3rem 6rem;background:linear-gradient(135deg,rgba(13,40,24,.9),rgba(5,16,9,.95));border:1px solid rgba(201,168,76,.18);border-radius:28px;padding:5.5rem 3rem;text-align:center;position:relative;overflow:hidden;backdrop-filter:blur(20px)}
+.cta-wrap::before{content:'';position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:700px;height:400px;background:radial-gradient(ellipse,rgba(201,168,76,.1),transparent);pointer-events:none}
+.cta-wrap::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23C9A84C' fill-opacity='0.02'%3E%3Ccircle cx='20' cy='20' r='1'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
+.cta-h{font-size:clamp(1.8rem,4vw,3rem);font-weight:900;letter-spacing:-.03em;color:var(--text);margin-bottom:.75rem;position:relative;z-index:1}
+.cta-sub{font-size:1rem;color:var(--text2);margin-bottom:2.5rem;position:relative;z-index:1}
+.cta-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;position:relative;z-index:1}
+
+/* ─── FOOTER ────────────────────────────────── */
+footer{border-top:1px solid rgba(255,255,255,.05);padding:2.5rem 3rem;display:flex;align-items:center;justify-content:space-between;background:var(--g0)}
+.ft-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none}
+.ft-brand img{width:26px;height:26px;object-fit:contain}
+.ft-brand span{font-size:.88rem;font-weight:900;color:var(--text2)}
+.ft-brand strong{color:var(--gold)}
+.ft-copy{font-size:.75rem;color:var(--text3)}
+.ft-links{display:flex;gap:1.5rem}
+.ft-links a{font-size:.75rem;color:var(--text3);text-decoration:none;transition:color .2s}
+.ft-links a:hover{color:var(--gold)}
+
+/* ─── ANIMATIONS ────────────────────────────── */
+@keyframes fu{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+.reveal.on{opacity:1;transform:none}
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media(max-width:1100px){
+  .hero-inner{flex-direction:column;text-align:center;gap:2.5rem}
+  .hero-text{max-width:100%}.hero-btns{justify-content:center}.hero-trust{justify-content:center}
+  .hero-visual{width:100%}.exec-card{display:none}
+  .dash-wrap{width:100%;max-width:600px}
+  .gov-wrap{grid-template-columns:1fr;gap:3rem}
+  .feat-grid{grid-template-columns:1fr 1fr}
+  .plan-row{grid-template-columns:1fr;max-width:380px;margin-inline:auto}
+  .testi-grid{grid-template-columns:1fr}
+  .wf-steps{flex-direction:column;gap:1.5rem}.wf-track{display:none}
+  .cta-wrap{margin:0 1.5rem 4rem;padding:3.5rem 1.5rem}
+}
+@media(max-width:768px){
+  nav{padding:.8rem 1.5rem}.nav-links{display:none}
+  .hero{padding:4.5rem 1.5rem 3rem}
+  .sec,.sec-wrap,.wf-bg{padding:4rem 1.5rem}
+  .feat-grid{grid-template-columns:1fr}
+  .dash-body{grid-template-columns:1fr;height:auto}.dash-sb,.dash-cal{display:none}
+  .stats-inner{flex-direction:column;gap:1.5rem;align-items:center}
+  .si:not(:last-child){border:none}
+  footer{flex-direction:column;gap:1rem;text-align:center}
+}
+</style>
 </head>
 <body>
 
-<div id="scroll-bar"></div>
+<div id="sp"></div>
 
 <!-- NAV -->
 <nav id="nav">
-  <a href="/" class="nav-logo">
+  <a href="/" class="nav-brand">
     <img src="/logo.png" alt="Ameen"/>
-    <div class="nav-logo-text">أمـيـن <span>Secretary</span></div>
+    <div class="nav-brand-txt">أمـيـن <em>Secretary</em></div>
   </a>
   <div class="nav-links">
-    <a href="#features" class="nav-link" data-t="nav-feat">المميزات</a>
-    <a href="#how" class="nav-link" data-t="nav-how">كيف يعمل</a>
-    <a href="#pricing" class="nav-link" data-t="nav-price">الأسعار</a>
+    <a href="#features" class="nav-link" data-t="nl1">المميزات</a>
+    <a href="#workflow" class="nav-link" data-t="nl2">كيف يعمل</a>
+    <a href="#governance" class="nav-link" data-t="nl3">الحوكمة</a>
+    <a href="#pricing" class="nav-link" data-t="nl4">الأسعار</a>
+    <a href="#faq" class="nav-link" data-t="nl5">الأسئلة</a>
   </div>
-  <div style="display:flex;align-items:center;gap:.75rem">
-    <div class="lang-nav">
-      <button id="btn-ar" onclick="setLang('ar')" class="on">عربي</button>
+  <div class="nav-r">
+    <div class="lang-sw">
+      <button id="btn-ar" class="on" onclick="setLang('ar')">عربي</button>
       <button id="btn-en" onclick="setLang('en')">English</button>
     </div>
-    <div class="nav-ctas">
-      <a href="/login.html"  class="btn-login" data-t="nav-login">دخول</a>
-      <a href="/signup.html" class="btn-start"  data-t="nav-cta">ابدأ مجاناً</a>
-    </div>
+    <a href="/login.html"  class="nav-login"  data-t="nav-in">دخول</a>
+    <a href="/signup.html" class="nav-cta"    data-t="nav-up">ابدأ مجاناً</a>
   </div>
 </nav>
 
 <!-- HERO -->
-<div class="hero">
+<section class="hero" id="home">
   <canvas id="hero-canvas"></canvas>
-  <div class="hero-grad"></div>
+  <div class="hero-gfx"></div>
   <div class="hero-inner">
-    <div class="hero-badge">
-      <div class="badge-dot"></div>
-      <span data-t="badge">نظام الأمانة التنفيذية الذكية للمؤسسات</span>
-    </div>
-    <h1 class="hero-title">
-      <span data-t="h1a">اجتماعاتك أكثر ذكاءً</span>
-      <span class="line2 gold" data-t="h1b">بقوة الذكاء الاصطناعي</span>
-    </h1>
-    <p class="hero-sub" data-t="hero-sub">منصة متكاملة لإدارة محاضر الاجتماعات، التوقيعات الإلكترونية، وحوكمة المجالس — مصممة للمؤسسات التي تقدّر الدقة والكفاءة.</p>
-    <div class="hero-ctas">
-      <a href="/signup.html" class="cta-primary"    data-t="cta1">🚀 ابدأ تجربتك المجانية</a>
-      <a href="#features"    class="cta-secondary"  data-t="cta2">اكتشف المميزات ↓</a>
-    </div>
-    <!-- Dashboard mockup -->
-    <div class="hero-visual" id="hero-visual">
-      <div class="dash-frame" id="dash-frame">
-        <div class="dash-scanline"></div>
-        <div class="dash-top">
-          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
-          <div class="dash-url" data-t="dash-url">app.ameen-secretary.sa — لوحة التحكم</div>
+
+    <!-- Text Side -->
+    <div class="hero-text">
+      <div class="hero-eyebrow">
+        <div class="hero-eyebrow-dot"></div>
+        <span data-t="ey">نظام أمانة تنفيذية مدعوم بالذكاء الاصطناعي</span>
+      </div>
+      <h1 class="hero-h">
+        <span data-t="h1a">أمانتك التنفيذية</span><br/>
+        <span class="gold-t" data-t="h1b">بذكاء لا يهدأ</span>
+      </h1>
+      <p class="hero-sub" data-t="hs">من جدولة الاجتماعات إلى أرشفة المحاضر وإدارة الحوكمة — أمين يتولى كل شيء بدقة مؤسسية وكفاءة اصطناعية.</p>
+      <div class="hero-btns">
+        <a href="/signup.html" class="btn-gold" data-t="hb1">🚀 ابدأ تجربتك المجانية</a>
+        <a href="#features"    class="btn-ghost" data-t="hb2">استكشف المنصة ↓</a>
+      </div>
+      <div class="hero-trust">
+        <div class="trust-ava">
+          <span>م</span><span>ف</span><span>أ</span><span>س</span><span>د</span>
         </div>
-        <div class="dash-body">
-          <div class="dash-sidebar">
-            <div class="dash-nav-item active"><div class="dash-nav-dot"></div><span data-t="db-dash">لوحة التحكم</span></div>
-            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-meet">الاجتماعات</span></div>
-            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-min">المحاضر</span></div>
-            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-sign">التوقيع</span></div>
-            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-board">المجالس</span></div>
-          </div>
-          <div class="dash-main">
-            <div class="dash-stat-row">
-              <div class="dash-stat"><div class="dash-stat-num">24</div><div class="dash-stat-lbl" data-t="ds-meet">اجتماع</div></div>
-              <div class="dash-stat"><div class="dash-stat-num">98%</div><div class="dash-stat-lbl" data-t="ds-acc">دقة المحاضر</div></div>
-              <div class="dash-stat"><div class="dash-stat-num">12</div><div class="dash-stat-lbl" data-t="ds-sign">توقيع معلّق</div></div>
-            </div>
-            <div class="dash-card">
-              <div class="dash-card-title" data-t="dc-rec">اجتماعات حديثة</div>
-              <div class="dash-row">
-                <div class="dash-avatar">م</div>
-                <div style="flex:1;font-size:.64rem;color:var(--text2)" data-t="dm1">اجتماع مجلس الإدارة — يوليو 2026</div>
-                <div class="dash-tag tag-g" data-t="dt-done">مكتمل</div>
-              </div>
-              <div class="dash-row">
-                <div class="dash-avatar" style="background:linear-gradient(135deg,#4a90d9,#7c6fff)">ق</div>
-                <div style="flex:1;font-size:.64rem;color:var(--text2)" data-t="dm2">اجتماع اللجنة التنفيذية</div>
-                <div class="dash-tag tag-y" data-t="dt-pend">قيد المراجعة</div>
-              </div>
-              <div class="dash-row" style="margin-top:.2rem">
-                <div class="dash-line"><div class="dash-fill"></div></div>
-                <div style="font-size:.6rem;color:var(--text3)">78%</div>
-              </div>
-              <div class="dash-ai-row">
-                <div class="ai-typing"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>
-                <span style="font-size:.63rem;color:var(--gold)" data-t="ai-lbl">أمين AI يعالج المحضر...</span>
-              </div>
-            </div>
-          </div>
+        <div class="trust-txt" data-t="ht">انضم إلى <strong>+500</strong> منظمة تثق بأمين</div>
+      </div>
+    </div>
+
+    <!-- Visual Side: Dashboard + Floating Exec Cards -->
+    <div class="hero-visual" id="hero-visual">
+
+      <!-- Exec Profile Card 1: Chairman -->
+      <div class="exec-card ec1">
+        <div class="exec-ring-wrap">
+          <div class="exec-ring"></div>
+          <div class="exec-avatar">م</div>
+        </div>
+        <div class="exec-badge">
+          <strong data-t="ec1n">محمد العتيبي</strong>
+          <span data-t="ec1r">رئيس مجلس الإدارة</span>
         </div>
       </div>
-      <div class="hero-glow"></div>
-    </div>
-  </div>
-</div>
 
-<!-- STATS -->
+      <!-- Exec Profile Card 2: CEO -->
+      <div class="exec-card ec2">
+        <div class="exec-ring-wrap">
+          <div class="exec-ring rev"></div>
+          <div class="exec-avatar" style="background:linear-gradient(135deg,var(--g4),var(--g5))">س</div>
+        </div>
+        <div class="exec-badge">
+          <strong data-t="ec2n">سارة المنصوري</strong>
+          <span data-t="ec2r">الرئيس التنفيذي</span>
+        </div>
+      </div>
+
+      <!-- Exec Profile Card 3: Director -->
+      <div class="exec-card ec3">
+        <div class="exec-ring-wrap">
+          <div class="exec-ring" style="animation-duration:12s"></div>
+          <div class="exec-avatar" style="background:linear-gradient(135deg,var(--teal),var(--g5))">ف</div>
+        </div>
+        <div class="exec-badge">
+          <strong data-t="ec3n">فيصل الشهراني</strong>
+          <span data-t="ec3r">المدير التنفيذي</span>
+        </div>
+      </div>
+
+      <!-- Exec Profile Card 4: Board Secretary -->
+      <div class="exec-card ec4">
+        <div class="exec-ring-wrap">
+          <div class="exec-ring rev" style="animation-duration:9s"></div>
+          <div class="exec-avatar" style="background:linear-gradient(135deg,var(--g5),var(--gold))">د</div>
+        </div>
+        <div class="exec-badge">
+          <strong data-t="ec4n">دانة الغامدي</strong>
+          <span data-t="ec4r">سكرتيرة مجلس الإدارة</span>
+        </div>
+      </div>
+
+      <!-- Dashboard Mockup -->
+      <div class="dash-wrap" id="dash-wrap">
+        <div class="dash-frame" id="dash-frame">
+          <div class="dash-scan"></div>
+          <div class="dash-topbar">
+            <div class="tbd tbd-r"></div><div class="tbd tbd-y"></div><div class="tbd tbd-g"></div>
+            <div class="tbd-brand">
+              <img src="/logo.png" alt="A"/>
+              <span>أمـيـن <em>Secretary</em></span>
+            </div>
+            <div class="tbd-url" data-t="dash-url">app.ameen-secretary.sa/dashboard</div>
+            <div class="tbd-avatar">م</div>
+          </div>
+          <div class="dash-body">
+            <!-- Sidebar -->
+            <div class="dash-sb">
+              <div class="dsb-logo">
+                <div class="dsb-logo-ic">أ</div>
+                <div class="dsb-logo-txt" data-t="dsl">لوحة التحكم</div>
+              </div>
+              <div class="sb-item act"><span class="sb-icon">📊</span><span data-t="si1">الرئيسية</span></div>
+              <div class="sb-item"><span class="sb-icon">📅</span><span data-t="si2">الاجتماعات</span></div>
+              <div class="sb-item"><span class="sb-icon">📋</span><span data-t="si3">المحاضر</span></div>
+              <div class="sb-item"><span class="sb-icon">✍️</span><span data-t="si4">التوقيع</span></div>
+              <div class="sb-sep"></div>
+              <div class="sb-item"><span class="sb-icon">🏛️</span><span data-t="si5">المجالس</span></div>
+              <div class="sb-item"><span class="sb-icon">👥</span><span data-t="si6">الأعضاء</span></div>
+              <div class="sb-item"><span class="sb-icon">⚙️</span><span data-t="si7">الإعدادات</span></div>
+            </div>
+            <!-- Main -->
+            <div class="dash-main">
+              <div class="dm-head" data-t="dmh">الاجتماعات القادمة</div>
+              <div class="dm-tabs">
+                <div class="dm-tab on" data-t="dt1">اجتماعاتي</div>
+                <div class="dm-tab" data-t="dt2">الكل</div>
+              </div>
+              <div class="meet-card">
+                <div class="meet-card-top">
+                  <div class="meet-ic">🏛️</div>
+                  <div class="meet-title" data-t="m1t">اجتماع مجلس الإدارة — الدورة الثالثة</div>
+                  <div class="meet-badge mb-g" data-t="m1s">مكتمل</div>
+                </div>
+                <div class="meet-meta">
+                  <span data-t="m1d">18 يوليو 2026 • 10:00 ص</span>
+                  <div class="meet-avatars">
+                    <div class="mav">م</div><div class="mav">س</div><div class="mav">ف</div><div class="mav">د</div><div class="mav">+</div>
+                  </div>
+                </div>
+              </div>
+              <div class="meet-card">
+                <div class="meet-card-top">
+                  <div class="meet-ic">📋</div>
+                  <div class="meet-title" data-t="m2t">اجتماع لجنة المراجعة والتدقيق</div>
+                  <div class="meet-badge mb-y" data-t="m2s">قيد المراجعة</div>
+                </div>
+                <div class="meet-meta">
+                  <span data-t="m2d">22 يوليو 2026 • 2:00 م</span>
+                  <div class="meet-avatars">
+                    <div class="mav">ف</div><div class="mav">م</div><div class="mav">أ</div>
+                  </div>
+                </div>
+              </div>
+              <div class="dash-stats">
+                <div class="ds"><div class="ds-n">24</div><div class="ds-l" data-t="dss1">اجتماع</div></div>
+                <div class="ds"><div class="ds-n">98%</div><div class="ds-l" data-t="dss2">دقة</div></div>
+                <div class="ds"><div class="ds-n">12</div><div class="ds-l" data-t="dss3">توقيع</div></div>
+              </div>
+              <div class="ai-strip">
+                <div class="ai-dots"><div class="ai-d"></div><div class="ai-d"></div><div class="ai-d"></div></div>
+                <div class="ai-txt" data-t="ait">أمين AI يعالج محضر الجلسة...</div>
+                <div class="ai-pct">98%</div>
+              </div>
+            </div>
+            <!-- Calendar -->
+            <div class="dash-cal">
+              <div class="cal-head" data-t="calh">يوليو 2026</div>
+              <div class="cal-grid">
+                <div class="cal-day" data-t="cd1">أح</div><div class="cal-day" data-t="cd2">إث</div><div class="cal-day" data-t="cd3">ث</div><div class="cal-day" data-t="cd4">أر</div><div class="cal-day" data-t="cd5">خ</div><div class="cal-day" data-t="cd6">ج</div><div class="cal-day" data-t="cd7">س</div>
+                <div class="cal-day">1</div><div class="cal-day">2</div><div class="cal-day">3</div><div class="cal-day">4</div><div class="cal-day has">5</div><div class="cal-day">6</div><div class="cal-day">7</div>
+                <div class="cal-day">8</div><div class="cal-day">9</div><div class="cal-day">10</div><div class="cal-day has">11</div><div class="cal-day">12</div><div class="cal-day">13</div><div class="cal-day">14</div>
+                <div class="cal-day has">15</div><div class="cal-day">16</div><div class="cal-day">17</div><div class="cal-day today">18</div><div class="cal-day">19</div><div class="cal-day">20</div><div class="cal-day has">21</div>
+                <div class="cal-day">22</div><div class="cal-day has">23</div><div class="cal-day">24</div><div class="cal-day">25</div><div class="cal-day">26</div><div class="cal-day has">27</div><div class="cal-day">28</div>
+              </div>
+              <div class="task-mini">
+                <div class="task-mini-h" data-t="tmh">المهام</div>
+                <div class="task-row"><div class="task-chk done"></div><div class="task-t done" data-t="tk1">إرسال جدول الأعمال</div></div>
+                <div class="task-row"><div class="task-chk done"></div><div class="task-t done" data-t="tk2">جمع التوقيعات</div></div>
+                <div class="task-row"><div class="task-chk"></div><div class="task-t" data-t="tk3">مراجعة المحضر</div></div>
+                <div class="task-row"><div class="task-chk"></div><div class="task-t" data-t="tk4">أرشفة الوثائق</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-glow-bottom"></div>
+      </div>
+    </div><!-- /hero-visual -->
+  </div><!-- /hero-inner -->
+</section>
+
+<!-- STATS BAR -->
 <div class="stats-bar">
-  <div class="stat-item reveal"><div class="stat-num" data-count="500" data-suf="+">0</div><div class="stat-lbl" data-t="st1">منظمة موثوقة</div></div>
-  <div class="stat-item reveal"><div class="stat-num" data-count="98"  data-suf="%">0</div><div class="stat-lbl" data-t="st2">دقة الذكاء الاصطناعي</div></div>
-  <div class="stat-item reveal"><div class="stat-num" data-count="10"  data-suf="×">0</div><div class="stat-lbl" data-t="st3">توفير في وقت المحاضر</div></div>
-  <div class="stat-item reveal"><div class="stat-num" data-count="24"  data-suf="/7">0</div><div class="stat-lbl" data-t="st4">دعم متواصل</div></div>
+  <div class="stats-inner">
+    <div class="si reveal"><div class="si-n" data-count="500" data-suf="+">0</div><div class="si-l" data-t="st1">منظمة موثوقة</div></div>
+    <div class="si reveal"><div class="si-n" data-count="98"  data-suf="%">0</div><div class="si-l" data-t="st2">دقة الذكاء الاصطناعي</div></div>
+    <div class="si reveal"><div class="si-n" data-count="10"  data-suf="×">0</div><div class="si-l" data-t="st3">توفير الوقت</div></div>
+    <div class="si reveal"><div class="si-n" data-count="24"  data-suf="/7">0</div><div class="si-l" data-t="st4">دعم متواصل</div></div>
+  </div>
 </div>
 
 <!-- FEATURES -->
-<section id="features">
-  <div class="centered reveal">
-    <div class="section-badge">✨ <span data-t="feat-badge">المميزات</span></div>
-    <h2 class="section-title" data-t="feat-title">كل ما تحتاجه في مكان واحد</h2>
-    <p class="section-sub" data-t="feat-sub">من تسجيل الاجتماع إلى الأرشفة الرسمية — أمين يدير كل خطوة بدقة وذكاء.</p>
-  </div>
-  <div class="feat-grid">
-    <div class="feat-card reveal"><div class="card-gloss"></div><div class="feat-icon-wrap">🎙️</div><div class="feat-card-title" data-t="f1t">محاضر ذكاء اصطناعي</div><div class="feat-card-desc" data-t="f1d">يحوّل التسجيل الصوتي إلى محضر منظّم ودقيق بثوانٍ، مع استخراج القرارات والمهام تلقائياً.</div></div>
-    <div class="feat-card reveal"><div class="card-gloss"></div><div class="feat-icon-wrap">✍️</div><div class="feat-card-title" data-t="f2t">توقيع إلكتروني</div><div class="feat-card-desc" data-t="f2d">رسم، كتابة، أو رفع التوقيع — سير موافقة متكامل مع تتبع الحالة في الوقت الفعلي.</div></div>
-    <div class="feat-card reveal"><div class="card-gloss"></div><div class="feat-icon-wrap">🏛️</div><div class="feat-card-title" data-t="f3t">حوكمة المجالس</div><div class="feat-card-desc" data-t="f3d">إدارة مجلس الإدارة واللجان، صلاحيات متدرجة، وتوثيق رسمي يلتزم بمعايير الحوكمة.</div></div>
-    <div class="feat-card reveal"><div class="card-gloss"></div><div class="feat-icon-wrap">🔄</div><div class="feat-card-title" data-t="f4t">سير الموافقات</div><div class="feat-card-desc" data-t="f4d">دورة موافقة متكاملة من مسودة المحضر إلى الاعتماد النهائي مع إشعارات فورية.</div></div>
-    <div class="feat-card reveal"><div class="card-gloss"></div><div class="feat-icon-wrap">📊</div><div class="feat-card-title" data-t="f5t">تقارير ولوحات بيانات</div><div class="feat-card-desc" data-t="f5d">إحصائيات تفصيلية عن الاجتماعات، معدلات الإنجاز، ومتابعة المهام في مكان واحد.</div></div>
-    <div class="feat-card reveal"><div class="card-gloss"></div><div class="feat-icon-wrap">🔒</div><div class="feat-card-title" data-t="f6t">أمان مؤسسي</div><div class="feat-card-desc" data-t="f6d">بيانات مشفّرة، تحكم في الصلاحيات، وسجل تدقيق كامل لكل إجراء داخل المنظمة.</div></div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<div class="how-outer" id="how">
-  <div style="max-width:1100px;margin:0 auto">
-    <div class="centered reveal">
-      <div class="section-badge">⚡ <span data-t="how-badge">كيف يعمل</span></div>
-      <h2 class="section-title" data-t="how-title">من الاجتماع إلى الأرشيف في 4 خطوات</h2>
+<div style="background:linear-gradient(180deg,var(--g0),var(--g1));padding:6rem 3rem;border-bottom:1px solid rgba(255,255,255,.04)" id="features">
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="center reveal">
+      <div class="chip">✨ <span data-t="fb">المميزات</span></div>
+      <h2 class="sec-h" data-t="fh">كل ما تحتاجه في منصة واحدة</h2>
+      <p class="sec-sub" data-t="fs">من التسجيل الصوتي إلى الأرشيف الرسمي — أمين يدير كل خطوة بدقة مؤسسية.</p>
     </div>
-    <div class="how-wrap" id="how-wrap">
-      <div class="how-track"><div class="how-track-fill" id="htf"></div></div>
-      <div class="how-step reveal"><div class="how-num"><div class="ring-pulse"></div>1</div><div class="how-title" data-t="hw1t">جدوِل الاجتماع</div><div class="how-desc" data-t="hw1d">أنشئ الاجتماع، حدد الحضور والأجندة، وأرسل الدعوات تلقائياً.</div></div>
-      <div class="how-step reveal"><div class="how-num"><div class="ring-pulse"></div>2</div><div class="how-title" data-t="hw2t">سجّل وفرّغ</div><div class="how-desc" data-t="hw2d">ارفع التسجيل ليقوم الذكاء الاصطناعي بتفريغه وتلخيصه في ثوانٍ.</div></div>
-      <div class="how-step reveal"><div class="how-num"><div class="ring-pulse"></div>3</div><div class="how-title" data-t="hw3t">راجع واعتمد</div><div class="how-desc" data-t="hw3d">أرسل المحضر لدورة الموافقة والتوقيع الإلكتروني من جميع الأطراف.</div></div>
-      <div class="how-step reveal"><div class="how-num"><div class="ring-pulse"></div>4</div><div class="how-title" data-t="hw4t">أرشف رسمياً</div><div class="how-desc" data-t="hw4d">يُحفظ المحضر المعتمد بشهادة رقمية في أرشيف المنظمة الرسمي.</div></div>
+    <div class="feat-grid">
+      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🎙️</div><div class="ft" data-t="f1t">محاضر بالذكاء الاصطناعي</div><div class="fd" data-t="f1d">تفريغ وتلخيص تلقائي للاجتماعات مع استخراج القرارات والمهام فوراً بدقة 98%.</div></div>
+      <div class="feat-card reveal"><div class="cg"></div><div class="fi">✍️</div><div class="ft" data-t="f2t">توقيع إلكتروني</div><div class="fd" data-t="f2d">سير موافقة متكامل مع توقيع رقمي متعدد الأطراف وتتبع الحالة في الوقت الفعلي.</div></div>
+      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🏛️</div><div class="ft" data-t="f3t">حوكمة المجالس</div><div class="fd" data-t="f3d">إدارة مجالس الإدارة واللجان مع صلاحيات متدرجة وتوثيق يلبي معايير الحوكمة.</div></div>
+      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🔄</div><div class="ft" data-t="f4t">سير الموافقات</div><div class="fd" data-t="f4d">دورة اعتماد كاملة من المسودة إلى التوقيع النهائي مع إشعارات فورية لجميع الأطراف.</div></div>
+      <div class="feat-card reveal"><div class="cg"></div><div class="fi">📊</div><div class="ft" data-t="f5t">تقارير وتحليلات</div><div class="fd" data-t="f5d">لوحات بيانات تفاعلية تتتبع الإنجاز والقرارات والمهام عبر جميع المجالس واللجان.</div></div>
+      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🔒</div><div class="ft" data-t="f6t">أمان مؤسسي</div><div class="fd" data-t="f6d">تشفير من الطرف إلى الطرف، وسجل تدقيق شامل، وتحكم دقيق في صلاحيات كل مستخدم.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- WORKFLOW -->
+<div class="wf-bg" id="workflow">
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="center reveal">
+      <div class="chip">⚡ <span data-t="wb">سير العمل</span></div>
+      <h2 class="sec-h" data-t="wh">من الاجتماع إلى الأرشيف في 4 خطوات</h2>
+    </div>
+    <div class="wf-steps" id="wf-steps">
+      <div class="wf-track"><div class="wf-fill" id="wf-fill"></div></div>
+      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>1</div><div class="wf-icon">📅</div><div class="wf-t" data-t="ws1t">جدوِل</div><div class="wf-d" data-t="ws1d">أنشئ الاجتماع، حدد الأجندة والحضور، وأرسل الدعوات تلقائياً.</div></div>
+      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>2</div><div class="wf-icon">🎙️</div><div class="wf-t" data-t="ws2t">سجّل وفرّغ</div><div class="wf-d" data-t="ws2d">الذكاء الاصطناعي يستمع ويفرّغ ويلخّص المحضر خلال ثوانٍ.</div></div>
+      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>3</div><div class="wf-icon">✅</div><div class="wf-t" data-t="ws3t">اعتمد ووقّع</div><div class="wf-d" data-t="ws3d">سير موافقة رقمي مع توقيع إلكتروني من جميع الأطراف المعنية.</div></div>
+      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>4</div><div class="wf-icon">🗂️</div><div class="wf-t" data-t="ws4t">أرشف رسمياً</div><div class="wf-d" data-t="ws4d">الوثيقة المعتمدة تُحفظ بشهادة رقمية في الأرشيف الرسمي للمنظمة.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- GOVERNANCE -->
+<div style="background:linear-gradient(180deg,var(--g0),var(--g1));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="governance">
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="gov-wrap">
+      <div class="reveal">
+        <div class="chip">🏛️ <span data-t="gb">حوكمة المجالس</span></div>
+        <h2 class="sec-h" data-t="gh">توثيق يرقى إلى معايير الحوكمة الدولية</h2>
+        <p class="sec-sub" data-t="gd">أمين مُصمَّم للمنظمات التي تلتزم بأعلى معايير الشفافية والمساءلة وحوكمة مجالس الإدارة.</p>
+        <div class="gov-pts">
+          <div class="gov-pt reveal"><div class="gov-pt-ic">🔐</div><div><div class="gov-pt-t" data-t="gp1t">صلاحيات متدرجة</div><div class="gov-pt-d" data-t="gp1d">تحكم دقيق في من يشاهد ويعدّل ويعتمد كل وثيقة على مستوى كل مجلس ولجنة.</div></div></div>
+          <div class="gov-pt reveal"><div class="gov-pt-ic">📜</div><div><div class="gov-pt-t" data-t="gp2t">أرشيف رسمي معتمد</div><div class="gov-pt-d" data-t="gp2d">كل قرار وتوقيع ووثيقة تُحفظ بختم رقمي زمني غير قابل للتغيير.</div></div></div>
+          <div class="gov-pt reveal"><div class="gov-pt-ic">📊</div><div><div class="gov-pt-t" data-t="gp3t">تقارير الامتثال</div><div class="gov-pt-d" data-t="gp3d">تقارير جاهزة لمتطلبات هيئات الحوكمة والرقابة والمدققين الخارجيين.</div></div></div>
+        </div>
+      </div>
+      <div class="gov-visual reveal">
+        <div class="gov-card-stack">
+          <div class="gov-card gc-back1"></div>
+          <div class="gov-card gc-back2"></div>
+          <div class="gov-card gc-main">
+            <div class="gc-title">📜 <span data-t="gct">محضر جلسة مجلس الإدارة — يوليو 2026</span></div>
+            <div class="gc-row">
+              <div class="gc-ava">م</div>
+              <div class="gc-name" data-t="gr1n">محمد العتيبي — رئيس المجلس</div>
+              <div class="gc-sig sig-done">✓ <span data-t="gr1s">وقّع</span></div>
+            </div>
+            <div class="gc-row">
+              <div class="gc-ava" style="background:linear-gradient(135deg,var(--g4),var(--g5))">س</div>
+              <div class="gc-name" data-t="gr2n">سارة المنصوري — الرئيس التنفيذي</div>
+              <div class="gc-sig sig-done">✓ <span data-t="gr2s">وقّع</span></div>
+            </div>
+            <div class="gc-row">
+              <div class="gc-ava" style="background:linear-gradient(135deg,var(--teal),var(--g5))">ف</div>
+              <div class="gc-name" data-t="gr3n">فيصل الشهراني — المدير التنفيذي</div>
+              <div class="gc-sig sig-pend">⏳ <span data-t="gr3s">في الانتظار</span></div>
+            </div>
+            <div class="gc-row">
+              <div class="gc-ava" style="background:linear-gradient(135deg,var(--g5),var(--gold))">د</div>
+              <div class="gc-name" data-t="gr4n">دانة الغامدي — سكرتيرة المجلس</div>
+              <div class="gc-sig sig-wait">– <span data-t="gr4s">لم يُرسل</span></div>
+            </div>
+            <div class="gc-prog">
+              <div class="gc-prog-l"><span data-t="gpl">تقدم الاعتماد</span><span>3/4</span></div>
+              <div class="gc-prog-bar"><div class="gc-prog-fill"></div></div>
+            </div>
+            <div class="gc-badge">✓ <span data-t="gcb">محفوظ بشهادة رقمية — 18 يوليو 2026</span></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- PRICING -->
-<section id="pricing">
-  <div class="centered reveal">
-    <div class="section-badge">💎 <span data-t="price-badge">الأسعار</span></div>
-    <h2 class="section-title" data-t="price-title">خطط تناسب كل منظمة</h2>
-    <p class="section-sub" data-t="price-sub">ابدأ مجاناً لمدة 7 أيام، ثم اختر الخطة التي تناسب حجم منظمتك.</p>
+<div style="background:linear-gradient(180deg,var(--g1),var(--g0));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="pricing">
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="center reveal">
+      <div class="chip">💎 <span data-t="pb">الأسعار</span></div>
+      <h2 class="sec-h" data-t="ph">خطط تناسب كل منظمة</h2>
+      <p class="sec-sub" data-t="ps">ابدأ مجاناً 7 أيام، ثم اختر ما يناسب حجم مؤسستك.</p>
+    </div>
+    <div class="plan-row" id="plan-row">
+      <div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem" data-t="pload">جارٍ التحميل...</div>
+    </div>
   </div>
-  <div class="plan-row" id="plan-row">
-    <div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem">جارٍ التحميل...</div>
+</div>
+
+<!-- TESTIMONIALS -->
+<div style="background:linear-gradient(180deg,var(--g0),var(--g1));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="testimonials">
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="center reveal">
+      <div class="chip">💬 <span data-t="tb">شهادات العملاء</span></div>
+      <h2 class="sec-h" data-t="th">ماذا يقول قادة المؤسسات؟</h2>
+    </div>
+    <div class="testi-grid">
+      <div class="testi-card reveal">
+        <div class="tc-mark">"</div>
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote" data-t="tq1">أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر التي كانت تأخذ ساعات باتت جاهزة في دقائق بدقة لا تُصدّق.</div>
+        <div class="testi-person">
+          <div class="tp-ava">م</div>
+          <div><div class="tp-name" data-t="tp1n">م. محمد الزهراني</div><div class="tp-role" data-t="tp1r">رئيس مجلس إدارة، مجموعة صناعية كبرى</div></div>
+        </div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="tc-mark">"</div>
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote" data-t="tq2">منصة استثنائية للحوكمة. التوقيع الإلكتروني وسير الموافقات وفّرا علينا أسابيع من المراسلات والمتابعة اليدوية.</div>
+        <div class="testi-person">
+          <div class="tp-ava" style="background:linear-gradient(135deg,var(--g4),var(--g5))">ن</div>
+          <div><div class="tp-name" data-t="tp2n">أ. نورة العتيبي</div><div class="tp-role" data-t="tp2r">مدير الحوكمة المؤسسية، مؤسسة مالية حكومية</div></div>
+        </div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="tc-mark">"</div>
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote" data-t="tq3">أخيراً منصة عربية بمستوى عالمي. سهولة الاستخدام والأمان العالي والذكاء الاصطناعي الدقيق — أمين يستحق كل ريال.</div>
+        <div class="testi-person">
+          <div class="tp-ava" style="background:linear-gradient(135deg,var(--teal),var(--gold))">خ</div>
+          <div><div class="tp-name" data-t="tp3n">د. خالد المالكي</div><div class="tp-role" data-t="tp3r">الرئيس التنفيذي، شركة تقنية رائدة</div></div>
+        </div>
+      </div>
+    </div>
   </div>
-</section>
+</div>
+
+<!-- FAQ -->
+<div style="background:linear-gradient(180deg,var(--g1),var(--g0));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="faq">
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="center reveal">
+      <div class="chip">❓ <span data-t="faqb">الأسئلة الشائعة</span></div>
+      <h2 class="sec-h" data-t="faqh">كل ما تريد معرفته</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal">
+        <div class="faq-q"><span data-t="fq1">كيف يعمل الذكاء الاصطناعي في تفريغ الاجتماعات؟</span><div class="faq-arr">▾</div></div>
+        <div class="faq-a" data-t="fa1">يستخدم أمين نماذج ذكاء اصطناعي متطورة مدربة على اللغة العربية للتعرف على الكلام وتفريغه. يمكنك رفع تسجيل صوتي أو فيديو، وسيقوم النظام بتفريغه وتلخيصه واستخراج القرارات والمهام تلقائياً خلال دقائق.</div>
+      </div>
+      <div class="faq-item reveal">
+        <div class="faq-q"><span data-t="fq2">هل بياناتنا آمنة ومحمية؟</span><div class="faq-arr">▾</div></div>
+        <div class="faq-a" data-t="fa2">نعم. جميع البيانات مشفّرة بمعيار AES-256 أثناء النقل والتخزين. لديك سجل تدقيق كامل لكل إجراء. البيانات محفوظة في خوادم معتمدة بأعلى معايير الأمان الدولية.</div>
+      </div>
+      <div class="faq-item reveal">
+        <div class="faq-q"><span data-t="fq3">هل يمكن لأعضاء متعددين التوقيع في نفس الوقت؟</span><div class="faq-arr">▾</div></div>
+        <div class="faq-a" data-t="fa3">نعم. يدعم أمين سير موافقة متوازي أو تسلسلي بحسب احتياجاتك. يمكن لكل عضو التوقيع من أي جهاز في أي وقت، ويتلقى الجميع إشعارات فورية عند اكتمال كل خطوة.</div>
+      </div>
+      <div class="faq-item reveal">
+        <div class="faq-q"><span data-t="fq4">ماذا يحدث بعد انتهاء التجربة المجانية؟</span><div class="faq-arr">▾</div></div>
+        <div class="faq-a" data-t="fa4">بعد 7 أيام، يمكنك اختيار خطة مناسبة للاستمرار. بياناتك تبقى محفوظة، ولن يُطلب منك بطاقة ائتمانية خلال فترة التجربة.</div>
+      </div>
+      <div class="faq-item reveal">
+        <div class="faq-q"><span data-t="fq5">هل يتكامل أمين مع Zoom وMicrosoft Teams؟</span><div class="faq-arr">▾</div></div>
+        <div class="faq-a" data-t="fa5">يدعم أمين حالياً رفع التسجيلات من جميع منصات الاجتماعات. التكامل المباشر مع Zoom وTeams قادم قريباً ضمن خطة التطوير.</div>
+      </div>
+      <div class="faq-item reveal">
+        <div class="faq-q"><span data-t="fq6">هل المنصة متاحة باللغة العربية بالكامل؟</span><div class="faq-arr">▾</div></div>
+        <div class="faq-a" data-t="fa6">نعم. أمين مبني أصلاً للغة العربية مع دعم كامل للاتجاه من اليمين لليسار. الذكاء الاصطناعي مدرّب على اللهجات العربية المختلفة مع دعم ثنائي اللغة.</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- CTA -->
-<div class="cta-section reveal">
-  <h2 class="section-title" data-t="cta-title">مستعد للبدء؟</h2>
-  <p data-t="cta-sub">انضم إلى مئات المنظمات التي تثق بأمين السكرتير لإدارة اجتماعاتها.</p>
-  <div class="hero-ctas">
-    <a href="/signup.html" class="cta-primary"   data-t="cta-btn">🚀 ابدأ تجربتك المجانية</a>
-    <a href="/login.html"  class="cta-secondary" data-t="cta-login">تسجيل الدخول</a>
+<div class="cta-wrap reveal">
+  <h2 class="cta-h" data-t="ctah">ابدأ رحلة الحوكمة الذكية اليوم</h2>
+  <p class="cta-sub" data-t="ctas">انضم إلى مئات المنظمات التي تثق بأمين لإدارة اجتماعاتها ومجالسها.</p>
+  <div class="cta-btns">
+    <a href="/signup.html" class="btn-gold"  data-t="ctab1">🚀 ابدأ مجاناً — 7 أيام</a>
+    <a href="/login.html"  class="btn-ghost" data-t="ctab2">تسجيل الدخول</a>
   </div>
 </div>
 
 <!-- FOOTER -->
 <footer>
-  <a href="/" class="footer-logo">
+  <a href="/" class="ft-brand">
     <img src="/logo.png" alt="Ameen"/>
     <span>أمـيـن <strong>Secretary</strong></span>
   </a>
-  <div class="footer-copy" data-t="copy">© 2026 أمين السكرتير. جميع الحقوق محفوظة.</div>
-  <div class="footer-links">
-    <a href="#" data-t="fl-terms">الشروط</a>
-    <a href="#" data-t="fl-privacy">الخصوصية</a>
-    <a href="#" data-t="fl-contact">تواصل</a>
+  <div class="ft-copy" data-t="fcp">© 2026 أمين السكرتير. جميع الحقوق محفوظة.</div>
+  <div class="ft-links">
+    <a href="#" data-t="fl1">الشروط</a>
+    <a href="#" data-t="fl2">الخصوصية</a>
+    <a href="#" data-t="fl3">تواصل معنا</a>
   </div>
 </footer>
 
 <script>
-/* ════════════════════════════════════════════════
-   CUSTOM CANVAS 2D — 3D WIREFRAME RENDERER
-   (works everywhere: no WebGL / Three.js needed)
-════════════════════════════════════════════════ */
-(function initCanvas3D() {
-  const canvas = document.getElementById('hero-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-
-  let W, H, CX, CY, animId;
-
-  // ── 3D math helpers ──────────────────────────
-  function rx(p, a) { // rotate around X
-    const c = Math.cos(a), s = Math.sin(a);
-    return [p[0], p[1]*c - p[2]*s, p[1]*s + p[2]*c];
-  }
-  function ry(p, a) { // rotate around Y
-    const c = Math.cos(a), s = Math.sin(a);
-    return [p[0]*c + p[2]*s, p[1], -p[0]*s + p[2]*c];
-  }
-  function rz(p, a) { // rotate around Z
-    const c = Math.cos(a), s = Math.sin(a);
-    return [p[0]*c - p[1]*s, p[0]*s + p[1]*c, p[2]];
-  }
-  function applyRot(p, ax, ay, az) {
-    return rz(ry(rx(p, ax), ay), az);
-  }
-
-  // Perspective projection
-  function proj(p, scale = 90, fov = 380) {
-    const z = p[2] + fov;
-    if (z < 1) return null;
-    const f = fov / z;
-    return [CX + p[0] * f * scale, CY + p[1] * f * scale, f];
-  }
-
-  // ── Torus knot ───────────────────────────────
-  const TORUS_SEG = 280;
-  const tkPts = [];
-  for (let i = 0; i <= TORUS_SEG; i++) {
-    const t = (i / TORUS_SEG) * Math.PI * 2;
-    const p = 2, q = 3;
-    const r = Math.cos(q * t) + 2.2;
-    tkPts.push([
-      r * Math.cos(p * t) * 1.4,
-      r * Math.sin(p * t) * 1.4,
-      -Math.sin(q * t) * 1.4
-    ]);
-  }
-
-  // ── Orbiting rings (parametric circles) ──────
-  function makeRing(segments, radius, tiltX, tiltY, tiltZ) {
-    return Array.from({ length: segments + 1 }, (_, i) => {
-      const a = (i / segments) * Math.PI * 2;
-      let p = [Math.cos(a) * radius, Math.sin(a) * radius, 0];
-      p = rx(p, tiltX); p = ry(p, tiltY); p = rz(p, tiltZ);
-      return p;
-    });
-  }
-  const ring1Base = makeRing(120, 3.2, Math.PI/3, 0.4, 0);
-  const ring2Base = makeRing(100, 4.8, -Math.PI/4, 0.8, 0.5);
-  const ring3Base = makeRing(80,  2.4, 1.2, -0.6, 0.2);
-
-  // ── Octahedron ───────────────────────────────
-  const OCT_VERTS = [
-    [1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]
-  ];
-  const OCT_EDGES = [
-    [0,2],[0,3],[0,4],[0,5],[1,2],[1,3],[1,4],[1,5],
-    [2,4],[2,5],[3,4],[3,5]
-  ];
-  const MINI_COUNT = 9;
-  const minis = Array.from({ length: MINI_COUNT }, (_, i) => ({
-    orbitAngle: (i / MINI_COUNT) * Math.PI * 2,
-    orbitR: 3.2 + (i % 3) * 1.1,
-    orbitSpeed: 0.003 + (i * 0.0007),
-    orbitY: (Math.sin(i * 2.1)) * 1.5,
-    size: 0.22 + (i % 3) * 0.06,
-    rx: 0, ry: 0, rz: 0,
-    drx: (Math.random() - 0.5) * 0.04,
-    dry: (Math.random() - 0.5) * 0.04,
-    drz: (Math.random() - 0.5) * 0.025,
-    color: ['rgba(201,168,76,', 'rgba(74,144,217,', 'rgba(124,111,255,'][i % 3],
-  }));
-
-  // ── Particles ────────────────────────────────
-  const P_COUNT = 550;
-  const particles = Array.from({ length: P_COUNT }, () => ({
-    x: (Math.random() - 0.5) * 22,
-    y: (Math.random() - 0.5) * 14,
-    z: (Math.random() - 0.5) * 16,
-    vx: (Math.random() - 0.5) * 0.006,
-    vy: (Math.random() - 0.5) * 0.006,
-    vz: (Math.random() - 0.5) * 0.005,
-    size: Math.random() * 1.4 + 0.4,
-    alpha: Math.random() * 0.5 + 0.2,
-    col: Math.random() > 0.75 ? '74,144,217' : Math.random() > 0.5 ? '201,168,76' : '255,255,255',
-  }));
-
-  // ── Mouse ────────────────────────────────────
-  let tMouseX = 0, tMouseY = 0, mouseX = 0, mouseY = 0;
-  document.addEventListener('mousemove', e => {
-    tMouseX = (e.clientX / window.innerWidth  - 0.5) * 2;
-    tMouseY = (e.clientY / window.innerHeight - 0.5) * 2;
-  });
-
-  // ── Resize ───────────────────────────────────
-  function resize() {
-    W = canvas.width  = canvas.offsetWidth  || window.innerWidth;
-    H = canvas.height = canvas.offsetHeight || window.innerHeight;
-    CX = W * 0.68;   // offset focal point to right side
-    CY = H * 0.42;
-  }
+/* ══════════════════════════════════════════════
+   CANVAS — AMBIENT PARTICLE FIELD
+══════════════════════════════════════════════ */
+(function(){
+  const cv = document.getElementById('hero-canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  let W, H;
+  const resize = () => { W = cv.width = cv.offsetWidth; H = cv.height = cv.offsetHeight; };
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', resize, {passive:true});
 
-  // ── Draw helpers ─────────────────────────────
-  function drawPath(pts3, ax, ay, az, color, alpha, lw) {
-    let started = false;
-    ctx.beginPath();
-    for (const raw of pts3) {
-      const p = applyRot(raw, ax, ay, az);
-      const s = proj(p);
-      if (!s) continue;
-      if (!started) { ctx.moveTo(s[0], s[1]); started = true; }
-      else ctx.lineTo(s[0], s[1]);
-    }
-    ctx.strokeStyle = color.replace('ALPHA', alpha);
-    ctx.lineWidth = lw;
-    ctx.stroke();
-  }
+  // Generate particles
+  const N = 220;
+  const pts = Array.from({length:N}, () => ({
+    x: Math.random() * 1.4 - 0.2,   // 0-1 (normalized)
+    y: Math.random() * 1.3 - 0.1,
+    vx: (Math.random() - 0.5) * 0.00012,
+    vy: (Math.random() - 0.5) * 0.00012,
+    r: Math.random() * 1.3 + 0.4,
+    a: Math.random() * 0.45 + 0.1,
+    col: ['201,168,76','180,230,200','120,200,160','245,217,128'][Math.floor(Math.random()*4)],
+  }));
 
-  function drawOct(mini, ax, ay) {
-    const { size, rx: mrx, ry: mry, rz: mrz, color, orbitAngle, orbitR, orbitY } = mini;
-    const ox = Math.cos(orbitAngle) * orbitR;
-    const oz = Math.sin(orbitAngle) * orbitR;
-
-    const verts = OCT_VERTS.map(v => {
-      let p = [v[0]*size, v[1]*size, v[2]*size];
-      p = applyRot(p, mrx, mry, mrz);
-      p = [p[0] + ox, p[1] + orbitY, p[2] + oz];
-      p = applyRot(p, ax * 0.6, ay * 0.6, 0);
-      return p;
-    });
-
-    const projs = verts.map(v => proj(v, 90, 380));
-    ctx.beginPath();
-    for (const [a, b] of OCT_EDGES) {
-      if (!projs[a] || !projs[b]) continue;
-      ctx.moveTo(projs[a][0], projs[a][1]);
-      ctx.lineTo(projs[b][0], projs[b][1]);
-    }
-    ctx.strokeStyle = color + '0.55)';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-  }
-
-  // ── Main render loop ─────────────────────────
-  let t = 0;
-  function render() {
-    animId = requestAnimationFrame(render);
-    t += 0.008;
-
-    // Smooth mouse
-    mouseX += (tMouseX - mouseX) * 0.035;
-    mouseY += (tMouseY - mouseY) * 0.035;
-
-    const ax = t * 0.18 + mouseY * 0.3;
-    const ay = t * 0.27 + mouseX * 0.35;
-    const az = Math.sin(t * 0.15) * 0.04;
-
+  function draw() {
+    requestAnimationFrame(draw);
     ctx.clearRect(0, 0, W, H);
-
-    // ── Particles ──
-    for (const p of particles) {
-      p.x += p.vx; p.y += p.vy; p.z += p.vz;
-      if (Math.abs(p.x) > 11) p.vx *= -1;
-      if (Math.abs(p.y) > 7)  p.vy *= -1;
-      if (Math.abs(p.z) > 8)  p.vz *= -1;
-      const rotP = applyRot([p.x, p.y, p.z], ax * 0.15, ay * 0.15, 0);
-      const s = proj(rotP, 90, 380);
-      if (!s) continue;
-      const sz = Math.max(0.3, p.size * s[2]);
+    for (const p of pts) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -0.05 || p.x > 1.05) p.vx *= -1;
+      if (p.y < -0.05 || p.y > 1.05) p.vy *= -1;
       ctx.beginPath();
-      ctx.arc(s[0], s[1], sz, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${p.col},${(p.alpha * s[2]).toFixed(2)})`;
+      ctx.arc(p.x * W, p.y * H, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${p.col},${p.a})`;
       ctx.fill();
     }
-
-    // ── Rings ──
-    // Ring 1 — gold
-    ctx.beginPath();
-    let first = true;
-    for (const raw of ring1Base) {
-      const p = applyRot(raw, ax * 0.8, ay * 0.8, az);
-      const s = proj(p, 90, 380);
-      if (!s) continue;
-      if (first) { ctx.moveTo(s[0], s[1]); first = false; } else ctx.lineTo(s[0], s[1]);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = 'rgba(201,168,76,0.18)';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    // Ring 2 — blue
-    ctx.beginPath(); first = true;
-    for (const raw of ring2Base) {
-      const p = applyRot(raw, ax * 0.5, ay * 0.5 + 0.8, az * 0.5);
-      const s = proj(p, 90, 380);
-      if (!s) continue;
-      if (first) { ctx.moveTo(s[0], s[1]); first = false; } else ctx.lineTo(s[0], s[1]);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = 'rgba(74,144,217,0.1)';
-    ctx.lineWidth = 0.9;
-    ctx.stroke();
-
-    // Ring 3 — purple
-    ctx.beginPath(); first = true;
-    for (const raw of ring3Base) {
-      const p = applyRot(raw, ax * 1.1 + 1, ay * 0.7 - 0.5, az);
-      const s = proj(p, 90, 380);
-      if (!s) continue;
-      if (first) { ctx.moveTo(s[0], s[1]); first = false; } else ctx.lineTo(s[0], s[1]);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = 'rgba(124,111,255,0.09)';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-
-    // ── Torus knot — dual pass (glow + sharp) ──
-    // Glow pass
-    ctx.save();
-    ctx.filter = 'blur(3px)';
-    ctx.beginPath(); first = true;
-    for (const raw of tkPts) {
-      const p = applyRot(raw, ax, ay, az);
-      const s = proj(p, 90, 380);
-      if (!s) continue;
-      if (first) { ctx.moveTo(s[0], s[1]); first = false; } else ctx.lineTo(s[0], s[1]);
-    }
-    ctx.strokeStyle = 'rgba(201,168,76,0.22)';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.restore();
-
-    // Sharp pass
-    ctx.beginPath(); first = true;
-    for (const raw of tkPts) {
-      const p = applyRot(raw, ax, ay, az);
-      const s = proj(p, 90, 380);
-      if (!s) continue;
-      if (first) { ctx.moveTo(s[0], s[1]); first = false; } else ctx.lineTo(s[0], s[1]);
-    }
-    const grad = ctx.createLinearGradient(CX - 120, CY - 120, CX + 120, CY + 120);
-    grad.addColorStop(0, 'rgba(245,217,128,0.95)');
-    grad.addColorStop(0.5, 'rgba(201,168,76,0.85)');
-    grad.addColorStop(1, 'rgba(160,120,48,0.8)');
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    // ── Mini shapes ──
-    for (const mini of minis) {
-      mini.orbitAngle += mini.orbitSpeed;
-      mini.rx += mini.drx;
-      mini.ry += mini.dry;
-      mini.rz += mini.drz;
-      drawOct(mini, ax, ay);
+    // Draw connection lines between nearby particles
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        const dx = (pts[i].x - pts[j].x) * W;
+        const dy = (pts[i].y - pts[j].y) * H;
+        const d2 = dx*dx + dy*dy;
+        if (d2 < 14400) { // 120px
+          ctx.beginPath();
+          ctx.moveTo(pts[i].x*W, pts[i].y*H);
+          ctx.lineTo(pts[j].x*W, pts[j].y*H);
+          ctx.strokeStyle = `rgba(201,168,76,${(1 - Math.sqrt(d2)/120) * 0.1})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
     }
   }
-  render();
+  draw();
 })();
 
-/* ════════════════════════════════════════════════
-   DASHBOARD 3D TILT
-════════════════════════════════════════════════ */
-(function() {
-  const visual = document.getElementById('hero-visual');
-  const frame  = document.getElementById('dash-frame');
-  if (!visual || !frame) return;
-  visual.addEventListener('mousemove', e => {
-    const r = visual.getBoundingClientRect();
+/* ══════════════════════════════════════════════
+   DASHBOARD 3D MOUSE TILT
+══════════════════════════════════════════════ */
+(function(){
+  const wrap = document.getElementById('dash-wrap');
+  const frame = document.getElementById('dash-frame');
+  if (!wrap || !frame) return;
+  wrap.addEventListener('mousemove', e => {
+    const r = wrap.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width  - 0.5;
     const y = (e.clientY - r.top)  / r.height - 0.5;
-    frame.style.transform = `perspective(1400px) rotateX(${-y * 10}deg) rotateY(${x * 10}deg) scale(1.015)`;
+    frame.style.transform = `perspective(1200px) rotateX(${-y*8}deg) rotateY(${x*10}deg) scale(1.015)`;
   });
-  visual.addEventListener('mouseleave', () => {
-    frame.style.transform = 'rotateX(7deg) rotateY(0deg)';
+  wrap.addEventListener('mouseleave', () => {
+    frame.style.transform = 'perspective(1200px) rotateX(4deg) rotateY(-5deg)';
   });
 })();
 
-/* ════════════════════════════════════════════════
+/* ══════════════════════════════════════════════
    FEATURE CARD 3D TILT
-════════════════════════════════════════════════ */
-function initCardTilt() {
+══════════════════════════════════════════════ */
+function initTilts() {
   document.querySelectorAll('.feat-card').forEach(card => {
     card.addEventListener('mousemove', e => {
       const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width  - 0.5;
-      const y = (e.clientY - r.top)  / r.height - 0.5;
-      card.style.transform = `perspective(700px) rotateX(${-y * 14}deg) rotateY(${x * 14}deg) translateY(-5px) scale(1.01)`;
-      const g = card.querySelector('.card-gloss');
-      if (g) g.style.background = `radial-gradient(circle at ${(x+.5)*100}% ${(y+.5)*100}%,rgba(201,168,76,.15) 0%,transparent 55%)`;
+      const x = (e.clientX - r.left)/r.width - 0.5;
+      const y = (e.clientY - r.top)/r.height - 0.5;
+      card.style.transform = `perspective(700px) rotateX(${-y*13}deg) rotateY(${x*13}deg) translateY(-5px) scale(1.01)`;
+      const g = card.querySelector('.cg');
+      if (g) g.style.background = `radial-gradient(circle at ${(x+.5)*100}% ${(y+.5)*100}%,rgba(201,168,76,.13) 0%,transparent 55%)`;
     });
     card.addEventListener('mouseleave', () => {
       card.style.transform = '';
-      const g = card.querySelector('.card-gloss');
+      const g = card.querySelector('.cg');
       if (g) g.style.background = '';
     });
   });
 }
 
-/* ════════════════════════════════════════════════
-   SCROLL ANIMATIONS
-════════════════════════════════════════════════ */
-const sBar = document.getElementById('scroll-bar');
+/* ══════════════════════════════════════════════
+   SCROLL: PROGRESS BAR + NAV + REVEALS
+══════════════════════════════════════════════ */
+const sp = document.getElementById('sp');
 window.addEventListener('scroll', () => {
   const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
-  if (sBar) sBar.style.width = (pct * 100) + '%';
-  document.getElementById('nav')?.classList.toggle('scrolled', window.scrollY > 60);
-}, { passive: true });
+  if (sp) sp.style.width = (pct * 100) + '%';
+  document.getElementById('nav')?.classList.toggle('stuck', window.scrollY > 50);
+}, {passive:true});
 
 const revObs = new IntersectionObserver((entries) => {
   entries.forEach((e, i) => {
     if (e.isIntersecting) {
-      setTimeout(() => e.target.classList.add('shown'), i * 85);
+      setTimeout(() => e.target.classList.add('on'), i * 80);
       revObs.unobserve(e.target);
     }
   });
-}, { threshold: 0.1 });
+}, {threshold:0.1});
 
-// How-it-works fill line
-const howObs = new IntersectionObserver(entries => {
-  if (!entries[0].isIntersecting) return;
-  const fill = document.getElementById('htf');
+// Workflow fill
+const wfObs = new IntersectionObserver(e => {
+  if (!e[0].isIntersecting) return;
+  const fill = document.getElementById('wf-fill');
   if (fill) fill.style.width = '100%';
-  document.querySelectorAll('.how-step').forEach((s, i) =>
-    setTimeout(() => s.classList.add('lit'), i * 420 + 250));
-  howObs.disconnect();
-}, { threshold: 0.25 });
-const hw = document.getElementById('how-wrap');
-if (hw) howObs.observe(hw);
+  document.querySelectorAll('.wf-step').forEach((s, i) =>
+    setTimeout(() => s.classList.add('lit'), i * 420 + 200));
+  wfObs.disconnect();
+}, {threshold:0.25});
+const wfEl = document.getElementById('wf-steps');
+if (wfEl) wfObs.observe(wfEl);
 
 // Counters
 function animCount(el) {
-  const target = +el.dataset.count;
-  const suf = el.dataset.suf || '';
-  let cur = 0, step = target / 55;
+  const t = +el.dataset.count, suf = el.dataset.suf || '';
+  let c = 0, step = t / 55;
   const iv = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = Math.round(cur) + suf;
-    if (cur >= target) clearInterval(iv);
-  }, 26);
+    c = Math.min(c + step, t);
+    el.textContent = Math.round(c) + suf;
+    if (c >= t) clearInterval(iv);
+  }, 24);
 }
-const stObs = new IntersectionObserver(e => {
-  if (e[0].isIntersecting) { document.querySelectorAll('[data-count]').forEach(animCount); stObs.disconnect(); }
-}, { threshold: 0.3 });
+const cntObs = new IntersectionObserver(e => {
+  if (e[0].isIntersecting) { document.querySelectorAll('[data-count]').forEach(animCount); cntObs.disconnect(); }
+}, {threshold:0.3});
 const sb = document.querySelector('.stats-bar');
-if (sb) stObs.observe(sb);
+if (sb) cntObs.observe(sb);
 
-/* ════════════════════════════════════════════════
-   PLANS
-════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════
+   FAQ ACCORDION
+══════════════════════════════════════════════ */
+document.querySelectorAll('.faq-q').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.parentElement;
+    const open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+    if (!open) item.classList.add('open');
+  });
+});
+
+/* ══════════════════════════════════════════════
+   PLANS LOADER
+══════════════════════════════════════════════ */
 let plans = [], lang = localStorage.getItem('lang') || 'ar';
 
 async function loadPlans() {
@@ -756,110 +910,179 @@ async function loadPlans() {
 }
 
 function renderPlans() {
-  const t = TR[lang];
+  const T = TR[lang];
   const el = document.getElementById('plan-row');
-  if (!el || !plans.length) return;
+  if (!el || !plans.length) { if (el) el.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem">${T['pload']||'...'}</div>`; return; }
   const ALL = ['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support'];
   el.innerHTML = plans.map(p => {
     const feats = JSON.parse(p.features || '[]');
-    const isFree = p.slug === 'free_trial', isPrem = p.slug === 'premium';
-    const maxU = p.max_users >= 999 ? t.unlim : p.max_users + ' ' + t.users;
-    const maxM = p.max_meetings_month >= 999 ? t.unlim : p.max_meetings_month + ' ' + t.meetmo;
-    const priceHtml = isFree
-      ? `<div class="plan-box-price">$<span style="font-size:2.6rem">0</span></div>`
-      : `<div class="plan-box-price"><sub>$</sub>${p.price_monthly_usd}<span>${t.permo}</span></div>`;
-    return `<div class="plan-box${isPrem?' featured':''} reveal">
-      ${isPrem?`<div class="plan-pop">${t.popular}</div>`:''}
-      <div class="plan-box-name">${lang==='ar'?p.name_ar:p.name_en}</div>
-      ${priceHtml}
-      <div class="plan-box-desc">${isFree?t.trial+' · ':''} ${maxU} · ${maxM}</div>
-      <div class="plan-box-feats">${ALL.map(f=>`<div class="plan-feat-item"><span class="${feats.includes(f)?'chk':'no'}">${feats.includes(f)?'✓':'–'}</span>${t.pf[f]||f}</div>`).join('')}</div>
-      <a href="/signup.html" class="plan-btn">${isFree?t.getstart:t.choose}</a>
+    const isFree = p.slug==='free_trial', isPrem = p.slug==='premium';
+    const maxU = p.max_users >= 999 ? T.unlim : p.max_users + ' ' + T.users;
+    const maxM = p.max_meetings_month >= 999 ? T.unlim : p.max_meetings_month + ' ' + T.meetmo;
+    const link = isFree ? '/signup.html' : `/signup.html?plan=${p.slug}`;
+    return `<div class="plan-box${isPrem?' feat':''} reveal">
+      ${isPrem?`<div class="plan-pop">${T.popular}</div>`:''}
+      <div class="plan-name">${lang==='ar'?p.name_ar:p.name_en}</div>
+      ${isFree
+        ? `<div class="plan-price">$<span style="font-size:2.5rem">0</span></div>`
+        : `<div class="plan-price"><sub>$</sub>${p.price_monthly_usd}<span>${T.permo}</span></div>`}
+      <div class="plan-desc">${isFree?T.trial+' · ':''} ${maxU} · ${maxM}</div>
+      <div class="plan-feats">${ALL.map(f=>`<div class="pf-item"><span class="${feats.includes(f)?'pf-yes':'pf-no'}">${feats.includes(f)?'✓':'–'}</span>${T.pf[f]||f}</div>`).join('')}</div>
+      <a href="${link}" class="plan-btn">${isFree?T.getstart:T.choose}</a>
     </div>`;
   }).join('');
   el.querySelectorAll('.reveal').forEach(e => revObs.observe(e));
 }
 
-/* ════════════════════════════════════════════════
+/* ══════════════════════════════════════════════
    TRANSLATIONS
-════════════════════════════════════════════════ */
+══════════════════════════════════════════════ */
 const TR = {
-  ar:{
-    'nav-feat':'المميزات','nav-how':'كيف يعمل','nav-price':'الأسعار','nav-login':'دخول','nav-cta':'ابدأ مجاناً',
-    'badge':'نظام الأمانة التنفيذية الذكية للمؤسسات',
-    'h1a':'اجتماعاتك أكثر ذكاءً','h1b':'بقوة الذكاء الاصطناعي',
-    'hero-sub':'منصة متكاملة لإدارة محاضر الاجتماعات، التوقيعات الإلكترونية، وحوكمة المجالس — مصممة للمؤسسات التي تقدّر الدقة والكفاءة.',
-    'cta1':'🚀 ابدأ تجربتك المجانية','cta2':'اكتشف المميزات ↓',
-    'dash-url':'app.ameen-secretary.sa — لوحة التحكم',
-    'db-dash':'لوحة التحكم','db-meet':'الاجتماعات','db-min':'المحاضر','db-sign':'التوقيع','db-board':'المجالس',
-    'ds-meet':'اجتماع','ds-acc':'دقة المحاضر','ds-sign':'توقيع معلّق',
-    'dc-rec':'اجتماعات حديثة','dm1':'اجتماع مجلس الإدارة — يوليو 2026','dm2':'اجتماع اللجنة التنفيذية',
-    'dt-done':'مكتمل','dt-pend':'قيد المراجعة','ai-lbl':'أمين AI يعالج المحضر...',
-    'st1':'منظمة موثوقة','st2':'دقة الذكاء الاصطناعي','st3':'توفير في وقت المحاضر','st4':'دعم متواصل',
-    'feat-badge':'المميزات','feat-title':'كل ما تحتاجه في مكان واحد','feat-sub':'من تسجيل الاجتماع إلى الأرشفة الرسمية — أمين يدير كل خطوة بدقة وذكاء.',
-    'f1t':'محاضر ذكاء اصطناعي','f1d':'يحوّل التسجيل الصوتي إلى محضر منظّم ودقيق بثوانٍ، مع استخراج القرارات والمهام تلقائياً.',
-    'f2t':'توقيع إلكتروني','f2d':'رسم، كتابة، أو رفع التوقيع — سير موافقة متكامل مع تتبع الحالة في الوقت الفعلي.',
-    'f3t':'حوكمة المجالس','f3d':'إدارة مجلس الإدارة واللجان، صلاحيات متدرجة، وتوثيق رسمي يلتزم بمعايير الحوكمة.',
-    'f4t':'سير الموافقات','f4d':'دورة موافقة متكاملة من مسودة المحضر إلى الاعتماد النهائي مع إشعارات فورية.',
-    'f5t':'تقارير ولوحات بيانات','f5d':'إحصائيات تفصيلية عن الاجتماعات، معدلات الإنجاز، ومتابعة المهام في مكان واحد.',
-    'f6t':'أمان مؤسسي','f6d':'بيانات مشفّرة، تحكم في الصلاحيات، وسجل تدقيق كامل لكل إجراء داخل المنظمة.',
-    'how-badge':'كيف يعمل','how-title':'من الاجتماع إلى الأرشيف في 4 خطوات',
-    'hw1t':'جدوِل الاجتماع','hw1d':'أنشئ الاجتماع، حدد الحضور والأجندة، وأرسل الدعوات تلقائياً.',
-    'hw2t':'سجّل وفرّغ','hw2d':'ارفع التسجيل ليقوم الذكاء الاصطناعي بتفريغه وتلخيصه في ثوانٍ.',
-    'hw3t':'راجع واعتمد','hw3d':'أرسل المحضر لدورة الموافقة والتوقيع الإلكتروني من جميع الأطراف.',
-    'hw4t':'أرشف رسمياً','hw4d':'يُحفظ المحضر المعتمد بشهادة رقمية في أرشيف المنظمة الرسمي.',
-    'price-badge':'الأسعار','price-title':'خطط تناسب كل منظمة','price-sub':'ابدأ مجاناً لمدة 7 أيام، ثم اختر الخطة التي تناسب حجم منظمتك.',
-    'cta-title':'مستعد للبدء؟','cta-sub':'انضم إلى مئات المنظمات التي تثق بأمين السكرتير لإدارة اجتماعاتها.',
-    'cta-btn':'🚀 ابدأ تجربتك المجانية','cta-login':'تسجيل الدخول',
-    'copy':'© 2026 أمين السكرتير. جميع الحقوق محفوظة.','fl-terms':'الشروط','fl-privacy':'الخصوصية','fl-contact':'تواصل',
-    dir:'rtl',
-    pf:{ai_minutes:'محاضر AI',e_signature:'توقيع إلكتروني',approval_workflow:'سير موافقة',board_management:'إدارة مجالس',advanced_reports:'تقارير متقدمة',email_notifications:'إشعارات بريد',whatsapp_notifications:'إشعارات واتساب',custom_branding:'علامة مخصصة',api_access:'واجهة API',sso:'تسجيل موحّد',dedicated_support:'دعم مخصص'},
-    unlim:'غير محدود',users:'مستخدمين',meetmo:'اجتماع/شهر',trial:'7 أيام مجاناً',permo:'/شهر',popular:'الأكثر شعبياً',getstart:'ابدأ مجاناً',choose:'اختر الخطة',
-  },
-  en:{
-    'nav-feat':'Features','nav-how':'How It Works','nav-price':'Pricing','nav-login':'Sign In','nav-cta':'Get Started',
-    'badge':'Smart Executive Secretariat for Organisations',
-    'h1a':'Smarter meetings,','h1b':'powered by AI',
-    'hero-sub':'A complete platform for meeting minutes, e-signatures, and board governance — built for organisations that value precision and efficiency.',
-    'cta1':'🚀 Start Free Trial','cta2':'Explore features ↓',
-    'dash-url':'app.ameen-secretary.sa — Dashboard',
-    'db-dash':'Dashboard','db-meet':'Meetings','db-min':'Minutes','db-sign':'Signatures','db-board':'Boards',
-    'ds-meet':'Meetings','ds-acc':'AI Accuracy','ds-sign':'Pending Sigs',
-    'dc-rec':'Recent Meetings','dm1':'Board Meeting — July 2026','dm2':'Executive Committee Meeting',
-    'dt-done':'Complete','dt-pend':'In Review','ai-lbl':'Ameen AI processing minutes...',
-    'st1':'Trusted Orgs','st2':'AI Accuracy','st3':'Time Saved','st4':'Support',
-    'feat-badge':'Features','feat-title':'Everything in one place','feat-sub':'From recording to official archive — Ameen handles every step with precision and intelligence.',
-    'f1t':'AI-Powered Minutes','f1d':'Converts audio recordings into accurate, structured minutes in seconds — with tasks and decisions extracted automatically.',
-    'f2t':'E-Signature','f2d':'Draw, type, or upload — a complete approval workflow with real-time status tracking.',
-    'f3t':'Board Governance','f3d':'Manage boards and committees, tiered permissions, and formal documentation that meets governance standards.',
-    'f4t':'Approval Workflow','f4d':'Full approval cycle from draft minutes to final sign-off with instant notifications.',
-    'f5t':'Reports & Analytics','f5d':'Detailed meeting statistics, completion rates, and task tracking — all in one dashboard.',
-    'f6t':'Enterprise Security','f6d':'Encrypted data, permission controls, and a full audit trail for every action within your organisation.',
-    'how-badge':'How It Works','how-title':'From meeting to archive in 4 steps',
-    'hw1t':'Schedule','hw1d':'Create the meeting, set attendees and agenda, and send invitations automatically.',
-    'hw2t':'Record & Transcribe','hw2d':'Upload the recording and let AI transcribe and summarise it in seconds.',
-    'hw3t':'Review & Approve','hw3d':'Send the minutes for an approval and e-signature cycle from all parties.',
-    'hw4t':'Archive Officially','hw4d':'The approved minutes are stored with a digital certificate in the official archive.',
-    'price-badge':'Pricing','price-title':'Plans for every organisation','price-sub':'Start free for 7 days, then choose the plan that fits your organisation.',
-    'cta-title':'Ready to get started?','cta-sub':'Join hundreds of organisations that trust Ameen Secretary to manage their meetings.',
-    'cta-btn':'🚀 Start Free Trial','cta-login':'Sign In',
-    'copy':'© 2026 Ameen Secretary. All rights reserved.','fl-terms':'Terms','fl-privacy':'Privacy','fl-contact':'Contact',
-    dir:'ltr',
-    pf:{ai_minutes:'AI Minutes',e_signature:'E-Signature',approval_workflow:'Approval Workflow',board_management:'Board Management',advanced_reports:'Advanced Reports',email_notifications:'Email Notifications',whatsapp_notifications:'WhatsApp Notifications',custom_branding:'Custom Branding',api_access:'API Access',sso:'SSO',dedicated_support:'Dedicated Support'},
-    unlim:'Unlimited',users:'users',meetmo:'mtgs/mo',trial:'7 days free',permo:'/mo',popular:'Most Popular',getstart:'Start Free',choose:'Choose Plan',
-  }
-};
+ar:{
+  nl1:'المميزات',nl2:'كيف يعمل',nl3:'الحوكمة',nl4:'الأسعار',nl5:'الأسئلة',
+  'nav-in':'دخول','nav-up':'ابدأ مجاناً',
+  ey:'نظام أمانة تنفيذية مدعوم بالذكاء الاصطناعي',
+  h1a:'أمانتك التنفيذية',h1b:'بذكاء لا يهدأ',
+  hs:'من جدولة الاجتماعات إلى أرشفة المحاضر وإدارة الحوكمة — أمين يتولى كل شيء بدقة مؤسسية وكفاءة اصطناعية.',
+  hb1:'🚀 ابدأ تجربتك المجانية',hb2:'استكشف المنصة ↓',
+  ht:'انضم إلى <strong>+500</strong> منظمة تثق بأمين',
+  ec1n:'محمد العتيبي',ec1r:'رئيس مجلس الإدارة',
+  ec2n:'سارة المنصوري',ec2r:'الرئيس التنفيذي',
+  ec3n:'فيصل الشهراني',ec3r:'المدير التنفيذي',
+  ec4n:'دانة الغامدي',ec4r:'سكرتيرة مجلس الإدارة',
+  'dash-url':'app.ameen-secretary.sa/dashboard',
+  dsl:'لوحة التحكم',si1:'الرئيسية',si2:'الاجتماعات',si3:'المحاضر',si4:'التوقيع',si5:'المجالس',si6:'الأعضاء',si7:'الإعدادات',
+  dmh:'الاجتماعات القادمة',dt1:'اجتماعاتي',dt2:'الكل',
+  m1t:'اجتماع مجلس الإدارة — الدورة الثالثة',m1s:'مكتمل',m1d:'18 يوليو 2026 • 10:00 ص',
+  m2t:'اجتماع لجنة المراجعة والتدقيق',m2s:'قيد المراجعة',m2d:'22 يوليو 2026 • 2:00 م',
+  dss1:'اجتماع',dss2:'دقة',dss3:'توقيع',
+  ait:'أمين AI يعالج محضر الجلسة...',
+  calh:'يوليو 2026',cd1:'أح',cd2:'إث',cd3:'ث',cd4:'أر',cd5:'خ',cd6:'ج',cd7:'س',
+  tmh:'المهام',tk1:'إرسال جدول الأعمال',tk2:'جمع التوقيعات',tk3:'مراجعة المحضر',tk4:'أرشفة الوثائق',
+  st1:'منظمة موثوقة',st2:'دقة الذكاء الاصطناعي',st3:'توفير الوقت',st4:'دعم متواصل',
+  fb:'المميزات',fh:'كل ما تحتاجه في منصة واحدة',fs:'من التسجيل الصوتي إلى الأرشيف الرسمي — أمين يدير كل خطوة بدقة مؤسسية.',
+  f1t:'محاضر بالذكاء الاصطناعي',f1d:'تفريغ وتلخيص تلقائي للاجتماعات مع استخراج القرارات والمهام فوراً بدقة 98%.',
+  f2t:'توقيع إلكتروني',f2d:'سير موافقة متكامل مع توقيع رقمي متعدد الأطراف وتتبع الحالة في الوقت الفعلي.',
+  f3t:'حوكمة المجالس',f3d:'إدارة مجالس الإدارة واللجان مع صلاحيات متدرجة وتوثيق يلبي معايير الحوكمة.',
+  f4t:'سير الموافقات',f4d:'دورة اعتماد كاملة من المسودة إلى التوقيع النهائي مع إشعارات فورية لجميع الأطراف.',
+  f5t:'تقارير وتحليلات',f5d:'لوحات بيانات تفاعلية تتتبع الإنجاز والقرارات والمهام عبر جميع المجالس.',
+  f6t:'أمان مؤسسي',f6d:'تشفير من الطرف إلى الطرف، وسجل تدقيق شامل، وتحكم دقيق في صلاحيات كل مستخدم.',
+  wb:'سير العمل',wh:'من الاجتماع إلى الأرشيف في 4 خطوات',
+  ws1t:'جدوِل',ws1d:'أنشئ الاجتماع، حدد الأجندة والحضور، وأرسل الدعوات تلقائياً.',
+  ws2t:'سجّل وفرّغ',ws2d:'الذكاء الاصطناعي يستمع ويفرّغ ويلخّص المحضر خلال ثوانٍ.',
+  ws3t:'اعتمد ووقّع',ws3d:'سير موافقة رقمي مع توقيع إلكتروني من جميع الأطراف المعنية.',
+  ws4t:'أرشف رسمياً',ws4d:'الوثيقة المعتمدة تُحفظ بشهادة رقمية في الأرشيف الرسمي.',
+  gb:'حوكمة المجالس',gh:'توثيق يرقى إلى معايير الحوكمة الدولية',
+  gd:'أمين مُصمَّم للمنظمات التي تلتزم بأعلى معايير الشفافية والمساءلة وحوكمة مجالس الإدارة.',
+  gp1t:'صلاحيات متدرجة',gp1d:'تحكم دقيق في من يشاهد ويعدّل ويعتمد كل وثيقة.',
+  gp2t:'أرشيف رسمي معتمد',gp2d:'كل قرار وتوقيع ووثيقة تُحفظ بختم رقمي زمني غير قابل للتغيير.',
+  gp3t:'تقارير الامتثال',gp3d:'تقارير جاهزة لمتطلبات هيئات الحوكمة والمدققين الخارجيين.',
+  gct:'محضر جلسة مجلس الإدارة — يوليو 2026',
+  gr1n:'محمد العتيبي — رئيس المجلس',gr1s:'وقّع',gr2n:'سارة المنصوري — الرئيس التنفيذي',gr2s:'وقّع',
+  gr3n:'فيصل الشهراني — المدير التنفيذي',gr3s:'في الانتظار',gr4n:'دانة الغامدي — سكرتيرة المجلس',gr4s:'لم يُرسل',
+  gpl:'تقدم الاعتماد',gcb:'محفوظ بشهادة رقمية — 18 يوليو 2026',
+  pb:'الأسعار',ph:'خطط تناسب كل منظمة',ps:'ابدأ مجاناً 7 أيام، ثم اختر ما يناسب حجم مؤسستك.',pload:'جارٍ التحميل...',
+  tb:'شهادات العملاء',th:'ماذا يقول قادة المؤسسات؟',
+  tq1:'أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر التي كانت تأخذ ساعات باتت جاهزة في دقائق.',
+  tp1n:'م. محمد الزهراني',tp1r:'رئيس مجلس إدارة، مجموعة صناعية كبرى',
+  tq2:'منصة استثنائية للحوكمة. التوقيع الإلكتروني وسير الموافقات وفّرا علينا أسابيع من المراسلات.',
+  tp2n:'أ. نورة العتيبي',tp2r:'مدير الحوكمة المؤسسية، مؤسسة مالية حكومية',
+  tq3:'أخيراً منصة عربية بمستوى عالمي. سهولة الاستخدام والأمان العالي والذكاء الاصطناعي الدقيق.',
+  tp3n:'د. خالد المالكي',tp3r:'الرئيس التنفيذي، شركة تقنية رائدة',
+  faqb:'الأسئلة الشائعة',faqh:'كل ما تريد معرفته',
+  fq1:'كيف يعمل الذكاء الاصطناعي في تفريغ الاجتماعات؟',fa1:'يستخدم أمين نماذج ذكاء اصطناعي متطورة مدربة على اللغة العربية للتعرف على الكلام وتفريغه.',
+  fq2:'هل بياناتنا آمنة ومحمية؟',fa2:'نعم. جميع البيانات مشفّرة بمعيار AES-256. لديك سجل تدقيق كامل لكل إجراء.',
+  fq3:'هل يمكن لأعضاء متعددين التوقيع في نفس الوقت؟',fa3:'نعم. يدعم أمين سير موافقة متوازي أو تسلسلي بحسب احتياجاتك.',
+  fq4:'ماذا يحدث بعد انتهاء التجربة المجانية؟',fa4:'يمكنك اختيار خطة مناسبة للاستمرار. بياناتك تبقى محفوظة ولا بطاقة ائتمانية خلال التجربة.',
+  fq5:'هل يتكامل أمين مع Zoom وMicrosoft Teams؟',fa5:'يدعم أمين رفع التسجيلات من جميع المنصات. التكامل المباشر قادم قريباً.',
+  fq6:'هل المنصة متاحة باللغة العربية بالكامل؟',fa6:'نعم. أمين مبني أصلاً للغة العربية مع دعم كامل للاتجاه RTL وذكاء اصطناعي مدرّب على اللهجات العربية.',
+  ctah:'ابدأ رحلة الحوكمة الذكية اليوم',ctas:'انضم إلى مئات المنظمات التي تثق بأمين لإدارة اجتماعاتها ومجالسها.',
+  ctab1:'🚀 ابدأ مجاناً — 7 أيام',ctab2:'تسجيل الدخول',
+  fcp:'© 2026 أمين السكرتير. جميع الحقوق محفوظة.',fl1:'الشروط',fl2:'الخصوصية',fl3:'تواصل معنا',
+  dir:'rtl',
+  unlim:'غير محدود',users:'مستخدمين',meetmo:'اجتماع/شهر',trial:'7 أيام مجاناً',permo:'/شهر',popular:'الأكثر شعبياً',getstart:'ابدأ مجاناً',choose:'اختر الخطة',
+  pf:{ai_minutes:'محاضر AI',e_signature:'توقيع إلكتروني',approval_workflow:'سير موافقة',board_management:'إدارة مجالس',advanced_reports:'تقارير متقدمة',email_notifications:'إشعارات بريد',whatsapp_notifications:'إشعارات واتساب',custom_branding:'علامة مخصصة',api_access:'واجهة API',sso:'دخول موحّد',dedicated_support:'دعم مخصص'},
+},
+en:{
+  nl1:'Features',nl2:'How It Works',nl3:'Governance',nl4:'Pricing',nl5:'FAQ',
+  'nav-in':'Sign In','nav-up':'Get Started',
+  ey:'AI-Powered Executive Secretariat Platform',
+  h1a:'Your Executive Secretariat,',h1b:'Powered by AI',
+  hs:'From scheduling meetings to archiving minutes and managing board governance — Ameen handles everything with enterprise precision.',
+  hb1:'🚀 Start Free Trial',hb2:'Explore Platform ↓',
+  ht:'Trusted by <strong>500+</strong> organisations',
+  ec1n:'Mohammed Al-Otaibi',ec1r:'Chairman of the Board',
+  ec2n:'Sarah Al-Mansouri',ec2r:'Chief Executive Officer',
+  ec3n:'Faisal Al-Shahrani',ec3r:'Executive Director',
+  ec4n:'Dana Al-Ghamdi',ec4r:'Board Secretary',
+  'dash-url':'app.ameen-secretary.sa/dashboard',
+  dsl:'Dashboard',si1:'Overview',si2:'Meetings',si3:'Minutes',si4:'Signatures',si5:'Boards',si6:'Members',si7:'Settings',
+  dmh:'Upcoming Meetings',dt1:'My Meetings',dt2:'All',
+  m1t:'Board of Directors Meeting — Q3 Session',m1s:'Complete',m1d:'18 July 2026 • 10:00 AM',
+  m2t:'Audit & Review Committee Meeting',m2s:'In Review',m2d:'22 July 2026 • 2:00 PM',
+  dss1:'Meetings',dss2:'Accuracy',dss3:'Signatures',
+  ait:'Ameen AI processing meeting minutes...',
+  calh:'July 2026',cd1:'Su',cd2:'Mo',cd3:'Tu',cd4:'We',cd5:'Th',cd6:'Fr',cd7:'Sa',
+  tmh:'Tasks',tk1:'Send agenda',tk2:'Collect signatures',tk3:'Review minutes',tk4:'Archive documents',
+  st1:'Trusted Orgs',st2:'AI Accuracy',st3:'Time Saved',st4:'Support',
+  fb:'Features',fh:'Everything in one platform',fs:'From audio recording to official archive — Ameen handles every step with enterprise precision.',
+  f1t:'AI-Powered Minutes',f1d:'Automatic transcription and summarisation with tasks and decisions extracted instantly at 98% accuracy.',
+  f2t:'E-Signature',f2d:'Complete approval workflow with multi-party digital signatures and real-time status tracking.',
+  f3t:'Board Governance',f3d:'Manage boards and committees with tiered permissions and documentation meeting governance standards.',
+  f4t:'Approval Workflow',f4d:'Full approval cycle from draft to final sign-off with instant notifications for all parties.',
+  f5t:'Reports & Analytics',f5d:'Interactive dashboards tracking completion, decisions, and tasks across all boards and committees.',
+  f6t:'Enterprise Security',f6d:'End-to-end encryption, full audit trail, and granular permission control for every user.',
+  wb:'Workflow',wh:'From meeting to archive in 4 steps',
+  ws1t:'Schedule',ws1d:'Create the meeting, set agenda and attendees, send invitations automatically.',
+  ws2t:'Record & Transcribe',ws2d:'AI listens, transcribes, and summarises the minutes within seconds.',
+  ws3t:'Approve & Sign',ws3d:'Digital approval workflow with e-signatures from all relevant parties.',
+  ws4t:'Archive Officially',ws4d:'The approved document is stored with a digital certificate in the official archive.',
+  gb:'Board Governance',gh:'Documentation meeting international governance standards',
+  gd:'Ameen is designed for organisations committed to the highest standards of transparency, accountability, and board governance.',
+  gp1t:'Tiered Permissions',gp1d:'Granular control over who views, edits, and approves each document.',
+  gp2t:'Certified Archive',gp2d:'Every decision and signature is stored with an immutable digital timestamp.',
+  gp3t:'Compliance Reports',gp3d:'Reports ready for governance bodies, regulators, and external auditors.',
+  gct:'Board of Directors Minutes — July 2026',
+  gr1n:'Mohammed Al-Otaibi — Board Chairman',gr1s:'Signed',gr2n:'Sarah Al-Mansouri — CEO',gr2s:'Signed',
+  gr3n:'Faisal Al-Shahrani — Executive Director',gr3s:'Pending',gr4n:'Dana Al-Ghamdi — Board Secretary',gr4s:'Not sent',
+  gpl:'Approval Progress',gcb:'Stored with digital certificate — 18 July 2026',
+  pb:'Pricing',ph:'Plans for every organisation',ps:'Start free for 7 days, then choose the plan that fits your organisation.',pload:'Loading...',
+  tb:'Testimonials',th:'What leaders say',
+  tq1:'Ameen transformed how we manage board meetings. Minutes that used to take hours are ready in minutes with incredible accuracy.',
+  tp1n:'Eng. Mohammed Al-Zahrani',tp1r:'Board Chairman, Major Industrial Group',
+  tq2:'An exceptional governance platform. E-signatures and approval workflows saved us weeks of manual follow-up.',
+  tp2n:'Ms. Noura Al-Otaibi',tp2r:'Corporate Governance Director, Government Financial Institution',
+  tq3:'Finally an Arabic platform at a world-class level. Ease of use, high security, and precise AI — Ameen is worth every riyal.',
+  tp3n:'Dr. Khalid Al-Maliki',tp3r:'CEO, Leading Technology Company',
+  faqb:'FAQ',faqh:'Everything you need to know',
+  fq1:'How does AI meeting transcription work?',fa1:'Ameen uses advanced AI models trained on Arabic to recognise speech and transcribe it. Upload a recording and get a structured minutes document in minutes.',
+  fq2:'Is our data secure?',fa2:'Yes. All data is encrypted with AES-256. You have a full audit trail for every action.',
+  fq3:'Can multiple members sign simultaneously?',fa3:'Yes. Ameen supports parallel or sequential approval workflows based on your needs.',
+  fq4:'What happens after the free trial?',fa4:'Choose a plan to continue. Your data is preserved and no credit card is required during the trial.',
+  fq5:'Does Ameen integrate with Zoom or Teams?',fa5:'Ameen supports uploading recordings from all platforms. Direct integration is coming soon.',
+  fq6:'Is the platform fully available in Arabic?',fa6:'Yes. Ameen is built natively for Arabic with full RTL support and AI trained on Arabic dialects.',
+  ctah:'Start your smart governance journey today',ctas:'Join hundreds of organisations that trust Ameen Secretary to manage their meetings and boards.',
+  ctab1:'🚀 Start Free — 7 Days',ctab2:'Sign In',
+  fcp:'© 2026 Ameen Secretary. All rights reserved.',fl1:'Terms',fl2:'Privacy',fl3:'Contact',
+  dir:'ltr',
+  unlim:'Unlimited',users:'users',meetmo:'mtgs/mo',trial:'7 days free',permo:'/mo',popular:'Most Popular',getstart:'Start Free',choose:'Choose Plan',
+  pf:{ai_minutes:'AI Minutes',e_signature:'E-Signature',approval_workflow:'Approval Workflow',board_management:'Board Management',advanced_reports:'Advanced Reports',email_notifications:'Email Notifications',whatsapp_notifications:'WhatsApp Notifications',custom_branding:'Custom Branding',api_access:'API Access',sso:'SSO',dedicated_support:'Dedicated Support'},
+}};
 
 function setLang(l) {
   lang = l; localStorage.setItem('lang', l);
   document.documentElement.lang = l;
   document.documentElement.dir = TR[l].dir;
-  document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
-  document.getElementById('btn-en').classList.toggle('on', l === 'en');
+  document.getElementById('btn-ar').classList.toggle('on', l==='ar');
+  document.getElementById('btn-en').classList.toggle('on', l==='en');
+  const T = TR[l];
   document.querySelectorAll('[data-t]').forEach(el => {
-    const k = el.dataset.t, v = TR[l][k];
-    if (v !== undefined) el.textContent = v;
+    const k = el.dataset.t, v = T[k];
+    if (v !== undefined) el.innerHTML = v;
   });
+  // Flip hero layout for LTR
+  const inner = document.querySelector('.hero-inner');
+  if (inner) inner.style.flexDirection = l==='ar' ? '' : 'row-reverse';
   renderPlans();
 }
 
@@ -867,7 +1090,7 @@ function setLang(l) {
 document.addEventListener('DOMContentLoaded', () => {
   setLang(lang);
   loadPlans();
-  initCardTilt();
+  initTilts();
   document.querySelectorAll('.reveal').forEach(el => revObs.observe(el));
 });
 </script>
