@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>أمين السكرتير — نظام الأمانة التنفيذية الذكية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #C9A84C; --gold2: #e2c46a; --gold-dim: rgba(201,168,76,0.12);
+      --navy: #060810; --navy2: #0a0c14; --navy3: #0f1320; --navy4: #12151f; --navy5: #1a1e2e;
+      --text: #f2f3f7; --text2: #b0b5cc; --text3: #5c6180;
+      --green: #3cc47c; --blue: #4a90d9; --purple: #7c6fff;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter','Segoe UI',system-ui,sans-serif; background: var(--navy); color: var(--text); overflow-x: hidden; }
+
+    /* ══ NAV ══ */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 3rem;
+      background: rgba(6,8,16,0.7);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: background 0.3s;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; }
+    .nav-logo img { width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(201,168,76,0.4)); }
+    .nav-logo-text { font-size: 1.05rem; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+    .nav-logo-text span { color: var(--gold); }
+    .nav-links { display: flex; align-items: center; gap: 2rem; }
+    .nav-link { color: var(--text2); text-decoration: none; font-size: 0.88rem; font-weight: 500; transition: color 0.2s; }
+    .nav-link:hover { color: var(--gold); }
+    .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
+    .btn-login { color: var(--text2); text-decoration: none; font-size: 0.88rem; font-weight: 600; padding: 0.45rem 1.1rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; transition: all 0.2s; }
+    .btn-login:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-start { background: var(--gold); color: #0a0c14; text-decoration: none; font-size: 0.88rem; font-weight: 800; padding: 0.48rem 1.2rem; border-radius: 8px; transition: opacity 0.2s; }
+    .btn-start:hover { opacity: 0.88; }
+    .lang-nav { display: flex; gap: 0.3rem; margin-inline-start: 0.5rem; }
+    .lang-nav button { background: none; border: 1px solid rgba(255,255,255,0.1); color: var(--text3); padding: 0.2rem 0.6rem; border-radius: 20px; cursor: pointer; font-size: 0.72rem; font-family: inherit; transition: all 0.15s; }
+    .lang-nav button.on { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+
+    /* ══ HERO ══ */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      padding: 7rem 3rem 4rem;
+    }
+    /* Animated bg */
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(201,168,76,0.14) 0%, transparent 60%),
+                  radial-gradient(ellipse 60% 50% at 85% 70%, rgba(74,144,217,0.07) 0%, transparent 55%),
+                  radial-gradient(ellipse 50% 40% at 5% 60%, rgba(124,111,255,0.06) 0%, transparent 50%),
+                  var(--navy);
+    }
+    .hero-canvas { position: absolute; inset: 0; z-index: 0; }
+    .hero-inner { position: relative; z-index: 1; text-align: center; max-width: 860px; margin: 0 auto; }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 20px; padding: 0.35rem 1rem;
+      font-size: 0.78rem; font-weight: 600; color: var(--gold);
+      margin-bottom: 1.75rem;
+      animation: fadeUp 0.6s ease both;
+    }
+    .hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: pulse 2s ease infinite; }
+
+    .hero-title {
+      font-size: clamp(2.4rem, 6vw, 4.5rem);
+      font-weight: 900; line-height: 1.1; letter-spacing: -0.03em;
+      color: var(--text); margin-bottom: 1.25rem;
+      animation: fadeUp 0.7s ease 0.1s both;
+    }
+    .hero-title .gold { color: var(--gold); }
+    .hero-title .line2 { display: block; }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.18rem); color: var(--text2);
+      max-width: 580px; margin: 0 auto 2.5rem; line-height: 1.7; font-weight: 400;
+      animation: fadeUp 0.7s ease 0.2s both;
+    }
+
+    .hero-ctas {
+      display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 4rem;
+      animation: fadeUp 0.7s ease 0.3s both;
+    }
+    .cta-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--gold); color: #080a12;
+      text-decoration: none; font-size: 1rem; font-weight: 800;
+      padding: 0.9rem 2rem; border-radius: 12px;
+      transition: opacity 0.2s, transform 0.15s;
+      box-shadow: 0 8px 32px rgba(201,168,76,0.3);
+    }
+    .cta-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .cta-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text); text-decoration: none; font-size: 1rem; font-weight: 600;
+      padding: 0.9rem 2rem; border-radius: 12px;
+      transition: all 0.2s;
+    }
+    .cta-secondary:hover { background: rgba(255,255,255,0.09); border-color: rgba(201,168,76,0.3); color: var(--gold); }
+
+    /* Hero Dashboard Visual */
+    .hero-visual {
+      position: relative; max-width: 760px; margin: 0 auto;
+      animation: fadeUp 0.8s ease 0.4s both;
+    }
+    .dash-frame {
+      background: var(--navy4); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 40px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,168,76,0.08);
+      transform: perspective(1200px) rotateX(4deg);
+      transition: transform 0.4s ease;
+    }
+    .dash-frame:hover { transform: perspective(1200px) rotateX(1deg); }
+    .dash-top { background: var(--navy3); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #febc2e; }
+    .dot-g { background: #28c840; }
+    .dash-url { flex: 1; background: rgba(255,255,255,0.04); border-radius: 6px; padding: 0.2rem 0.75rem; font-size: 0.72rem; color: var(--text3); font-family: monospace; margin: 0 0.5rem; }
+    .dash-body { padding: 1.25rem; display: grid; grid-template-columns: 180px 1fr; gap: 1rem; min-height: 280px; }
+    .dash-sidebar { background: rgba(255,255,255,0.02); border-radius: 10px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    .dash-nav-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 7px; font-size: 0.72rem; color: var(--text3); }
+    .dash-nav-item.active { background: var(--gold-dim); color: var(--gold); }
+    .dash-nav-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+    .dash-main { display: flex; flex-direction: column; gap: 0.75rem; }
+    .dash-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+    .dash-stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.75rem; }
+    .dash-stat-num { font-size: 1.3rem; font-weight: 800; color: var(--gold); margin-bottom: 3px; }
+    .dash-stat-lbl { font-size: 0.65rem; color: var(--text3); }
+    .dash-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.75rem; }
+    .dash-card-title { font-size: 0.72rem; font-weight: 700; color: var(--text2); margin-bottom: 0.5rem; }
+    .dash-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; }
+    .dash-avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #7c6fff); font-size: 0.55rem; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; flex-shrink: 0; }
+    .dash-line { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .dash-fill { height: 100%; border-radius: 2px; background: var(--gold); }
+    .dash-tag { font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700; }
+    .tag-g { background: rgba(60,196,124,0.15); color: var(--green); }
+    .tag-y { background: rgba(201,168,76,0.15); color: var(--gold); }
+
+    /* Glow ring */
+    .hero-glow { position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); width: 80%; height: 120px; background: radial-gradient(ellipse, rgba(201,168,76,0.15) 0%, transparent 70%); filter: blur(20px); z-index: -1; }
+
+    /* ══ STATS BAR ══ */
+    .stats-bar {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 2rem 3rem;
+      display: flex; justify-content: center; gap: 0;
+      background: rgba(15,19,32,0.6);
+    }
+    .stat-item { flex: 1; max-width: 220px; text-align: center; padding: 0 2rem; }
+    .stat-item:not(:last-child) { border-inline-end: 1px solid rgba(255,255,255,0.06); }
+    .stat-num { font-size: 2rem; font-weight: 900; color: var(--gold); letter-spacing: -0.03em; }
+    .stat-lbl { font-size: 0.82rem; color: var(--text3); margin-top: 3px; }
+
+    /* ══ SECTIONS ══ */
+    section { padding: 6rem 3rem; max-width: 1100px; margin: 0 auto; }
+    .section-badge { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--gold-dim); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 0.3rem 0.85rem; font-size: 0.75rem; font-weight: 700; color: var(--gold); margin-bottom: 1rem; }
+    .section-title { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 900; letter-spacing: -0.03em; color: var(--text); margin-bottom: 1rem; line-height: 1.15; }
+    .section-sub { font-size: 1rem; color: var(--text2); max-width: 520px; line-height: 1.7; }
+    .centered { text-align: center; }
+    .centered .section-sub { margin: 0 auto; }
+
+    /* ══ FEATURES ══ */
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 3.5rem; }
+    .feat-card {
+      background: var(--navy4); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px; padding: 1.75rem;
+      transition: all 0.3s; cursor: default;
+      position: relative; overflow: hidden;
+    }
+    .feat-card::before { content:''; position:absolute; inset:0; border-radius:16px; background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 70%); opacity:0; transition:opacity 0.3s; }
+    .feat-card:hover { border-color: rgba(201,168,76,0.25); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+    .feat-card:hover::before { opacity: 1; }
+    .feat-icon-wrap { width: 48px; height: 48px; border-radius: 12px; background: var(--gold-dim); border: 1px solid rgba(201,168,76,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 1.1rem; }
+    .feat-card-title { font-size: 1rem; font-weight: 800; color: var(--text); margin-bottom: 0.5rem; }
+    .feat-card-desc { font-size: 0.83rem; color: var(--text2); line-height: 1.65; }
+
+    /* ══ HOW IT WORKS ══ */
+    .how-wrap { display: flex; gap: 0; margin-top: 3.5rem; position: relative; }
+    .how-wrap::before { content:''; position:absolute; top:28px; inset-inline-start:28px; inset-inline-end:0; height:2px; background:linear-gradient(90deg, var(--gold) 0%, rgba(201,168,76,0.1) 100%); z-index:0; }
+    .how-step { flex: 1; padding: 0 1.5rem; position: relative; z-index: 1; }
+    .how-step:first-child { padding-inline-start: 0; }
+    .how-num { width: 56px; height: 56px; border-radius: 50%; background: var(--navy4); border: 2px solid var(--gold); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 900; color: var(--gold); margin-bottom: 1.25rem; }
+    .how-title { font-size: 0.95rem; font-weight: 800; color: var(--text); margin-bottom: 0.5rem; }
+    .how-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.65; }
+
+    /* ══ PRICING ══ */
+    .plan-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 3.5rem; }
+    .plan-box {
+      background: var(--navy4); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px; padding: 2rem 1.75rem;
+      position: relative; display: flex; flex-direction: column;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .plan-box:hover { transform: translateY(-4px); box-shadow: 0 24px 80px rgba(0,0,0,0.5); }
+    .plan-box.featured { border-color: var(--gold); background: linear-gradient(145deg, rgba(201,168,76,0.07) 0%, var(--navy4) 60%); }
+    .plan-pop { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: var(--gold); color: #080a12; font-size: 0.72rem; font-weight: 800; padding: 0.3rem 1rem; border-radius: 20px; white-space: nowrap; }
+    .plan-box-name { font-size: 1rem; font-weight: 800; color: var(--text2); margin-bottom: 0.3rem; }
+    .plan-box-price { font-size: 2.4rem; font-weight: 900; color: var(--text); letter-spacing: -0.04em; margin-bottom: 0.25rem; }
+    .plan-box-price sub { font-size: 0.9rem; font-weight: 500; color: var(--text3); vertical-align: super; }
+    .plan-box-price span { font-size: 0.85rem; font-weight: 500; color: var(--text3); }
+    .plan-box-desc { font-size: 0.82rem; color: var(--text3); margin-bottom: 1.5rem; line-height: 1.5; }
+    .plan-box-feats { flex: 1; display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.75rem; }
+    .plan-feat-item { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; color: var(--text2); }
+    .plan-feat-item .chk { color: var(--green); font-size: 0.9rem; flex-shrink: 0; }
+    .plan-feat-item .no { color: var(--text3); font-size: 0.9rem; flex-shrink: 0; }
+    .plan-btn {
+      display: block; text-align: center; text-decoration: none; font-weight: 800; font-size: 0.92rem;
+      padding: 0.85rem; border-radius: 10px; transition: all 0.2s;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); color: var(--text);
+    }
+    .plan-btn:hover { background: rgba(255,255,255,0.12); }
+    .plan-box.featured .plan-btn { background: var(--gold); color: #080a12; border-color: transparent; box-shadow: 0 6px 24px rgba(201,168,76,0.25); }
+    .plan-box.featured .plan-btn:hover { opacity: 0.9; }
+
+    /* ══ CTA SECTION ══ */
+    .cta-section {
+      margin: 0 3rem 6rem;
+      background: linear-gradient(135deg, #0d1f3c 0%, #0a0c14 50%, #150f04 100%);
+      border: 1px solid rgba(201,168,76,0.15);
+      border-radius: 24px; padding: 5rem 3rem;
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .cta-section::before { content:''; position:absolute; top:-80px; left:50%; transform:translateX(-50%); width:600px; height:300px; background:radial-gradient(ellipse, rgba(201,168,76,0.12) 0%, transparent 70%); pointer-events:none; }
+    .cta-section .section-title { position: relative; z-index:1; margin-bottom: 0.75rem; }
+    .cta-section p { position: relative; z-index:1; font-size:1rem; color:var(--text2); margin-bottom:2rem; }
+    .cta-section .hero-ctas { position: relative; z-index:1; margin-bottom: 0; }
+
+    /* ══ FOOTER ══ */
+    footer {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 2.5rem 3rem;
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--navy2);
+    }
+    .footer-logo { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }
+    .footer-logo img { width: 28px; height: 28px; object-fit: contain; }
+    .footer-logo span { font-size: 0.9rem; font-weight: 800; color: var(--text2); }
+    .footer-logo strong { color: var(--gold); }
+    .footer-copy { font-size: 0.78rem; color: var(--text3); }
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a { font-size: 0.78rem; color: var(--text3); text-decoration: none; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--gold); }
+
+    /* ══ ANIMATIONS ══ */
+    @keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+    @keyframes rotateOrb { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+
+    .reveal { opacity:0; transform:translateY(30px); transition:opacity 0.7s ease,transform 0.7s ease; }
+    .reveal.shown { opacity:1; transform:translateY(0); }
+
+    /* ══ RESPONSIVE ══ */
+    @media (max-width: 900px) {
+      nav { padding: 1rem 1.5rem; }
+      .nav-links { display: none; }
+      .hero { padding: 6rem 1.5rem 3rem; }
+      section { padding: 4rem 1.5rem; }
+      .feat-grid { grid-template-columns: 1fr 1fr; }
+      .plan-row { grid-template-columns: 1fr; max-width: 400px; margin-inline: auto; }
+      .how-wrap { flex-direction: column; gap: 1.5rem; }
+      .how-wrap::before { display: none; }
+      .stats-bar { flex-direction: column; gap: 1.5rem; align-items: center; padding: 2rem 1.5rem; }
+      .stat-item { border: none !important; }
+      .cta-section { margin: 0 1.5rem 4rem; padding: 3rem 1.5rem; }
+      footer { flex-direction: column; gap: 1rem; text-align: center; padding: 2rem 1.5rem; }
+      .dash-body { grid-template-columns: 1fr; }
+      .dash-sidebar { display: none; }
+    }
+    @media (max-width: 600px) {
+      .feat-grid { grid-template-columns: 1fr; }
+      .hero-title { font-size: 2.1rem; }
+      .dash-stat-row { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="/" class="nav-logo">
+    <img src="/logo.png" alt="Ameen" />
+    <div class="nav-logo-text">أمـيـن <span>Secretary</span></div>
+  </a>
+  <div class="nav-links">
+    <a href="#features" class="nav-link" data-t="nav-feat">المميزات</a>
+    <a href="#how" class="nav-link" data-t="nav-how">كيف يعمل</a>
+    <a href="#pricing" class="nav-link" data-t="nav-price">الأسعار</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:0.75rem;">
+    <div class="lang-nav">
+      <button id="btn-ar" onclick="setLang('ar')" class="on">عربي</button>
+      <button id="btn-en" onclick="setLang('en')">English</button>
+    </div>
+    <div class="nav-ctas">
+      <a href="/login.html" class="btn-login" data-t="nav-login">دخول</a>
+      <a href="/signup.html" class="btn-start" data-t="nav-cta">ابدأ مجاناً</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg"></div>
+  <canvas class="hero-canvas" id="particles-canvas"></canvas>
+  <div class="hero-inner">
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      <span data-t="badge">نظام الأمانة التنفيذية الذكية للمؤسسات</span>
+    </div>
+    <h1 class="hero-title">
+      <span data-t="h1a">اجتماعاتك أكثر ذكاءً</span>
+      <span class="line2 gold" data-t="h1b">بقوة الذكاء الاصطناعي</span>
+    </h1>
+    <p class="hero-sub" data-t="hero-sub">منصة متكاملة لإدارة محاضر الاجتماعات، التوقيعات الإلكترونية، وحوكمة المجالس — مصممة للمؤسسات التي تقدّر الدقة والكفاءة.</p>
+    <div class="hero-ctas">
+      <a href="/signup.html" class="cta-primary" data-t="cta1">🚀 ابدأ تجربتك المجانية</a>
+      <a href="#features" class="cta-secondary" data-t="cta2">اكتشف المميزات ↓</a>
+    </div>
+
+    <!-- Dashboard mockup -->
+    <div class="hero-visual">
+      <div class="dash-frame">
+        <div class="dash-top">
+          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+          <div class="dash-url">app.ameen-secretary.sa</div>
+        </div>
+        <div class="dash-body">
+          <div class="dash-sidebar">
+            <div class="dash-nav-item active"><div class="dash-nav-dot"></div><span data-t="db-dash">لوحة التحكم</span></div>
+            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-meet">الاجتماعات</span></div>
+            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-min">المحاضر</span></div>
+            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-sign">التوقيع</span></div>
+            <div class="dash-nav-item"><div class="dash-nav-dot"></div><span data-t="db-board">المجالس</span></div>
+          </div>
+          <div class="dash-main">
+            <div class="dash-stat-row">
+              <div class="dash-stat"><div class="dash-stat-num">24</div><div class="dash-stat-lbl" data-t="ds-meet">اجتماع</div></div>
+              <div class="dash-stat"><div class="dash-stat-num">98%</div><div class="dash-stat-lbl" data-t="ds-acc">دقة المحاضر</div></div>
+              <div class="dash-stat"><div class="dash-stat-num">12</div><div class="dash-stat-lbl" data-t="ds-sign">توقيع معلّق</div></div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-title" data-t="dc-rec">اجتماعات حديثة</div>
+              <div class="dash-row">
+                <div class="dash-avatar">م</div>
+                <div style="flex:1;font-size:0.68rem;color:var(--text2)" data-t="dm1">اجتماع مجلس الإدارة — يوليو 2026</div>
+                <div class="dash-tag tag-g" data-t="dt-done">مكتمل</div>
+              </div>
+              <div class="dash-row">
+                <div class="dash-avatar" style="background:linear-gradient(135deg,#4a90d9,#7c6fff)">ق</div>
+                <div style="flex:1;font-size:0.68rem;color:var(--text2)" data-t="dm2">اجتماع اللجنة التنفيذية</div>
+                <div class="dash-tag tag-y" data-t="dt-pend">قيد المراجعة</div>
+              </div>
+              <div class="dash-row">
+                <div class="dash-line"><div class="dash-fill" style="width:78%"></div></div>
+                <div style="font-size:0.65rem;color:var(--text3)">78%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-glow"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-item reveal"><div class="stat-num" data-count="500">0</div><div class="stat-lbl" data-t="st1">منظمة موثوقة</div></div>
+  <div class="stat-item reveal"><div class="stat-num" data-count="98">0</div><div class="stat-lbl" data-t="st2">دقة الذكاء الاصطناعي</div></div>
+  <div class="stat-item reveal"><div class="stat-num" data-count="10">0</div><div class="stat-lbl" data-t="st3">توفير في وقت المحاضر</div></div>
+  <div class="stat-item reveal"><div class="stat-num" data-count="24">0</div><div class="stat-lbl" data-t="st4">دعم متواصل</div></div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="centered reveal">
+    <div class="section-badge">✨ <span data-t="feat-badge">المميزات</span></div>
+    <h2 class="section-title" data-t="feat-title">كل ما تحتاجه في مكان واحد</h2>
+    <p class="section-sub" data-t="feat-sub">من تسجيل الاجتماع إلى الأرشفة الرسمية — أمين يدير كل خطوة بدقة وذكاء.</p>
+  </div>
+  <div class="feat-grid">
+    <div class="feat-card reveal">
+      <div class="feat-icon-wrap">🎙️</div>
+      <div class="feat-card-title" data-t="f1t">محاضر ذكاء اصطناعي</div>
+      <div class="feat-card-desc" data-t="f1d">يحوّل التسجيل الصوتي إلى محضر منظّم ودقيق بثوانٍ، مع استخراج القرارات والمهام تلقائياً.</div>
+    </div>
+    <div class="feat-card reveal">
+      <div class="feat-icon-wrap">✍️</div>
+      <div class="feat-card-title" data-t="f2t">توقيع إلكتروني</div>
+      <div class="feat-card-desc" data-t="f2d">رسم، كتابة، أو رفع التوقيع — سير موافقة متكامل مع تتبع الحالة في الوقت الفعلي.</div>
+    </div>
+    <div class="feat-card reveal">
+      <div class="feat-icon-wrap">🏛️</div>
+      <div class="feat-card-title" data-t="f3t">حوكمة المجالس</div>
+      <div class="feat-card-desc" data-t="f3d">إدارة مجلس الإدارة واللجان، صلاحيات متدرجة، وتوثيق رسمي يلتزم بمعايير الحوكمة.</div>
+    </div>
+    <div class="feat-card reveal">
+      <div class="feat-icon-wrap">🔄</div>
+      <div class="feat-card-title" data-t="f4t">سير الموافقات</div>
+      <div class="feat-card-desc" data-t="f4d">دورة موافقة متكاملة من مسودة المحضر إلى الاعتماد النهائي مع إشعارات فورية.</div>
+    </div>
+    <div class="feat-card reveal">
+      <div class="feat-icon-wrap">📊</div>
+      <div class="feat-card-title" data-t="f5t">تقارير ولوحات بيانات</div>
+      <div class="feat-card-desc" data-t="f5d">إحصائيات تفصيلية عن الاجتماعات، معدلات الإنجاز، ومتابعة المهام في مكان واحد.</div>
+    </div>
+    <div class="feat-card reveal">
+      <div class="feat-icon-wrap">🔒</div>
+      <div class="feat-card-title" data-t="f6t">أمان مؤسسي</div>
+      <div class="feat-card-desc" data-t="f6d">بيانات مشفّرة، تحكم في الصلاحيات، وسجل تدقيق كامل لكل إجراء داخل المنظمة.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how" style="background:rgba(15,19,32,0.5);border-top:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);max-width:100%;padding:6rem 3rem;">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div class="centered reveal">
+      <div class="section-badge">⚡ <span data-t="how-badge">كيف يعمل</span></div>
+      <h2 class="section-title" data-t="how-title">من الاجتماع إلى الأرشيف في 4 خطوات</h2>
+    </div>
+    <div class="how-wrap" style="margin-top:3.5rem;">
+      <div class="how-step reveal">
+        <div class="how-num">1</div>
+        <div class="how-title" data-t="hw1t">جدوِل الاجتماع</div>
+        <div class="how-desc" data-t="hw1d">أنشئ الاجتماع، حدد الحضور والأجندة، وأرسل الدعوات تلقائياً.</div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">2</div>
+        <div class="how-title" data-t="hw2t">سجّل وفرّغ</div>
+        <div class="how-desc" data-t="hw2d">ارفع التسجيل ليقوم الذكاء الاصطناعي بتفريغه وتلخيصه في ثوانٍ.</div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">3</div>
+        <div class="how-title" data-t="hw3t">راجع واعتمد</div>
+        <div class="how-desc" data-t="hw3d">أرسل المحضر لدورة الموافقة والتوقيع الإلكتروني من جميع الأطراف.</div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">4</div>
+        <div class="how-title" data-t="hw4t">أرشف رسمياً</div>
+        <div class="how-desc" data-t="hw4d">يُحفظ المحضر المعتمد بشهادة رقمية في أرشيف المنظمة الرسمي.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="centered reveal">
+    <div class="section-badge">💎 <span data-t="price-badge">الأسعار</span></div>
+    <h2 class="section-title" data-t="price-title">خطط تناسب كل منظمة</h2>
+    <p class="section-sub" data-t="price-sub">ابدأ مجاناً لمدة 7 أيام، ثم اختر الخطة التي تناسب حجم منظمتك واحتياجاتها.</p>
+  </div>
+  <div class="plan-row" id="plan-row">
+    <!-- injected by JS -->
+    <div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem">جارٍ التحميل...</div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-section reveal">
+  <h2 class="section-title" data-t="cta-title">مستعد للبدء؟</h2>
+  <p data-t="cta-sub">انضم إلى مئات المنظمات التي تثق بأمين السكرتير لإدارة اجتماعاتها.</p>
+  <div class="hero-ctas">
+    <a href="/signup.html" class="cta-primary" data-t="cta-btn">🚀 ابدأ تجربتك المجانية</a>
+    <a href="/login.html" class="cta-secondary" data-t="cta-login">تسجيل الدخول</a>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <a href="/" class="footer-logo">
+    <img src="/logo.png" alt="Ameen" />
+    <span>أمـيـن <strong>Secretary</strong></span>
+  </a>
+  <div class="footer-copy" data-t="copy">© 2026 أمين السكرتير. جميع الحقوق محفوظة.</div>
+  <div class="footer-links">
+    <a href="#" data-t="fl-terms">الشروط والأحكام</a>
+    <a href="#" data-t="fl-privacy">الخصوصية</a>
+    <a href="#" data-t="fl-contact">تواصل معنا</a>
+  </div>
+</footer>
+
+<script>
+// ── Translations ──────────────────────────────────────────────────────────────
+const T = {
+  ar: {
+    'nav-feat':'المميزات','nav-how':'كيف يعمل','nav-price':'الأسعار',
+    'nav-login':'دخول','nav-cta':'ابدأ مجاناً',
+    'badge':'نظام الأمانة التنفيذية الذكية للمؤسسات',
+    'h1a':'اجتماعاتك أكثر ذكاءً','h1b':'بقوة الذكاء الاصطناعي',
+    'hero-sub':'منصة متكاملة لإدارة محاضر الاجتماعات، التوقيعات الإلكترونية، وحوكمة المجالس — مصممة للمؤسسات التي تقدّر الدقة والكفاءة.',
+    'cta1':'🚀 ابدأ تجربتك المجانية','cta2':'اكتشف المميزات ↓',
+    'db-dash':'لوحة التحكم','db-meet':'الاجتماعات','db-min':'المحاضر','db-sign':'التوقيع','db-board':'المجالس',
+    'ds-meet':'اجتماع','ds-acc':'دقة المحاضر','ds-sign':'توقيع معلّق',
+    'dc-rec':'اجتماعات حديثة','dm1':'اجتماع مجلس الإدارة — يوليو 2026','dm2':'اجتماع اللجنة التنفيذية',
+    'dt-done':'مكتمل','dt-pend':'قيد المراجعة',
+    'st1':'منظمة موثوقة','st2':'دقة الذكاء الاصطناعي','st3':'توفير في وقت المحاضر','st4':'دعم متواصل',
+    'st1s':'منظمة+','st2s':'%','st3s':'×','st4s':'/7',
+    'feat-badge':'المميزات','feat-title':'كل ما تحتاجه في مكان واحد',
+    'feat-sub':'من تسجيل الاجتماع إلى الأرشفة الرسمية — أمين يدير كل خطوة بدقة وذكاء.',
+    'f1t':'محاضر ذكاء اصطناعي','f1d':'يحوّل التسجيل الصوتي إلى محضر منظّم ودقيق بثوانٍ، مع استخراج القرارات والمهام تلقائياً.',
+    'f2t':'توقيع إلكتروني','f2d':'رسم، كتابة، أو رفع التوقيع — سير موافقة متكامل مع تتبع الحالة في الوقت الفعلي.',
+    'f3t':'حوكمة المجالس','f3d':'إدارة مجلس الإدارة واللجان، صلاحيات متدرجة، وتوثيق رسمي يلتزم بمعايير الحوكمة.',
+    'f4t':'سير الموافقات','f4d':'دورة موافقة متكاملة من مسودة المحضر إلى الاعتماد النهائي مع إشعارات فورية.',
+    'f5t':'تقارير ولوحات بيانات','f5d':'إحصائيات تفصيلية عن الاجتماعات، معدلات الإنجاز، ومتابعة المهام في مكان واحد.',
+    'f6t':'أمان مؤسسي','f6d':'بيانات مشفّرة، تحكم في الصلاحيات، وسجل تدقيق كامل لكل إجراء داخل المنظمة.',
+    'how-badge':'كيف يعمل','how-title':'من الاجتماع إلى الأرشيف في 4 خطوات',
+    'hw1t':'جدوِل الاجتماع','hw1d':'أنشئ الاجتماع، حدد الحضور والأجندة، وأرسل الدعوات تلقائياً.',
+    'hw2t':'سجّل وفرّغ','hw2d':'ارفع التسجيل ليقوم الذكاء الاصطناعي بتفريغه وتلخيصه في ثوانٍ.',
+    'hw3t':'راجع واعتمد','hw3d':'أرسل المحضر لدورة الموافقة والتوقيع الإلكتروني من جميع الأطراف.',
+    'hw4t':'أرشف رسمياً','hw4d':'يُحفظ المحضر المعتمد بشهادة رقمية في أرشيف المنظمة الرسمي.',
+    'price-badge':'الأسعار','price-title':'خطط تناسب كل منظمة',
+    'price-sub':'ابدأ مجاناً لمدة 7 أيام، ثم اختر الخطة التي تناسب حجم منظمتك واحتياجاتها.',
+    'cta-title':'مستعد للبدء؟','cta-sub':'انضم إلى مئات المنظمات التي تثق بأمين السكرتير لإدارة اجتماعاتها.',
+    'cta-btn':'🚀 ابدأ تجربتك المجانية','cta-login':'تسجيل الدخول',
+    'copy':'© 2026 أمين السكرتير. جميع الحقوق محفوظة.',
+    'fl-terms':'الشروط والأحكام','fl-privacy':'الخصوصية','fl-contact':'تواصل معنا',
+    dir: 'rtl', lang: 'ar',
+    planFeats: { ai_minutes:'محاضر ذكاء اصطناعي', e_signature:'توقيع إلكتروني', basic_reports:'تقارير أساسية', approval_workflow:'سير موافقة', board_management:'إدارة مجالس', advanced_reports:'تقارير متقدمة', email_notifications:'إشعارات بريد', whatsapp_notifications:'إشعارات واتساب', custom_branding:'علامة مخصصة', api_access:'واجهة API', sso:'تسجيل موحّد', dedicated_support:'دعم مخصص' },
+    free:'مجاناً', trial:'7 أيام مجاناً', permo:'/شهر', popular:'الأكثر شعبياً', recommended:'مُوصى به', unlim:'غير محدود', users:'مستخدمين', meetmo:'اجتماع/شهر', getstart:'ابدأ مجاناً', choosePlan:'اختر هذه الخطة',
+    statSuffix: ['+','%','×','/7'],
+    statPre: ['','','10',''],
+  },
+  en: {
+    'nav-feat':'Features','nav-how':'How It Works','nav-price':'Pricing',
+    'nav-login':'Sign In','nav-cta':'Get Started',
+    'badge':'Smart Executive Secretariat for Organisations',
+    'h1a':'Smarter meetings,','h1b':'powered by AI',
+    'hero-sub':'A complete platform for meeting minutes, e-signatures, and board governance — built for organisations that value precision and efficiency.',
+    'cta1':'🚀 Start Free Trial','cta2':'Explore features ↓',
+    'db-dash':'Dashboard','db-meet':'Meetings','db-min':'Minutes','db-sign':'Signatures','db-board':'Boards',
+    'ds-meet':'Meetings','ds-acc':'AI Accuracy','ds-sign':'Pending Sigs',
+    'dc-rec':'Recent Meetings','dm1':'Board Meeting — July 2026','dm2':'Executive Committee Meeting',
+    'dt-done':'Complete','dt-pend':'In Review',
+    'st1':'Trusted Orgs','st2':'AI Accuracy','st3':'Time Saved','st4':'Support',
+    'feat-badge':'Features','feat-title':'Everything in one place',
+    'feat-sub':'From recording to official archive — Ameen handles every step with precision and intelligence.',
+    'f1t':'AI-Powered Minutes','f1d':'Converts audio recordings into accurate, structured minutes in seconds — with tasks and decisions extracted automatically.',
+    'f2t':'E-Signature','f2d':'Draw, type, or upload — a complete approval workflow with real-time status tracking.',
+    'f3t':'Board Governance','f3d':'Manage boards and committees, tiered permissions, and formal documentation that meets governance standards.',
+    'f4t':'Approval Workflow','f4d':'Full approval cycle from draft minutes to final sign-off with instant notifications.',
+    'f5t':'Reports & Analytics','f5d':'Detailed meeting statistics, completion rates, and task tracking — all in one dashboard.',
+    'f6t':'Enterprise Security','f6d':'Encrypted data, permission controls, and a full audit trail for every action within your organisation.',
+    'how-badge':'How It Works','how-title':'From meeting to archive in 4 steps',
+    'hw1t':'Schedule the meeting','hw1d':'Create the meeting, set attendees and agenda, and send invitations automatically.',
+    'hw2t':'Record & transcribe','hw2d':'Upload the recording and let AI transcribe and summarise it in seconds.',
+    'hw3t':'Review & approve','hw3d':'Send the minutes for an approval and e-signature cycle from all parties.',
+    'hw4t':'Archive officially','hw4d':'The approved minutes are stored with a digital certificate in the official archive.',
+    'price-badge':'Pricing','price-title':'Plans for every organisation',
+    'price-sub':'Start free for 7 days, then choose the plan that fits your organisation\'s size and needs.',
+    'cta-title':'Ready to get started?','cta-sub':'Join hundreds of organisations that trust Ameen Secretary to manage their meetings.',
+    'cta-btn':'🚀 Start Free Trial','cta-login':'Sign In',
+    'copy':'© 2026 Ameen Secretary. All rights reserved.',
+    'fl-terms':'Terms','fl-privacy':'Privacy','fl-contact':'Contact',
+    dir: 'ltr', lang: 'en',
+    planFeats: { ai_minutes:'AI Minutes', e_signature:'E-Signature', basic_reports:'Basic Reports', approval_workflow:'Approval Workflow', board_management:'Board Management', advanced_reports:'Advanced Reports', email_notifications:'Email Notifications', whatsapp_notifications:'WhatsApp Notifications', custom_branding:'Custom Branding', api_access:'API Access', sso:'SSO', dedicated_support:'Dedicated Support' },
+    free:'Free', trial:'7 days free', permo:'/mo', popular:'Most Popular', recommended:'Recommended', unlim:'Unlimited', users:'users', meetmo:'mtgs/mo', getstart:'Start Free', choosePlan:'Choose Plan',
+    statSuffix: ['+','%','×','/7'],
+    statPre: ['','','10',''],
+  }
+};
+
+let lang = localStorage.getItem('lang') || 'ar';
+let plans = [];
+
+function setLang(l) {
+  lang = l; localStorage.setItem('lang', l);
+  document.documentElement.lang = l;
+  document.documentElement.dir = T[l].dir;
+  document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
+  document.getElementById('btn-en').classList.toggle('on', l === 'en');
+  const t = T[l];
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const key = el.dataset.t;
+    if (t[key]) el.textContent = t[key];
+  });
+  renderPlans();
+}
+
+async function loadPlans() {
+  try {
+    const r = await fetch('/auth/plans');
+    plans = await r.json();
+  } catch { plans = []; }
+  renderPlans();
+}
+
+function renderPlans() {
+  const t = T[lang];
+  const el = document.getElementById('plan-row');
+  if (!plans.length) return;
+  const allFeats = ['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support'];
+  el.innerHTML = plans.map(p => {
+    const feats = JSON.parse(p.features || '[]');
+    const isFree = p.slug === 'free_trial';
+    const isPrem = p.slug === 'premium';
+    const isPro  = p.slug === 'pro';
+    const maxU = p.max_users >= 999 ? t.unlim : p.max_users + ' ' + t.users;
+    const maxM = p.max_meetings_month >= 999 ? t.unlim : p.max_meetings_month + ' ' + t.meetmo;
+    const priceHtml = isFree
+      ? `<div class="plan-box-price">$<span style="font-size:2.4rem">0</span></div>`
+      : `<div class="plan-box-price"><sub>$</sub>${p.price_monthly_usd}<span>${t.permo}</span></div>`;
+    const descHtml = isFree
+      ? `<div class="plan-box-desc">${t.trial} · ${maxU} · ${maxM}</div>`
+      : `<div class="plan-box-desc">${maxU} · ${maxM}</div>`;
+    const badge = isPrem ? `<div class="plan-pop">${t.popular}</div>` : '';
+    const btnLabel = isFree ? t.getstart : t.choosePlan;
+    const featHtml = allFeats.map(f => {
+      const has = feats.includes(f);
+      return `<div class="plan-feat-item"><span class="${has?'chk':'no'}">${has?'✓':'–'}</span>${t.planFeats[f]||f}</div>`;
+    }).join('');
+    return `<div class="plan-box${isPrem?' featured':''} reveal">
+      ${badge}
+      <div class="plan-box-name">${lang==='ar'?p.name_ar:p.name_en}</div>
+      ${priceHtml}${descHtml}
+      <div class="plan-box-feats">${featHtml}</div>
+      <a href="/signup.html" class="plan-btn">${btnLabel}</a>
+    </div>`;
+  }).join('');
+  // Re-observe new elements
+  document.querySelectorAll('.reveal:not(.shown)').forEach(el => observer.observe(el));
+}
+
+// ── Scroll reveal ─────────────────────────────────────────────────────────────
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('shown'), i * 80);
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.12 });
+
+// ── Counter animation ─────────────────────────────────────────────────────────
+function animateCounters() {
+  document.querySelectorAll('[data-count]').forEach(el => {
+    const target = parseInt(el.dataset.count);
+    const t = T[lang];
+    let i = 0;
+    const step = target / 50;
+    const idx = [...document.querySelectorAll('[data-count]')].indexOf(el);
+    const suffix = ['+ ','%','×','/7'][idx] || '';
+    const pre = ['','','10',''][idx] || '';
+    const iv = setInterval(() => {
+      i = Math.min(i + step, target);
+      el.textContent = pre + Math.round(i) + suffix;
+      if (i >= target) clearInterval(iv);
+    }, 30);
+  });
+}
+
+// ── Particle canvas ───────────────────────────────────────────────────────────
+function initParticles() {
+  const canvas = document.getElementById('particles-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let w, h, particles;
+
+  function resize() {
+    w = canvas.width = canvas.offsetWidth;
+    h = canvas.height = canvas.offsetHeight;
+  }
+
+  function createParticles() {
+    particles = Array.from({length: 60}, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      r: Math.random() * 1.5 + 0.3,
+      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+      o: Math.random() * 0.4 + 0.1
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(201,168,76,${p.o})`;
+      ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  createParticles();
+  draw();
+  window.addEventListener('resize', () => { resize(); createParticles(); });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  setLang(lang);
+  loadPlans();
+  initParticles();
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // Counter on stats visible
+  const statsObs = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) { animateCounters(); statsObs.disconnect(); }
+  }, { threshold: 0.3 });
+  const statsBar = document.querySelector('.stats-bar');
+  if (statsBar) statsObs.observe(statsBar);
+});
+</script>
+</body>
+</html>

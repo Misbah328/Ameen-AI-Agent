@@ -15,49 +15,45 @@ const COOKIE_OPTS = {
   maxAge: 8 * 60 * 60 * 1000
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
+function generateCode() { return String(Math.floor(100000 + Math.random() * 900000)); }
 
 function storeCode(userId, email, code) {
   db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(userId);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-  db.prepare(
-    'INSERT INTO email_verifications (user_id, email, code, expires_at) VALUES (?, ?, ?, ?)'
-  ).run(userId, email, code, expiresAt);
+  db.prepare('INSERT INTO email_verifications (user_id, email, code, expires_at) VALUES (?, ?, ?, ?)').run(userId, email, code, expiresAt);
 }
 
 async function sendVerificationEmail(email, code, lang) {
   const isAr = lang === 'ar';
   const subject = isAr ? 'رمز التحقق — أمين السكرتير' : 'Verification Code — Ameen Secretary';
-  const html = `
-<!DOCTYPE html>
-<html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'en'}">
+  const html = `<!DOCTYPE html><html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'en'}">
 <body style="background:#0a0c14;font-family:'Segoe UI',system-ui,sans-serif;padding:0;margin:0;">
   <div style="max-width:480px;margin:40px auto;background:#12151f;border:1px solid #252a3d;border-radius:16px;overflow:hidden;">
-    <div style="background:linear-gradient(145deg,#0d1f3c,#0a0c14);padding:32px 32px 24px;text-align:center;border-bottom:1px solid #252a3d;">
+    <div style="background:linear-gradient(145deg,#0d1f3c,#0a0c14);padding:32px;text-align:center;border-bottom:1px solid #252a3d;">
       <div style="font-size:2rem;margin-bottom:8px;">🔐</div>
-      <div style="color:#C9A84C;font-size:1.2rem;font-weight:800;">${isAr ? 'أمين السكرتير' : 'Ameen Secretary'}</div>
+      <div style="color:#C9A84C;font-size:1.2rem;font-weight:800;">${isAr?'أمين السكرتير':'Ameen Secretary'}</div>
     </div>
     <div style="padding:32px;text-align:center;">
       <p style="color:#b4b8cc;font-size:0.95rem;margin-bottom:24px;line-height:1.6;">
-        ${isAr ? 'استخدم الرمز التالي لتأكيد بريدك الإلكتروني. صالح لمدة 15 دقيقة.' : 'Use the code below to verify your email address. Valid for 15 minutes.'}
+        ${isAr?'استخدم الرمز التالي لتأكيد بريدك الإلكتروني. صالح لمدة 15 دقيقة.':'Use the code below to verify your email. Valid for 15 minutes.'}
       </p>
       <div style="background:#1a1e2e;border:2px solid #C9A84C;border-radius:12px;padding:20px 32px;display:inline-block;margin-bottom:24px;">
         <div style="color:#C9A84C;font-size:2.5rem;font-weight:900;letter-spacing:0.25em;font-family:monospace;">${code}</div>
       </div>
-      <p style="color:#6b7190;font-size:0.8rem;">
-        ${isAr ? 'إذا لم تطلب هذا، يمكنك تجاهل هذا البريد بأمان.' : "If you didn\'t request this, you can safely ignore this email."}
-      </p>
-    </div>
-    <div style="padding:16px 32px;background:#0f1728;text-align:center;border-top:1px solid #252a3d;">
-      <div style="color:#6b7190;font-size:0.75rem;">Ameen Secretary · ${isAr ? 'نظام الأمانة التنفيذية الذكية' : 'Smart Executive Secretariat'}</div>
+      <p style="color:#6b7190;font-size:0.8rem;">${isAr?"إذا لم تطلب هذا، يمكنك تجاهل هذا البريد.":"If you didn't request this, you can safely ignore this email."}</p>
     </div>
   </div>
-</body>
-</html>`;
+</body></html>`;
   await sendEmail({ to: email, subject, html, text: `${subject}: ${code}` });
+}
+
+function issueToken(user, res) {
+  const token = jwt.sign(
+    { id: user.id, email: user.email, system_role: user.system_role || 'Admin' },
+    JWT_SECRET, { expiresIn: '8h' }
+  );
+  res.cookie('ameen_token', token, COOKIE_OPTS);
+  return token;
 }
 
 // ── POST /auth/login ──────────────────────────────────────────────────────────
@@ -70,73 +66,78 @@ router.post('/login', (req, res) => {
   ).get(email.trim().toLowerCase());
 
   if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+  if (!bcrypt.compareSync(password, user.password || '')) return res.status(401).json({ error: 'Invalid email or password' });
 
-  const valid = bcrypt.compareSync(password, user.password || '');
-  if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
-
-  // Block unverified users — send them back to verify
   if (!user.email_verified) {
     return res.status(403).json({ error: 'email_not_verified', email: user.email });
   }
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, system_role: user.system_role || 'Admin' },
-    JWT_SECRET,
-    { expiresIn: '8h' }
-  );
-
-  res.cookie('ameen_token', token, COOKIE_OPTS);
+  const token = issueToken(user, res);
   const { password: _pw, email_verified: _ev, ...safeUser } = user;
   if (IS_REPLIT_DEV) return res.json({ success: true, user: safeUser, token });
   res.json({ success: true, user: safeUser });
 });
 
-// ── POST /auth/signup ─────────────────────────────────────────────────────────
+// ── POST /auth/signup  (organisation signup) ──────────────────────────────────
 router.post('/signup', async (req, res) => {
-  const { nameEn, nameAr, email, password, org } = req.body;
+  const { orgNameAr, orgNameEn, orgEmail, orgPhone, planSlug, adminName, email, password } = req.body;
 
-  if (!nameEn || !nameEn.trim()) return res.status(400).json({ error: 'Full name (English) is required' });
+  // Validate required
+  if (!adminName || !adminName.trim()) return res.status(400).json({ error: 'Admin name is required' });
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ error: 'Valid email is required' });
   if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (!orgNameAr || !orgNameAr.trim()) return res.status(400).json({ error: 'Organisation name (Arabic) is required' });
+  if (!planSlug) return res.status(400).json({ error: 'Plan selection is required' });
 
   const cleanEmail = email.trim().toLowerCase();
-  const existing = db.prepare('SELECT id, email_verified FROM users WHERE email = ?').get(cleanEmail);
+  const cleanOrgEmail = (orgEmail || cleanEmail).trim().toLowerCase();
 
-  // If account exists but unverified — resend code instead of error
-  if (existing && !existing.email_verified) {
+  // Check plan exists
+  const plan = db.prepare('SELECT * FROM subscription_plans WHERE slug = ? AND is_active = 1').get(planSlug);
+  if (!plan) return res.status(400).json({ error: 'Invalid plan selected' });
+
+  // Check duplicate user email
+  const existingUser = db.prepare('SELECT id, email_verified FROM users WHERE email = ?').get(cleanEmail);
+  if (existingUser && existingUser.email_verified) return res.status(409).json({ error: 'An account with this email already exists' });
+
+  // If unverified duplicate — resend OTP
+  if (existingUser && !existingUser.email_verified) {
     const code = generateCode();
-    storeCode(existing.id, cleanEmail, code);
+    storeCode(existingUser.id, cleanEmail, code);
     try { await sendVerificationEmail(cleanEmail, code, 'ar'); } catch (e) { console.error('Email send error:', e.message); }
-    return res.status(200).json({ success: true, pending: true, email: cleanEmail });
+    return res.json({ success: true, pending: true, email: cleanEmail });
   }
 
-  if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
+  // Create or reuse organisation
+  let org = db.prepare('SELECT id FROM organizations WHERE email = ?').get(cleanOrgEmail);
+  let trialEndsAt = null;
+  if (plan.trial_days > 0) {
+    trialEndsAt = new Date(Date.now() + plan.trial_days * 86400000).toISOString();
+  }
+  if (!org) {
+    const orgResult = db.prepare(
+      `INSERT INTO organizations (name_ar, name_en, email, phone, plan_id, status, trial_ends_at) VALUES (?,?,?,?,?,?,?)`
+    ).run(
+      orgNameAr.trim(),
+      (orgNameEn || orgNameAr).trim(),
+      cleanOrgEmail,
+      orgPhone || '',
+      plan.id,
+      plan.trial_days > 0 ? 'trial' : 'active',
+      trialEndsAt
+    );
+    org = { id: orgResult.lastInsertRowid };
+  }
 
   const hashed = bcrypt.hashSync(password, 10);
-  const roleNote = org ? org.trim() : '';
-
   const result = db.prepare(
-    `INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, lang_pref, system_role, email_verified, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))`
-  ).run(
-    (nameAr && nameAr.trim()) || nameEn.trim(),
-    nameEn.trim(),
-    cleanEmail,
-    hashed,
-    roleNote || 'عضو',
-    roleNote || 'Member',
-    'ar',
-    'Employee'
-  );
+    `INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, lang_pref, system_role, email_verified, organization_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, datetime('now'))`
+  ).run(adminName.trim(), adminName.trim(), cleanEmail, hashed, 'مدير', 'Admin', 'ar', 'Admin', org.id);
 
   const code = generateCode();
   storeCode(result.lastInsertRowid, cleanEmail, code);
-
-  try {
-    await sendVerificationEmail(cleanEmail, code, 'ar');
-  } catch (e) {
-    console.error('Verification email error:', e.message);
-  }
+  try { await sendVerificationEmail(cleanEmail, code, 'ar'); } catch (e) { console.error('Verification email error:', e.message); }
 
   res.status(201).json({ success: true, pending: true, email: cleanEmail });
 });
@@ -149,32 +150,19 @@ router.post('/verify-email', (req, res) => {
   const cleanEmail = email.trim().toLowerCase();
   const row = db.prepare(
     `SELECT ev.*, u.id as uid, u.name_ar, u.name_en, u.role_ar, u.role_en, u.lang_pref, u.system_role
-     FROM email_verifications ev
-     JOIN users u ON u.id = ev.user_id
-     WHERE ev.email = ? AND ev.used = 0
-     ORDER BY ev.created_at DESC LIMIT 1`
+     FROM email_verifications ev JOIN users u ON u.id = ev.user_id
+     WHERE ev.email = ? AND ev.used = 0 ORDER BY ev.created_at DESC LIMIT 1`
   ).get(cleanEmail);
 
   if (!row) return res.status(400).json({ error: 'invalid_code' });
-  if (row.used) return res.status(400).json({ error: 'invalid_code' });
   if (new Date(row.expires_at) < new Date()) return res.status(400).json({ error: 'code_expired' });
   if (row.code !== String(code).trim()) return res.status(400).json({ error: 'invalid_code' });
 
-  // Mark code used + user verified
   db.prepare('UPDATE email_verifications SET used = 1 WHERE id = ?').run(row.id);
   db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(row.uid);
 
-  const user = db.prepare(
-    'SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?'
-  ).get(row.uid);
-
-  const token = jwt.sign(
-    { id: user.id, email: user.email, system_role: user.system_role || 'Admin' },
-    JWT_SECRET,
-    { expiresIn: '8h' }
-  );
-
-  res.cookie('ameen_token', token, COOKIE_OPTS);
+  const user = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?').get(row.uid);
+  const token = issueToken(user, res);
   if (IS_REPLIT_DEV) return res.json({ success: true, user, token });
   res.json({ success: true, user });
 });
@@ -186,25 +174,17 @@ router.post('/resend-code', async (req, res) => {
 
   const cleanEmail = email.trim().toLowerCase();
   const user = db.prepare('SELECT id, email_verified, lang_pref FROM users WHERE email = ?').get(cleanEmail);
-
   if (!user) return res.status(404).json({ error: 'No account found for this email' });
   if (user.email_verified) return res.status(400).json({ error: 'already_verified' });
 
-  // Rate-limit: allow resend only if last code is older than 60s
-  const last = db.prepare(
-    "SELECT created_at FROM email_verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1"
-  ).get(user.id);
+  const last = db.prepare("SELECT created_at FROM email_verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(user.id);
   if (last) {
     const age = Date.now() - new Date(last.created_at).getTime();
-    if (age < 60000) {
-      const wait = Math.ceil((60000 - age) / 1000);
-      return res.status(429).json({ error: 'rate_limited', wait });
-    }
+    if (age < 60000) return res.status(429).json({ error: 'rate_limited', wait: Math.ceil((60000 - age) / 1000) });
   }
 
   const code = generateCode();
   storeCode(user.id, cleanEmail, code);
-
   try {
     await sendVerificationEmail(cleanEmail, code, user.lang_pref || 'ar');
     res.json({ success: true });
@@ -212,6 +192,12 @@ router.post('/resend-code', async (req, res) => {
     console.error('Resend error:', e.message);
     res.status(500).json({ error: 'Failed to send email. Please try again.' });
   }
+});
+
+// ── GET /auth/plans ───────────────────────────────────────────────────────────
+router.get('/plans', (req, res) => {
+  const plans = db.prepare('SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY sort_order').all();
+  res.json(plans);
 });
 
 // ── POST /auth/logout ─────────────────────────────────────────────────────────
@@ -222,9 +208,7 @@ router.post('/logout', (req, res) => {
 
 // ── GET /auth/me ──────────────────────────────────────────────────────────────
 router.get('/me', auth, (req, res) => {
-  const user = db.prepare(
-    'SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?'
-  ).get(req.user.id);
+  const user = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json(user);
 });

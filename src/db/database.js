@@ -181,6 +181,59 @@ ensureColumn('meeting_documents', 'doc_classification', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'recurrence', "TEXT DEFAULT 'none'");
 ensureColumn('schedule', 'recurrence_group_id', 'TEXT');
 
+// ── Subscription plans & organisations ───────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS subscription_plans (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug                 TEXT UNIQUE NOT NULL,
+    name_ar              TEXT NOT NULL,
+    name_en              TEXT NOT NULL,
+    price_monthly_usd    REAL DEFAULT 0,
+    price_monthly_sar    REAL DEFAULT 0,
+    trial_days           INTEGER DEFAULT 0,
+    max_users            INTEGER DEFAULT 5,
+    max_meetings_month   INTEGER DEFAULT 10,
+    features             TEXT DEFAULT '[]',
+    is_active            INTEGER DEFAULT 1,
+    sort_order           INTEGER DEFAULT 0,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS organizations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name_ar       TEXT NOT NULL,
+    name_en       TEXT,
+    email         TEXT UNIQUE NOT NULL,
+    phone         TEXT,
+    plan_id       INTEGER,
+    status        TEXT DEFAULT 'active',
+    trial_ends_at DATETIME,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(plan_id) REFERENCES subscription_plans(id)
+  );
+`);
+
+// Seed subscription plans (idempotent)
+const _planCount = db.prepare("SELECT COUNT(*) as n FROM subscription_plans").get().n;
+if (_planCount === 0) {
+  db.prepare(`INSERT INTO subscription_plans
+    (slug, name_ar, name_en, price_monthly_usd, price_monthly_sar, trial_days, max_users, max_meetings_month, features, sort_order)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+    'free_trial','تجربة مجانية','Free Trial',0,0,7,3,5,
+    JSON.stringify(['ai_minutes','e_signature','basic_reports']),1);
+  db.prepare(`INSERT INTO subscription_plans
+    (slug, name_ar, name_en, price_monthly_usd, price_monthly_sar, trial_days, max_users, max_meetings_month, features, sort_order)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+    'premium','بريميوم','Premium',49,184,0,15,50,
+    JSON.stringify(['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications']),2);
+  db.prepare(`INSERT INTO subscription_plans
+    (slug, name_ar, name_en, price_monthly_usd, price_monthly_sar, trial_days, max_users, max_meetings_month, features, sort_order)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+    'pro','برو','Pro',99,371,0,999,999,
+    JSON.stringify(['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support']),3);
+}
+
+ensureColumn('users', 'organization_id', 'INTEGER');
+
 // ── Email verification ────────────────────────────────────────────────────────
 ensureColumn('users', 'email_verified', 'INTEGER DEFAULT 0');
 db.exec(`
@@ -195,6 +248,13 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 `);
+
+// Grandfather all users that pre-date the verification system (no OTP record yet)
+db.prepare(`
+  UPDATE users SET email_verified = 1
+  WHERE (email_verified IS NULL OR email_verified = 0)
+    AND id NOT IN (SELECT DISTINCT user_id FROM email_verifications)
+`).run();
 
 // Minutes Approval Workflow columns
 ensureColumn('meetings', 'minutes_status', "TEXT DEFAULT 'draft'");

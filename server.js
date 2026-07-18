@@ -15,6 +15,23 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// Root: landing page for guests, app shell for authenticated users
+// (must be BEFORE express.static so we can intercept GET /)
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('./src/middleware/auth');
+
+app.get('/', (req, res) => {
+  const token = req.cookies.ameen_token ||
+    (req.headers.authorization || '').replace('Bearer ', '');
+  if (!token) return res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+  try {
+    jwt.verify(token, JWT_SECRET);
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } catch {
+    res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Uploaded documents and meeting recordings are private board material —
@@ -49,7 +66,7 @@ app.get('/m/:token', (req, res) => {
 // ── Health check (must be before SPA fallback) ───────────────────────────────
 app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
-// SPA fallback — login removed, always serve the app
+// SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
