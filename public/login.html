@@ -3,168 +3,253 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ameen Secretary — تسجيل الدخول / Sign In</title>
+  <title>Ameen Secretary — تسجيل الدخول</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0c14;
-      --surface: #12151f;
-      --surface2: #1a1e2e;
-      --border: #252a3d;
-      --border-focus: #C9A84C;
-      --accent: #C9A84C;
-      --accent-dim: rgba(201,168,76,0.12);
-      --text: #e8eaf0;
-      --muted: #7a809a;
-      --danger: #e05a5a;
-      --success: #3cc47c;
-      --radius: 14px;
-      --radius-sm: 9px;
+      --gold: #C9A84C;
+      --gold-light: #e2c46a;
+      --gold-dim: rgba(201,168,76,0.14);
+      --navy: #0a0c14;
+      --navy2: #0f1728;
+      --navy3: #12151f;
+      --navy4: #1a1e2e;
+      --border: rgba(255,255,255,0.08);
+      --text: #f0f1f5;
+      --text2: #b4b8cc;
+      --text3: #6b7190;
+      --red: #e05a5a;
+      --green: #3cc47c;
     }
+    html, body { height: 100%; }
     body {
-      background: var(--bg);
-      background-image: radial-gradient(ellipse at 30% 10%, rgba(201,168,76,0.07) 0%, transparent 55%),
-                        radial-gradient(ellipse at 80% 80%, rgba(60,100,196,0.06) 0%, transparent 50%);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--navy);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       min-height: 100vh;
       display: flex;
+      align-items: stretch;
+    }
+
+    /* ══ LEFT BRAND PANEL ══ */
+    .brand {
+      flex: 0 0 440px;
+      background: linear-gradient(145deg, #0d1f3c 0%, #0a0c14 50%, #12100a 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 1.5rem 1rem;
-    }
-    .panel {
-      display: flex;
-      width: 100%;
-      max-width: 860px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+      padding: 3rem 2.5rem;
       overflow: hidden;
     }
-    /* ── Left brand panel ── */
-    .brand-side {
-      flex: 0 0 300px;
-      background: linear-gradient(160deg, #0f1728 0%, #0a0c14 100%);
-      border-inline-end: 1px solid var(--border);
+    /* Decorative rings */
+    .brand::before {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.1);
+      top: -120px; left: -120px;
+      pointer-events: none;
+    }
+    .brand::after {
+      content: '';
+      position: absolute;
+      width: 340px; height: 340px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.07);
+      bottom: -80px; right: -80px;
+      pointer-events: none;
+    }
+    .brand-glow {
+      position: absolute;
+      width: 320px; height: 320px;
+      background: radial-gradient(ellipse, rgba(201,168,76,0.12) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .brand-content { position: relative; z-index: 1; text-align: center; width: 100%; }
+    .brand-logo {
+      width: 96px; height: 96px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 24px rgba(201,168,76,0.35));
+      margin-bottom: 1.5rem;
+    }
+    .brand-name {
+      font-size: 1.5rem; font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+    .brand-name span { color: var(--gold); }
+    .brand-tagline {
+      font-size: 0.82rem;
+      color: var(--text3);
+      line-height: 1.7;
+      max-width: 260px;
+      margin: 0 auto 2.5rem;
+    }
+    .brand-feats { display: flex; flex-direction: column; gap: 0.75rem; width: 100%; }
+    .feat {
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(201,168,76,0.12);
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      text-align: start;
+    }
+    .feat-icon {
+      width: 34px; height: 34px;
+      background: var(--gold-dim);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
+    }
+    .feat-text { font-size: 0.8rem; color: var(--text2); line-height: 1.4; }
+
+    /* ══ RIGHT FORM PANEL ══ */
+    .form-panel {
+      flex: 1;
+      background: var(--navy3);
+      display: flex;
       align-items: center;
       justify-content: center;
-      padding: 3rem 2rem;
-      gap: 1.5rem;
-      text-align: center;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
     }
-    .brand-logo img { width: 130px; height: 130px; object-fit: contain; filter: drop-shadow(0 2px 20px rgba(201,168,76,0.28)); }
-    .brand-tagline { font-size: 0.8rem; color: var(--muted); line-height: 1.7; max-width: 210px; }
-    .brand-features { display: flex; flex-direction: column; gap: 0.7rem; width: 100%; margin-top: 0.5rem; }
-    .brand-feat {
-      display: flex; align-items: center; gap: 0.6rem; font-size: 0.78rem; color: var(--muted);
-      background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px;
-      padding: 0.5rem 0.85rem; text-align: start;
+    .form-box {
+      width: 100%;
+      max-width: 400px;
     }
-    .brand-feat span:first-child { font-size: 0.95rem; flex-shrink: 0; }
-    /* ── Right form panel ── */
-    .form-side {
-      flex: 1;
-      padding: 3rem 2.75rem;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .form-header {
+    .form-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 2rem;
+      margin-bottom: 2.5rem;
     }
-    .form-title { font-size: 1.4rem; font-weight: 700; color: var(--text); }
-    .form-subtitle { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
-    .lang-toggle { display: flex; gap: 0.35rem; flex-shrink: 0; margin-inline-start: 1rem; }
-    .lang-toggle button {
-      background: none; border: 1px solid var(--border); color: var(--muted);
-      padding: 0.22rem 0.7rem; border-radius: 20px; cursor: pointer; font-size: 0.78rem; transition: all 0.18s;
+    .form-title { font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1.2; letter-spacing: -0.02em; }
+    .form-sub { font-size: 0.84rem; color: var(--text3); margin-top: 5px; }
+    .lang-sw { display: flex; gap: 0.3rem; }
+    .lang-sw button {
+      background: none; border: 1px solid var(--border);
+      color: var(--text3); padding: 0.2rem 0.75rem;
+      border-radius: 20px; cursor: pointer; font-size: 0.75rem;
+      font-family: inherit; transition: all 0.15s;
     }
-    .lang-toggle button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-    .field-group { margin-bottom: 1.1rem; }
-    label { display: block; font-size: 0.79rem; font-weight: 600; color: var(--muted); margin-bottom: 0.38rem; }
-    input {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      border-radius: var(--radius-sm); padding: 0.75rem 1rem; font-size: 0.94rem;
-      outline: none; transition: border-color 0.2s, box-shadow 0.2s; direction: ltr;
+    .lang-sw button.on { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+
+    /* Fields */
+    .fg { margin-bottom: 1.1rem; }
+    label {
+      display: block; font-size: 0.77rem; font-weight: 600;
+      color: var(--text3); margin-bottom: 0.4rem; letter-spacing: 0.01em;
     }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,168,76,0.1); }
+    input[type=email], input[type=password], input[type=text] {
+      width: 100%; background: var(--navy4);
+      border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 0.78rem 1rem;
+      font-size: 0.92rem; font-family: inherit;
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+      direction: ltr;
+    }
+    input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
+    input.err-field { border-color: var(--red); }
     .pw-wrap { position: relative; }
     .pw-wrap input { padding-inline-end: 2.8rem; }
-    .pw-eye {
-      position: absolute; inset-inline-end: 0.75rem; top: 50%; transform: translateY(-50%);
-      background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
+    .eye {
+      position: absolute; inset-inline-end: 0.85rem; top: 50%;
+      transform: translateY(-50%); background: none; border: none;
+      color: var(--text3); cursor: pointer; font-size: 0.95rem;
+      line-height: 1; padding: 0; transition: color 0.15s;
     }
-    .pw-eye:hover { color: var(--accent); }
-    .forgot-row {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: -0.6rem;
-      margin-bottom: 1.1rem;
-    }
-    .forgot-link { font-size: 0.78rem; color: var(--accent); text-decoration: none; }
-    .forgot-link:hover { text-decoration: underline; }
+    .eye:hover { color: var(--gold); }
+    .forgot-row { display: flex; justify-content: flex-end; margin-top: -0.55rem; margin-bottom: 1.1rem; }
+    .forgot { font-size: 0.77rem; color: var(--gold); text-decoration: none; }
+    .forgot:hover { text-decoration: underline; }
+
+    /* Alert */
     .alert {
-      border-radius: var(--radius-sm); padding: 0.65rem 1rem; font-size: 0.84rem;
-      margin-bottom: 1.2rem; display: none; text-align: center;
+      border-radius: 10px; padding: 0.7rem 1rem;
+      font-size: 0.82rem; margin-bottom: 1rem;
+      display: none; text-align: center; line-height: 1.4;
     }
-    .alert.error  { background: rgba(224,90,90,0.1); border: 1px solid var(--danger); color: var(--danger); display: block; }
-    .submit-btn {
-      width: 100%; background: var(--accent); color: #0f1728; border: none;
-      border-radius: var(--radius-sm); padding: 0.88rem; font-size: 0.97rem;
-      font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
-      letter-spacing: 0.01em;
+    .alert.error { background: rgba(224,90,90,0.1); border: 1px solid rgba(224,90,90,0.3); color: var(--red); display: block; }
+
+    /* Submit */
+    .submit {
+      width: 100%; background: var(--gold); color: #0f1728;
+      border: none; border-radius: 10px; padding: 0.9rem;
+      font-size: 0.97rem; font-weight: 800; font-family: inherit;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.01em; margin-top: 0.25rem;
     }
-    .submit-btn:hover:not(:disabled) { opacity: 0.92; }
-    .submit-btn:active:not(:disabled) { transform: scale(0.99); }
-    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .submit:hover:not(:disabled) { opacity: 0.9; }
+    .submit:active:not(:disabled) { transform: scale(0.99); }
+    .submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Footer */
     .divider {
-      display: flex; align-items: center; gap: 0.75rem; margin: 1.4rem 0;
-      color: var(--muted); font-size: 0.75rem;
+      display: flex; align-items: center; gap: 0.75rem;
+      margin: 1.5rem 0; color: var(--text3); font-size: 0.75rem;
     }
     .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    .signup-link { text-align: center; font-size: 0.82rem; color: var(--muted); }
-    .signup-link a { color: var(--accent); text-decoration: none; font-weight: 600; }
-    .signup-link a:hover { text-decoration: underline; }
-    @media (max-width: 640px) {
-      .panel { flex-direction: column; max-width: 420px; }
-      .brand-side { flex: none; padding: 1.75rem 1.5rem; border-inline-end: none; border-bottom: 1px solid var(--border); }
-      .brand-logo img { width: 90px; height: 90px; }
-      .brand-features { display: none; }
-      .form-side { padding: 2rem 1.5rem; }
+    .foot-link { text-align: center; font-size: 0.82rem; color: var(--text3); }
+    .foot-link a { color: var(--gold); text-decoration: none; font-weight: 600; }
+    .foot-link a:hover { text-decoration: underline; }
+
+    /* Mobile */
+    @media (max-width: 720px) {
+      body { flex-direction: column; }
+      .brand { flex: none; min-height: auto; padding: 2.5rem 1.5rem 2rem; }
+      .brand-feats { display: none; }
+      .brand-logo { width: 72px; height: 72px; margin-bottom: 1rem; }
+      .brand-name { font-size: 1.2rem; }
+      .brand::before, .brand::after { display: none; }
+      .form-panel { min-height: auto; padding: 2rem 1.25rem 3rem; }
     }
   </style>
 </head>
 <body>
-<div class="panel">
 
-  <!-- ── Brand side ── -->
-  <aside class="brand-side">
-    <div class="brand-logo">
-      <img src="/logo.png" alt="Ameen" />
-    </div>
+<!-- ── Brand left ── -->
+<aside class="brand">
+  <div class="brand-glow"></div>
+  <div class="brand-content">
+    <img src="/logo.png" alt="Ameen" class="brand-logo" />
+    <div class="brand-name">أمـيـن <span>Secretary</span></div>
     <p class="brand-tagline" id="brand-tag">نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية</p>
-    <div class="brand-features">
-      <div class="brand-feat"><span>📋</span><span id="f1">إدارة محاضر الاجتماعات بالذكاء الاصطناعي</span></div>
-      <div class="brand-feat"><span>🏛️</span><span id="f2">إدارة الحوكمة والمجالس</span></div>
-      <div class="brand-feat"><span>🔒</span><span id="f3">أمان وخصوصية على مستوى المؤسسات</span></div>
+    <div class="brand-feats">
+      <div class="feat">
+        <div class="feat-icon">📋</div>
+        <div class="feat-text" id="f1">إدارة محاضر الاجتماعات بالذكاء الاصطناعي</div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🏛️</div>
+        <div class="feat-text" id="f2">إدارة الحوكمة والمجالس</div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🔒</div>
+        <div class="feat-text" id="f3">أمان وخصوصية على مستوى المؤسسات</div>
+      </div>
     </div>
-  </aside>
+  </div>
+</aside>
 
-  <!-- ── Form side ── -->
-  <main class="form-side">
-    <div class="form-header">
+<!-- ── Form right ── -->
+<main class="form-panel">
+  <div class="form-box">
+    <div class="form-top">
       <div>
         <div class="form-title" id="form-title">مرحباً بعودتك</div>
-        <div class="form-subtitle" id="form-sub">سجّل الدخول للمتابعة</div>
+        <div class="form-sub" id="form-sub">سجّل الدخول للمتابعة</div>
       </div>
-      <div class="lang-toggle">
+      <div class="lang-sw">
         <button id="btn-ar" onclick="setLang('ar')">عربي</button>
         <button id="btn-en" onclick="setLang('en')">English</button>
       </div>
@@ -173,35 +258,32 @@
     <div class="alert" id="alert-box"></div>
 
     <form id="login-form" novalidate autocomplete="on">
-      <div class="field-group">
+      <div class="fg">
         <label for="email" id="lbl-email">البريد الإلكتروني</label>
         <input type="email" id="email" name="email" autocomplete="username email" placeholder="ahmad@example.com" dir="ltr" />
       </div>
-
-      <div class="field-group">
+      <div class="fg">
         <label for="password" id="lbl-pw">كلمة المرور</label>
         <div class="pw-wrap">
           <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" dir="ltr" />
-          <button type="button" class="pw-eye" onclick="togglePw()">👁</button>
+          <button type="button" class="eye" onclick="togglePw()">👁</button>
         </div>
       </div>
-
       <div class="forgot-row">
-        <a href="#" class="forgot-link" id="forgot-link" onclick="handleForgot(event)">نسيت كلمة المرور؟</a>
+        <a href="#" class="forgot" id="forgot-link" onclick="handleForgot(event)">نسيت كلمة المرور؟</a>
       </div>
-
-      <button type="submit" class="submit-btn" id="submit-btn">
+      <button type="submit" class="submit" id="submit-btn">
         <span id="btn-text">تسجيل الدخول</span>
       </button>
     </form>
 
     <div class="divider"><span id="div-or">أو</span></div>
-    <div class="signup-link">
+    <div class="foot-link">
       <span id="signup-txt">ليس لديك حساب؟</span>
       <a href="/signup.html" id="signup-link"> إنشاء حساب جديد</a>
     </div>
-  </main>
-</div>
+  </div>
+</main>
 
 <script>
   const T = {
@@ -225,7 +307,7 @@
       btn: 'Sign In', loading: 'Signing in...',
       forgot: 'Forgot password?',
       divOr: 'or', signupTxt: "Don't have an account?", signupLink: ' Create one',
-      brandTag: 'Smart Executive Secretariat — Trusted intelligence. ROi you can see.',
+      brandTag: 'Smart Executive Secretariat — Trusted intelligence. ROI you can see.',
       f1: 'AI-powered meeting minutes',
       f2: 'Board & governance management', f3: 'Enterprise-grade security',
       badCreds: 'Invalid email or password',
@@ -242,19 +324,19 @@
     localStorage.setItem('lang', l);
     document.documentElement.lang = l;
     document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
-    document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
-    document.getElementById('btn-en').classList.toggle('active', l === 'en');
+    document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
+    document.getElementById('btn-en').classList.toggle('on', l === 'en');
     const t = T[l];
-    document.getElementById('form-title').textContent = t.title;
-    document.getElementById('form-sub').textContent = t.sub;
-    document.getElementById('lbl-email').textContent = t.email;
-    document.getElementById('lbl-pw').textContent = t.pw;
-    document.getElementById('btn-text').textContent = t.btn;
+    document.getElementById('form-title').textContent  = t.title;
+    document.getElementById('form-sub').textContent    = t.sub;
+    document.getElementById('lbl-email').textContent   = t.email;
+    document.getElementById('lbl-pw').textContent      = t.pw;
+    document.getElementById('btn-text').textContent    = t.btn;
     document.getElementById('forgot-link').textContent = t.forgot;
-    document.getElementById('div-or').textContent = t.divOr;
-    document.getElementById('signup-txt').textContent = t.signupTxt;
+    document.getElementById('div-or').textContent      = t.divOr;
+    document.getElementById('signup-txt').textContent  = t.signupTxt;
     document.getElementById('signup-link').textContent = t.signupLink;
-    document.getElementById('brand-tag').textContent = t.brandTag;
+    document.getElementById('brand-tag').textContent   = t.brandTag;
     document.getElementById('f1').textContent = t.f1;
     document.getElementById('f2').textContent = t.f2;
     document.getElementById('f3').textContent = t.f3;
@@ -263,7 +345,7 @@
 
   function togglePw() {
     const inp = document.getElementById('password');
-    const btn = document.querySelector('.pw-eye');
+    const btn = document.querySelector('.eye');
     const show = inp.type === 'password';
     inp.type = show ? 'text' : 'password';
     btn.textContent = show ? '🙈' : '👁';
@@ -283,7 +365,7 @@
   document.getElementById('login-form').addEventListener('submit', async e => {
     e.preventDefault();
     const t = T[lang];
-    const email = document.getElementById('email').value.trim();
+    const email    = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     if (!email || !password) { showAlert(t.emptyFields); return; }
 
@@ -292,7 +374,7 @@
     document.getElementById('btn-text').textContent = t.loading;
 
     try {
-      const res = await fetch('/auth/login', {
+      const res  = await fetch('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -300,7 +382,7 @@
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.user && data.user.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
+        if (data.user?.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
         if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
         window.location.replace('/');
       } else {

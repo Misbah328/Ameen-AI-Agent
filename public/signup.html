@@ -3,274 +3,327 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ameen Secretary — إنشاء حساب / Sign Up</title>
+  <title>Ameen Secretary — إنشاء حساب</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0c14;
-      --surface: #12151f;
-      --surface2: #1a1e2e;
-      --border: #252a3d;
-      --accent: #C9A84C;
-      --accent-dim: rgba(201,168,76,0.12);
-      --text: #e8eaf0;
-      --muted: #7a809a;
-      --danger: #e05a5a;
-      --success: #3cc47c;
-      --radius: 16px;
-      --radius-sm: 10px;
+      --gold: #C9A84C;
+      --gold-light: #e2c46a;
+      --gold-dim: rgba(201,168,76,0.14);
+      --navy: #0a0c14;
+      --navy2: #0f1728;
+      --navy3: #12151f;
+      --navy4: #1a1e2e;
+      --border: rgba(255,255,255,0.08);
+      --text: #f0f1f5;
+      --text2: #b4b8cc;
+      --text3: #6b7190;
+      --red: #e05a5a;
+      --green: #3cc47c;
     }
+    html, body { height: 100%; }
     body {
-      background: var(--bg);
-      background-image: radial-gradient(ellipse at 60% 0%, rgba(201,168,76,0.08) 0%, transparent 55%),
-                        radial-gradient(ellipse at 10% 90%, rgba(60,100,196,0.06) 0%, transparent 50%);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--navy);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+    }
+
+    /* ══ LEFT BRAND PANEL ══ */
+    .brand {
+      flex: 0 0 400px;
+      background: linear-gradient(145deg, #0d1f3c 0%, #0a0c14 50%, #12100a 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2.5rem;
+      overflow: hidden;
+    }
+    .brand::before {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.1);
+      top: -120px; left: -120px;
+      pointer-events: none;
+    }
+    .brand::after {
+      content: '';
+      position: absolute;
+      width: 340px; height: 340px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.07);
+      bottom: -80px; right: -80px;
+      pointer-events: none;
+    }
+    .brand-glow {
+      position: absolute;
+      width: 320px; height: 320px;
+      background: radial-gradient(ellipse, rgba(201,168,76,0.12) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .brand-content { position: relative; z-index: 1; text-align: center; width: 100%; }
+    .brand-logo {
+      width: 90px; height: 90px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 24px rgba(201,168,76,0.35));
+      margin-bottom: 1.35rem;
+    }
+    .brand-name {
+      font-size: 1.45rem; font-weight: 800;
+      color: var(--text); letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+    .brand-name span { color: var(--gold); }
+    .brand-tagline {
+      font-size: 0.81rem; color: var(--text3);
+      line-height: 1.7; max-width: 250px;
+      margin: 0 auto 2rem;
+    }
+    .brand-steps { display: flex; flex-direction: column; gap: 0; width: 100%; }
+    .step {
+      display: flex; align-items: flex-start; gap: 0.9rem;
+      padding: 0.9rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      text-align: start;
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      width: 28px; height: 28px;
+      background: var(--gold-dim);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 800; color: var(--gold);
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .step-body { flex: 1; }
+    .step-title { font-size: 0.82rem; font-weight: 700; color: var(--text2); margin-bottom: 2px; }
+    .step-sub { font-size: 0.75rem; color: var(--text3); line-height: 1.5; }
+
+    /* ══ RIGHT FORM PANEL ══ */
+    .form-panel {
+      flex: 1;
+      background: var(--navy3);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1.5rem 1rem;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
     }
-    .card {
-      width: 100%;
-      max-width: 420px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
-      padding: 2.25rem 2rem 2rem;
+    .form-box { width: 100%; max-width: 400px; }
+    .form-top {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; margin-bottom: 2rem;
     }
-    /* Header */
-    .card-top {
-      text-align: center;
-      margin-bottom: 2rem;
+    .form-title { font-size: 1.5rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; line-height: 1.2; }
+    .form-sub { font-size: 0.83rem; color: var(--text3); margin-top: 5px; }
+    .lang-sw { display: flex; gap: 0.3rem; }
+    .lang-sw button {
+      background: none; border: 1px solid var(--border);
+      color: var(--text3); padding: 0.2rem 0.75rem;
+      border-radius: 20px; cursor: pointer; font-size: 0.75rem;
+      font-family: inherit; transition: all 0.15s;
     }
-    .card-top img {
-      width: 72px;
-      height: 72px;
-      object-fit: contain;
-      filter: drop-shadow(0 2px 12px rgba(201,168,76,0.28));
-      margin-bottom: 1rem;
-    }
-    .card-title {
-      font-size: 1.3rem;
-      font-weight: 800;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-    .card-sub {
-      font-size: 0.83rem;
-      color: var(--muted);
-    }
-    /* Lang toggle */
-    .lang-row {
-      display: flex;
-      justify-content: center;
-      gap: 0.4rem;
-      margin-bottom: 1.75rem;
-    }
-    .lang-row button {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 0.22rem 0.85rem;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 0.78rem;
-      transition: all 0.18s;
-    }
-    .lang-row button.active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-dim);
-    }
+    .lang-sw button.on { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+
     /* Fields */
-    .field-group { margin-bottom: 1rem; }
+    .fg { margin-bottom: 1rem; }
     label {
-      display: block;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 0.35rem;
+      display: block; font-size: 0.77rem; font-weight: 600;
+      color: var(--text3); margin-bottom: 0.38rem; letter-spacing: 0.01em;
     }
-    input {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: var(--radius-sm);
-      padding: 0.75rem 0.95rem;
-      font-size: 0.93rem;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
+    input[type=email], input[type=password], input[type=text] {
+      width: 100%; background: var(--navy4);
+      border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 0.78rem 1rem;
+      font-size: 0.92rem; font-family: inherit;
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
       direction: ltr;
     }
-    input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
-    }
-    input.error-field { border-color: var(--danger); }
-    .field-hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
-    .field-hint.err { color: var(--danger); }
-    /* Password wrap */
+    input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
+    input.err-field { border-color: var(--red); }
+    .field-err { font-size: 0.72rem; color: var(--red); margin-top: 0.3rem; }
     .pw-wrap { position: relative; }
     .pw-wrap input { padding-inline-end: 2.8rem; }
-    .pw-eye {
-      position: absolute;
-      inset-inline-end: 0.8rem;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 1rem;
-      line-height: 1;
-      padding: 0;
+    .eye {
+      position: absolute; inset-inline-end: 0.85rem; top: 50%;
+      transform: translateY(-50%); background: none; border: none;
+      color: var(--text3); cursor: pointer; font-size: 0.95rem;
+      line-height: 1; padding: 0; transition: color 0.15s;
     }
-    .pw-eye:hover { color: var(--accent); }
-    /* Password strength */
+    .eye:hover { color: var(--gold); }
+
+    /* Strength */
     .strength-bar { display: flex; gap: 3px; margin-top: 0.45rem; }
-    .strength-seg {
-      flex: 1; height: 3px; border-radius: 2px;
-      background: var(--border); transition: background 0.3s;
-    }
-    .strength-seg.weak   { background: #e05a5a; }
-    .strength-seg.fair   { background: #f0a030; }
-    .strength-seg.good   { background: #3cc47c; }
-    .strength-seg.strong { background: #3cc47c; }
+    .seg { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.3s; }
+    .seg.weak   { background: var(--red); }
+    .seg.fair   { background: #f0a030; }
+    .seg.good   { background: var(--green); }
+    .seg.strong { background: var(--green); }
+    .pw-hint { font-size: 0.72rem; margin-top: 0.3rem; color: var(--text3); }
+
     /* Alert */
     .alert {
-      border-radius: var(--radius-sm);
-      padding: 0.65rem 1rem;
-      font-size: 0.84rem;
-      margin-bottom: 1rem;
-      display: none;
-      text-align: center;
+      border-radius: 10px; padding: 0.7rem 1rem;
+      font-size: 0.82rem; margin-bottom: 1rem;
+      display: none; text-align: center; line-height: 1.4;
     }
-    .alert.error   { background: rgba(224,90,90,0.1); border: 1px solid var(--danger); color: var(--danger); display: block; }
-    .alert.success { background: rgba(60,196,124,0.1); border: 1px solid var(--success); color: var(--success); display: block; }
+    .alert.error   { background: rgba(224,90,90,0.1); border: 1px solid rgba(224,90,90,0.3); color: var(--red); display: block; }
+    .alert.success { background: rgba(60,196,124,0.1); border: 1px solid rgba(60,196,124,0.3); color: var(--green); display: block; }
+
     /* Terms */
     .terms-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.6rem;
-      margin-bottom: 1.1rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-      cursor: pointer;
+      display: flex; align-items: flex-start; gap: 0.65rem;
+      margin-bottom: 1.1rem; font-size: 0.8rem; color: var(--text3); cursor: pointer;
     }
     .terms-row input[type=checkbox] {
-      width: 16px; height: 16px;
-      flex-shrink: 0; margin: 1px 0 0;
-      accent-color: var(--accent); direction: ltr;
+      width: 16px; height: 16px; flex-shrink: 0;
+      margin-top: 1px; accent-color: var(--gold); direction: ltr;
     }
-    .terms-row a { color: var(--accent); text-decoration: none; }
+    .terms-row a { color: var(--gold); text-decoration: none; }
     .terms-row a:hover { text-decoration: underline; }
+
     /* Submit */
-    .submit-btn {
-      width: 100%;
-      background: var(--accent);
-      color: #0f1728;
-      border: none;
-      border-radius: var(--radius-sm);
-      padding: 0.9rem;
-      font-size: 1rem;
-      font-weight: 800;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+    .submit {
+      width: 100%; background: var(--gold); color: #0f1728;
+      border: none; border-radius: 10px; padding: 0.9rem;
+      font-size: 0.97rem; font-weight: 800; font-family: inherit;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
       letter-spacing: 0.01em;
     }
-    .submit-btn:hover:not(:disabled) { opacity: 0.9; }
-    .submit-btn:active:not(:disabled) { transform: scale(0.99); }
-    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .submit:hover:not(:disabled) { opacity: 0.9; }
+    .submit:active:not(:disabled) { transform: scale(0.99); }
+    .submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
     /* Footer */
-    .signin-link {
-      text-align: center;
-      font-size: 0.82rem;
-      color: var(--muted);
-      margin-top: 1.25rem;
+    .foot-link { text-align: center; font-size: 0.82rem; color: var(--text3); margin-top: 1.25rem; }
+    .foot-link a { color: var(--gold); text-decoration: none; font-weight: 600; }
+    .foot-link a:hover { text-decoration: underline; }
+
+    /* Mobile */
+    @media (max-width: 720px) {
+      body { flex-direction: column; }
+      .brand { flex: none; min-height: auto; padding: 2.5rem 1.5rem 2rem; }
+      .brand-steps { display: none; }
+      .brand-logo { width: 72px; height: 72px; margin-bottom: 1rem; }
+      .brand-name { font-size: 1.2rem; }
+      .brand::before, .brand::after { display: none; }
+      .form-panel { min-height: auto; padding: 2rem 1.25rem 3rem; }
     }
-    .signin-link a { color: var(--accent); text-decoration: none; font-weight: 600; }
-    .signin-link a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-<div class="card">
 
-  <!-- Logo + Title -->
-  <div class="card-top">
-    <img src="/logo.png" alt="Ameen" />
-    <div class="card-title" id="form-title">إنشاء حساب جديد</div>
-    <div class="card-sub" id="form-sub">انضم إلى أمين السكرتير</div>
-  </div>
-
-  <!-- Language toggle -->
-  <div class="lang-row">
-    <button id="btn-ar" onclick="setLang('ar')">عربي</button>
-    <button id="btn-en" onclick="setLang('en')">English</button>
-  </div>
-
-  <div class="alert" id="alert-box"></div>
-
-  <form id="signup-form" novalidate autocomplete="on">
-
-    <div class="field-group">
-      <label for="name-en" id="lbl-name">الاسم الكامل</label>
-      <input type="text" id="name-en" name="name-en" autocomplete="name"
-             placeholder="أحمد العتيبي" />
-      <div class="field-hint err" id="err-name" style="display:none"></div>
-    </div>
-
-    <div class="field-group">
-      <label for="email" id="lbl-email">البريد الإلكتروني</label>
-      <input type="email" id="email" name="email" autocomplete="email"
-             placeholder="ahmad@example.com" dir="ltr" />
-      <div class="field-hint err" id="err-email" style="display:none"></div>
-    </div>
-
-    <div class="field-group">
-      <label for="password" id="lbl-pw">كلمة المرور</label>
-      <div class="pw-wrap">
-        <input type="password" id="password" name="password"
-               autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-        <button type="button" class="pw-eye" onclick="togglePw('password',this)">👁</button>
+<!-- ── Brand left ── -->
+<aside class="brand">
+  <div class="brand-glow"></div>
+  <div class="brand-content">
+    <img src="/logo.png" alt="Ameen" class="brand-logo" />
+    <div class="brand-name">أمـيـن <span>Secretary</span></div>
+    <p class="brand-tagline" id="brand-tag">نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية</p>
+    <div class="brand-steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title" id="s1t">أنشئ حسابك</div>
+          <div class="step-sub" id="s1s">اسمك وبريدك وكلمة المرور — هذا كل ما تحتاجه</div>
+        </div>
       </div>
-      <div class="strength-bar">
-        <div class="strength-seg" id="s1"></div>
-        <div class="strength-seg" id="s2"></div>
-        <div class="strength-seg" id="s3"></div>
-        <div class="strength-seg" id="s4"></div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title" id="s2t">أضف اجتماعاتك</div>
+          <div class="step-sub" id="s2s">جدوِل اجتماعاتك وارفع التسجيلات لتوليد المحاضر بالذكاء الاصطناعي</div>
+        </div>
       </div>
-      <div class="field-hint" id="pw-hint"></div>
-    </div>
-
-    <div class="field-group">
-      <label for="confirm-pw" id="lbl-cpw">تأكيد كلمة المرور</label>
-      <div class="pw-wrap">
-        <input type="password" id="confirm-pw" name="confirm-pw"
-               autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-        <button type="button" class="pw-eye" onclick="togglePw('confirm-pw',this)">👁</button>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title" id="s3t">وثّق واعتمد</div>
+          <div class="step-sub" id="s3s">محاضر مكتملة، توقيعات، وأرشيف رسمي بنقرة واحدة</div>
+        </div>
       </div>
-      <div class="field-hint err" id="err-cpw" style="display:none"></div>
     </div>
-
-    <label class="terms-row">
-      <input type="checkbox" id="terms-chk" />
-      <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
-    </label>
-
-    <button type="submit" class="submit-btn" id="submit-btn">
-      <span id="btn-text">إنشاء الحساب</span>
-    </button>
-  </form>
-
-  <div class="signin-link">
-    <span id="signin-txt">لديك حساب بالفعل؟</span>
-    <a href="/login.html" id="signin-link"> تسجيل الدخول</a>
   </div>
-</div>
+</aside>
+
+<!-- ── Form right ── -->
+<main class="form-panel">
+  <div class="form-box">
+    <div class="form-top">
+      <div>
+        <div class="form-title" id="form-title">إنشاء حساب جديد</div>
+        <div class="form-sub" id="form-sub">انضم إلى أمين السكرتير</div>
+      </div>
+      <div class="lang-sw">
+        <button id="btn-ar" onclick="setLang('ar')">عربي</button>
+        <button id="btn-en" onclick="setLang('en')">English</button>
+      </div>
+    </div>
+
+    <div class="alert" id="alert-box"></div>
+
+    <form id="signup-form" novalidate autocomplete="on">
+      <div class="fg">
+        <label for="name-en" id="lbl-name">الاسم الكامل</label>
+        <input type="text" id="name-en" name="name-en" autocomplete="name" placeholder="أحمد العتيبي" />
+        <div class="field-err" id="err-name" style="display:none"></div>
+      </div>
+
+      <div class="fg">
+        <label for="email" id="lbl-email">البريد الإلكتروني</label>
+        <input type="email" id="email" name="email" autocomplete="email" placeholder="ahmad@example.com" dir="ltr" />
+        <div class="field-err" id="err-email" style="display:none"></div>
+      </div>
+
+      <div class="fg">
+        <label for="password" id="lbl-pw">كلمة المرور</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" name="password" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+          <button type="button" class="eye" onclick="togglePw('password',this)">👁</button>
+        </div>
+        <div class="strength-bar">
+          <div class="seg" id="s1"></div><div class="seg" id="s2"></div>
+          <div class="seg" id="s3"></div><div class="seg" id="s4"></div>
+        </div>
+        <div class="pw-hint" id="pw-hint"></div>
+      </div>
+
+      <div class="fg">
+        <label for="confirm-pw" id="lbl-cpw">تأكيد كلمة المرور</label>
+        <div class="pw-wrap">
+          <input type="password" id="confirm-pw" name="confirm-pw" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+          <button type="button" class="eye" onclick="togglePw('confirm-pw',this)">👁</button>
+        </div>
+        <div class="field-err" id="err-cpw" style="display:none"></div>
+      </div>
+
+      <label class="terms-row">
+        <input type="checkbox" id="terms-chk" />
+        <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
+      </label>
+
+      <button type="submit" class="submit" id="submit-btn">
+        <span id="btn-text">إنشاء الحساب</span>
+      </button>
+    </form>
+
+    <div class="foot-link">
+      <span id="signin-txt">لديك حساب بالفعل؟</span>
+      <a href="/login.html" id="signin-link"> تسجيل الدخول</a>
+    </div>
+  </div>
+</main>
 
 <script>
   const T = {
@@ -281,14 +334,16 @@
       btn: 'إنشاء الحساب', loading: 'جارٍ إنشاء الحساب...',
       signinTxt: 'لديك حساب بالفعل؟', signinLink: ' تسجيل الدخول',
       terms: 'أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية',
-      errName: 'الاسم مطلوب',
-      errEmail: 'يرجى إدخال بريد إلكتروني صحيح',
-      errEmailUsed: 'هذا البريد مسجّل مسبقاً',
-      errPw: 'كلمة المرور يجب أن لا تقل عن 8 أحرف',
-      errCpw: 'كلمتا المرور غير متطابقتين',
-      errTerms: 'يجب الموافقة على الشروط',
-      errNetwork: 'خطأ في الاتصال بالخادم',
+      brandTag: 'نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية',
+      s1t:'أنشئ حسابك', s1s:'اسمك وبريدك وكلمة المرور — هذا كل ما تحتاجه',
+      s2t:'أضف اجتماعاتك', s2s:'جدوِل اجتماعاتك وارفع التسجيلات لتوليد المحاضر بالذكاء الاصطناعي',
+      s3t:'وثّق واعتمد', s3s:'محاضر مكتملة، توقيعات، وأرشيف رسمي بنقرة واحدة',
+      errName:'الاسم مطلوب', errEmail:'يرجى إدخال بريد إلكتروني صحيح',
+      errEmailUsed:'هذا البريد مسجّل مسبقاً', errPw:'كلمة المرور يجب أن لا تقل عن 8 أحرف',
+      errCpw:'كلمتا المرور غير متطابقتين', errTerms:'يجب الموافقة على الشروط',
+      errNetwork:'خطأ في الاتصال بالخادم',
       pwWeak:'ضعيفة', pwFair:'مقبولة', pwGood:'جيدة', pwStrong:'قوية جداً',
+      namePh: 'أحمد العتيبي',
     },
     en: {
       title: 'Create an Account', sub: 'Join Ameen Secretary',
@@ -297,14 +352,16 @@
       btn: 'Create Account', loading: 'Creating account...',
       signinTxt: 'Already have an account?', signinLink: ' Sign in',
       terms: 'I agree to the <a href="#">Terms of Use</a> and Privacy Policy',
-      errName: 'Full name is required',
-      errEmail: 'Please enter a valid email address',
-      errEmailUsed: 'This email is already registered',
-      errPw: 'Password must be at least 8 characters',
-      errCpw: 'Passwords do not match',
-      errTerms: 'You must agree to the terms',
-      errNetwork: 'Could not connect to the server',
+      brandTag: 'Smart Executive Secretariat — Trusted intelligence. ROI you can see.',
+      s1t:'Create your account', s1s:'Your name, email & password — that\'s all you need',
+      s2t:'Add your meetings', s2s:'Schedule meetings and upload recordings for AI-generated minutes',
+      s3t:'Document & approve', s3s:'Complete minutes, signatures, and official archive in one click',
+      errName:'Full name is required', errEmail:'Please enter a valid email address',
+      errEmailUsed:'This email is already registered', errPw:'Password must be at least 8 characters',
+      errCpw:'Passwords do not match', errTerms:'You must agree to the terms',
+      errNetwork:'Could not connect to the server',
       pwWeak:'Weak', pwFair:'Fair', pwGood:'Good', pwStrong:'Strong',
+      namePh: 'Ahmad Al-Otaibi',
     }
   };
 
@@ -315,8 +372,8 @@
     localStorage.setItem('lang', l);
     document.documentElement.lang = l;
     document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
-    document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
-    document.getElementById('btn-en').classList.toggle('active', l === 'en');
+    document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
+    document.getElementById('btn-en').classList.toggle('on', l === 'en');
     const t = T[l];
     document.getElementById('form-title').textContent  = t.title;
     document.getElementById('form-sub').textContent    = t.sub;
@@ -328,22 +385,26 @@
     document.getElementById('signin-txt').textContent  = t.signinTxt;
     document.getElementById('signin-link').textContent = t.signinLink;
     document.getElementById('terms-txt').innerHTML     = t.terms;
-    document.getElementById('name-en').placeholder     = l === 'ar' ? 'أحمد العتيبي' : 'Ahmad Al-Otaibi';
-    document.getElementById('name-en').dir             = l === 'ar' ? 'rtl' : 'ltr';
+    document.getElementById('brand-tag').textContent   = t.brandTag;
+    document.getElementById('s1t').textContent = t.s1t; document.getElementById('s1s').textContent = t.s1s;
+    document.getElementById('s2t').textContent = t.s2t; document.getElementById('s2s').textContent = t.s2s;
+    document.getElementById('s3t').textContent = t.s3t; document.getElementById('s3s').textContent = t.s3s;
+    const nameInp = document.getElementById('name-en');
+    nameInp.placeholder = t.namePh;
+    nameInp.dir = l === 'ar' ? 'rtl' : 'ltr';
   }
   setLang(lang);
 
-  // Password strength
   document.getElementById('password').addEventListener('input', function () {
     const v = this.value;
     const score = [v.length >= 8, /[A-Z]/.test(v), /[0-9]/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
-    const segs   = document.querySelectorAll('.strength-seg');
-    const labels = [null, T[lang].pwWeak, T[lang].pwFair, T[lang].pwGood, T[lang].pwStrong];
-    const colors = [null, 'weak', 'fair', 'good', 'strong'];
-    segs.forEach((s, i) => { s.className = 'strength-seg' + (i < score ? ' ' + colors[score] : ''); });
+    const segs   = ['s1','s2','s3','s4'].map(id => document.getElementById(id));
+    const colors = [null,'weak','fair','good','strong'];
+    segs.forEach((s, i) => { s.className = 'seg' + (i < score ? ' ' + colors[score] : ''); });
     const hint = document.getElementById('pw-hint');
+    const labels = [null, T[lang].pwWeak, T[lang].pwFair, T[lang].pwGood, T[lang].pwStrong];
     hint.textContent = v.length ? (labels[score] || '') : '';
-    hint.style.color = score <= 1 ? 'var(--danger)' : score === 2 ? '#f0a030' : 'var(--success)';
+    hint.style.color = score <= 1 ? 'var(--red)' : score === 2 ? '#f0a030' : 'var(--green)';
   });
 
   function togglePw(id, btn) {
@@ -355,37 +416,30 @@
 
   function showAlert(msg, type) {
     const el = document.getElementById('alert-box');
-    el.innerHTML = msg;
-    el.className = 'alert ' + type;
+    el.innerHTML = msg; el.className = 'alert ' + type;
   }
-  function hideAlert() {
-    const el = document.getElementById('alert-box');
-    el.className = 'alert'; el.textContent = '';
-  }
-  function fieldErr(id, msg) {
-    const el = document.getElementById(id);
-    if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; }
-  }
+  function hideAlert() { const el = document.getElementById('alert-box'); el.className = 'alert'; el.textContent = ''; }
+  function fieldErr(id, msg) { const el = document.getElementById(id); if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; } }
   function clearErrs() {
-    ['err-name','err-email','err-cpw'].forEach(id => fieldErr(id, ''));
-    document.querySelectorAll('input.error-field').forEach(i => i.classList.remove('error-field'));
+    ['err-name','err-email','err-cpw'].forEach(id => fieldErr(id,''));
+    document.querySelectorAll('.err-field').forEach(i => i.classList.remove('err-field'));
   }
 
   document.getElementById('signup-form').addEventListener('submit', async e => {
     e.preventDefault();
     clearErrs(); hideAlert();
-    const t     = T[lang];
-    const nameEn  = document.getElementById('name-en').value.trim();
-    const email   = document.getElementById('email').value.trim().toLowerCase();
-    const pw      = document.getElementById('password').value;
-    const cpw     = document.getElementById('confirm-pw').value;
-    const agreed  = document.getElementById('terms-chk').checked;
+    const t      = T[lang];
+    const nameEn = document.getElementById('name-en').value.trim();
+    const email  = document.getElementById('email').value.trim().toLowerCase();
+    const pw     = document.getElementById('password').value;
+    const cpw    = document.getElementById('confirm-pw').value;
+    const agreed = document.getElementById('terms-chk').checked;
 
     let hasErr = false;
-    if (!nameEn) { fieldErr('err-name', t.errName); document.getElementById('name-en').classList.add('error-field'); hasErr = true; }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fieldErr('err-email', t.errEmail); document.getElementById('email').classList.add('error-field'); hasErr = true; }
+    if (!nameEn) { fieldErr('err-name', t.errName); document.getElementById('name-en').classList.add('err-field'); hasErr = true; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fieldErr('err-email', t.errEmail); document.getElementById('email').classList.add('err-field'); hasErr = true; }
     if (pw.length < 8) { showAlert(t.errPw, 'error'); hasErr = true; }
-    else if (pw !== cpw) { fieldErr('err-cpw', t.errCpw); document.getElementById('confirm-pw').classList.add('error-field'); hasErr = true; }
+    else if (pw !== cpw) { fieldErr('err-cpw', t.errCpw); document.getElementById('confirm-pw').classList.add('err-field'); hasErr = true; }
     if (!agreed) { showAlert(t.errTerms, 'error'); hasErr = true; }
     if (hasErr) return;
 
@@ -407,12 +461,8 @@
         showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ التحويل...' : '✅ Account created! Redirecting...', 'success');
         setTimeout(() => window.location.replace('/'), 1200);
       } else {
-        if (data.error?.includes('email')) {
-          fieldErr('err-email', t.errEmailUsed);
-          document.getElementById('email').classList.add('error-field');
-        } else {
-          showAlert(data.error || t.errNetwork, 'error');
-        }
+        if (data.error?.includes('email')) { fieldErr('err-email', t.errEmailUsed); document.getElementById('email').classList.add('err-field'); }
+        else showAlert(data.error || t.errNetwork, 'error');
         btn.disabled = false;
         document.getElementById('btn-text').textContent = t.btn;
       }
