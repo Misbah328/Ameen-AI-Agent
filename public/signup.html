@@ -11,20 +11,19 @@
       --surface: #12151f;
       --surface2: #1a1e2e;
       --border: #252a3d;
-      --border-focus: #C9A84C;
       --accent: #C9A84C;
       --accent-dim: rgba(201,168,76,0.12);
       --text: #e8eaf0;
       --muted: #7a809a;
       --danger: #e05a5a;
       --success: #3cc47c;
-      --radius: 14px;
-      --radius-sm: 9px;
+      --radius: 16px;
+      --radius-sm: 10px;
     }
     body {
       background: var(--bg);
-      background-image: radial-gradient(ellipse at 70% 10%, rgba(201,168,76,0.07) 0%, transparent 55%),
-                        radial-gradient(ellipse at 10% 80%, rgba(60,100,196,0.06) 0%, transparent 50%);
+      background-image: radial-gradient(ellipse at 60% 0%, rgba(201,168,76,0.08) 0%, transparent 55%),
+                        radial-gradient(ellipse at 10% 90%, rgba(60,100,196,0.06) 0%, transparent 50%);
       color: var(--text);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       min-height: 100vh;
@@ -33,87 +32,60 @@
       justify-content: center;
       padding: 1.5rem 1rem;
     }
-    .panel {
-      display: flex;
+    .card {
       width: 100%;
-      max-width: 900px;
-      min-height: 580px;
+      max-width: 420px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: 0 24px 80px rgba(0,0,0,0.55);
-      overflow: hidden;
+      padding: 2.25rem 2rem 2rem;
     }
-    /* ── Left brand panel ── */
-    .brand-side {
-      flex: 0 0 320px;
-      background: linear-gradient(160deg, #0f1728 0%, #0a0c14 100%);
-      border-inline-end: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 3rem 2rem;
-      gap: 1.5rem;
+    /* Header */
+    .card-top {
       text-align: center;
-    }
-    .brand-logo img { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 2px 16px rgba(201,168,76,0.25)); }
-    .brand-tagline {
-      font-size: 0.8rem;
-      color: var(--muted);
-      line-height: 1.7;
-      max-width: 220px;
-    }
-    .brand-features { display: flex; flex-direction: column; gap: 0.75rem; width: 100%; margin-top: 0.5rem; }
-    .brand-feat {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.55rem 0.9rem;
-      text-align: start;
-    }
-    .brand-feat span:first-child { font-size: 1rem; flex-shrink: 0; }
-    /* ── Right form panel ── */
-    .form-side {
-      flex: 1;
-      padding: 2.5rem 2.5rem;
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
-    }
-    .form-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 2rem;
     }
-    .form-title { font-size: 1.35rem; font-weight: 700; color: var(--text); }
-    .form-subtitle { font-size: 0.82rem; color: var(--muted); margin-top: 3px; }
-    .lang-toggle {
-      display: flex;
-      gap: 0.35rem;
+    .card-top img {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 12px rgba(201,168,76,0.28));
+      margin-bottom: 1rem;
     }
-    .lang-toggle button {
+    .card-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .card-sub {
+      font-size: 0.83rem;
+      color: var(--muted);
+    }
+    /* Lang toggle */
+    .lang-row {
+      display: flex;
+      justify-content: center;
+      gap: 0.4rem;
+      margin-bottom: 1.75rem;
+    }
+    .lang-row button {
       background: none;
       border: 1px solid var(--border);
       color: var(--muted);
-      padding: 0.22rem 0.7rem;
+      padding: 0.22rem 0.85rem;
       border-radius: 20px;
       cursor: pointer;
       font-size: 0.78rem;
       transition: all 0.18s;
     }
-    .lang-toggle button.active {
+    .lang-row button.active {
       border-color: var(--accent);
       color: var(--accent);
       background: var(--accent-dim);
     }
-    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    /* Fields */
     .field-group { margin-bottom: 1rem; }
     label {
       display: block;
@@ -121,16 +93,6 @@
       font-weight: 600;
       color: var(--muted);
       margin-bottom: 0.35rem;
-      letter-spacing: 0.01em;
-    }
-    .opt-badge {
-      font-size: 0.68rem;
-      color: var(--muted);
-      background: rgba(255,255,255,0.05);
-      border-radius: 4px;
-      padding: 1px 5px;
-      margin-inline-start: 4px;
-      font-weight: 400;
     }
     input {
       width: 100%;
@@ -138,8 +100,8 @@
       border: 1px solid var(--border);
       color: var(--text);
       border-radius: var(--radius-sm);
-      padding: 0.7rem 0.9rem;
-      font-size: 0.92rem;
+      padding: 0.75rem 0.95rem;
+      font-size: 0.93rem;
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
       direction: ltr;
@@ -149,86 +111,14 @@
       box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
     }
     input.error-field { border-color: var(--danger); }
-    .field-hint {
-      font-size: 0.72rem;
-      color: var(--muted);
-      margin-top: 0.3rem;
-    }
+    .field-hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
     .field-hint.err { color: var(--danger); }
-    .strength-bar {
-      display: flex;
-      gap: 3px;
-      margin-top: 0.4rem;
-    }
-    .strength-seg {
-      flex: 1;
-      height: 3px;
-      border-radius: 2px;
-      background: var(--border);
-      transition: background 0.3s;
-    }
-    .strength-seg.weak   { background: #e05a5a; }
-    .strength-seg.fair   { background: #f0a030; }
-    .strength-seg.good   { background: #3cc47c; }
-    .strength-seg.strong { background: #3cc47c; }
-    .alert {
-      border-radius: var(--radius-sm);
-      padding: 0.65rem 1rem;
-      font-size: 0.84rem;
-      margin-bottom: 1.2rem;
-      display: none;
-      text-align: center;
-    }
-    .alert.error  { background: rgba(224,90,90,0.1); border: 1px solid var(--danger); color: var(--danger); display: block; }
-    .alert.success { background: rgba(60,196,124,0.1); border: 1px solid var(--success); color: var(--success); display: block; }
-    .submit-btn {
-      width: 100%;
-      background: var(--accent);
-      color: #0f1728;
-      border: none;
-      border-radius: var(--radius-sm);
-      padding: 0.85rem;
-      font-size: 0.97rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      margin-top: 0.25rem;
-      letter-spacing: 0.01em;
-    }
-    .submit-btn:hover:not(:disabled) { opacity: 0.92; }
-    .submit-btn:active:not(:disabled) { transform: scale(0.99); }
-    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin: 1.25rem 0;
-      color: var(--muted);
-      font-size: 0.75rem;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-    .signin-link {
-      text-align: center;
-      font-size: 0.82rem;
-      color: var(--muted);
-    }
-    .signin-link a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .signin-link a:hover { text-decoration: underline; }
-    /* ── Password toggle ── */
+    /* Password wrap */
     .pw-wrap { position: relative; }
     .pw-wrap input { padding-inline-end: 2.8rem; }
     .pw-eye {
       position: absolute;
-      inset-inline-end: 0.75rem;
+      inset-inline-end: 0.8rem;
       top: 50%;
       transform: translateY(-50%);
       background: none;
@@ -240,171 +130,181 @@
       padding: 0;
     }
     .pw-eye:hover { color: var(--accent); }
-    /* ── Terms ── */
+    /* Password strength */
+    .strength-bar { display: flex; gap: 3px; margin-top: 0.45rem; }
+    .strength-seg {
+      flex: 1; height: 3px; border-radius: 2px;
+      background: var(--border); transition: background 0.3s;
+    }
+    .strength-seg.weak   { background: #e05a5a; }
+    .strength-seg.fair   { background: #f0a030; }
+    .strength-seg.good   { background: #3cc47c; }
+    .strength-seg.strong { background: #3cc47c; }
+    /* Alert */
+    .alert {
+      border-radius: var(--radius-sm);
+      padding: 0.65rem 1rem;
+      font-size: 0.84rem;
+      margin-bottom: 1rem;
+      display: none;
+      text-align: center;
+    }
+    .alert.error   { background: rgba(224,90,90,0.1); border: 1px solid var(--danger); color: var(--danger); display: block; }
+    .alert.success { background: rgba(60,196,124,0.1); border: 1px solid var(--success); color: var(--success); display: block; }
+    /* Terms */
     .terms-row {
       display: flex;
       align-items: flex-start;
       gap: 0.6rem;
-      margin-bottom: 1rem;
+      margin-bottom: 1.1rem;
       font-size: 0.8rem;
       color: var(--muted);
       cursor: pointer;
     }
     .terms-row input[type=checkbox] {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-      margin: 0;
-      margin-top: 1px;
-      accent-color: var(--accent);
-      direction: ltr;
+      width: 16px; height: 16px;
+      flex-shrink: 0; margin: 1px 0 0;
+      accent-color: var(--accent); direction: ltr;
     }
-    /* Responsive */
-    @media (max-width: 680px) {
-      .panel { flex-direction: column; max-width: 440px; }
-      .brand-side { flex: none; padding: 1.75rem 1.5rem; border-inline-end: none; border-bottom: 1px solid var(--border); }
-      .brand-logo img { width: 80px; height: 80px; }
-      .brand-features { display: none; }
-      .form-side { padding: 1.75rem 1.5rem; }
-      .field-row { grid-template-columns: 1fr; gap: 0; }
+    .terms-row a { color: var(--accent); text-decoration: none; }
+    .terms-row a:hover { text-decoration: underline; }
+    /* Submit */
+    .submit-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #0f1728;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 0.9rem;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.01em;
     }
+    .submit-btn:hover:not(:disabled) { opacity: 0.9; }
+    .submit-btn:active:not(:disabled) { transform: scale(0.99); }
+    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* Footer */
+    .signin-link {
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 1.25rem;
+    }
+    .signin-link a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .signin-link a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-<div class="panel">
+<div class="card">
 
-  <!-- ── Brand side ──────────────────────────────────────── -->
-  <aside class="brand-side">
-    <div class="brand-logo">
-      <img src="/logo.png" alt="Ameen" />
-    </div>
-    <p class="brand-tagline" id="brand-tag">نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية</p>
-    <div class="brand-features">
-      <div class="brand-feat"><span>📋</span><span id="f1">إدارة محاضر الاجتماعات بالذكاء الاصطناعي</span></div>
-      <div class="brand-feat"><span>✍️</span><span id="f2">التوقيع الإلكتروني وسير العمل</span></div>
-      <div class="brand-feat"><span>🏛️</span><span id="f3">إدارة الحوكمة والمجالس</span></div>
-      <div class="brand-feat"><span>🔒</span><span id="f4">أمان وخصوصية على مستوى المؤسسات</span></div>
-    </div>
-  </aside>
+  <!-- Logo + Title -->
+  <div class="card-top">
+    <img src="/logo.png" alt="Ameen" />
+    <div class="card-title" id="form-title">إنشاء حساب جديد</div>
+    <div class="card-sub" id="form-sub">انضم إلى أمين السكرتير</div>
+  </div>
 
-  <!-- ── Form side ───────────────────────────────────────── -->
-  <main class="form-side">
-    <div class="form-header">
-      <div>
-        <div class="form-title" id="form-title">إنشاء حساب جديد</div>
-        <div class="form-subtitle" id="form-sub">انضم إلى أمين السكرتير</div>
-      </div>
-      <div class="lang-toggle">
-        <button id="btn-ar" onclick="setLang('ar')">عربي</button>
-        <button id="btn-en" onclick="setLang('en')">English</button>
-      </div>
+  <!-- Language toggle -->
+  <div class="lang-row">
+    <button id="btn-ar" onclick="setLang('ar')">عربي</button>
+    <button id="btn-en" onclick="setLang('en')">English</button>
+  </div>
+
+  <div class="alert" id="alert-box"></div>
+
+  <form id="signup-form" novalidate autocomplete="on">
+
+    <div class="field-group">
+      <label for="name-en" id="lbl-name">الاسم الكامل</label>
+      <input type="text" id="name-en" name="name-en" autocomplete="name"
+             placeholder="أحمد العتيبي" />
+      <div class="field-hint err" id="err-name" style="display:none"></div>
     </div>
 
-    <div class="alert" id="alert-box"></div>
-
-    <form id="signup-form" novalidate autocomplete="on">
-
-      <div class="field-row">
-        <div class="field-group">
-          <label for="name-en" id="lbl-name-en">Full Name (English)</label>
-          <input type="text" id="name-en" name="name-en" autocomplete="given-name" placeholder="Ahmad Al-Otaibi" dir="ltr" />
-          <div class="field-hint err" id="err-name-en" style="display:none"></div>
-        </div>
-        <div class="field-group">
-          <label for="name-ar" id="lbl-name-ar">الاسم الكامل (عربي) <span class="opt-badge" id="opt-lbl">اختياري</span></label>
-          <input type="text" id="name-ar" name="name-ar" autocomplete="family-name" placeholder="أحمد العتيبي" dir="rtl" />
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label for="email" id="lbl-email">البريد الإلكتروني</label>
-        <input type="email" id="email" name="email" autocomplete="email" placeholder="ahmad@example.com" dir="ltr" />
-        <div class="field-hint err" id="err-email" style="display:none"></div>
-      </div>
-
-      <div class="field-group">
-        <label for="org" id="lbl-org">المنظمة / الشركة <span class="opt-badge" id="opt-lbl2">اختياري</span></label>
-        <input type="text" id="org" name="org" autocomplete="organization" placeholder="شركة الأمانة للاستشارات" />
-      </div>
-
-      <div class="field-row">
-        <div class="field-group">
-          <label for="password" id="lbl-pw">كلمة المرور</label>
-          <div class="pw-wrap">
-            <input type="password" id="password" name="password" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-            <button type="button" class="pw-eye" onclick="togglePw('password',this)">👁</button>
-          </div>
-          <div class="strength-bar" id="strength-bar">
-            <div class="strength-seg" id="s1"></div>
-            <div class="strength-seg" id="s2"></div>
-            <div class="strength-seg" id="s3"></div>
-            <div class="strength-seg" id="s4"></div>
-          </div>
-          <div class="field-hint" id="pw-hint"></div>
-        </div>
-        <div class="field-group">
-          <label for="confirm-pw" id="lbl-cpw">تأكيد كلمة المرور</label>
-          <div class="pw-wrap">
-            <input type="password" id="confirm-pw" name="confirm-pw" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-            <button type="button" class="pw-eye" onclick="togglePw('confirm-pw',this)">👁</button>
-          </div>
-          <div class="field-hint err" id="err-cpw" style="display:none"></div>
-        </div>
-      </div>
-
-      <label class="terms-row" id="terms-row">
-        <input type="checkbox" id="terms-chk" />
-        <span id="terms-txt">أوافق على <a href="#" style="color:var(--accent)">شروط الاستخدام</a> وسياسة الخصوصية</span>
-      </label>
-
-      <button type="submit" class="submit-btn" id="submit-btn">
-        <span id="btn-text">إنشاء الحساب</span>
-      </button>
-    </form>
-
-    <div class="divider"><span id="div-or">أو</span></div>
-    <div class="signin-link">
-      <span id="signin-txt">لديك حساب بالفعل؟</span>
-      <a href="/login.html" id="signin-link"> تسجيل الدخول</a>
+    <div class="field-group">
+      <label for="email" id="lbl-email">البريد الإلكتروني</label>
+      <input type="email" id="email" name="email" autocomplete="email"
+             placeholder="ahmad@example.com" dir="ltr" />
+      <div class="field-hint err" id="err-email" style="display:none"></div>
     </div>
-  </main>
+
+    <div class="field-group">
+      <label for="password" id="lbl-pw">كلمة المرور</label>
+      <div class="pw-wrap">
+        <input type="password" id="password" name="password"
+               autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+        <button type="button" class="pw-eye" onclick="togglePw('password',this)">👁</button>
+      </div>
+      <div class="strength-bar">
+        <div class="strength-seg" id="s1"></div>
+        <div class="strength-seg" id="s2"></div>
+        <div class="strength-seg" id="s3"></div>
+        <div class="strength-seg" id="s4"></div>
+      </div>
+      <div class="field-hint" id="pw-hint"></div>
+    </div>
+
+    <div class="field-group">
+      <label for="confirm-pw" id="lbl-cpw">تأكيد كلمة المرور</label>
+      <div class="pw-wrap">
+        <input type="password" id="confirm-pw" name="confirm-pw"
+               autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+        <button type="button" class="pw-eye" onclick="togglePw('confirm-pw',this)">👁</button>
+      </div>
+      <div class="field-hint err" id="err-cpw" style="display:none"></div>
+    </div>
+
+    <label class="terms-row">
+      <input type="checkbox" id="terms-chk" />
+      <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
+    </label>
+
+    <button type="submit" class="submit-btn" id="submit-btn">
+      <span id="btn-text">إنشاء الحساب</span>
+    </button>
+  </form>
+
+  <div class="signin-link">
+    <span id="signin-txt">لديك حساب بالفعل؟</span>
+    <a href="/login.html" id="signin-link"> تسجيل الدخول</a>
+  </div>
 </div>
 
 <script>
   const T = {
     ar: {
       title: 'إنشاء حساب جديد', sub: 'انضم إلى أمين السكرتير',
-      nameEn: 'الاسم الكامل (إنجليزي)', nameAr: 'الاسم الكامل (عربي)',
-      email: 'البريد الإلكتروني', org: 'المنظمة / الشركة',
+      name: 'الاسم الكامل', email: 'البريد الإلكتروني',
       pw: 'كلمة المرور', cpw: 'تأكيد كلمة المرور',
-      opt: 'اختياري', btn: 'إنشاء الحساب', loading: 'جارٍ إنشاء الحساب...',
-      divOr: 'أو', signinTxt: 'لديك حساب بالفعل؟', signinLink: ' تسجيل الدخول',
-      terms: 'أوافق على شروط الاستخدام وسياسة الخصوصية',
-      brandTag: 'نظام الأمانة التنفيذية الذكية — ذكاء موثوق وعوائد حقيقية',
-      f1:'إدارة محاضر الاجتماعات بالذكاء الاصطناعي', f2:'التوقيع الإلكتروني وسير العمل',
-      f3:'إدارة الحوكمة والمجالس', f4:'أمان وخصوصية على مستوى المؤسسات',
-      errNameEn: 'الاسم (إنجليزي) مطلوب', errEmail: 'يرجى إدخال بريد إلكتروني صحيح',
-      errEmailUsed: 'هذا البريد مسجّل مسبقاً', errPw: 'كلمة المرور يجب أن لا تقل عن 8 أحرف',
-      errCpw: 'كلمتا المرور غير متطابقتين', errTerms: 'يجب الموافقة على الشروط',
+      btn: 'إنشاء الحساب', loading: 'جارٍ إنشاء الحساب...',
+      signinTxt: 'لديك حساب بالفعل؟', signinLink: ' تسجيل الدخول',
+      terms: 'أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية',
+      errName: 'الاسم مطلوب',
+      errEmail: 'يرجى إدخال بريد إلكتروني صحيح',
+      errEmailUsed: 'هذا البريد مسجّل مسبقاً',
+      errPw: 'كلمة المرور يجب أن لا تقل عن 8 أحرف',
+      errCpw: 'كلمتا المرور غير متطابقتين',
+      errTerms: 'يجب الموافقة على الشروط',
       errNetwork: 'خطأ في الاتصال بالخادم',
-      pwWeak:'ضعيفة',pwFair:'مقبولة',pwGood:'جيدة',pwStrong:'قوية جداً',
+      pwWeak:'ضعيفة', pwFair:'مقبولة', pwGood:'جيدة', pwStrong:'قوية جداً',
     },
     en: {
       title: 'Create an Account', sub: 'Join Ameen Secretary',
-      nameEn: 'Full Name (English)', nameAr: 'Full Name (Arabic)',
-      email: 'Email Address', org: 'Organization (optional)',
+      name: 'Full Name', email: 'Email Address',
       pw: 'Password', cpw: 'Confirm Password',
-      opt: 'optional', btn: 'Create Account', loading: 'Creating account...',
-      divOr: 'or', signinTxt: 'Already have an account?', signinLink: ' Sign in',
-      terms: 'I agree to the Terms of Use and Privacy Policy',
-      brandTag: 'Smart Executive Secretariat — Trusted intelligence. ROi you can see.',
-      f1:'AI-powered meeting minutes', f2:'E-signatures & approval workflows',
-      f3:'Board & governance management', f4:'Enterprise-grade security & privacy',
-      errNameEn: 'Full name (English) is required', errEmail: 'Please enter a valid email address',
-      errEmailUsed: 'This email is already registered', errPw: 'Password must be at least 8 characters',
-      errCpw: 'Passwords do not match', errTerms: 'You must agree to the terms',
+      btn: 'Create Account', loading: 'Creating account...',
+      signinTxt: 'Already have an account?', signinLink: ' Sign in',
+      terms: 'I agree to the <a href="#">Terms of Use</a> and Privacy Policy',
+      errName: 'Full name is required',
+      errEmail: 'Please enter a valid email address',
+      errEmailUsed: 'This email is already registered',
+      errPw: 'Password must be at least 8 characters',
+      errCpw: 'Passwords do not match',
+      errTerms: 'You must agree to the terms',
       errNetwork: 'Could not connect to the server',
-      pwWeak:'Weak',pwFair:'Fair',pwGood:'Good',pwStrong:'Strong',
+      pwWeak:'Weak', pwFair:'Fair', pwGood:'Good', pwStrong:'Strong',
     }
   };
 
@@ -418,37 +318,32 @@
     document.getElementById('btn-ar').classList.toggle('active', l === 'ar');
     document.getElementById('btn-en').classList.toggle('active', l === 'en');
     const t = T[l];
-    document.getElementById('form-title').textContent = t.title;
-    document.getElementById('form-sub').textContent = t.sub;
-    document.getElementById('lbl-name-en').textContent = t.nameEn;
-    document.getElementById('lbl-name-ar').innerHTML = t.nameAr + ' <span class="opt-badge">' + t.opt + '</span>';
-    document.getElementById('lbl-email').textContent = t.email;
-    document.getElementById('lbl-org').innerHTML = t.org + ' <span class="opt-badge">' + t.opt + '</span>';
-    document.getElementById('lbl-pw').textContent = t.pw;
-    document.getElementById('lbl-cpw').textContent = t.cpw;
-    document.getElementById('btn-text').textContent = t.btn;
-    document.getElementById('div-or').textContent = t.divOr;
-    document.getElementById('signin-txt').textContent = t.signinTxt;
+    document.getElementById('form-title').textContent  = t.title;
+    document.getElementById('form-sub').textContent    = t.sub;
+    document.getElementById('lbl-name').textContent   = t.name;
+    document.getElementById('lbl-email').textContent   = t.email;
+    document.getElementById('lbl-pw').textContent      = t.pw;
+    document.getElementById('lbl-cpw').textContent     = t.cpw;
+    document.getElementById('btn-text').textContent    = t.btn;
+    document.getElementById('signin-txt').textContent  = t.signinTxt;
     document.getElementById('signin-link').textContent = t.signinLink;
-    document.getElementById('terms-txt').innerHTML = t.terms.replace('Terms of Use','<a href="#" style="color:var(--accent)">Terms of Use</a>').replace('شروط الاستخدام','<a href="#" style="color:var(--accent)">شروط الاستخدام</a>');
-    document.getElementById('brand-tag').textContent = t.brandTag;
-    document.getElementById('f1').textContent = t.f1;
-    document.getElementById('f2').textContent = t.f2;
-    document.getElementById('f3').textContent = t.f3;
-    document.getElementById('f4').textContent = t.f4;
+    document.getElementById('terms-txt').innerHTML     = t.terms;
+    document.getElementById('name-en').placeholder     = l === 'ar' ? 'أحمد العتيبي' : 'Ahmad Al-Otaibi';
+    document.getElementById('name-en').dir             = l === 'ar' ? 'rtl' : 'ltr';
   }
   setLang(lang);
 
   // Password strength
-  document.getElementById('password').addEventListener('input', function() {
+  document.getElementById('password').addEventListener('input', function () {
     const v = this.value;
     const score = [v.length >= 8, /[A-Z]/.test(v), /[0-9]/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
-    const segs = document.querySelectorAll('.strength-seg');
+    const segs   = document.querySelectorAll('.strength-seg');
     const labels = [null, T[lang].pwWeak, T[lang].pwFair, T[lang].pwGood, T[lang].pwStrong];
     const colors = [null, 'weak', 'fair', 'good', 'strong'];
     segs.forEach((s, i) => { s.className = 'strength-seg' + (i < score ? ' ' + colors[score] : ''); });
-    document.getElementById('pw-hint').textContent = v.length ? labels[score] || '' : '';
-    document.getElementById('pw-hint').style.color = score <= 1 ? 'var(--danger)' : score === 2 ? '#f0a030' : 'var(--success)';
+    const hint = document.getElementById('pw-hint');
+    hint.textContent = v.length ? (labels[score] || '') : '';
+    hint.style.color = score <= 1 ? 'var(--danger)' : score === 2 ? '#f0a030' : 'var(--success)';
   });
 
   function togglePw(id, btn) {
@@ -460,38 +355,34 @@
 
   function showAlert(msg, type) {
     const el = document.getElementById('alert-box');
-    el.textContent = msg;
+    el.innerHTML = msg;
     el.className = 'alert ' + type;
   }
   function hideAlert() {
     const el = document.getElementById('alert-box');
-    el.className = 'alert';
-    el.textContent = '';
+    el.className = 'alert'; el.textContent = '';
   }
   function fieldErr(id, msg) {
     const el = document.getElementById(id);
     if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; }
   }
   function clearErrs() {
-    ['err-name-en','err-email','err-cpw'].forEach(id => fieldErr(id, ''));
+    ['err-name','err-email','err-cpw'].forEach(id => fieldErr(id, ''));
     document.querySelectorAll('input.error-field').forEach(i => i.classList.remove('error-field'));
   }
 
   document.getElementById('signup-form').addEventListener('submit', async e => {
     e.preventDefault();
-    clearErrs();
-    hideAlert();
-    const t = T[lang];
-    const nameEn = document.getElementById('name-en').value.trim();
-    const nameAr = document.getElementById('name-ar').value.trim();
-    const email = document.getElementById('email').value.trim().toLowerCase();
-    const org = document.getElementById('org').value.trim();
-    const pw = document.getElementById('password').value;
-    const cpw = document.getElementById('confirm-pw').value;
-    const agreed = document.getElementById('terms-chk').checked;
+    clearErrs(); hideAlert();
+    const t     = T[lang];
+    const nameEn  = document.getElementById('name-en').value.trim();
+    const email   = document.getElementById('email').value.trim().toLowerCase();
+    const pw      = document.getElementById('password').value;
+    const cpw     = document.getElementById('confirm-pw').value;
+    const agreed  = document.getElementById('terms-chk').checked;
 
     let hasErr = false;
-    if (!nameEn) { fieldErr('err-name-en', t.errNameEn); document.getElementById('name-en').classList.add('error-field'); hasErr = true; }
+    if (!nameEn) { fieldErr('err-name', t.errName); document.getElementById('name-en').classList.add('error-field'); hasErr = true; }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fieldErr('err-email', t.errEmail); document.getElementById('email').classList.add('error-field'); hasErr = true; }
     if (pw.length < 8) { showAlert(t.errPw, 'error'); hasErr = true; }
     else if (pw !== cpw) { fieldErr('err-cpw', t.errCpw); document.getElementById('confirm-pw').classList.add('error-field'); hasErr = true; }
@@ -503,21 +394,25 @@
     document.getElementById('btn-text').textContent = t.loading;
 
     try {
-      const res = await fetch('/auth/signup', {
+      const res  = await fetch('/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ nameEn, nameAr, email, password: pw, org })
+        body: JSON.stringify({ nameEn, email, password: pw })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.user && data.user.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
+        if (data.user?.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
         if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
         showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ التحويل...' : '✅ Account created! Redirecting...', 'success');
         setTimeout(() => window.location.replace('/'), 1200);
       } else {
-        if (data.error && data.error.includes('email')) { fieldErr('err-email', t.errEmailUsed); document.getElementById('email').classList.add('error-field'); }
-        else showAlert(data.error || t.errNetwork, 'error');
+        if (data.error?.includes('email')) {
+          fieldErr('err-email', t.errEmailUsed);
+          document.getElementById('email').classList.add('error-field');
+        } else {
+          showAlert(data.error || t.errNetwork, 'error');
+        }
         btn.disabled = false;
         document.getElementById('btn-text').textContent = t.btn;
       }
