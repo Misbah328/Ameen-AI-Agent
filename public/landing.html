@@ -49,7 +49,11 @@ nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
 
 /* ── HERO ─────────────────────────── */
 .hero{min-height:100vh;display:flex;align-items:center;padding:7rem 2.5rem 4rem;background:#fff;position:relative;overflow:hidden}
-.hero::after{content:'';position:absolute;top:0;right:0;width:52%;height:100%;background:linear-gradient(135deg,rgba(248,250,252,0) 0%,rgba(248,250,252,.7) 100%);pointer-events:none;z-index:0}
+/* Background decorations */
+.hero-blob{position:absolute;border-radius:50%;pointer-events:none;z-index:0}
+.hero-blob-gold{top:-120px;right:-60px;width:600px;height:600px;background:radial-gradient(circle,rgba(201,168,76,.09) 0%,transparent 68%)}
+.hero-blob-green{bottom:0;right:300px;width:400px;height:400px;background:radial-gradient(circle,rgba(13,40,24,.05) 0%,transparent 70%)}
+.hero-dots{position:absolute;inset:0;background-image:radial-gradient(rgba(201,168,76,.18) 1px,transparent 1px);background-size:26px 26px;-webkit-mask-image:linear-gradient(to right,transparent 0%,transparent 35%,rgba(0,0,0,.6) 55%,rgba(0,0,0,.9) 100%);mask-image:linear-gradient(to right,transparent 0%,transparent 35%,rgba(0,0,0,.6) 55%,rgba(0,0,0,.9) 100%);pointer-events:none;z-index:0}
 .hero-i{max-width:1200px;margin:0 auto;width:100%;display:flex;align-items:center;gap:3.5rem;position:relative;z-index:1}
 .hero-left{flex:0 0 auto;width:470px;max-width:100%}
 /* Badge */
@@ -95,7 +99,47 @@ h1.hh .gold{display:block;color:var(--gold)}
 .tbadge-icon svg{width:17px;height:17px;stroke:var(--dark3);stroke-width:1.8;fill:none}
 
 /* ── DEVICE AREA ──────────────────── */
-.hero-right{flex:1;position:relative;display:flex;align-items:center;justify-content:flex-end;min-height:420px}
+.hero-right{flex:1;position:relative;display:flex;align-items:center;justify-content:flex-end;min-height:520px}
+
+/* 3D mockup wrapper */
+.mockup-3d{
+  position:relative;
+  transform:perspective(1600px) rotateY(-8deg) rotateX(2deg) translateZ(0);
+  transform-style:preserve-3d;
+  transition:transform .7s cubic-bezier(.23,1,.32,1);
+  will-change:transform;
+}
+.mockup-3d:hover{transform:perspective(1600px) rotateY(-4deg) rotateX(1deg) translateZ(20px)}
+
+/* Glow behind laptop */
+.mockup-glow{
+  position:absolute;inset:-30px;border-radius:20px;
+  background:radial-gradient(ellipse 80% 60% at 60% 50%,rgba(201,168,76,.14) 0%,transparent 70%);
+  pointer-events:none;z-index:0;filter:blur(18px);
+}
+
+/* Floating achievement badges */
+.float-badge{
+  position:absolute;
+  background:#fff;
+  border-radius:14px;
+  padding:9px 13px;
+  box-shadow:0 12px 40px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);
+  display:flex;align-items:center;gap:9px;
+  z-index:20;border:1px solid rgba(0,0,0,.05);
+  animation:floatUp 4s ease-in-out infinite;
+  cursor:default;user-select:none;
+}
+.float-badge.fb1{top:-18px;right:30px;animation-duration:4s;animation-delay:0s}
+.float-badge.fb2{bottom:80px;right:-42px;animation-duration:5s;animation-delay:1.2s}
+.float-badge.fb3{top:100px;left:-80px;animation-duration:4.5s;animation-delay:.6s}
+.fb-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.fb-icon.g{background:rgba(22,163,74,.1)}
+.fb-icon.a{background:rgba(201,168,76,.12)}
+.fb-icon.b{background:rgba(59,130,246,.1)}
+.fb-t .fb-n{font-size:12px;font-weight:800;color:#0f172a;line-height:1.2}
+.fb-t .fb-l{font-size:10px;color:#94a3b8;font-weight:500;margin-top:2px}
+@keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 
 /* Laptop — silver/aluminum frame like MacBook */
 .laptop-wrap{position:relative;z-index:2}
@@ -303,24 +347,48 @@ h1.hh .gold{display:block;color:var(--gold)}
 
 /* ── TRUSTED BY BAND ─────────────── */
 .trusted-band{
-  width:100%;
-  background:#fff;
-  border-top:1px solid #e2e8f0;
-  border-bottom:1px solid #e2e8f0;
-  padding:.5rem 0;
-  overflow:hidden;
+  width:100%;background:#f8f9fb;
+  border-top:1px solid #e8eaf0;border-bottom:1px solid #e8eaf0;
+  padding:1.6rem 0;
 }
 .trusted-inner{
-  max-width:1240px;
-  margin:0 auto;
-  padding:0 2.5rem;
+  max-width:1240px;margin:0 auto;padding:0 2.5rem;
+  display:flex;align-items:center;gap:0;
 }
-.trusted-img{
-  display:block;
-  width:100%;
-  height:88px;
-  object-fit:fill;
+.trusted-label{
+  flex-shrink:0;padding-right:2.2rem;margin-right:2.2rem;
+  border-right:1.5px solid #d4d8e2;
+  font-size:.6rem;font-weight:800;letter-spacing:.11em;
+  text-transform:uppercase;color:#8492a6;line-height:1.7;
+  white-space:nowrap;
 }
+.trusted-logos{
+  flex:1;display:flex;align-items:center;
+  justify-content:space-between;gap:.2rem;
+  min-width:0;
+}
+/* Each logo group */
+.tl{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:0 .75rem;opacity:.65;transition:opacity .2s;
+  border-right:1px solid #e0e3ea;flex-shrink:0;
+}
+.tl:last-child{border-right:none}
+.tl:hover{opacity:1}
+.tl-mark{display:flex;align-items:center;justify-content:center;gap:6px}
+.tl-name-ar{font-family:'Tajawal',sans-serif;font-size:.78rem;font-weight:700;color:#1e2535;line-height:1;white-space:nowrap}
+.tl-name-en{font-size:.58rem;font-weight:600;color:#6b7280;letter-spacing:.03em;white-space:nowrap;margin-top:1px}
+/* Brand specific */
+.sabic-ar{color:#1a5c2e;font-size:.92rem;font-weight:900}
+.sabic-en{color:#e03b2e;font-size:.62rem;font-weight:800;letter-spacing:.04em}
+.aramco-flame{width:16px;height:20px;flex-shrink:0}
+.pif-badge{
+  width:32px;height:32px;border-radius:50%;border:2px solid #2c5f2e;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:900;color:#2c5f2e;letter-spacing:-.01em;flex-shrink:0;
+}
+.roshn-bar{width:24px;height:3px;background:#00a99d;border-radius:2px;margin-bottom:2px}
+.mof-crest,.moi-crest,.cma-crest{width:24px;height:24px;opacity:.7;flex-shrink:0}
 
 /* ── FEATURES ─────────────────────── */
 .feat-sec{background:#fff;border-top:1px solid var(--bdr)}
@@ -538,6 +606,10 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 
 <!-- ═══ HERO ════════════════════════════════════════ -->
 <section class="hero" id="home">
+<!-- Background decorations -->
+<div class="hero-blob hero-blob-gold"></div>
+<div class="hero-blob hero-blob-green"></div>
+<div class="hero-dots"></div>
 <div class="hero-i">
   <!-- Left -->
   <div class="hero-left">
@@ -603,6 +675,41 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 
   <!-- Right: Device Mockups -->
   <div class="hero-right">
+    <div class="mockup-3d">
+    <div class="mockup-glow"></div>
+
+    <!-- Floating badge 1 — top right -->
+    <div class="float-badge fb1">
+      <div class="fb-icon g">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="fb-t">
+        <div class="fb-n">98% Accuracy</div>
+        <div class="fb-l">AI Minutes</div>
+      </div>
+    </div>
+
+    <!-- Floating badge 2 — bottom right -->
+    <div class="float-badge fb2">
+      <div class="fb-icon a">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div class="fb-t">
+        <div class="fb-n">24 Meetings</div>
+        <div class="fb-l">Scheduled Today</div>
+      </div>
+    </div>
+
+    <!-- Floating badge 3 — left -->
+    <div class="float-badge fb3">
+      <div class="fb-icon b">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <div class="fb-t">
+        <div class="fb-n">2 min</div>
+        <div class="fb-l">AI-Generated Report</div>
+      </div>
+    </div>
 
     <!-- ── PHONE (front-left, dark frame) ── -->
     <div class="phone-wrap">
@@ -666,13 +773,10 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
                 <!-- Brand logo -->
                 <div class="d-sb-brand">
                   <div class="d-sb-gem">
-                    <svg viewBox="0 0 28 32" fill="none">
-                      <polygon points="14,1 27,9 27,16 14,22" fill="#F0D060"/>
-                      <polygon points="14,1 1,9 1,16 14,22" fill="#C9A84C"/>
-                      <polygon points="1,16 27,16 14,24" fill="#D8B64E"/>
-                      <polygon points="1,16 14,24 1,28" fill="#A88828"/>
-                      <polygon points="27,16 14,24 27,28" fill="#D0B040"/>
-                      <polygon points="1,28 27,28 14,31" fill="#B09028"/>
+                    <svg viewBox="0 0 46 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <polygon points="23,2 2,50 17,50 23,26" fill="#0d2010"/>
+                      <polygon points="23,2 44,50 29,50 23,26" fill="#C9A84C"/>
+                      <rect x="11" y="28" width="24" height="3.5" rx="1.5" fill="#C9A84C"/>
                     </svg>
                   </div>
                   <div class="d-sb-name">
@@ -864,6 +968,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
       <div class="lp-foot"></div>
     </div><!-- /laptop-wrap -->
 
+    </div><!-- /mockup-3d -->
   </div><!-- /hero-right -->
 </div><!-- /hero-i -->
 </section>
@@ -871,7 +976,84 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <!-- ═══ TRUSTED BY ══════════════════════════════════════ -->
 <div class="trusted-band" id="trusted">
   <div class="trusted-inner">
-    <img src="/trusted-logos.png" alt="Trusted by SABIC, Saudi Aramco, Ministry of Investment, PIF, ROSHN, Ministry of Finance, Capital Market Authority" class="trusted-img"/>
+    <div class="trusted-label">TRUSTED BY<br>LEADING ORGANIZATIONS</div>
+
+    <div class="trusted-logos">
+
+      <!-- SABIC -->
+      <div class="tl">
+        <div class="tl-mark">
+          <span class="tl-name-ar sabic-ar">سابك</span>
+        </div>
+        <span class="tl-name-en sabic-en">SABIC</span>
+      </div>
+
+      <!-- Saudi Aramco -->
+      <div class="tl">
+        <div class="tl-mark">
+          <svg class="aramco-flame" viewBox="0 0 16 20" fill="none">
+            <path d="M8 1C8 1 3 6 3 11a5 5 0 0010 0C13 6 8 1 8 1z" fill="#C8102E" opacity=".8"/>
+            <path d="M8 7C8 7 5.5 10 5.5 12.5a2.5 2.5 0 005 0C10.5 10 8 7 8 7z" fill="#fff" opacity=".7"/>
+          </svg>
+          <span class="tl-name-ar">أرامكو</span>
+        </div>
+        <span class="tl-name-en">Saudi Aramco</span>
+      </div>
+
+      <!-- Ministry of Investment -->
+      <div class="tl">
+        <div class="tl-mark">
+          <svg class="moi-crest" viewBox="0 0 24 24" fill="none">
+            <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" stroke="#2c5f2e" stroke-width="1.4" fill="rgba(44,95,46,.08)"/>
+          </svg>
+          <span class="tl-name-ar" style="font-size:.65rem">وزارة الاستثمار</span>
+        </div>
+        <span class="tl-name-en">Ministry of Investment</span>
+      </div>
+
+      <!-- PIF -->
+      <div class="tl">
+        <div class="tl-mark">
+          <div class="pif-badge">PIF</div>
+        </div>
+        <span class="tl-name-ar" style="font-size:.6rem">صندوق الاستثمارات</span>
+      </div>
+
+      <!-- ROSHN -->
+      <div class="tl">
+        <div class="tl-mark" style="flex-direction:column;gap:2px">
+          <div class="roshn-bar"></div>
+          <span class="tl-name-ar" style="color:#00a99d;font-size:.82rem;font-weight:900">روشن</span>
+        </div>
+        <span class="tl-name-en" style="color:#00a99d">ROSHN</span>
+      </div>
+
+      <!-- Ministry of Finance -->
+      <div class="tl">
+        <div class="tl-mark">
+          <svg class="mof-crest" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="#1e3a5f" stroke-width="1.3" fill="rgba(30,58,95,.06)"/>
+            <path d="M7 12h10M12 7v10" stroke="#1e3a5f" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span class="tl-name-ar" style="font-size:.65rem">وزارة المالية</span>
+        </div>
+        <span class="tl-name-en">Ministry of Finance</span>
+      </div>
+
+      <!-- Capital Market Authority -->
+      <div class="tl">
+        <div class="tl-mark">
+          <svg class="cma-crest" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="11" width="4" height="10" rx="1" fill="rgba(26,75,140,.2)" stroke="#1a4b8c" stroke-width="1.2"/>
+            <rect x="10" y="7" width="4" height="14" rx="1" fill="rgba(26,75,140,.2)" stroke="#1a4b8c" stroke-width="1.2"/>
+            <rect x="17" y="3" width="4" height="18" rx="1" fill="rgba(26,75,140,.2)" stroke="#1a4b8c" stroke-width="1.2"/>
+          </svg>
+          <span class="tl-name-ar" style="font-size:.6rem">هيئة السوق المالية</span>
+        </div>
+        <span class="tl-name-en">Capital Market Authority</span>
+      </div>
+
+    </div>
   </div>
 </div>
 
