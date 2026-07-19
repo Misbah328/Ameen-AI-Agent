@@ -177,13 +177,20 @@ h1.hh .gold{display:block;color:var(--gold)}
   display:flex;
   align-items:flex-end;
   position:relative;
+  perspective:2200px;
+}
+.mockup-3d:hover .laptop-wrap{
+  transform:perspective(1800px) rotateY(-8deg) rotateX(2deg) translateY(-4px);
+}
+.mockup-3d:hover .phone-wrap{
+  transform:perspective(1200px) rotateY(5deg) rotateX(1deg) translateY(-6px);
 }
 
-/* Glow behind laptop */
+/* Glow behind devices */
 .mockup-glow{
-  position:absolute;inset:-30px;border-radius:20px;
-  background:radial-gradient(ellipse 80% 60% at 60% 50%,rgba(201,168,76,.14) 0%,transparent 70%);
-  pointer-events:none;z-index:0;filter:blur(18px);
+  position:absolute;inset:-60px -40px;border-radius:40px;
+  background:radial-gradient(ellipse 70% 65% at 58% 55%,rgba(201,168,76,.22) 0%,rgba(13,40,24,.10) 55%,transparent 80%);
+  pointer-events:none;z-index:0;filter:blur(28px);
 }
 
 /* Floating achievement badges */
@@ -210,7 +217,13 @@ h1.hh .gold{display:block;color:var(--gold)}
 @keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 
 /* Laptop — silver/aluminum frame like MacBook */
-.laptop-wrap{position:relative;z-index:2}
+.laptop-wrap{
+  position:relative;z-index:2;
+  transform:perspective(1800px) rotateY(-16deg) rotateX(5deg);
+  transform-origin:center bottom;
+  transition:transform .55s cubic-bezier(.25,.46,.45,.94);
+  filter:drop-shadow(0 36px 72px rgba(0,0,0,.28)) drop-shadow(0 8px 20px rgba(0,0,0,.14));
+}
 .lp-lid{
   background:linear-gradient(160deg,#e8e8e8 0%,#d0d0d0 40%,#c4c4c4 100%);
   border-radius:12px 12px 0 0;
@@ -226,8 +239,6 @@ h1.hh .gold{display:block;color:var(--gold)}
 .lp-base{height:7px;background:linear-gradient(180deg,#d8d8d8,#c8c8c8);border-radius:0 0 3px 3px}
 .lp-foot{width:70%;height:3px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.07),transparent);margin:0 auto;border-radius:0 0 3px 3px}
 
-/* Laptop wrapper z-index */
-.laptop-wrap{position:relative;z-index:2}
 /* Dashboard inside laptop */
 .d-ui{display:flex;height:100%;font-family:'Inter',sans-serif;background:#fff}
 
@@ -338,8 +349,15 @@ h1.hh .gold{display:block;color:var(--gold)}
 .d-td{font-size:7.5px;font-weight:500;color:#334155;padding:6px 9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .d-badge-s{display:inline-flex;padding:2px 7px;border-radius:4px;font-size:7px;font-weight:700;background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
 
-/* PHONE — flex item, negative right margin overlaps laptop left frame only */
-.phone-wrap{position:relative;z-index:5;width:148px;flex-shrink:0;margin-right:-18px;margin-bottom:8px}
+/* PHONE — 3D counter-tilt, slight forward lean */
+.phone-wrap{
+  position:relative;z-index:5;width:148px;flex-shrink:0;
+  margin-right:-18px;margin-bottom:8px;
+  transform:perspective(1200px) rotateY(12deg) rotateX(4deg);
+  transform-origin:center bottom;
+  transition:transform .55s cubic-bezier(.25,.46,.45,.94);
+  filter:drop-shadow(0 28px 56px rgba(0,0,0,.32)) drop-shadow(0 6px 16px rgba(0,0,0,.16));
+}
 .ph-outer{
   background:linear-gradient(165deg,#333 0%,#1a1a1a 60%,#111 100%);
   border-radius:26px;
