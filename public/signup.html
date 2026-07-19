@@ -150,7 +150,7 @@
     </a>
     <p class="brand-tag" id="brand-tag">نظام الأمانة التنفيذية الذكية للمؤسسات</p>
     <div class="prog-wrap" id="prog-wrap">
-      <div class="prog-step" id="ps0">
+      <div class="prog-step" id="ps0" style="display:none">
         <div class="prog-dot" id="pd0">1</div>
         <div class="prog-body">
           <div class="prog-title" id="pt0">اختيار الخطة</div>
@@ -179,7 +179,7 @@
 <main class="form-panel">
   <div class="form-box">
     <div class="top-bar">
-      <div class="step-badge" id="step-badge">الخطوة 1 من 3</div>
+      <div class="step-badge" id="step-badge">الخطوة 1 من 2</div>
       <div class="lang-sw">
         <button id="btn-ar" onclick="setLang('ar')">عربي</button>
         <button id="btn-en" onclick="setLang('en')">English</button>
@@ -188,8 +188,8 @@
 
     <div class="alert" id="alert-box"></div>
 
-    <!-- STEP 1: Plan -->
-    <div class="step-panel visible" id="step1">
+    <!-- STEP 1: Plan (hidden — plan selected from landing page) -->
+    <div class="step-panel" id="step1" style="display:none">
       <div class="step-title" id="s1-title">اختر خطتك</div>
       <div class="step-sub" id="s1-sub">ابدأ بتجربة مجانية 7 أيام أو اختر الخطة المناسبة لمنظمتك</div>
       <div class="plan-grid" id="plan-grid">
@@ -199,7 +199,7 @@
     </div>
 
     <!-- STEP 2: Organisation -->
-    <div class="step-panel" id="step2">
+    <div class="step-panel visible" id="step2">
       <div class="step-title" id="s2-title">بيانات المنظمة</div>
       <div class="step-sub" id="s2-sub">أدخل معلومات منظمتك أو شركتك</div>
       <div class="fg">
@@ -223,7 +223,7 @@
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn-back" onclick="goStep(1)" id="btn-s2-back">→ رجوع</button>
+        <button class="btn-back" onclick="window.location.href='/landing.html'" id="btn-s2-back">→ رجوع</button>
         <button class="btn-next" onclick="goStep(3)" id="btn-s2-next">التالي ←</button>
       </div>
     </div>
@@ -279,7 +279,7 @@
 <script>
 const T = {
   ar: {
-    badge: ['الخطوة 1 من 3','الخطوة 2 من 3','الخطوة 3 من 3'],
+    badge: ['الخطوة 1 من 2','الخطوة 2 من 2'],
     brandTag: 'نظام الأمانة التنفيذية الذكية للمؤسسات',
     prog: [
       {t:'اختيار الخطة',s:'تجربة مجانية أو Premium أو Pro'},
@@ -312,7 +312,7 @@ const T = {
     namePh:'محمد العتيبي',
   },
   en: {
-    badge: ['Step 1 of 3','Step 2 of 3','Step 3 of 3'],
+    badge: ['Step 1 of 2','Step 2 of 2'],
     brandTag: 'Smart Executive Secretariat for Organisations',
     prog: [
       {t:'Choose Plan',s:'Free Trial, Premium, or Pro'},
@@ -347,8 +347,8 @@ const T = {
 };
 
 let lang = localStorage.getItem('lang') || 'ar';
-let step = 1;
-let selectedPlan = null;
+let step = 2;
+let selectedPlan = (new URLSearchParams(window.location.search)).get('plan') || null;
 let plans = [];
 
 function setLang(l) {
@@ -393,14 +393,22 @@ function setLang(l) {
 
 function updateProgress() {
   const t = T[lang];
-  document.getElementById('step-badge').textContent = t.badge[step - 1];
-  [0, 1, 2].forEach(i => {
+  // Badge maps: step2 → index 0 ("Step 1 of 2"), step3 → index 1 ("Step 2 of 2")
+  const badgeIdx = step - 2;
+  document.getElementById('step-badge').textContent = t.badge[Math.max(0, badgeIdx)];
+  // Step 0 (plan) always done + hidden
+  const d0 = document.getElementById('pd0'); const s0 = document.getElementById('ps0');
+  if (d0) { d0.className = 'prog-dot done'; d0.textContent = '✓'; }
+  if (s0) s0.className = 'prog-step done';
+  // Steps 1 (org) and 2 (admin) — displayed as 1 of 2 / 2 of 2
+  [1, 2].forEach(i => {
     const s = document.getElementById('ps' + i);
     const d = document.getElementById('pd' + i);
-    s.className = 'prog-step' + (i + 1 === step ? ' active' : i + 1 < step ? ' done' : '');
-    d.className = 'prog-dot' + (i + 1 === step ? ' active' : i + 1 < step ? ' done' : '');
-    if (i + 1 < step) d.textContent = '✓';
-    else d.textContent = String(i + 1);
+    const isActive = (i + 1 === step);
+    const isDone   = (i + 1 < step);
+    s.className = 'prog-step' + (isActive ? ' active' : isDone ? ' done' : '');
+    d.className = 'prog-dot'  + (isActive ? ' active' : isDone ? ' done' : '');
+    d.textContent = isDone ? '✓' : String(i);
   });
 }
 
@@ -408,9 +416,6 @@ function goStep(n) {
   const t = T[lang];
   if (n > step) {
     // Validate current step
-    if (step === 1) {
-      if (!selectedPlan) { showAlert(t.errPlan, 'error'); return; }
-    }
     if (step === 2) {
       let ok = true;
       const orgAr = document.getElementById('org-name-ar').value.trim();
@@ -554,8 +559,7 @@ async function submitForm() {
   }
 }
 
-// Init
-loadPlans();
+// Init — start directly on step 2 (plan was chosen on landing page)
 setLang(lang);
 updateProgress();
 </script>
