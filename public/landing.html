@@ -1,329 +1,325 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>أمين السكرتير — نظام الأمانة التنفيذية الذكية</title>
+<title>Ameen Secretary — AI-Powered Executive Secretariat Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --g0:#030a05;--g1:#051009;--g2:#07160b;--g3:#0d2818;--g4:#1a4030;--g5:#2d6b4a;
-  --gold:#C9A84C;--gold2:#ddb85e;--gold3:#f2d170;--gold-dim:rgba(201,168,76,.12);--gold-glow:rgba(201,168,76,.3);
-  --teal:#1a4d3a;--teal2:#0d3328;--teal3:rgba(26,77,58,.5);
-  --text:#eef4f0;--text2:#8ab09a;--text3:#456055;
-  --r:0.75rem;--r2:1.25rem;--r3:1.75rem;
+  --gold:#C9A84C;--gold2:#e6c55a;--gold3:#f5d980;--gold-bg:rgba(201,168,76,.08);--gold-border:rgba(201,168,76,.25);
+  --green:#071a0f;--green2:#0d2818;--green3:#1a3d28;--green4:#2d6b4a;
+  --text:#111827;--text2:#374151;--text3:#6B7280;--text4:#9CA3AF;
+  --border:#E5E7EB;--border2:#F3F4F6;
+  --white:#ffffff;--off:#F9FAFB;--off2:#F3F4F6;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+  --shadow2:0 4px 24px rgba(0,0,0,.1),0 1px 4px rgba(0,0,0,.06);
+  --shadow3:0 20px 60px rgba(0,0,0,.12),0 4px 16px rgba(0,0,0,.08);
+  --r:8px;--r2:12px;--r3:16px;--r4:24px;
 }
 html{scroll-behavior:smooth;overflow-x:hidden}
-body{font-family:'Tajawal','Inter',system-ui,sans-serif;background:var(--g0);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased}
-[lang="en"] body,[dir="ltr"] body{font-family:'Inter',system-ui,sans-serif}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--white);color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+[lang="ar"]{font-family:'Tajawal',system-ui,sans-serif}
+[dir="rtl"] body,[dir="rtl"] *{font-family:'Tajawal',system-ui,sans-serif}
 
-/* ─── SCROLL BAR ─────────────────────────────── */
-#sp{position:fixed;top:0;left:0;height:2.5px;background:linear-gradient(90deg,var(--gold),var(--gold3));z-index:500;width:0;transition:width .08s}
+/* scroll bar */
+#sp{position:fixed;top:0;left:0;height:2.5px;background:linear-gradient(90deg,var(--gold),var(--gold3));z-index:999;width:0}
 
-/* ─── NAV ────────────────────────────────────── */
-nav{position:fixed;inset:0 0 auto 0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:.9rem 3rem;transition:background .4s,box-shadow .4s;height:68px}
-nav.stuck{background:rgba(3,10,5,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 1px 0 rgba(201,168,76,.1)}
-.nav-brand{display:flex;align-items:center;gap:.7rem;text-decoration:none;flex-shrink:0}
-.nav-brand img{width:32px;height:32px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(201,168,76,.5))}
-.nav-brand-txt{font-size:1.05rem;font-weight:900;color:var(--text);letter-spacing:-.01em}
-.nav-brand-txt em{color:var(--gold);font-style:normal}
-.nav-links{display:flex;gap:2rem;align-items:center}
-.nav-link{color:var(--text2);text-decoration:none;font-size:.88rem;font-weight:500;transition:color .2s;position:relative}
-.nav-link::after{content:'';position:absolute;bottom:-3px;left:0;right:0;height:1px;background:var(--gold);transform:scaleX(0);transition:transform .22s}
-.nav-link:hover{color:var(--gold)}.nav-link:hover::after{transform:scaleX(1)}
-.nav-r{display:flex;align-items:center;gap:.65rem}
-.lang-sw{display:flex;gap:.25rem}
-.lang-sw button{background:none;border:1px solid rgba(255,255,255,.1);color:var(--text3);padding:.2rem .55rem;border-radius:20px;cursor:pointer;font-size:.7rem;font-family:inherit;transition:all .15s}
-.lang-sw button.on{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
-.nav-login{color:var(--text2);text-decoration:none;font-size:.86rem;font-weight:600;padding:.4rem 1rem;border:1px solid rgba(255,255,255,.1);border-radius:8px;transition:all .2s}
-.nav-login:hover{border-color:var(--gold);color:var(--gold)}
-.nav-cta{background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a04;text-decoration:none;font-size:.86rem;font-weight:900;padding:.45rem 1.2rem;border-radius:8px;transition:all .2s;box-shadow:0 4px 20px rgba(201,168,76,.3)}
-.nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(201,168,76,.45)}
+/* ── NAV ─────────────────────────────────────── */
+nav{position:fixed;inset:0 0 auto;z-index:100;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid transparent;transition:border-color .3s,box-shadow .3s}
+nav.stuck{border-color:var(--border);box-shadow:0 2px 16px rgba(0,0,0,.06)}
+.nav-i{max-width:1200px;margin:0 auto;padding:0 2.5rem;height:68px;display:flex;align-items:center;gap:2rem}
+.nav-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;flex-shrink:0;margin-inline-end:.5rem}
+.nav-brand img{width:36px;height:36px;object-fit:contain}
+.nav-brand-text{display:flex;flex-direction:column;line-height:1.1}
+.nav-brand-text strong{font-size:.95rem;font-weight:900;color:var(--text);letter-spacing:-.01em}
+.nav-brand-text span{font-size:.58rem;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase}
+.nav-links{display:flex;gap:.25rem;flex:1;align-items:center}
+.nav-link{color:var(--text2);text-decoration:none;font-size:.85rem;font-weight:500;padding:.45rem .75rem;border-radius:var(--r);transition:color .2s,background .2s}
+.nav-link:hover,.nav-link.on{color:var(--text);background:var(--off2)}
+.nav-right{display:flex;align-items:center;gap:.6rem;flex-shrink:0}
+.lang-btn{display:flex;align-items:center;gap:.35rem;padding:.38rem .7rem;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer;font-size:.8rem;color:var(--text2);font-family:inherit;transition:all .2s}
+.lang-btn:hover{border-color:var(--gold);color:var(--gold)}
+.lang-btn.ar-mode{font-family:'Tajawal',sans-serif}
+.nav-signin{color:var(--text2);text-decoration:none;font-size:.85rem;font-weight:600;padding:.42rem 1rem;border:1px solid var(--border);border-radius:var(--r);transition:all .2s}
+.nav-signin:hover{border-color:var(--gold);color:var(--gold)}
+.nav-demo{background:var(--gold);color:#fff;text-decoration:none;font-size:.85rem;font-weight:700;padding:.45rem 1.2rem;border-radius:var(--r);transition:all .22s;box-shadow:0 2px 8px rgba(201,168,76,.3)}
+.nav-demo:hover{background:var(--gold2);transform:translateY(-1px);box-shadow:0 6px 20px rgba(201,168,76,.4)}
 
-/* ─── HERO ───────────────────────────────────── */
-.hero{min-height:100vh;position:relative;overflow:hidden;display:flex;align-items:center;padding:5rem 3rem 4rem}
-#hero-canvas{position:absolute;inset:0;pointer-events:none;z-index:0}
-.hero-gfx{position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(ellipse 60% 70% at 65% 50%,rgba(26,77,58,.35) 0%,transparent 65%),
-             radial-gradient(ellipse 40% 50% at 10% 60%,rgba(7,22,11,.8) 0%,transparent 70%),
-             radial-gradient(ellipse 50% 40% at 50% 0%,rgba(201,168,76,.06) 0%,transparent 50%)}
+/* ── HERO ────────────────────────────────────── */
+.hero{padding:8rem 2.5rem 5rem;min-height:100vh;display:flex;align-items:center;position:relative;overflow:hidden;
+  background:#ffffff;
+  background-image:radial-gradient(circle,rgba(201,168,76,.12) 1.5px,transparent 1.5px);
+  background-size:28px 28px}
+.hero::before{content:'';position:absolute;top:-200px;right:-200px;width:700px;height:700px;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,168,76,.08) 0%,rgba(26,77,58,.05) 40%,transparent 70%);
+  pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-150px;left:-100px;width:500px;height:500px;border-radius:50%;
+  background:radial-gradient(circle,rgba(7,26,15,.04) 0%,transparent 65%);pointer-events:none}
+.hero-i{max-width:1200px;margin:0 auto;width:100%;display:flex;align-items:center;gap:5rem;position:relative;z-index:1}
+.hero-text{flex:0 0 auto;max-width:500px}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--gold-border);background:var(--gold-bg);border-radius:20px;padding:.3rem 1rem;font-size:.74rem;font-weight:700;color:var(--gold);margin-bottom:1.5rem;letter-spacing:.03em}
+.hb-dot{width:5px;height:5px;background:var(--gold);border-radius:50%;animation:blink 2s ease infinite}
+h1.hh{font-size:clamp(2.4rem,5vw,4rem);font-weight:900;line-height:1.08;letter-spacing:-.04em;color:var(--text);margin-bottom:.2rem}
+h1.hh .gold{color:var(--gold)}
+.hero-sub{font-size:1rem;color:var(--text2);line-height:1.75;margin:1.1rem 0 2rem;max-width:440px}
+.hero-btns{display:flex;gap:.85rem;flex-wrap:wrap;margin-bottom:2.2rem}
+.btn-primary{display:inline-flex;align-items:center;gap:.5rem;background:var(--gold);color:#fff;text-decoration:none;font-size:.92rem;font-weight:700;padding:.82rem 1.75rem;border-radius:var(--r2);transition:all .22s;box-shadow:0 4px 16px rgba(201,168,76,.35)}
+.btn-primary:hover{background:var(--gold2);transform:translateY(-2px);box-shadow:0 10px 30px rgba(201,168,76,.45)}
+.btn-secondary{display:inline-flex;align-items:center;gap:.5rem;background:var(--white);color:var(--text);text-decoration:none;font-size:.92rem;font-weight:600;padding:.82rem 1.75rem;border-radius:var(--r2);border:1px solid var(--border);transition:all .22s}
+.btn-secondary:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow)}
+.hero-badges{display:flex;gap:1.75rem;flex-wrap:wrap}
+.hbadge{display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--text3);font-weight:500}
+.hbadge-ic{font-size:.95rem}
 
-.hero-inner{position:relative;z-index:2;display:flex;align-items:center;gap:4rem;max-width:1300px;margin:0 auto;width:100%}
-.hero-text{flex:0 0 auto;max-width:480px}
-.hero-eyebrow{display:inline-flex;align-items:center;gap:.5rem;background:rgba(201,168,76,.09);border:1px solid rgba(201,168,76,.22);border-radius:20px;padding:.3rem 1rem;font-size:.78rem;font-weight:700;color:var(--gold);margin-bottom:1.5rem;animation:fu .6s ease both}
-.hero-eyebrow-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 2s ease infinite}
-h1.hero-h{font-size:clamp(2.2rem,5vw,4rem);font-weight:900;line-height:1.1;letter-spacing:-.03em;color:var(--text);margin-bottom:1.1rem;animation:fu .7s ease .1s both}
-h1.hero-h .gold-t{background:linear-gradient(135deg,#a07428,var(--gold3),var(--gold),var(--gold3),#a07428);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 4s linear infinite}
-@keyframes shine{to{background-position:200% center}}
-.hero-sub{font-size:1.05rem;color:var(--text2);line-height:1.8;margin-bottom:2rem;animation:fu .7s ease .2s both}
-.hero-btns{display:flex;gap:.9rem;flex-wrap:wrap;animation:fu .7s ease .3s both}
-.btn-gold{display:inline-flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a04;text-decoration:none;font-size:.95rem;font-weight:900;padding:.85rem 1.9rem;border-radius:12px;transition:all .25s;box-shadow:0 8px 30px rgba(201,168,76,.35)}
-.btn-gold:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 16px 44px rgba(201,168,76,.5)}
-.btn-ghost{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text);text-decoration:none;font-size:.95rem;font-weight:600;padding:.85rem 1.9rem;border-radius:12px;transition:all .25s;backdrop-filter:blur(10px)}
-.btn-ghost:hover{background:rgba(255,255,255,.08);border-color:var(--gold);color:var(--gold);transform:translateY(-2px)}
-.hero-trust{display:flex;align-items:center;gap:.75rem;margin-top:2rem;animation:fu .7s ease .4s both}
-.trust-ava{display:flex}
-.trust-ava span{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));border:2px solid var(--g0);margin-inline-end:-8px;font-size:.65rem;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
-.trust-txt{font-size:.78rem;color:var(--text2)}.trust-txt strong{color:var(--gold)}
+/* ── DEVICE MOCKUP ───────────────────────────── */
+.hero-device{flex:1;position:relative;min-height:480px;display:flex;align-items:center;justify-content:center}
+.device-wrap{position:relative;width:580px;max-width:100%}
 
-/* ─── HERO VISUAL (Dashboard + Exec profiles) ── */
-.hero-visual{flex:1;position:relative;display:flex;justify-content:center;align-items:center;min-height:560px;animation:fu .9s ease .35s both}
+/* Laptop */
+.laptop{position:relative;z-index:2}
+.lp-lid{background:linear-gradient(145deg,#2d2d2d,#1a1a1a);border-radius:12px 12px 0 0;padding:10px;box-shadow:var(--shadow3)}
+.lp-screen{background:#ffffff;border-radius:6px;overflow:hidden;aspect-ratio:16/10;position:relative;border:1px solid #333}
+.lp-chin{background:linear-gradient(180deg,#2d2d2d,#242424);height:18px;border-radius:0 0 4px 4px;display:flex;align-items:center;justify-content:center;margin-top:-1px}
+.lp-chin::after{content:'';width:50px;height:4px;background:#1a1a1a;border-radius:2px}
+.lp-base{background:linear-gradient(180deg,#3a3a3a,#2a2a2a);height:14px;border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,.25);margin-top:-1px}
+.lp-foot{width:80%;height:4px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.1),transparent);margin:0 auto;border-radius:0 0 4px 4px}
 
-/* Executive profile cards */
-.exec-card{position:absolute;display:flex;flex-direction:column;align-items:center;gap:.45rem;z-index:4;animation:float var(--fd,6s) ease-in-out infinite;animation-delay:var(--dl,0s)}
-@keyframes float{0%,100%{transform:translateY(0) rotate(var(--rot,0deg))}50%{transform:translateY(-12px) rotate(var(--rot,0deg))}}
-.exec-card.ec1{top:2%;left:2%;--fd:5.5s;--dl:0s;--rot:-1.5deg}
-.exec-card.ec2{top:0%;right:0%;--fd:6.5s;--dl:-1.5s;--rot:1.5deg}
-.exec-card.ec3{bottom:10%;left:0%;--fd:7s;--dl:-3s;--rot:-2deg}
-.exec-card.ec4{bottom:8%;right:0%;--fd:5.8s;--dl:-4.5s;--rot:1.8deg}
-.exec-ring-wrap{width:78px;height:78px;border-radius:50%;position:relative}
-.exec-ring{position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,var(--gold) 0%,var(--g5) 40%,var(--gold3) 70%,var(--gold) 100%);animation:spin 8s linear infinite var(--dl,0s)}
-@keyframes spin{to{transform:rotate(360deg)}}
-.exec-ring.rev{animation-direction:reverse;animation-duration:10s}
-.exec-avatar{width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,var(--g3),var(--g5));border:3px solid var(--g0);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:var(--gold);position:relative;z-index:1}
-.exec-badge{background:rgba(5,16,9,.85);backdrop-filter:blur(16px);border:1px solid rgba(201,168,76,.18);border-radius:10px;padding:.4rem .75rem;text-align:center;min-width:140px}
-.exec-badge strong{display:block;font-size:.78rem;font-weight:800;color:var(--text);white-space:nowrap}
-.exec-badge span{font-size:.66rem;color:var(--gold);display:block;white-space:nowrap}
+/* Dashboard inside laptop */
+.dash-ui{display:grid;grid-template-columns:58px 1fr;height:100%;font-size:7px}
+.dash-sb{background:#0d2818;padding:6px 4px;display:flex;flex-direction:column;gap:3px}
+.dash-sb-logo{padding:3px 2px 5px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:3px;display:flex;justify-content:center}
+.dash-sb-logo img{width:14px;height:14px;filter:invert(1)}
+.dsb-item{display:flex;flex-direction:column;align-items:center;gap:1px;padding:3px;border-radius:3px;cursor:pointer;transition:background .15s}
+.dsb-item.on{background:rgba(201,168,76,.15)}
+.dsb-item:hover{background:rgba(255,255,255,.08)}
+.dsb-ic{font-size:8px;line-height:1}
+.dsb-lb{font-size:5px;color:rgba(255,255,255,.5);text-align:center;line-height:1}
+.dsb-item.on .dsb-lb{color:var(--gold)}
 
-/* Dashboard mockup */
-.dash-wrap{width:620px;max-width:100%;position:relative;z-index:3;transform-style:preserve-3d;perspective:1200px}
-.dash-frame{
-  background:rgba(11,30,20,.92);border:1px solid rgba(201,168,76,.15);border-radius:18px;overflow:hidden;
-  box-shadow:0 0 0 1px rgba(201,168,76,.08),0 40px 120px rgba(0,0,0,.7),0 0 80px rgba(26,77,58,.15),inset 0 1px 0 rgba(255,255,255,.05);
-  transform:perspective(1200px) rotateX(4deg) rotateY(-5deg);
-  transition:transform .15s ease;will-change:transform;
-}
-.dash-topbar{background:rgba(5,14,9,.9);padding:.55rem 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid rgba(255,255,255,.05)}
-.tbd{width:10px;height:10px;border-radius:50%}.tbd-r{background:#ff5f57}.tbd-y{background:#febc2e}.tbd-g{background:#28c840}
-.tbd-brand{display:flex;align-items:center;gap:.4rem;margin-inline-start:.5rem}
-.tbd-brand img{width:18px;height:18px;object-fit:contain}
-.tbd-brand span{font-size:.68rem;font-weight:800;color:var(--text2)}
-.tbd-brand em{color:var(--gold);font-style:normal}
-.tbd-url{flex:1;background:rgba(255,255,255,.04);border-radius:5px;padding:.18rem .7rem;font-size:.62rem;color:var(--text3);font-family:monospace;text-align:center}
-.tbd-avatar{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));font-size:.55rem;font-weight:900;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
+.dash-main{display:flex;flex-direction:column;background:#f8f9fa;overflow:hidden}
+.dash-topbar{background:#fff;border-bottom:1px solid #e5e7eb;padding:5px 8px;display:flex;align-items:center;gap:6px}
+.dash-search{flex:1;background:#f3f4f6;border-radius:3px;padding:2px 5px;font-size:6px;color:#6b7280;display:flex;align-items:center;gap:3px}
+.dash-user{display:flex;align-items:center;gap:3px;font-size:6px;color:#374151}
+.dash-user-ava{width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--green4));font-size:5px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900}
+.dash-content{padding:7px 8px;flex:1;display:flex;flex-direction:column;gap:6px}
+.dash-page-title{font-size:9px;font-weight:700;color:#111827}
+.dash-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.dstat{background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:5px 6px}
+.dstat-n{font-size:11px;font-weight:900;color:#111827;line-height:1}
+.dstat-l{font-size:5px;color:#6b7280;margin-top:1px}
+.dstat-chg{font-size:5px;color:#059669;display:flex;align-items:center;gap:1px}
+.dash-tbl-head{display:flex;align-items:center;justify-content:space-between}
+.dash-tbl-t{font-size:7px;font-weight:700;color:#111827}
+.dash-tbl-va{font-size:5px;color:var(--gold);cursor:pointer}
+.dash-table{background:#fff;border:1px solid #e5e7eb;border-radius:5px;overflow:hidden}
+.dt-head{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:3px 5px;gap:3px}
+.dt-head span,.dt-row span{font-size:5px;color:#6b7280;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:3px 5px;gap:3px;border-bottom:1px solid #f3f4f6;align-items:center}
+.dt-row:last-child{border-bottom:none}
+.dt-row span{color:#374151;font-weight:500}
+.dt-badge{display:inline-block;padding:1px 4px;border-radius:2px;font-size:4.5px;font-weight:700}
+.db-s{background:#dcfce7;color:#166534}.db-c{background:#fef3c7;color:#92400e}.db-b{background:#eff6ff;color:#1d4ed8}
 
-.dash-body{display:grid;grid-template-columns:148px 1fr 120px;gap:0;height:340px}
-.dash-sb{background:rgba(5,14,9,.7);border-inline-end:1px solid rgba(255,255,255,.05);padding:.7rem .5rem;display:flex;flex-direction:column;gap:.2rem}
-.dsb-logo{padding:.3rem .4rem;margin-bottom:.4rem;display:flex;align-items:center;gap:.35rem}
-.dsb-logo-ic{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--g5));display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:900;color:#fff}
-.dsb-logo-txt{font-size:.68rem;font-weight:900;color:var(--text2)}
-.sb-item{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:7px;font-size:.66rem;color:var(--text3);transition:all .2s;cursor:pointer}
-.sb-item:hover{background:rgba(255,255,255,.04);color:var(--text2)}
-.sb-item.act{background:var(--gold-dim);color:var(--gold)}
-.sb-icon{font-size:.8rem;flex-shrink:0;width:16px;text-align:center}
-.sb-sep{height:1px;background:rgba(255,255,255,.05);margin:.3rem 0}
+/* Phone mockup */
+.phone-mock{position:absolute;left:-50px;bottom:-15px;z-index:3;width:130px}
+.ph-frame{background:linear-gradient(145deg,#2d2d2d,#1a1a1a);border-radius:18px;padding:8px 6px;box-shadow:0 20px 50px rgba(0,0,0,.35),0 4px 12px rgba(0,0,0,.2)}
+.ph-notch{width:35px;height:5px;background:#111;border-radius:3px;margin:0 auto 5px}
+.ph-screen{background:#fff;border-radius:10px;overflow:hidden;aspect-ratio:9/19}
+.ph-ui{display:flex;flex-direction:column;height:100%;background:#f8f9fa}
+.ph-topbar{background:#0d2818;padding:5px;display:flex;align-items:center;gap:3px}
+.ph-logo{width:12px;height:12px;background:linear-gradient(135deg,var(--gold),var(--green4));border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:5px;color:#fff;font-weight:900}
+.ph-title{font-size:6px;font-weight:700;color:#fff}
+.ph-body{padding:5px;display:flex;flex-direction:column;gap:4px;flex:1}
+.ph-stat-row{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.ph-stat{background:#fff;border-radius:4px;padding:4px;border:1px solid #e5e7eb}
+.ph-stat-n{font-size:10px;font-weight:900;color:#111827;line-height:1}
+.ph-stat-l{font-size:4.5px;color:#6b7280}
+.ph-card{background:#fff;border-radius:4px;padding:4px;border:1px solid #e5e7eb}
+.ph-card-t{font-size:5.5px;font-weight:700;color:#111827;margin-bottom:3px}
+.ph-meet-item{display:flex;align-items:center;gap:3px;padding:2px 0;border-bottom:1px solid #f3f4f6}
+.ph-meet-item:last-child{border-bottom:none}
+.ph-meet-ic{width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,rgba(201,168,76,.2),rgba(26,77,58,.1));display:flex;align-items:center;justify-content:center;font-size:4px;flex-shrink:0}
+.ph-meet-t{font-size:4.5px;color:#374151;font-weight:500;line-height:1.2}
+.ph-meet-d{font-size:4px;color:#9ca3af}
 
-.dash-main{padding:.85rem;overflow:hidden;display:flex;flex-direction:column;gap:.65rem}
-.dm-head{font-size:.75rem;font-weight:800;color:var(--text);margin-bottom:.1rem}
-.dm-tabs{display:flex;gap:.3rem;margin-bottom:.05rem}
-.dm-tab{font-size:.6rem;padding:.15rem .5rem;border-radius:5px;cursor:pointer;font-weight:600}
-.dm-tab.on{background:var(--gold-dim);color:var(--gold)}
-.dm-tab:not(.on){color:var(--text3)}
-.meet-card{background:rgba(26,64,48,.35);border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:.55rem .65rem;transition:border-color .2s}
-.meet-card:hover{border-color:rgba(201,168,76,.2)}
-.meet-card-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem}
-.meet-ic{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,rgba(201,168,76,.2),rgba(26,77,58,.3));display:flex;align-items:center;justify-content:center;font-size:.72rem;flex-shrink:0}
-.meet-title{font-size:.68rem;font-weight:800;color:var(--text);flex:1}
-.meet-badge{font-size:.56rem;padding:.1rem .38rem;border-radius:4px;font-weight:800;white-space:nowrap}
-.mb-g{background:rgba(60,196,124,.15);color:#3cc47c}.mb-y{background:rgba(201,168,76,.15);color:var(--gold)}.mb-b{background:rgba(74,144,217,.15);color:#4a90d9}
-.meet-meta{font-size:.6rem;color:var(--text3);display:flex;align-items:center;gap:.5rem}
-.meet-avatars{display:flex}
-.mav{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));border:1.5px solid var(--g0);margin-inline-end:-5px;font-size:.48rem;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900}
-.dash-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem}
-.ds{background:rgba(26,64,48,.25);border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:.5rem .6rem;text-align:center}
-.ds-n{font-size:1.1rem;font-weight:900;color:var(--gold);line-height:1}
-.ds-l{font-size:.58rem;color:var(--text3);margin-top:2px}
-.ai-strip{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.12);border-radius:8px;padding:.4rem .65rem;display:flex;align-items:center;gap:.5rem}
-.ai-dots{display:flex;gap:2px}.ai-d{width:4px;height:4px;border-radius:50%;background:var(--gold);animation:aiB .9s ease infinite}
-.ai-d:nth-child(2){animation-delay:.18s}.ai-d:nth-child(3){animation-delay:.36s}
-@keyframes aiB{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-4px);opacity:1}}
-.ai-txt{font-size:.62rem;color:var(--gold);flex:1}
-.ai-pct{font-size:.62rem;font-weight:800;color:var(--gold3)}
+/* hero gradient glow behind device */
+.hero-device-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;height:400px;background:radial-gradient(ellipse,rgba(201,168,76,.1) 0%,rgba(26,77,58,.06) 40%,transparent 70%);pointer-events:none;z-index:0}
 
-.dash-cal{padding:.7rem .65rem;display:flex;flex-direction:column;gap:.5rem;border-inline-start:1px solid rgba(255,255,255,.05);background:rgba(5,14,9,.4)}
-.cal-head{font-size:.62rem;font-weight:800;color:var(--text2)}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
-.cal-day{font-size:.52rem;color:var(--text3);text-align:center;padding:.12rem 0}
-.cal-day.today{background:var(--gold);color:#080a04;border-radius:3px;font-weight:900}
-.cal-day.has{color:var(--gold);font-weight:700}
-.task-mini{background:rgba(26,64,48,.3);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:.35rem .5rem}
-.task-mini-h{font-size:.58rem;font-weight:800;color:var(--text2);margin-bottom:.25rem}
-.task-row{display:flex;align-items:center;gap:.35rem;margin-bottom:.2rem}
-.task-chk{width:10px;height:10px;border-radius:3px;border:1px solid rgba(201,168,76,.4);flex-shrink:0}
-.task-chk.done{background:var(--gold);border-color:var(--gold)}
-.task-t{font-size:.6rem;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.task-t.done{text-decoration:line-through;color:var(--text3);opacity:.5}
+/* ── TRUSTED BY ──────────────────────────────── */
+.trusted{background:var(--green);padding:2.5rem 2.5rem}
+.trusted-i{max-width:1200px;margin:0 auto}
+.trusted-label{font-size:.72rem;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1.4rem}
+.trusted-logos{display:flex;align-items:center;gap:3rem;flex-wrap:wrap}
+.logo-item{opacity:.55;transition:opacity .2s;display:flex;align-items:center;gap:.4rem}
+.logo-item:hover{opacity:.85}
+.logo-text{font-size:.82rem;font-weight:800;color:rgba(255,255,255,.9);letter-spacing:.02em;white-space:nowrap}
+.logo-text-ar{font-size:.78rem;font-family:'Tajawal',sans-serif;font-weight:700;color:rgba(255,255,255,.9)}
+.logo-sep{width:1px;height:20px;background:rgba(255,255,255,.15)}
 
-/* Scan line animation */
-.dash-scan{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:5}
-.dash-scan::after{content:'';position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(201,168,76,.35),transparent);animation:scan 4s ease-in-out infinite;top:0}
-@keyframes scan{0%{top:-2px;opacity:0}8%{opacity:1}92%{opacity:.6}100%{top:100%;opacity:0}}
-.hero-glow-bottom{position:absolute;bottom:-60px;left:50%;transform:translateX(-50%);width:60%;height:120px;background:radial-gradient(ellipse,rgba(26,77,58,.4),transparent);filter:blur(30px);pointer-events:none;z-index:2}
-
-/* ─── STATS BAR ─────────────────────────────── */
-.stats-bar{border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);background:rgba(7,22,11,.8);backdrop-filter:blur(20px)}
-.stats-inner{max-width:1100px;margin:0 auto;padding:1.75rem 3rem;display:flex;justify-content:center;gap:0}
-.si{flex:1;max-width:200px;text-align:center;padding:0 1.5rem}
-.si:not(:last-child){border-inline-end:1px solid rgba(255,255,255,.06)}
-.si-n{font-size:2rem;font-weight:900;color:var(--gold);letter-spacing:-.04em;line-height:1}
-.si-l{font-size:.78rem;color:var(--text3);margin-top:3px}
-
-/* ─── SECTION HELPERS ───────────────────────── */
-.sec{padding:6rem 3rem;max-width:1200px;margin:0 auto}
-.sec-dark{background:var(--g1)}
-.sec-wrap{max-width:1200px;margin:0 auto;padding:6rem 3rem}
-.chip{display:inline-flex;align-items:center;gap:.4rem;background:var(--gold-dim);border:1px solid rgba(201,168,76,.22);border-radius:20px;padding:.28rem .85rem;font-size:.73rem;font-weight:800;color:var(--gold);margin-bottom:.9rem;text-transform:uppercase;letter-spacing:.06em}
-.sec-h{font-size:clamp(1.8rem,4vw,2.9rem);font-weight:900;letter-spacing:-.03em;color:var(--text);line-height:1.12;margin-bottom:.85rem}
-.sec-sub{font-size:.98rem;color:var(--text2);line-height:1.8;max-width:520px}
+/* ── SECTION COMMON ──────────────────────────── */
+.sec{padding:6rem 2.5rem}
+.sec-i{max-width:1200px;margin:0 auto}
+.chip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--gold-border);background:var(--gold-bg);border-radius:20px;padding:.28rem .85rem;font-size:.72rem;font-weight:800;color:var(--gold);margin-bottom:.85rem;letter-spacing:.05em;text-transform:uppercase}
+.sec-h{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:900;letter-spacing:-.04em;color:var(--text);line-height:1.1;margin-bottom:.85rem}
+.sec-sub{font-size:.98rem;color:var(--text2);line-height:1.8;max-width:540px}
 .center{text-align:center}.center .sec-sub{margin:0 auto}
 
-/* ─── FEATURES ──────────────────────────────── */
-.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
-.feat-card{background:rgba(13,40,24,.55);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:1.75rem;position:relative;overflow:hidden;transition:border-color .3s,transform .1s,box-shadow .3s;transform-style:preserve-3d;will-change:transform;cursor:default}
-.feat-card .cg{position:absolute;inset:0;border-radius:20px;pointer-events:none;transition:background .12s}
-.feat-card:hover{border-color:rgba(201,168,76,.25);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(201,168,76,.1)}
-.fi{width:52px;height:52px;border-radius:15px;background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(26,77,58,.15));border:1px solid rgba(201,168,76,.2);display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin-bottom:1.1rem;position:relative;z-index:1;transition:transform .3s,box-shadow .3s}
-.feat-card:hover .fi{transform:scale(1.1) translateZ(10px);box-shadow:0 6px 20px rgba(201,168,76,.18)}
-.ft{font-size:1rem;font-weight:900;color:var(--text);margin-bottom:.45rem;position:relative;z-index:1}
-.fd{font-size:.82rem;color:var(--text2);line-height:1.7;position:relative;z-index:1}
+/* ── FEATURES ────────────────────────────────── */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r3);overflow:hidden;margin-top:3.5rem}
+.fc{background:var(--white);padding:2rem 1.75rem;transition:background .2s;cursor:default}
+.fc:hover{background:var(--off)}
+.fc-icon{width:48px;height:48px;border-radius:var(--r2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:1.1rem;background:var(--white);transition:border-color .2s,box-shadow .2s}
+.fc:hover .fc-icon{border-color:var(--gold-border);box-shadow:0 4px 16px rgba(201,168,76,.12)}
+.fc-icon svg{width:22px;height:22px;stroke:var(--text2);stroke-width:1.5;fill:none;transition:stroke .2s}
+.fc:hover .fc-icon svg{stroke:var(--gold)}
+.fc-t{font-size:.97rem;font-weight:800;color:var(--text);margin-bottom:.45rem}
+.fc-d{font-size:.82rem;color:var(--text3);line-height:1.7}
 
-/* ─── WORKFLOW ──────────────────────────────── */
-.wf-bg{background:linear-gradient(180deg,var(--g1),var(--g0));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04)}
-.wf-steps{display:flex;gap:0;margin-top:3.5rem;position:relative;max-width:1100px;margin-inline:auto}
-.wf-track{position:absolute;top:30px;inset-inline-start:30px;inset-inline-end:0;height:2px;background:rgba(255,255,255,.06);z-index:0;border-radius:2px}
-.wf-fill{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold3));transition:width 1.8s cubic-bezier(.4,0,.2,1);border-radius:2px}
-.wf-step{flex:1;padding:0 1.5rem;position:relative;z-index:1}
-.wf-step:first-child{padding-inline-start:0}
-.wf-num{width:60px;height:60px;border-radius:50%;background:var(--g2);border:2px solid rgba(201,168,76,.25);display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:900;color:rgba(201,168,76,.4);margin-bottom:1.2rem;transition:all .5s;position:relative}
-.wf-num .rp{position:absolute;inset:-8px;border-radius:50%;border:1.5px solid rgba(201,168,76,.18);animation:rp 2.5s ease infinite;pointer-events:none}
-.wf-step:nth-child(2) .rp{animation-delay:.65s}
-.wf-step:nth-child(3) .rp{animation-delay:1.3s}
-.wf-step:nth-child(4) .rp{animation-delay:1.95s}
-@keyframes rp{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.55)}}
-.wf-step.lit .wf-num{background:linear-gradient(135deg,var(--gold),var(--gold3));border-color:var(--gold);color:#080a04;box-shadow:0 0 28px rgba(201,168,76,.4)}
-.wf-icon{font-size:1.3rem;margin-bottom:.6rem}
-.wf-t{font-size:.92rem;font-weight:900;color:var(--text);margin-bottom:.4rem}
-.wf-d{font-size:.8rem;color:var(--text2);line-height:1.7}
+/* ── HOW IT WORKS ────────────────────────────── */
+.steps-bg{background:var(--off);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:2rem;margin-top:3.5rem;position:relative}
+.steps::before{content:'';position:absolute;top:24px;left:12.5%;right:12.5%;height:1px;background:var(--border);z-index:0}
+.step{position:relative;z-index:1;text-align:center}
+.step-num{width:48px;height:48px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.95rem;font-weight:900;color:var(--text3);margin:0 auto 1.1rem;transition:all .4s;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.step.lit .step-num{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 6px 20px rgba(201,168,76,.35)}
+.step-t{font-size:.92rem;font-weight:800;color:var(--text);margin-bottom:.4rem}
+.step-d{font-size:.8rem;color:var(--text3);line-height:1.7}
 
-/* ─── GOVERNANCE VISUAL ─────────────────────── */
-.gov-wrap{display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center}
-.gov-pts{display:flex;flex-direction:column;gap:1.5rem;margin-top:2rem}
-.gov-pt{display:flex;gap:1.1rem;align-items:flex-start}
-.gov-pt-ic{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(26,77,58,.2));border:1px solid rgba(201,168,76,.18);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;margin-top:.1rem}
-.gov-pt-t{font-size:.92rem;font-weight:800;color:var(--text);margin-bottom:.2rem}
-.gov-pt-d{font-size:.8rem;color:var(--text2);line-height:1.65}
+/* ── GOVERNANCE ──────────────────────────────── */
+.gov-sec{background:var(--white)}
+.gov-grid{display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center}
+.gov-pts{margin-top:1.8rem;display:flex;flex-direction:column;gap:1.4rem}
+.gov-pt{display:flex;gap:1rem;align-items:flex-start}
+.gov-pt-ic{width:38px;height:38px;border-radius:var(--r);border:1.5px solid var(--border);background:var(--off);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1rem;transition:all .2s}
+.gov-pt-ic svg{width:18px;height:18px;stroke:var(--text3);stroke-width:1.5;fill:none;transition:stroke .2s}
+.gov-pt:hover .gov-pt-ic{border-color:var(--gold-border);background:var(--gold-bg)}
+.gov-pt:hover .gov-pt-ic svg{stroke:var(--gold)}
+.gov-pt-t{font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:.25rem}
+.gov-pt-d{font-size:.82rem;color:var(--text3);line-height:1.65}
+/* Gov visual */
+.gov-visual{background:var(--green);border-radius:var(--r4);overflow:hidden;box-shadow:var(--shadow3);position:relative}
+.gov-vis-inner{padding:2rem}
+.gov-vis-title{font-size:.82rem;font-weight:800;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.06em;margin-bottom:1.2rem}
+.gv-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--r2);padding:1rem 1.1rem;margin-bottom:.75rem}
+.gv-card:last-child{margin-bottom:0}
+.gv-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem}
+.gv-ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--green4));display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:900;color:#fff;flex-shrink:0}
+.gv-name{flex:1;font-size:.78rem;font-weight:700;color:rgba(255,255,255,.9)}
+.gv-role{font-size:.65rem;color:rgba(255,255,255,.45);margin-top:1px}
+.gv-sig{font-size:.68rem;font-weight:700;padding:.2rem .5rem;border-radius:4px;white-space:nowrap}
+.sig-y{background:rgba(60,196,124,.15);color:#4ade80}.sig-p{background:rgba(201,168,76,.15);color:var(--gold)}.sig-n{background:rgba(255,255,255,.06);color:rgba(255,255,255,.4)}
+.gv-progress{margin-top:.7rem}
+.gv-prog-meta{display:flex;justify-content:space-between;font-size:.65rem;color:rgba(255,255,255,.5);margin-bottom:.35rem}
+.gv-prog-bar{height:3px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.gv-prog-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold3));border-radius:3px;width:75%;animation:fillw 2s ease .5s both}
+@keyframes fillw{from{width:0}to{width:75%}}
+.gov-vis-bottom{background:rgba(0,0,0,.2);padding:1rem 2rem;display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:rgba(255,255,255,.5)}
+.gvb-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:blink 2s ease infinite}
 
-/* Gov visual widget */
-.gov-visual{position:relative;display:flex;justify-content:center;align-items:center}
-.gov-card-stack{position:relative;width:340px;height:380px}
-.gov-card{position:absolute;background:rgba(13,40,24,.7);border:1px solid rgba(201,168,76,.15);border-radius:16px;backdrop-filter:blur(20px);padding:1.2rem}
-.gc-main{left:0;right:0;top:40px;z-index:3;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-.gc-back1{left:15px;right:15px;top:0px;z-index:1;opacity:.6;transform:rotate(-3deg)}
-.gc-back2{left:25px;right:25px;top:20px;z-index:2;opacity:.8;transform:rotate(1.5deg)}
-.gc-title{font-size:.8rem;font-weight:800;color:var(--gold);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
-.gc-row{display:flex;align-items:center;gap:.7rem;padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
-.gc-row:last-child{border-bottom:none}
-.gc-ava{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));font-size:.6rem;font-weight:900;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
-.gc-name{flex:1;font-size:.72rem;color:var(--text)}
-.gc-sig{display:flex;align-items:center;gap:.3rem;font-size:.65rem}
-.sig-done{color:#3cc47c}.sig-pend{color:var(--gold)}.sig-wait{color:var(--text3)}
-.gc-prog{margin-top:.75rem}
-.gc-prog-l{display:flex;justify-content:space-between;font-size:.65rem;color:var(--text2);margin-bottom:.3rem}
-.gc-prog-bar{height:4px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
-.gc-prog-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold3));border-radius:4px;width:75%;animation:fillProg 2s ease 1s both}
-@keyframes fillProg{from{width:0%}to{width:75%}}
-.gc-badge{display:inline-flex;align-items:center;gap:.35rem;background:rgba(60,196,124,.1);border:1px solid rgba(60,196,124,.2);border-radius:6px;padding:.25rem .6rem;font-size:.65rem;color:#3cc47c;margin-top:.6rem;font-weight:700}
+/* ── PRICING ─────────────────────────────────── */
+.pricing-sec{background:var(--off);border-top:1px solid var(--border)}
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
+.plan-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r3);padding:2rem 1.75rem;display:flex;flex-direction:column;position:relative;transition:transform .3s,box-shadow .3s,border-color .3s}
+.plan-card:hover{transform:translateY(-4px);box-shadow:var(--shadow3)}
+.plan-card.feat{border-color:var(--gold);box-shadow:0 8px 40px rgba(201,168,76,.15)}
+.plan-card.feat:hover{box-shadow:0 20px 60px rgba(201,168,76,.25)}
+.plan-pop{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--gold);color:#fff;font-size:.68rem;font-weight:800;padding:.26rem .9rem;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
+.plan-name{font-size:.88rem;font-weight:700;color:var(--text3);margin-bottom:.3rem}
+.plan-price{font-size:2.5rem;font-weight:900;color:var(--text);letter-spacing:-.05em;line-height:1;margin-bottom:.2rem}
+.plan-price sub{font-size:1rem;font-weight:500;vertical-align:super;letter-spacing:0}
+.plan-price sup{font-size:.85rem;font-weight:500;color:var(--text3)}
+.plan-desc{font-size:.8rem;color:var(--text3);margin-bottom:1.5rem;line-height:1.6;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.plan-feats{flex:1;display:flex;flex-direction:column;gap:.55rem;margin-bottom:1.6rem}
+.pf{display:flex;align-items:center;gap:.55rem;font-size:.82rem;color:var(--text2)}
+.pf-y{color:#16a34a;flex-shrink:0;font-size:.85rem}.pf-n{color:var(--text4);flex-shrink:0;font-size:.85rem}
+.plan-btn{display:block;text-align:center;text-decoration:none;font-weight:700;font-size:.9rem;padding:.82rem;border-radius:var(--r2);transition:all .22s;border:1.5px solid var(--border);color:var(--text);background:var(--white)}
+.plan-btn:hover{border-color:var(--gold);color:var(--gold)}
+.plan-card.feat .plan-btn{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 4px 16px rgba(201,168,76,.35)}
+.plan-card.feat .plan-btn:hover{background:var(--gold2);box-shadow:0 8px 28px rgba(201,168,76,.45)}
 
-/* ─── PRICING ───────────────────────────────── */
-.plan-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
-.plan-box{background:rgba(13,40,24,.6);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:2rem 1.75rem;display:flex;flex-direction:column;position:relative;transition:transform .3s,box-shadow .3s;backdrop-filter:blur(16px)}
-.plan-box:hover{transform:translateY(-5px);box-shadow:0 28px 70px rgba(0,0,0,.5)}
-.plan-box.feat{border-color:var(--gold);background:linear-gradient(145deg,rgba(201,168,76,.09),rgba(13,40,24,.8));box-shadow:0 0 40px rgba(201,168,76,.1)}
-.plan-pop{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,var(--gold),var(--gold3));color:#080a04;font-size:.7rem;font-weight:900;padding:.28rem .9rem;border-radius:20px;white-space:nowrap}
-.plan-name{font-size:.95rem;font-weight:800;color:var(--text2);margin-bottom:.25rem}
-.plan-price{font-size:2.5rem;font-weight:900;color:var(--text);letter-spacing:-.05em;margin-bottom:.2rem}
-.plan-price sub{font-size:.88rem;font-weight:500;color:var(--text3);vertical-align:super}
-.plan-price span{font-size:.82rem;font-weight:500;color:var(--text3)}
-.plan-desc{font-size:.8rem;color:var(--text3);margin-bottom:1.4rem;line-height:1.6}
-.plan-feats{flex:1;display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.6rem}
-.pf-item{display:flex;align-items:center;gap:.55rem;font-size:.8rem;color:var(--text2)}
-.pf-yes{color:#3cc47c;font-size:.85rem;flex-shrink:0}.pf-no{color:var(--text3);font-size:.85rem;flex-shrink:0}
-.plan-btn{display:block;text-align:center;text-decoration:none;font-weight:900;font-size:.9rem;padding:.82rem;border-radius:12px;transition:all .2s;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--text)}
-.plan-btn:hover{background:rgba(255,255,255,.13)}
-.plan-box.feat .plan-btn{background:linear-gradient(135deg,var(--gold),var(--gold3));color:#080a04;border:none;box-shadow:0 6px 22px rgba(201,168,76,.3)}
-.plan-box.feat .plan-btn:hover{opacity:.9;transform:translateY(-1px)}
-
-/* ─── TESTIMONIALS ──────────────────────────── */
+/* ── TESTIMONIALS ────────────────────────────── */
+.testi-sec{background:var(--white);border-top:1px solid var(--border)}
 .testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
-.testi-card{background:rgba(13,40,24,.45);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:1.75rem;position:relative;transition:transform .25s,box-shadow .25s;backdrop-filter:blur(12px)}
-.testi-card:hover{transform:translateY(-4px);box-shadow:0 20px 60px rgba(0,0,0,.4)}
-.testi-stars{color:var(--gold);font-size:.9rem;margin-bottom:1rem;letter-spacing:.1em}
-.testi-quote{font-size:.88rem;color:var(--text2);line-height:1.75;margin-bottom:1.25rem;font-style:italic}
-.testi-quote::before{content:'\201C';font-size:2rem;color:var(--gold);line-height:0;vertical-align:-.5rem;margin-inline-end:.25rem}
-.testi-person{display:flex;align-items:center;gap:.75rem}
-.tp-ava{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--g5));display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:900;color:#fff;flex-shrink:0}
-.tp-name{font-size:.82rem;font-weight:800;color:var(--text)}
-.tp-role{font-size:.72rem;color:var(--text3)}
-.testi-card .tc-mark{position:absolute;top:1.5rem;inset-inline-end:1.5rem;font-size:2.5rem;color:rgba(201,168,76,.1);font-family:Georgia,serif;line-height:1}
+.tcard{background:var(--off);border:1px solid var(--border);border-radius:var(--r3);padding:1.75rem;transition:transform .25s,box-shadow .25s;position:relative}
+.tcard:hover{transform:translateY(-4px);box-shadow:var(--shadow2)}
+.tcard-stars{color:var(--gold);font-size:.85rem;letter-spacing:.1em;margin-bottom:.9rem}
+.tcard-quote{font-size:.88rem;color:var(--text2);line-height:1.75;margin-bottom:1.25rem;position:relative;padding-inline-start:1rem}
+.tcard-quote::before{content:'';position:absolute;top:0;inset-inline-start:0;width:3px;height:100%;background:linear-gradient(180deg,var(--gold),transparent);border-radius:3px}
+.tcard-person{display:flex;align-items:center;gap:.75rem}
+.tp-ava{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--green4));display:flex;align-items:center;justify-content:center;font-size:.88rem;font-weight:900;color:#fff;flex-shrink:0;font-family:'Tajawal',sans-serif}
+.tp-name{font-size:.83rem;font-weight:700;color:var(--text)}
+.tp-role{font-size:.72rem;color:var(--text3);margin-top:1px}
 
-/* ─── FAQ ───────────────────────────────────── */
-.faq-list{display:flex;flex-direction:column;gap:.65rem;margin-top:3rem;max-width:780px;margin-inline:auto}
-.faq-item{background:rgba(13,40,24,.45);border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
-.faq-item.open{border-color:rgba(201,168,76,.2);box-shadow:0 8px 30px rgba(0,0,0,.3)}
-.faq-q{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;cursor:pointer;font-size:.9rem;font-weight:700;color:var(--text);gap:1rem;user-select:none}
-.faq-arr{width:22px;height:22px;border-radius:50%;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.2);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--gold);transition:transform .3s,background .2s;flex-shrink:0}
-.faq-item.open .faq-arr{transform:rotate(180deg);background:var(--gold-dim)}
-.faq-a{max-height:0;overflow:hidden;transition:max-height .35s ease,padding .35s ease;padding:0 1.4rem;font-size:.85rem;color:var(--text2);line-height:1.75}
-.faq-item.open .faq-a{max-height:200px;padding:.1rem 1.4rem 1.2rem}
+/* ── FAQ ─────────────────────────────────────── */
+.faq-sec{background:var(--off);border-top:1px solid var(--border)}
+.faq-list{max-width:760px;margin:3rem auto 0;display:flex;flex-direction:column;gap:.5rem}
+.faq-item{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.faq-item.open{border-color:var(--gold-border);box-shadow:0 4px 20px rgba(201,168,76,.08)}
+.faq-q{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;cursor:pointer;font-size:.9rem;font-weight:700;color:var(--text);gap:1rem;user-select:none;transition:color .2s}
+.faq-item.open .faq-q{color:var(--gold)}
+.faq-arr{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text3);transition:all .3s;flex-shrink:0}
+.faq-item.open .faq-arr{transform:rotate(180deg);border-color:var(--gold-border);color:var(--gold);background:var(--gold-bg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .35s ease,padding .35s;padding:0 1.4rem;font-size:.86rem;color:var(--text3);line-height:1.75}
+.faq-item.open .faq-a{max-height:180px;padding:.1rem 1.4rem 1.2rem}
 
-/* ─── CTA ───────────────────────────────────── */
-.cta-wrap{margin:0 3rem 6rem;background:linear-gradient(135deg,rgba(13,40,24,.9),rgba(5,16,9,.95));border:1px solid rgba(201,168,76,.18);border-radius:28px;padding:5.5rem 3rem;text-align:center;position:relative;overflow:hidden;backdrop-filter:blur(20px)}
-.cta-wrap::before{content:'';position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:700px;height:400px;background:radial-gradient(ellipse,rgba(201,168,76,.1),transparent);pointer-events:none}
-.cta-wrap::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23C9A84C' fill-opacity='0.02'%3E%3Ccircle cx='20' cy='20' r='1'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
-.cta-h{font-size:clamp(1.8rem,4vw,3rem);font-weight:900;letter-spacing:-.03em;color:var(--text);margin-bottom:.75rem;position:relative;z-index:1}
-.cta-sub{font-size:1rem;color:var(--text2);margin-bottom:2.5rem;position:relative;z-index:1}
-.cta-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;position:relative;z-index:1}
+/* ── CTA SECTION ─────────────────────────────── */
+.cta-sec{background:var(--green);padding:5.5rem 2.5rem;text-align:center;position:relative;overflow:hidden}
+.cta-sec::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(201,168,76,.06) 1px,transparent 1px);background-size:24px 24px;pointer-events:none}
+.cta-sec::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:800px;height:400px;background:radial-gradient(ellipse,rgba(201,168,76,.08) 0%,transparent 65%);pointer-events:none}
+.cta-sec h2{font-size:clamp(2rem,4vw,3rem);font-weight:900;letter-spacing:-.04em;color:#fff;margin-bottom:.75rem;position:relative;z-index:1}
+.cta-sec p{font-size:1rem;color:rgba(255,255,255,.6);margin-bottom:2.5rem;position:relative;z-index:1}
+.cta-btns{display:flex;justify-content:center;gap:.85rem;flex-wrap:wrap;position:relative;z-index:1}
+.btn-white{display:inline-flex;align-items:center;gap:.5rem;background:#fff;color:var(--text);text-decoration:none;font-size:.92rem;font-weight:700;padding:.82rem 1.85rem;border-radius:var(--r2);transition:all .22s;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.btn-white:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.btn-outline-white{display:inline-flex;align-items:center;gap:.5rem;background:transparent;border:1.5px solid rgba(255,255,255,.3);color:#fff;text-decoration:none;font-size:.92rem;font-weight:600;padding:.82rem 1.85rem;border-radius:var(--r2);transition:all .22s}
+.btn-outline-white:hover{border-color:rgba(255,255,255,.7);background:rgba(255,255,255,.08);transform:translateY(-2px)}
 
-/* ─── FOOTER ────────────────────────────────── */
-footer{border-top:1px solid rgba(255,255,255,.05);padding:2.5rem 3rem;display:flex;align-items:center;justify-content:space-between;background:var(--g0)}
+/* ── FOOTER ──────────────────────────────────── */
+footer{background:var(--green2);border-top:1px solid rgba(255,255,255,.06);padding:2.5rem 2.5rem}
+.ft-i{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:2rem}
 .ft-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none}
-.ft-brand img{width:26px;height:26px;object-fit:contain}
-.ft-brand span{font-size:.88rem;font-weight:900;color:var(--text2)}
-.ft-brand strong{color:var(--gold)}
-.ft-copy{font-size:.75rem;color:var(--text3)}
+.ft-brand img{width:26px;height:26px;object-fit:contain;filter:brightness(2)}
+.ft-brand-txt{font-size:.9rem;font-weight:900;color:rgba(255,255,255,.8)}
+.ft-brand-txt em{color:var(--gold);font-style:normal}
 .ft-links{display:flex;gap:1.5rem}
-.ft-links a{font-size:.75rem;color:var(--text3);text-decoration:none;transition:color .2s}
+.ft-links a{font-size:.78rem;color:rgba(255,255,255,.4);text-decoration:none;transition:color .2s}
 .ft-links a:hover{color:var(--gold)}
+.ft-copy{font-size:.75rem;color:rgba(255,255,255,.3)}
 
-/* ─── ANIMATIONS ────────────────────────────── */
-@keyframes fu{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+/* ── ANIMATIONS / REVEAL ─────────────────────── */
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .65s ease,transform .65s ease}
 .reveal.on{opacity:1;transform:none}
+.reveal-l{opacity:0;transform:translateX(-24px);transition:opacity .65s ease,transform .65s ease}
+.reveal-l.on{opacity:1;transform:none}
+.reveal-r{opacity:0;transform:translateX(24px);transition:opacity .65s ease,transform .65s ease}
+.reveal-r.on{opacity:1;transform:none}
 
-/* ─── RESPONSIVE ─────────────────────────────── */
-@media(max-width:1100px){
-  .hero-inner{flex-direction:column;text-align:center;gap:2.5rem}
-  .hero-text{max-width:100%}.hero-btns{justify-content:center}.hero-trust{justify-content:center}
-  .hero-visual{width:100%}.exec-card{display:none}
-  .dash-wrap{width:100%;max-width:600px}
-  .gov-wrap{grid-template-columns:1fr;gap:3rem}
-  .feat-grid{grid-template-columns:1fr 1fr}
-  .plan-row{grid-template-columns:1fr;max-width:380px;margin-inline:auto}
+/* ── RESPONSIVE ──────────────────────────────── */
+@media(max-width:1050px){
+  .hero-i{flex-direction:column;gap:3rem}
+  .hero-text{max-width:100%;text-align:center}.hero-sub{margin-inline:auto}
+  .hero-btns{justify-content:center}.hero-badges{justify-content:center}
+  .hero-device{min-height:auto;width:100%}
+  .gov-grid{grid-template-columns:1fr;gap:3rem}
+  .gov-visual{order:-1}
+  .feat-grid{grid-template-columns:1fr 1fr}.feat-grid .fc:last-child{display:none}
+  .plan-grid{grid-template-columns:1fr;max-width:400px;margin-inline:auto}
   .testi-grid{grid-template-columns:1fr}
-  .wf-steps{flex-direction:column;gap:1.5rem}.wf-track{display:none}
-  .cta-wrap{margin:0 1.5rem 4rem;padding:3.5rem 1.5rem}
+  .steps{grid-template-columns:1fr 1fr;gap:2rem 3rem}.steps::before{display:none}
 }
-@media(max-width:768px){
-  nav{padding:.8rem 1.5rem}.nav-links{display:none}
-  .hero{padding:4.5rem 1.5rem 3rem}
-  .sec,.sec-wrap,.wf-bg{padding:4rem 1.5rem}
+@media(max-width:700px){
+  nav .nav-links{display:none}
+  .hero{padding:6rem 1.5rem 4rem}
+  .sec{padding:4rem 1.5rem}
   .feat-grid{grid-template-columns:1fr}
-  .dash-body{grid-template-columns:1fr;height:auto}.dash-sb,.dash-cal{display:none}
-  .stats-inner{flex-direction:column;gap:1.5rem;align-items:center}
-  .si:not(:last-child){border:none}
-  footer{flex-direction:column;gap:1rem;text-align:center}
+  h1.hh{font-size:2.2rem}
+  .phone-mock{display:none}
+  .trusted-logos{gap:1.5rem}
+  footer .ft-i{flex-direction:column;text-align:center}.ft-links{flex-wrap:wrap;justify-content:center}
+  .cta-sec{padding:4rem 1.5rem}
 }
 </style>
 </head>
@@ -333,297 +329,293 @@ footer{border-top:1px solid rgba(255,255,255,.05);padding:2.5rem 3rem;display:fl
 
 <!-- NAV -->
 <nav id="nav">
-  <a href="/" class="nav-brand">
-    <img src="/logo.png" alt="Ameen"/>
-    <div class="nav-brand-txt">أمـيـن <em>Secretary</em></div>
-  </a>
-  <div class="nav-links">
-    <a href="#features" class="nav-link" data-t="nl1">المميزات</a>
-    <a href="#workflow" class="nav-link" data-t="nl2">كيف يعمل</a>
-    <a href="#governance" class="nav-link" data-t="nl3">الحوكمة</a>
-    <a href="#pricing" class="nav-link" data-t="nl4">الأسعار</a>
-    <a href="#faq" class="nav-link" data-t="nl5">الأسئلة</a>
-  </div>
-  <div class="nav-r">
-    <div class="lang-sw">
-      <button id="btn-ar" class="on" onclick="setLang('ar')">عربي</button>
-      <button id="btn-en" onclick="setLang('en')">English</button>
+  <div class="nav-i">
+    <a href="/" class="nav-brand">
+      <img src="/logo.png" alt="Ameen"/>
+      <div class="nav-brand-text">
+        <strong data-t="brand-name">AMEEN</strong>
+        <span data-t="brand-sub">SECRETARY</span>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#home"       class="nav-link on"   data-t="nl-home">Home</a>
+      <a href="#features"   class="nav-link"      data-t="nl-feat">Features</a>
+      <a href="#how"        class="nav-link"      data-t="nl-how">How It Works</a>
+      <a href="#governance" class="nav-link"      data-t="nl-gov">Governance</a>
+      <a href="#pricing"    class="nav-link"      data-t="nl-price">Pricing</a>
+      <a href="#faq"        class="nav-link"      data-t="nl-faq">FAQ</a>
     </div>
-    <a href="/login.html"  class="nav-login"  data-t="nav-in">دخول</a>
-    <a href="/signup.html" class="nav-cta"    data-t="nav-up">ابدأ مجاناً</a>
+    <div class="nav-right">
+      <button class="lang-btn" id="lang-toggle" onclick="toggleLang()">
+        <span>🌐</span>
+        <span id="lang-label">عربي</span>
+      </button>
+      <a href="/login.html"  class="nav-signin" data-t="nav-in">Sign In</a>
+      <a href="/signup.html" class="nav-demo"   data-t="nav-demo">Book a Demo</a>
+    </div>
   </div>
 </nav>
 
 <!-- HERO -->
 <section class="hero" id="home">
-  <canvas id="hero-canvas"></canvas>
-  <div class="hero-gfx"></div>
-  <div class="hero-inner">
-
-    <!-- Text Side -->
+  <div class="hero-i">
+    <!-- Left: Text -->
     <div class="hero-text">
-      <div class="hero-eyebrow">
-        <div class="hero-eyebrow-dot"></div>
-        <span data-t="ey">نظام أمانة تنفيذية مدعوم بالذكاء الاصطناعي</span>
+      <div class="hero-badge reveal">
+        <div class="hb-dot"></div>
+        <span data-t="h-badge">AI-Powered Executive Secretariat Platform</span>
+        <span>✦</span>
       </div>
-      <h1 class="hero-h">
-        <span data-t="h1a">أمانتك التنفيذية</span><br/>
-        <span class="gold-t" data-t="h1b">بذكاء لا يهدأ</span>
+      <h1 class="hh reveal">
+        <span data-t="h-line1">Your Executive Secretariat,</span><br/>
+        <span class="gold" data-t="h-line2">Powered by AI</span>
       </h1>
-      <p class="hero-sub" data-t="hs">من جدولة الاجتماعات إلى أرشفة المحاضر وإدارة الحوكمة — أمين يتولى كل شيء بدقة مؤسسية وكفاءة اصطناعية.</p>
-      <div class="hero-btns">
-        <a href="/signup.html" class="btn-gold" data-t="hb1">🚀 ابدأ تجربتك المجانية</a>
-        <a href="#features"    class="btn-ghost" data-t="hb2">استكشف المنصة ↓</a>
+      <p class="hero-sub reveal" data-t="h-sub">From scheduling meetings to archiving minutes and managing board governance — Ameen handles everything with enterprise precision.</p>
+      <div class="hero-btns reveal">
+        <a href="/signup.html" class="btn-primary"  data-t="h-btn1">📅 Book a Demo</a>
+        <a href="#features"    class="btn-secondary" data-t="h-btn2">▶ Explore Platform</a>
       </div>
-      <div class="hero-trust">
-        <div class="trust-ava">
-          <span>م</span><span>ف</span><span>أ</span><span>س</span><span>د</span>
-        </div>
-        <div class="trust-txt" data-t="ht">انضم إلى <strong>+500</strong> منظمة تثق بأمين</div>
+      <div class="hero-badges reveal">
+        <div class="hbadge"><span class="hbadge-ic">🛡️</span><span data-t="hb1">Secure &amp; Compliant</span></div>
+        <div class="hbadge"><span class="hbadge-ic">⚡</span><span data-t="hb2">Easy to Use</span></div>
+        <div class="hbadge"><span class="hbadge-ic">⏱️</span><span data-t="hb3">Saves Time</span></div>
+        <div class="hbadge"><span class="hbadge-ic">🏛️</span><span data-t="hb4">Built for Governance</span></div>
       </div>
     </div>
 
-    <!-- Visual Side: Dashboard + Floating Exec Cards -->
-    <div class="hero-visual" id="hero-visual">
+    <!-- Right: Device Mockups -->
+    <div class="hero-device">
+      <div class="hero-device-glow"></div>
+      <div class="device-wrap reveal-r">
 
-      <!-- Exec Profile Card 1: Chairman -->
-      <div class="exec-card ec1">
-        <div class="exec-ring-wrap">
-          <div class="exec-ring"></div>
-          <div class="exec-avatar">م</div>
-        </div>
-        <div class="exec-badge">
-          <strong data-t="ec1n">محمد العتيبي</strong>
-          <span data-t="ec1r">رئيس مجلس الإدارة</span>
-        </div>
-      </div>
-
-      <!-- Exec Profile Card 2: CEO -->
-      <div class="exec-card ec2">
-        <div class="exec-ring-wrap">
-          <div class="exec-ring rev"></div>
-          <div class="exec-avatar" style="background:linear-gradient(135deg,var(--g4),var(--g5))">س</div>
-        </div>
-        <div class="exec-badge">
-          <strong data-t="ec2n">سارة المنصوري</strong>
-          <span data-t="ec2r">الرئيس التنفيذي</span>
-        </div>
-      </div>
-
-      <!-- Exec Profile Card 3: Director -->
-      <div class="exec-card ec3">
-        <div class="exec-ring-wrap">
-          <div class="exec-ring" style="animation-duration:12s"></div>
-          <div class="exec-avatar" style="background:linear-gradient(135deg,var(--teal),var(--g5))">ف</div>
-        </div>
-        <div class="exec-badge">
-          <strong data-t="ec3n">فيصل الشهراني</strong>
-          <span data-t="ec3r">المدير التنفيذي</span>
-        </div>
-      </div>
-
-      <!-- Exec Profile Card 4: Board Secretary -->
-      <div class="exec-card ec4">
-        <div class="exec-ring-wrap">
-          <div class="exec-ring rev" style="animation-duration:9s"></div>
-          <div class="exec-avatar" style="background:linear-gradient(135deg,var(--g5),var(--gold))">د</div>
-        </div>
-        <div class="exec-badge">
-          <strong data-t="ec4n">دانة الغامدي</strong>
-          <span data-t="ec4r">سكرتيرة مجلس الإدارة</span>
-        </div>
-      </div>
-
-      <!-- Dashboard Mockup -->
-      <div class="dash-wrap" id="dash-wrap">
-        <div class="dash-frame" id="dash-frame">
-          <div class="dash-scan"></div>
-          <div class="dash-topbar">
-            <div class="tbd tbd-r"></div><div class="tbd tbd-y"></div><div class="tbd tbd-g"></div>
-            <div class="tbd-brand">
-              <img src="/logo.png" alt="A"/>
-              <span>أمـيـن <em>Secretary</em></span>
-            </div>
-            <div class="tbd-url" data-t="dash-url">app.ameen-secretary.sa/dashboard</div>
-            <div class="tbd-avatar">م</div>
-          </div>
-          <div class="dash-body">
-            <!-- Sidebar -->
-            <div class="dash-sb">
-              <div class="dsb-logo">
-                <div class="dsb-logo-ic">أ</div>
-                <div class="dsb-logo-txt" data-t="dsl">لوحة التحكم</div>
-              </div>
-              <div class="sb-item act"><span class="sb-icon">📊</span><span data-t="si1">الرئيسية</span></div>
-              <div class="sb-item"><span class="sb-icon">📅</span><span data-t="si2">الاجتماعات</span></div>
-              <div class="sb-item"><span class="sb-icon">📋</span><span data-t="si3">المحاضر</span></div>
-              <div class="sb-item"><span class="sb-icon">✍️</span><span data-t="si4">التوقيع</span></div>
-              <div class="sb-sep"></div>
-              <div class="sb-item"><span class="sb-icon">🏛️</span><span data-t="si5">المجالس</span></div>
-              <div class="sb-item"><span class="sb-icon">👥</span><span data-t="si6">الأعضاء</span></div>
-              <div class="sb-item"><span class="sb-icon">⚙️</span><span data-t="si7">الإعدادات</span></div>
-            </div>
-            <!-- Main -->
-            <div class="dash-main">
-              <div class="dm-head" data-t="dmh">الاجتماعات القادمة</div>
-              <div class="dm-tabs">
-                <div class="dm-tab on" data-t="dt1">اجتماعاتي</div>
-                <div class="dm-tab" data-t="dt2">الكل</div>
-              </div>
-              <div class="meet-card">
-                <div class="meet-card-top">
-                  <div class="meet-ic">🏛️</div>
-                  <div class="meet-title" data-t="m1t">اجتماع مجلس الإدارة — الدورة الثالثة</div>
-                  <div class="meet-badge mb-g" data-t="m1s">مكتمل</div>
+        <!-- Phone (overlaid front-left) -->
+        <div class="phone-mock">
+          <div class="ph-frame">
+            <div class="ph-notch"></div>
+            <div class="ph-screen">
+              <div class="ph-ui">
+                <div class="ph-topbar">
+                  <div class="ph-logo">أ</div>
+                  <div class="ph-title" data-t="ph-title">Dashboard</div>
                 </div>
-                <div class="meet-meta">
-                  <span data-t="m1d">18 يوليو 2026 • 10:00 ص</span>
-                  <div class="meet-avatars">
-                    <div class="mav">م</div><div class="mav">س</div><div class="mav">ف</div><div class="mav">د</div><div class="mav">+</div>
+                <div class="ph-body">
+                  <div class="ph-stat-row">
+                    <div class="ph-stat"><div class="ph-stat-n">12</div><div class="ph-stat-l" data-t="ph-s1">Meetings</div></div>
+                    <div class="ph-stat"><div class="ph-stat-n">28</div><div class="ph-stat-l" data-t="ph-s2">Tasks</div></div>
+                  </div>
+                  <div class="ph-stat-row">
+                    <div class="ph-stat"><div class="ph-stat-n">7</div><div class="ph-stat-l" data-t="ph-s3">Docs</div></div>
+                    <div class="ph-stat"><div class="ph-stat-n">92%</div><div class="ph-stat-l" data-t="ph-s4">Approved</div></div>
+                  </div>
+                  <div class="ph-card">
+                    <div class="ph-card-t" data-t="ph-ct">Upcoming</div>
+                    <div class="ph-meet-item"><div class="ph-meet-ic">🏛️</div><div><div class="ph-meet-t" data-t="ph-m1">Board Meeting</div><div class="ph-meet-d">May 16 • 10:00</div></div></div>
+                    <div class="ph-meet-item"><div class="ph-meet-ic">📋</div><div><div class="ph-meet-t" data-t="ph-m2">Audit Committee</div><div class="ph-meet-d">May 20 • 14:00</div></div></div>
+                    <div class="ph-meet-item"><div class="ph-meet-ic">⚡</div><div><div class="ph-meet-t" data-t="ph-m3">Executive Session</div><div class="ph-meet-d">May 28 • 10:00</div></div></div>
                   </div>
                 </div>
-              </div>
-              <div class="meet-card">
-                <div class="meet-card-top">
-                  <div class="meet-ic">📋</div>
-                  <div class="meet-title" data-t="m2t">اجتماع لجنة المراجعة والتدقيق</div>
-                  <div class="meet-badge mb-y" data-t="m2s">قيد المراجعة</div>
-                </div>
-                <div class="meet-meta">
-                  <span data-t="m2d">22 يوليو 2026 • 2:00 م</span>
-                  <div class="meet-avatars">
-                    <div class="mav">ف</div><div class="mav">م</div><div class="mav">أ</div>
-                  </div>
-                </div>
-              </div>
-              <div class="dash-stats">
-                <div class="ds"><div class="ds-n">24</div><div class="ds-l" data-t="dss1">اجتماع</div></div>
-                <div class="ds"><div class="ds-n">98%</div><div class="ds-l" data-t="dss2">دقة</div></div>
-                <div class="ds"><div class="ds-n">12</div><div class="ds-l" data-t="dss3">توقيع</div></div>
-              </div>
-              <div class="ai-strip">
-                <div class="ai-dots"><div class="ai-d"></div><div class="ai-d"></div><div class="ai-d"></div></div>
-                <div class="ai-txt" data-t="ait">أمين AI يعالج محضر الجلسة...</div>
-                <div class="ai-pct">98%</div>
-              </div>
-            </div>
-            <!-- Calendar -->
-            <div class="dash-cal">
-              <div class="cal-head" data-t="calh">يوليو 2026</div>
-              <div class="cal-grid">
-                <div class="cal-day" data-t="cd1">أح</div><div class="cal-day" data-t="cd2">إث</div><div class="cal-day" data-t="cd3">ث</div><div class="cal-day" data-t="cd4">أر</div><div class="cal-day" data-t="cd5">خ</div><div class="cal-day" data-t="cd6">ج</div><div class="cal-day" data-t="cd7">س</div>
-                <div class="cal-day">1</div><div class="cal-day">2</div><div class="cal-day">3</div><div class="cal-day">4</div><div class="cal-day has">5</div><div class="cal-day">6</div><div class="cal-day">7</div>
-                <div class="cal-day">8</div><div class="cal-day">9</div><div class="cal-day">10</div><div class="cal-day has">11</div><div class="cal-day">12</div><div class="cal-day">13</div><div class="cal-day">14</div>
-                <div class="cal-day has">15</div><div class="cal-day">16</div><div class="cal-day">17</div><div class="cal-day today">18</div><div class="cal-day">19</div><div class="cal-day">20</div><div class="cal-day has">21</div>
-                <div class="cal-day">22</div><div class="cal-day has">23</div><div class="cal-day">24</div><div class="cal-day">25</div><div class="cal-day">26</div><div class="cal-day has">27</div><div class="cal-day">28</div>
-              </div>
-              <div class="task-mini">
-                <div class="task-mini-h" data-t="tmh">المهام</div>
-                <div class="task-row"><div class="task-chk done"></div><div class="task-t done" data-t="tk1">إرسال جدول الأعمال</div></div>
-                <div class="task-row"><div class="task-chk done"></div><div class="task-t done" data-t="tk2">جمع التوقيعات</div></div>
-                <div class="task-row"><div class="task-chk"></div><div class="task-t" data-t="tk3">مراجعة المحضر</div></div>
-                <div class="task-row"><div class="task-chk"></div><div class="task-t" data-t="tk4">أرشفة الوثائق</div></div>
               </div>
             </div>
           </div>
         </div>
-        <div class="hero-glow-bottom"></div>
+
+        <!-- Laptop -->
+        <div class="laptop">
+          <div class="lp-lid">
+            <div class="lp-screen">
+              <div class="dash-ui">
+                <!-- Sidebar -->
+                <div class="dash-sb">
+                  <div class="dash-sb-logo"><img src="/logo.png" alt="A"/></div>
+                  <div class="dsb-item on"><div class="dsb-ic">📊</div><div class="dsb-lb" data-t="ds-db">Dash</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">📅</div><div class="dsb-lb" data-t="ds-mt">Meetings</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">✅</div><div class="dsb-lb" data-t="ds-tk">Tasks</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">📄</div><div class="dsb-lb" data-t="ds-dc">Docs</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">✍️</div><div class="dsb-lb" data-t="ds-ap">Approvals</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">🏛️</div><div class="dsb-lb" data-t="ds-cm">Boards</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">📈</div><div class="dsb-lb" data-t="ds-rp">Reports</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">👥</div><div class="dsb-lb" data-t="ds-us">Users</div></div>
+                  <div class="dsb-item"><div class="dsb-ic">⚙️</div><div class="dsb-lb" data-t="ds-st">Settings</div></div>
+                </div>
+                <!-- Main -->
+                <div class="dash-main">
+                  <div class="dash-topbar">
+                    <div class="dash-search">🔍 <span data-t="dash-search">Search anything...</span></div>
+                    <div class="dash-user">
+                      <span data-t="dash-user">Ahmed Al-Mutairi</span>
+                      <div class="dash-user-ava">A</div>
+                    </div>
+                  </div>
+                  <div class="dash-content">
+                    <div class="dash-page-title" data-t="dash-title">Dashboard</div>
+                    <div class="dash-stats">
+                      <div class="dstat"><div class="dstat-n">12</div><div class="dstat-l" data-t="dstat1">Meetings This Month</div><div class="dstat-chg">↑ 15%</div></div>
+                      <div class="dstat"><div class="dstat-n">28</div><div class="dstat-l" data-t="dstat2">Tasks Pending</div><div class="dstat-chg">↑ 8%</div></div>
+                      <div class="dstat"><div class="dstat-n">7</div><div class="dstat-l" data-t="dstat3">Documents Awaiting</div><div class="dstat-chg" style="color:#dc2626">↓ 10%</div></div>
+                      <div class="dstat"><div class="dstat-n">92%</div><div class="dstat-l" data-t="dstat4">Approvals</div><div class="dstat-chg">✓ Rate</div></div>
+                    </div>
+                    <div class="dash-tbl-head">
+                      <div class="dash-tbl-t" data-t="dash-tbl">Upcoming Meetings</div>
+                      <div class="dash-tbl-va" data-t="dash-va">View All →</div>
+                    </div>
+                    <div class="dash-table">
+                      <div class="dt-head"><span data-t="dth1">Meeting Title</span><span data-t="dth2">Date</span><span data-t="dth3">Time</span><span data-t="dth4">Type</span><span data-t="dth5">Status</span></div>
+                      <div class="dt-row"><span data-t="dr1n">Board of Directors Meeting</span><span>May 16</span><span>10:00</span><span>Board</span><div class="dt-badge db-s" data-t="dr1s">Scheduled</div></div>
+                      <div class="dt-row"><span data-t="dr2n">Audit Committee Meeting</span><span>May 20</span><span>14:00</span><span>Committee</span><div class="dt-badge db-c" data-t="dr2s">Scheduled</div></div>
+                      <div class="dt-row"><span data-t="dr3n">Remuneration Committee</span><span>May 22</span><span>10:00</span><span>Committee</span><div class="dt-badge db-s" data-t="dr3s">Scheduled</div></div>
+                      <div class="dt-row"><span data-t="dr4n">Executive Committee Meeting</span><span>May 28</span><span>10:00</span><span>Committee</span><div class="dt-badge db-b" data-t="dr4s">Scheduled</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="lp-chin"></div>
+          <div class="lp-base"></div>
+          <div class="lp-foot"></div>
+        </div>
       </div>
-    </div><!-- /hero-visual -->
-  </div><!-- /hero-inner -->
+    </div>
+  </div>
 </section>
 
-<!-- STATS BAR -->
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="si reveal"><div class="si-n" data-count="500" data-suf="+">0</div><div class="si-l" data-t="st1">منظمة موثوقة</div></div>
-    <div class="si reveal"><div class="si-n" data-count="98"  data-suf="%">0</div><div class="si-l" data-t="st2">دقة الذكاء الاصطناعي</div></div>
-    <div class="si reveal"><div class="si-n" data-count="10"  data-suf="×">0</div><div class="si-l" data-t="st3">توفير الوقت</div></div>
-    <div class="si reveal"><div class="si-n" data-count="24"  data-suf="/7">0</div><div class="si-l" data-t="st4">دعم متواصل</div></div>
+<!-- TRUSTED BY -->
+<div class="trusted">
+  <div class="trusted-i">
+    <div class="trusted-label" data-t="tr-label">TRUSTED BY LEADING ORGANIZATIONS</div>
+    <div class="trusted-logos">
+      <div class="logo-item"><span class="logo-text">SABIC</span></div>
+      <div class="logo-sep"></div>
+      <div class="logo-item"><span class="logo-text-ar">أرامكو السعودية</span></div>
+      <div class="logo-sep"></div>
+      <div class="logo-item"><span class="logo-text-ar">وزارة الاستثمار</span></div>
+      <div class="logo-sep"></div>
+      <div class="logo-item"><span class="logo-text">PIF</span></div>
+      <div class="logo-sep"></div>
+      <div class="logo-item"><span class="logo-text">ROSHN</span></div>
+      <div class="logo-sep"></div>
+      <div class="logo-item"><span class="logo-text-ar">وزارة المالية</span></div>
+      <div class="logo-sep"></div>
+      <div class="logo-item"><span class="logo-text-ar">هيئة السوق المالية</span></div>
+    </div>
   </div>
 </div>
 
 <!-- FEATURES -->
-<div style="background:linear-gradient(180deg,var(--g0),var(--g1));padding:6rem 3rem;border-bottom:1px solid rgba(255,255,255,.04)" id="features">
-  <div style="max-width:1200px;margin:0 auto">
+<div class="sec" id="features">
+  <div class="sec-i">
     <div class="center reveal">
-      <div class="chip">✨ <span data-t="fb">المميزات</span></div>
-      <h2 class="sec-h" data-t="fh">كل ما تحتاجه في منصة واحدة</h2>
-      <p class="sec-sub" data-t="fs">من التسجيل الصوتي إلى الأرشيف الرسمي — أمين يدير كل خطوة بدقة مؤسسية.</p>
+      <div class="chip">✦ <span data-t="feat-chip">FEATURES</span></div>
+      <h2 class="sec-h" data-t="feat-h">Everything in one platform</h2>
+      <p class="sec-sub" data-t="feat-sub">From recording to official archiving — every step, handled with enterprise precision.</p>
     </div>
-    <div class="feat-grid">
-      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🎙️</div><div class="ft" data-t="f1t">محاضر بالذكاء الاصطناعي</div><div class="fd" data-t="f1d">تفريغ وتلخيص تلقائي للاجتماعات مع استخراج القرارات والمهام فوراً بدقة 98%.</div></div>
-      <div class="feat-card reveal"><div class="cg"></div><div class="fi">✍️</div><div class="ft" data-t="f2t">توقيع إلكتروني</div><div class="fd" data-t="f2d">سير موافقة متكامل مع توقيع رقمي متعدد الأطراف وتتبع الحالة في الوقت الفعلي.</div></div>
-      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🏛️</div><div class="ft" data-t="f3t">حوكمة المجالس</div><div class="fd" data-t="f3d">إدارة مجالس الإدارة واللجان مع صلاحيات متدرجة وتوثيق يلبي معايير الحوكمة.</div></div>
-      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🔄</div><div class="ft" data-t="f4t">سير الموافقات</div><div class="fd" data-t="f4d">دورة اعتماد كاملة من المسودة إلى التوقيع النهائي مع إشعارات فورية لجميع الأطراف.</div></div>
-      <div class="feat-card reveal"><div class="cg"></div><div class="fi">📊</div><div class="ft" data-t="f5t">تقارير وتحليلات</div><div class="fd" data-t="f5d">لوحات بيانات تفاعلية تتتبع الإنجاز والقرارات والمهام عبر جميع المجالس واللجان.</div></div>
-      <div class="feat-card reveal"><div class="cg"></div><div class="fi">🔒</div><div class="ft" data-t="f6t">أمان مؤسسي</div><div class="fd" data-t="f6d">تشفير من الطرف إلى الطرف، وسجل تدقيق شامل، وتحكم دقيق في صلاحيات كل مستخدم.</div></div>
+    <div class="feat-grid reveal">
+      <div class="fc">
+        <div class="fc-icon"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+        <div class="fc-t" data-t="f1t">AI-Powered Minutes</div>
+        <div class="fc-d" data-t="f1d">Automatic transcription and summarisation with tasks and decisions extracted instantly at 98% accuracy.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-icon"><svg viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></div>
+        <div class="fc-t" data-t="f2t">E-Signature</div>
+        <div class="fc-d" data-t="f2d">Complete approval workflow with multi-party digital signatures and real-time status tracking.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <div class="fc-t" data-t="f3t">Meeting Management</div>
+        <div class="fc-d" data-t="f3d">End-to-end meeting lifecycle management from scheduling to follow-ups and action tracking.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+        <div class="fc-t" data-t="f4t">Reports &amp; Analytics</div>
+        <div class="fc-d" data-t="f4d">Interactive dashboards and reports for meetings, decisions, tasks and governance KPIs.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+        <div class="fc-t" data-t="f5t">Board Governance</div>
+        <div class="fc-d" data-t="f5d">Built-in governance frameworks, committees management and decision register.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="fc-t" data-t="f6t">Enterprise Security</div>
+        <div class="fc-d" data-t="f6d">Enterprise-grade security with encryption, audit trail and granular access control.</div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- WORKFLOW -->
-<div class="wf-bg" id="workflow">
-  <div style="max-width:1200px;margin:0 auto">
+<!-- HOW IT WORKS -->
+<div class="sec steps-bg" id="how">
+  <div class="sec-i">
     <div class="center reveal">
-      <div class="chip">⚡ <span data-t="wb">سير العمل</span></div>
-      <h2 class="sec-h" data-t="wh">من الاجتماع إلى الأرشيف في 4 خطوات</h2>
+      <div class="chip">⚡ <span data-t="how-chip">HOW IT WORKS</span></div>
+      <h2 class="sec-h" data-t="how-h">From meeting to archive in 4 steps</h2>
     </div>
-    <div class="wf-steps" id="wf-steps">
-      <div class="wf-track"><div class="wf-fill" id="wf-fill"></div></div>
-      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>1</div><div class="wf-icon">📅</div><div class="wf-t" data-t="ws1t">جدوِل</div><div class="wf-d" data-t="ws1d">أنشئ الاجتماع، حدد الأجندة والحضور، وأرسل الدعوات تلقائياً.</div></div>
-      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>2</div><div class="wf-icon">🎙️</div><div class="wf-t" data-t="ws2t">سجّل وفرّغ</div><div class="wf-d" data-t="ws2d">الذكاء الاصطناعي يستمع ويفرّغ ويلخّص المحضر خلال ثوانٍ.</div></div>
-      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>3</div><div class="wf-icon">✅</div><div class="wf-t" data-t="ws3t">اعتمد ووقّع</div><div class="wf-d" data-t="ws3d">سير موافقة رقمي مع توقيع إلكتروني من جميع الأطراف المعنية.</div></div>
-      <div class="wf-step reveal"><div class="wf-num"><div class="rp"></div>4</div><div class="wf-icon">🗂️</div><div class="wf-t" data-t="ws4t">أرشف رسمياً</div><div class="wf-d" data-t="ws4d">الوثيقة المعتمدة تُحفظ بشهادة رقمية في الأرشيف الرسمي للمنظمة.</div></div>
+    <div class="steps" id="steps-row">
+      <div class="step reveal"><div class="step-num">1</div><div class="step-t" data-t="st1t">Schedule</div><div class="step-d" data-t="st1d">Create the meeting, set agenda and attendees, send invitations automatically.</div></div>
+      <div class="step reveal"><div class="step-num">2</div><div class="step-t" data-t="st2t">Record &amp; Transcribe</div><div class="step-d" data-t="st2d">AI listens, transcribes and summarises the minutes within seconds.</div></div>
+      <div class="step reveal"><div class="step-num">3</div><div class="step-t" data-t="st3t">Approve &amp; Sign</div><div class="step-d" data-t="st3d">Digital approval workflow with e-signatures from all relevant parties.</div></div>
+      <div class="step reveal"><div class="step-num">4</div><div class="step-t" data-t="st4t">Archive Officially</div><div class="step-d" data-t="st4d">The approved document is stored with a digital certificate in the official archive.</div></div>
     </div>
   </div>
 </div>
 
 <!-- GOVERNANCE -->
-<div style="background:linear-gradient(180deg,var(--g0),var(--g1));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="governance">
-  <div style="max-width:1200px;margin:0 auto">
-    <div class="gov-wrap">
-      <div class="reveal">
-        <div class="chip">🏛️ <span data-t="gb">حوكمة المجالس</span></div>
-        <h2 class="sec-h" data-t="gh">توثيق يرقى إلى معايير الحوكمة الدولية</h2>
-        <p class="sec-sub" data-t="gd">أمين مُصمَّم للمنظمات التي تلتزم بأعلى معايير الشفافية والمساءلة وحوكمة مجالس الإدارة.</p>
+<div class="sec gov-sec" id="governance" style="border-top:1px solid var(--border)">
+  <div class="sec-i">
+    <div class="gov-grid">
+      <div class="reveal-l">
+        <div class="chip">🏛️ <span data-t="gov-chip">GOVERNANCE</span></div>
+        <h2 class="sec-h" data-t="gov-h">Documentation meeting international governance standards</h2>
+        <p class="sec-sub" data-t="gov-sub">Ameen is designed for organisations committed to the highest standards of transparency, accountability, and board governance.</p>
         <div class="gov-pts">
-          <div class="gov-pt reveal"><div class="gov-pt-ic">🔐</div><div><div class="gov-pt-t" data-t="gp1t">صلاحيات متدرجة</div><div class="gov-pt-d" data-t="gp1d">تحكم دقيق في من يشاهد ويعدّل ويعتمد كل وثيقة على مستوى كل مجلس ولجنة.</div></div></div>
-          <div class="gov-pt reveal"><div class="gov-pt-ic">📜</div><div><div class="gov-pt-t" data-t="gp2t">أرشيف رسمي معتمد</div><div class="gov-pt-d" data-t="gp2d">كل قرار وتوقيع ووثيقة تُحفظ بختم رقمي زمني غير قابل للتغيير.</div></div></div>
-          <div class="gov-pt reveal"><div class="gov-pt-ic">📊</div><div><div class="gov-pt-t" data-t="gp3t">تقارير الامتثال</div><div class="gov-pt-d" data-t="gp3d">تقارير جاهزة لمتطلبات هيئات الحوكمة والرقابة والمدققين الخارجيين.</div></div></div>
+          <div class="gov-pt">
+            <div class="gov-pt-ic"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <div><div class="gov-pt-t" data-t="gpt1t">Tiered Permissions</div><div class="gov-pt-d" data-t="gpt1d">Granular control over who views, edits, and approves each document at every board level.</div></div>
+          </div>
+          <div class="gov-pt">
+            <div class="gov-pt-ic"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div><div class="gov-pt-t" data-t="gpt2t">Certified Archive</div><div class="gov-pt-d" data-t="gpt2d">Every decision and signature stored with an immutable digital timestamp certificate.</div></div>
+          </div>
+          <div class="gov-pt">
+            <div class="gov-pt-ic"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+            <div><div class="gov-pt-t" data-t="gpt3t">Compliance Reports</div><div class="gov-pt-d" data-t="gpt3d">Reports ready for governance bodies, regulators and external auditors.</div></div>
+          </div>
         </div>
       </div>
-      <div class="gov-visual reveal">
-        <div class="gov-card-stack">
-          <div class="gov-card gc-back1"></div>
-          <div class="gov-card gc-back2"></div>
-          <div class="gov-card gc-main">
-            <div class="gc-title">📜 <span data-t="gct">محضر جلسة مجلس الإدارة — يوليو 2026</span></div>
-            <div class="gc-row">
-              <div class="gc-ava">م</div>
-              <div class="gc-name" data-t="gr1n">محمد العتيبي — رئيس المجلس</div>
-              <div class="gc-sig sig-done">✓ <span data-t="gr1s">وقّع</span></div>
+      <div class="reveal-r">
+        <div class="gov-visual">
+          <div class="gov-vis-inner">
+            <div class="gov-vis-title" data-t="gv-title">Board Resolution — July 2026</div>
+            <div class="gv-card">
+              <div class="gv-row">
+                <div class="gv-ava">م</div>
+                <div><div class="gv-name" data-t="gv1n">Mohammed Al-Otaibi</div><div class="gv-role" data-t="gv1r">Board Chairman</div></div>
+                <div class="gv-sig sig-y" data-t="gv1s">✓ Signed</div>
+              </div>
             </div>
-            <div class="gc-row">
-              <div class="gc-ava" style="background:linear-gradient(135deg,var(--g4),var(--g5))">س</div>
-              <div class="gc-name" data-t="gr2n">سارة المنصوري — الرئيس التنفيذي</div>
-              <div class="gc-sig sig-done">✓ <span data-t="gr2s">وقّع</span></div>
+            <div class="gv-card">
+              <div class="gv-row">
+                <div class="gv-ava" style="background:linear-gradient(135deg,#1a4d3a,#2d6b4a)">س</div>
+                <div><div class="gv-name" data-t="gv2n">Sarah Al-Mansouri</div><div class="gv-role" data-t="gv2r">Chief Executive Officer</div></div>
+                <div class="gv-sig sig-y" data-t="gv2s">✓ Signed</div>
+              </div>
             </div>
-            <div class="gc-row">
-              <div class="gc-ava" style="background:linear-gradient(135deg,var(--teal),var(--g5))">ف</div>
-              <div class="gc-name" data-t="gr3n">فيصل الشهراني — المدير التنفيذي</div>
-              <div class="gc-sig sig-pend">⏳ <span data-t="gr3s">في الانتظار</span></div>
+            <div class="gv-card">
+              <div class="gv-row">
+                <div class="gv-ava" style="background:linear-gradient(135deg,#2d6b4a,#C9A84C)">ف</div>
+                <div><div class="gv-name" data-t="gv3n">Faisal Al-Shahrani</div><div class="gv-role" data-t="gv3r">Executive Director</div></div>
+                <div class="gv-sig sig-p" data-t="gv3s">⏳ Pending</div>
+              </div>
+              <div class="gv-progress">
+                <div class="gv-prog-meta"><span data-t="gv-prog">Approval Progress</span><span>3/4</span></div>
+                <div class="gv-prog-bar"><div class="gv-prog-fill"></div></div>
+              </div>
             </div>
-            <div class="gc-row">
-              <div class="gc-ava" style="background:linear-gradient(135deg,var(--g5),var(--gold))">د</div>
-              <div class="gc-name" data-t="gr4n">دانة الغامدي — سكرتيرة المجلس</div>
-              <div class="gc-sig sig-wait">– <span data-t="gr4s">لم يُرسل</span></div>
-            </div>
-            <div class="gc-prog">
-              <div class="gc-prog-l"><span data-t="gpl">تقدم الاعتماد</span><span>3/4</span></div>
-              <div class="gc-prog-bar"><div class="gc-prog-fill"></div></div>
-            </div>
-            <div class="gc-badge">✓ <span data-t="gcb">محفوظ بشهادة رقمية — 18 يوليو 2026</span></div>
+          </div>
+          <div class="gov-vis-bottom">
+            <div class="gvb-dot"></div>
+            <span data-t="gv-bottom">Stored with digital certificate — 18 July 2026</span>
           </div>
         </div>
       </div>
@@ -632,52 +624,49 @@ footer{border-top:1px solid rgba(255,255,255,.05);padding:2.5rem 3rem;display:fl
 </div>
 
 <!-- PRICING -->
-<div style="background:linear-gradient(180deg,var(--g1),var(--g0));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="pricing">
-  <div style="max-width:1200px;margin:0 auto">
+<div class="sec pricing-sec" id="pricing">
+  <div class="sec-i">
     <div class="center reveal">
-      <div class="chip">💎 <span data-t="pb">الأسعار</span></div>
-      <h2 class="sec-h" data-t="ph">خطط تناسب كل منظمة</h2>
-      <p class="sec-sub" data-t="ps">ابدأ مجاناً 7 أيام، ثم اختر ما يناسب حجم مؤسستك.</p>
+      <div class="chip">💎 <span data-t="price-chip">PRICING</span></div>
+      <h2 class="sec-h" data-t="price-h">Plans for every organisation</h2>
+      <p class="sec-sub" data-t="price-sub">Start free for 7 days, no credit card required. Then choose the plan that fits.</p>
     </div>
-    <div class="plan-row" id="plan-row">
-      <div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem" data-t="pload">جارٍ التحميل...</div>
+    <div class="plan-grid" id="plan-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text3)" data-t="price-loading">Loading plans...</div>
     </div>
   </div>
 </div>
 
 <!-- TESTIMONIALS -->
-<div style="background:linear-gradient(180deg,var(--g0),var(--g1));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="testimonials">
-  <div style="max-width:1200px;margin:0 auto">
+<div class="sec testi-sec" id="testimonials">
+  <div class="sec-i">
     <div class="center reveal">
-      <div class="chip">💬 <span data-t="tb">شهادات العملاء</span></div>
-      <h2 class="sec-h" data-t="th">ماذا يقول قادة المؤسسات؟</h2>
+      <div class="chip">💬 <span data-t="testi-chip">TESTIMONIALS</span></div>
+      <h2 class="sec-h" data-t="testi-h">What leaders say</h2>
     </div>
     <div class="testi-grid">
-      <div class="testi-card reveal">
-        <div class="tc-mark">"</div>
-        <div class="testi-stars">★★★★★</div>
-        <div class="testi-quote" data-t="tq1">أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر التي كانت تأخذ ساعات باتت جاهزة في دقائق بدقة لا تُصدّق.</div>
-        <div class="testi-person">
-          <div class="tp-ava">م</div>
-          <div><div class="tp-name" data-t="tp1n">م. محمد الزهراني</div><div class="tp-role" data-t="tp1r">رئيس مجلس إدارة، مجموعة صناعية كبرى</div></div>
+      <div class="tcard reveal">
+        <div class="tcard-stars">★★★★★</div>
+        <div class="tcard-quote" data-t="tq1">Ameen transformed how we manage board meetings. Minutes that used to take hours are ready in minutes with incredible accuracy.</div>
+        <div class="tcard-person">
+          <div class="tp-ava" style="font-family:'Tajawal',sans-serif">م</div>
+          <div><div class="tp-name" data-t="tn1">Eng. Mohammed Al-Zahrani</div><div class="tp-role" data-t="tr1">Board Chairman, Major Industrial Group</div></div>
         </div>
       </div>
-      <div class="testi-card reveal">
-        <div class="tc-mark">"</div>
-        <div class="testi-stars">★★★★★</div>
-        <div class="testi-quote" data-t="tq2">منصة استثنائية للحوكمة. التوقيع الإلكتروني وسير الموافقات وفّرا علينا أسابيع من المراسلات والمتابعة اليدوية.</div>
-        <div class="testi-person">
-          <div class="tp-ava" style="background:linear-gradient(135deg,var(--g4),var(--g5))">ن</div>
-          <div><div class="tp-name" data-t="tp2n">أ. نورة العتيبي</div><div class="tp-role" data-t="tp2r">مدير الحوكمة المؤسسية، مؤسسة مالية حكومية</div></div>
+      <div class="tcard reveal">
+        <div class="tcard-stars">★★★★★</div>
+        <div class="tcard-quote" data-t="tq2">An exceptional governance platform. E-signatures and approval workflows saved us weeks of manual follow-up and coordination.</div>
+        <div class="tcard-person">
+          <div class="tp-ava" style="background:linear-gradient(135deg,#1a4d3a,#2d6b4a);font-family:'Tajawal',sans-serif">ن</div>
+          <div><div class="tp-name" data-t="tn2">Ms. Noura Al-Otaibi</div><div class="tp-role" data-t="tr2">Corporate Governance Director, Government Institution</div></div>
         </div>
       </div>
-      <div class="testi-card reveal">
-        <div class="tc-mark">"</div>
-        <div class="testi-stars">★★★★★</div>
-        <div class="testi-quote" data-t="tq3">أخيراً منصة عربية بمستوى عالمي. سهولة الاستخدام والأمان العالي والذكاء الاصطناعي الدقيق — أمين يستحق كل ريال.</div>
-        <div class="testi-person">
-          <div class="tp-ava" style="background:linear-gradient(135deg,var(--teal),var(--gold))">خ</div>
-          <div><div class="tp-name" data-t="tp3n">د. خالد المالكي</div><div class="tp-role" data-t="tp3r">الرئيس التنفيذي، شركة تقنية رائدة</div></div>
+      <div class="tcard reveal">
+        <div class="tcard-stars">★★★★★</div>
+        <div class="tcard-quote" data-t="tq3">Finally an Arabic platform at a world-class level. Ease of use, enterprise security and precise AI — Ameen is worth every riyal.</div>
+        <div class="tcard-person">
+          <div class="tp-ava" style="background:linear-gradient(135deg,#2d6b4a,#C9A84C);font-family:'Tajawal',sans-serif">خ</div>
+          <div><div class="tp-name" data-t="tn3">Dr. Khalid Al-Maliki</div><div class="tp-role" data-t="tr3">CEO, Leading Technology Company</div></div>
         </div>
       </div>
     </div>
@@ -685,413 +674,301 @@ footer{border-top:1px solid rgba(255,255,255,.05);padding:2.5rem 3rem;display:fl
 </div>
 
 <!-- FAQ -->
-<div style="background:linear-gradient(180deg,var(--g1),var(--g0));padding:6rem 3rem;border-top:1px solid rgba(255,255,255,.04)" id="faq">
-  <div style="max-width:1200px;margin:0 auto">
+<div class="sec faq-sec" id="faq">
+  <div class="sec-i">
     <div class="center reveal">
-      <div class="chip">❓ <span data-t="faqb">الأسئلة الشائعة</span></div>
-      <h2 class="sec-h" data-t="faqh">كل ما تريد معرفته</h2>
+      <div class="chip">❓ <span data-t="faq-chip">FAQ</span></div>
+      <h2 class="sec-h" data-t="faq-h">Frequently asked questions</h2>
     </div>
     <div class="faq-list">
-      <div class="faq-item reveal">
-        <div class="faq-q"><span data-t="fq1">كيف يعمل الذكاء الاصطناعي في تفريغ الاجتماعات؟</span><div class="faq-arr">▾</div></div>
-        <div class="faq-a" data-t="fa1">يستخدم أمين نماذج ذكاء اصطناعي متطورة مدربة على اللغة العربية للتعرف على الكلام وتفريغه. يمكنك رفع تسجيل صوتي أو فيديو، وسيقوم النظام بتفريغه وتلخيصه واستخراج القرارات والمهام تلقائياً خلال دقائق.</div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span data-t="fq2">هل بياناتنا آمنة ومحمية؟</span><div class="faq-arr">▾</div></div>
-        <div class="faq-a" data-t="fa2">نعم. جميع البيانات مشفّرة بمعيار AES-256 أثناء النقل والتخزين. لديك سجل تدقيق كامل لكل إجراء. البيانات محفوظة في خوادم معتمدة بأعلى معايير الأمان الدولية.</div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span data-t="fq3">هل يمكن لأعضاء متعددين التوقيع في نفس الوقت؟</span><div class="faq-arr">▾</div></div>
-        <div class="faq-a" data-t="fa3">نعم. يدعم أمين سير موافقة متوازي أو تسلسلي بحسب احتياجاتك. يمكن لكل عضو التوقيع من أي جهاز في أي وقت، ويتلقى الجميع إشعارات فورية عند اكتمال كل خطوة.</div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span data-t="fq4">ماذا يحدث بعد انتهاء التجربة المجانية؟</span><div class="faq-arr">▾</div></div>
-        <div class="faq-a" data-t="fa4">بعد 7 أيام، يمكنك اختيار خطة مناسبة للاستمرار. بياناتك تبقى محفوظة، ولن يُطلب منك بطاقة ائتمانية خلال فترة التجربة.</div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span data-t="fq5">هل يتكامل أمين مع Zoom وMicrosoft Teams؟</span><div class="faq-arr">▾</div></div>
-        <div class="faq-a" data-t="fa5">يدعم أمين حالياً رفع التسجيلات من جميع منصات الاجتماعات. التكامل المباشر مع Zoom وTeams قادم قريباً ضمن خطة التطوير.</div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span data-t="fq6">هل المنصة متاحة باللغة العربية بالكامل؟</span><div class="faq-arr">▾</div></div>
-        <div class="faq-a" data-t="fa6">نعم. أمين مبني أصلاً للغة العربية مع دعم كامل للاتجاه من اليمين لليسار. الذكاء الاصطناعي مدرّب على اللهجات العربية المختلفة مع دعم ثنائي اللغة.</div>
-      </div>
+      <div class="faq-item reveal"><div class="faq-q"><span data-t="fq1">How does AI meeting transcription work?</span><div class="faq-arr">▾</div></div><div class="faq-a" data-t="fa1">Ameen uses advanced AI models trained on Arabic and English to recognise speech and transcribe it. Upload a recording or connect live and get structured minutes in minutes.</div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span data-t="fq2">Is our board data secure?</span><div class="faq-arr">▾</div></div><div class="faq-a" data-t="fa2">Yes. All data is encrypted with AES-256 at rest and in transit. You have a full immutable audit trail for every action performed on every document.</div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span data-t="fq3">Can multiple members sign simultaneously?</span><div class="faq-arr">▾</div></div><div class="faq-a" data-t="fa3">Yes. Ameen supports parallel or sequential approval workflows. Members can sign from any device at any time, with instant notifications at each step.</div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span data-t="fq4">What happens after the free trial ends?</span><div class="faq-arr">▾</div></div><div class="faq-a" data-t="fa4">After 7 days you can choose a plan to continue. Your data is preserved. No credit card is required during the trial period.</div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span data-t="fq5">Does Ameen integrate with Zoom or Microsoft Teams?</span><div class="faq-arr">▾</div></div><div class="faq-a" data-t="fa5">Ameen supports uploading recordings from all platforms. Direct live integration with Zoom and Teams is on the roadmap and coming soon.</div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span data-t="fq6">Is the platform fully available in Arabic?</span><div class="faq-arr">▾</div></div><div class="faq-a" data-t="fa6">Yes. Ameen is built natively for Arabic with full RTL support, Tajawal font, and AI trained specifically on Arabic dialects and governance terminology.</div></div>
     </div>
   </div>
 </div>
 
 <!-- CTA -->
-<div class="cta-wrap reveal">
-  <h2 class="cta-h" data-t="ctah">ابدأ رحلة الحوكمة الذكية اليوم</h2>
-  <p class="cta-sub" data-t="ctas">انضم إلى مئات المنظمات التي تثق بأمين لإدارة اجتماعاتها ومجالسها.</p>
+<div class="cta-sec">
+  <h2 data-t="cta-h">Start your smart governance journey today</h2>
+  <p data-t="cta-sub">Join hundreds of organisations that trust Ameen Secretary to manage their meetings and boards.</p>
   <div class="cta-btns">
-    <a href="/signup.html" class="btn-gold"  data-t="ctab1">🚀 ابدأ مجاناً — 7 أيام</a>
-    <a href="/login.html"  class="btn-ghost" data-t="ctab2">تسجيل الدخول</a>
+    <a href="/signup.html" class="btn-white"        data-t="cta-b1">🚀 Start Free Trial — 7 Days</a>
+    <a href="/login.html"  class="btn-outline-white" data-t="cta-b2">Sign In →</a>
   </div>
 </div>
 
 <!-- FOOTER -->
 <footer>
-  <a href="/" class="ft-brand">
-    <img src="/logo.png" alt="Ameen"/>
-    <span>أمـيـن <strong>Secretary</strong></span>
-  </a>
-  <div class="ft-copy" data-t="fcp">© 2026 أمين السكرتير. جميع الحقوق محفوظة.</div>
-  <div class="ft-links">
-    <a href="#" data-t="fl1">الشروط</a>
-    <a href="#" data-t="fl2">الخصوصية</a>
-    <a href="#" data-t="fl3">تواصل معنا</a>
+  <div class="ft-i">
+    <a href="/" class="ft-brand">
+      <img src="/logo.png" alt="Ameen"/>
+      <span class="ft-brand-txt">AMEEN <em>Secretary</em></span>
+    </a>
+    <div class="ft-links">
+      <a href="#features"   data-t="fl1">Features</a>
+      <a href="#pricing"    data-t="fl2">Pricing</a>
+      <a href="#faq"        data-t="fl3">FAQ</a>
+      <a href="/login.html" data-t="fl4">Sign In</a>
+    </div>
+    <div class="ft-copy" data-t="ft-copy">© 2026 Ameen Secretary. All rights reserved.</div>
   </div>
 </footer>
 
 <script>
-/* ══════════════════════════════════════════════
-   CANVAS — AMBIENT PARTICLE FIELD
-══════════════════════════════════════════════ */
-(function(){
-  const cv = document.getElementById('hero-canvas');
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
-  let W, H;
-  const resize = () => { W = cv.width = cv.offsetWidth; H = cv.height = cv.offsetHeight; };
-  resize();
-  window.addEventListener('resize', resize, {passive:true});
-
-  // Generate particles
-  const N = 220;
-  const pts = Array.from({length:N}, () => ({
-    x: Math.random() * 1.4 - 0.2,   // 0-1 (normalized)
-    y: Math.random() * 1.3 - 0.1,
-    vx: (Math.random() - 0.5) * 0.00012,
-    vy: (Math.random() - 0.5) * 0.00012,
-    r: Math.random() * 1.3 + 0.4,
-    a: Math.random() * 0.45 + 0.1,
-    col: ['201,168,76','180,230,200','120,200,160','245,217,128'][Math.floor(Math.random()*4)],
-  }));
-
-  function draw() {
-    requestAnimationFrame(draw);
-    ctx.clearRect(0, 0, W, H);
-    for (const p of pts) {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < -0.05 || p.x > 1.05) p.vx *= -1;
-      if (p.y < -0.05 || p.y > 1.05) p.vy *= -1;
-      ctx.beginPath();
-      ctx.arc(p.x * W, p.y * H, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${p.col},${p.a})`;
-      ctx.fill();
-    }
-    // Draw connection lines between nearby particles
-    for (let i = 0; i < N; i++) {
-      for (let j = i + 1; j < N; j++) {
-        const dx = (pts[i].x - pts[j].x) * W;
-        const dy = (pts[i].y - pts[j].y) * H;
-        const d2 = dx*dx + dy*dy;
-        if (d2 < 14400) { // 120px
-          ctx.beginPath();
-          ctx.moveTo(pts[i].x*W, pts[i].y*H);
-          ctx.lineTo(pts[j].x*W, pts[j].y*H);
-          ctx.strokeStyle = `rgba(201,168,76,${(1 - Math.sqrt(d2)/120) * 0.1})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
-        }
-      }
-    }
-  }
-  draw();
-})();
-
-/* ══════════════════════════════════════════════
-   DASHBOARD 3D MOUSE TILT
-══════════════════════════════════════════════ */
-(function(){
-  const wrap = document.getElementById('dash-wrap');
-  const frame = document.getElementById('dash-frame');
-  if (!wrap || !frame) return;
-  wrap.addEventListener('mousemove', e => {
-    const r = wrap.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width  - 0.5;
-    const y = (e.clientY - r.top)  / r.height - 0.5;
-    frame.style.transform = `perspective(1200px) rotateX(${-y*8}deg) rotateY(${x*10}deg) scale(1.015)`;
-  });
-  wrap.addEventListener('mouseleave', () => {
-    frame.style.transform = 'perspective(1200px) rotateX(4deg) rotateY(-5deg)';
-  });
-})();
-
-/* ══════════════════════════════════════════════
-   FEATURE CARD 3D TILT
-══════════════════════════════════════════════ */
-function initTilts() {
-  document.querySelectorAll('.feat-card').forEach(card => {
-    card.addEventListener('mousemove', e => {
-      const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left)/r.width - 0.5;
-      const y = (e.clientY - r.top)/r.height - 0.5;
-      card.style.transform = `perspective(700px) rotateX(${-y*13}deg) rotateY(${x*13}deg) translateY(-5px) scale(1.01)`;
-      const g = card.querySelector('.cg');
-      if (g) g.style.background = `radial-gradient(circle at ${(x+.5)*100}% ${(y+.5)*100}%,rgba(201,168,76,.13) 0%,transparent 55%)`;
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = '';
-      const g = card.querySelector('.cg');
-      if (g) g.style.background = '';
-    });
-  });
-}
-
-/* ══════════════════════════════════════════════
-   SCROLL: PROGRESS BAR + NAV + REVEALS
-══════════════════════════════════════════════ */
+/* ── Scroll progress + nav ── */
 const sp = document.getElementById('sp');
 window.addEventListener('scroll', () => {
-  const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
-  if (sp) sp.style.width = (pct * 100) + '%';
-  document.getElementById('nav')?.classList.toggle('stuck', window.scrollY > 50);
-}, {passive:true});
-
-const revObs = new IntersectionObserver((entries) => {
-  entries.forEach((e, i) => {
-    if (e.isIntersecting) {
-      setTimeout(() => e.target.classList.add('on'), i * 80);
-      revObs.unobserve(e.target);
-    }
+  const t = window.scrollY, h = document.body.scrollHeight - innerHeight;
+  if (sp) sp.style.width = (t/h*100)+'%';
+  document.getElementById('nav')?.classList.toggle('stuck', t > 40);
+  document.querySelectorAll('.nav-link').forEach(a => {
+    const s = document.querySelector(a.getAttribute('href'));
+    if (!s) return;
+    const r = s.getBoundingClientRect();
+    a.classList.toggle('on', r.top <= 100 && r.bottom > 100);
   });
-}, {threshold:0.1});
+},{passive:true});
 
-// Workflow fill
-const wfObs = new IntersectionObserver(e => {
+/* ── Reveal observer ── */
+const obs = new IntersectionObserver(entries => {
+  entries.forEach((e,i) => {
+    if (e.isIntersecting) { setTimeout(() => e.target.classList.add('on'), i*90); obs.unobserve(e.target); }
+  });
+},{threshold:0.1});
+document.querySelectorAll('.reveal,.reveal-l,.reveal-r').forEach(el => obs.observe(el));
+
+/* ── Steps lighting ── */
+const stepsObs = new IntersectionObserver(e => {
   if (!e[0].isIntersecting) return;
-  const fill = document.getElementById('wf-fill');
-  if (fill) fill.style.width = '100%';
-  document.querySelectorAll('.wf-step').forEach((s, i) =>
-    setTimeout(() => s.classList.add('lit'), i * 420 + 200));
-  wfObs.disconnect();
-}, {threshold:0.25});
-const wfEl = document.getElementById('wf-steps');
-if (wfEl) wfObs.observe(wfEl);
+  document.querySelectorAll('.step').forEach((s,i) => setTimeout(() => s.classList.add('lit'), i*350+150));
+  stepsObs.disconnect();
+},{threshold:0.3});
+const sr = document.getElementById('steps-row');
+if (sr) stepsObs.observe(sr);
 
-// Counters
-function animCount(el) {
-  const t = +el.dataset.count, suf = el.dataset.suf || '';
-  let c = 0, step = t / 55;
-  const iv = setInterval(() => {
-    c = Math.min(c + step, t);
-    el.textContent = Math.round(c) + suf;
-    if (c >= t) clearInterval(iv);
-  }, 24);
-}
-const cntObs = new IntersectionObserver(e => {
-  if (e[0].isIntersecting) { document.querySelectorAll('[data-count]').forEach(animCount); cntObs.disconnect(); }
-}, {threshold:0.3});
-const sb = document.querySelector('.stats-bar');
-if (sb) cntObs.observe(sb);
-
-/* ══════════════════════════════════════════════
-   FAQ ACCORDION
-══════════════════════════════════════════════ */
+/* ── FAQ accordion ── */
 document.querySelectorAll('.faq-q').forEach(q => {
   q.addEventListener('click', () => {
-    const item = q.parentElement;
-    const open = item.classList.contains('open');
+    const item = q.parentElement, open = item.classList.contains('open');
     document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
     if (!open) item.classList.add('open');
   });
 });
 
-/* ══════════════════════════════════════════════
-   PLANS LOADER
-══════════════════════════════════════════════ */
-let plans = [], lang = localStorage.getItem('lang') || 'ar';
+/* ── Dashboard tilt on hover ── */
+const lpLid = document.querySelector('.lp-lid');
+const dw = document.querySelector('.device-wrap');
+if (dw && lpLid) {
+  dw.addEventListener('mousemove', e => {
+    const r = dw.getBoundingClientRect();
+    const x = (e.clientX - r.left)/r.width - 0.5;
+    const y = (e.clientY - r.top)/r.height - 0.5;
+    lpLid.style.transform = `perspective(1000px) rotateX(${-y*6}deg) rotateY(${x*8}deg)`;
+  });
+  dw.addEventListener('mouseleave', () => { lpLid.style.transform = ''; });
+}
+
+/* ── Plans loader ── */
+let LANG = localStorage.getItem('lang') || 'en';
+let plansData = [];
 
 async function loadPlans() {
-  try { plans = await (await fetch('/auth/plans')).json(); } catch { plans = []; }
+  try { plansData = await (await fetch('/auth/plans')).json(); } catch { plansData = []; }
   renderPlans();
 }
 
 function renderPlans() {
-  const T = TR[lang];
-  const el = document.getElementById('plan-row');
-  if (!el || !plans.length) { if (el) el.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:2rem">${T['pload']||'...'}</div>`; return; }
-  const ALL = ['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support'];
-  el.innerHTML = plans.map(p => {
-    const feats = JSON.parse(p.features || '[]');
+  const el = document.getElementById('plan-grid');
+  if (!el) return;
+  if (!plansData.length) { el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text3)">${T[LANG]['price-loading']||'Loading...'}</div>`; return; }
+  const FEATURES_ALL = ['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support'];
+  el.innerHTML = plansData.map(p => {
+    const feats = JSON.parse(p.features||'[]');
     const isFree = p.slug==='free_trial', isPrem = p.slug==='premium';
-    const maxU = p.max_users >= 999 ? T.unlim : p.max_users + ' ' + T.users;
-    const maxM = p.max_meetings_month >= 999 ? T.unlim : p.max_meetings_month + ' ' + T.meetmo;
     const link = isFree ? '/signup.html' : `/signup.html?plan=${p.slug}`;
-    return `<div class="plan-box${isPrem?' feat':''} reveal">
-      ${isPrem?`<div class="plan-pop">${T.popular}</div>`:''}
-      <div class="plan-name">${lang==='ar'?p.name_ar:p.name_en}</div>
+    const maxU = p.max_users>=999 ? T[LANG].unlim : `${p.max_users} ${T[LANG].users}`;
+    const maxM = p.max_meetings_month>=999 ? T[LANG].unlim : `${p.max_meetings_month} ${T[LANG].meetmo}`;
+    return `<div class="plan-card${isPrem?' feat':''} reveal">
+      ${isPrem?`<div class="plan-pop">${T[LANG].popular}</div>`:''}
+      <div class="plan-name">${LANG==='ar'?p.name_ar:p.name_en}</div>
       ${isFree
-        ? `<div class="plan-price">$<span style="font-size:2.5rem">0</span></div>`
-        : `<div class="plan-price"><sub>$</sub>${p.price_monthly_usd}<span>${T.permo}</span></div>`}
-      <div class="plan-desc">${isFree?T.trial+' · ':''} ${maxU} · ${maxM}</div>
-      <div class="plan-feats">${ALL.map(f=>`<div class="pf-item"><span class="${feats.includes(f)?'pf-yes':'pf-no'}">${feats.includes(f)?'✓':'–'}</span>${T.pf[f]||f}</div>`).join('')}</div>
-      <a href="${link}" class="plan-btn">${isFree?T.getstart:T.choose}</a>
+        ? `<div class="plan-price">$<span style="font-size:2.5rem;font-weight:900">0</span></div>`
+        : `<div class="plan-price"><sub>$</sub>${p.price_monthly_usd}<sup>/${T[LANG].mo}</sup></div>`}
+      <div class="plan-desc">${isFree?T[LANG]['trial-label']+' · ':''} ${maxU} · ${maxM}</div>
+      <div class="plan-feats">
+        ${FEATURES_ALL.map(f=>`<div class="pf"><span class="${feats.includes(f)?'pf-y':'pf-n'}">${feats.includes(f)?'✓':'–'}</span><span>${T[LANG].pf[f]||f}</span></div>`).join('')}
+      </div>
+      <a href="${link}" class="plan-btn">${isFree?T[LANG]['get-start']:T[LANG]['choose-plan']}</a>
     </div>`;
   }).join('');
-  el.querySelectorAll('.reveal').forEach(e => revObs.observe(e));
+  el.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 }
 
-/* ══════════════════════════════════════════════
-   TRANSLATIONS
-══════════════════════════════════════════════ */
-const TR = {
-ar:{
-  nl1:'المميزات',nl2:'كيف يعمل',nl3:'الحوكمة',nl4:'الأسعار',nl5:'الأسئلة',
-  'nav-in':'دخول','nav-up':'ابدأ مجاناً',
-  ey:'نظام أمانة تنفيذية مدعوم بالذكاء الاصطناعي',
-  h1a:'أمانتك التنفيذية',h1b:'بذكاء لا يهدأ',
-  hs:'من جدولة الاجتماعات إلى أرشفة المحاضر وإدارة الحوكمة — أمين يتولى كل شيء بدقة مؤسسية وكفاءة اصطناعية.',
-  hb1:'🚀 ابدأ تجربتك المجانية',hb2:'استكشف المنصة ↓',
-  ht:'انضم إلى <strong>+500</strong> منظمة تثق بأمين',
-  ec1n:'محمد العتيبي',ec1r:'رئيس مجلس الإدارة',
-  ec2n:'سارة المنصوري',ec2r:'الرئيس التنفيذي',
-  ec3n:'فيصل الشهراني',ec3r:'المدير التنفيذي',
-  ec4n:'دانة الغامدي',ec4r:'سكرتيرة مجلس الإدارة',
-  'dash-url':'app.ameen-secretary.sa/dashboard',
-  dsl:'لوحة التحكم',si1:'الرئيسية',si2:'الاجتماعات',si3:'المحاضر',si4:'التوقيع',si5:'المجالس',si6:'الأعضاء',si7:'الإعدادات',
-  dmh:'الاجتماعات القادمة',dt1:'اجتماعاتي',dt2:'الكل',
-  m1t:'اجتماع مجلس الإدارة — الدورة الثالثة',m1s:'مكتمل',m1d:'18 يوليو 2026 • 10:00 ص',
-  m2t:'اجتماع لجنة المراجعة والتدقيق',m2s:'قيد المراجعة',m2d:'22 يوليو 2026 • 2:00 م',
-  dss1:'اجتماع',dss2:'دقة',dss3:'توقيع',
-  ait:'أمين AI يعالج محضر الجلسة...',
-  calh:'يوليو 2026',cd1:'أح',cd2:'إث',cd3:'ث',cd4:'أر',cd5:'خ',cd6:'ج',cd7:'س',
-  tmh:'المهام',tk1:'إرسال جدول الأعمال',tk2:'جمع التوقيعات',tk3:'مراجعة المحضر',tk4:'أرشفة الوثائق',
-  st1:'منظمة موثوقة',st2:'دقة الذكاء الاصطناعي',st3:'توفير الوقت',st4:'دعم متواصل',
-  fb:'المميزات',fh:'كل ما تحتاجه في منصة واحدة',fs:'من التسجيل الصوتي إلى الأرشيف الرسمي — أمين يدير كل خطوة بدقة مؤسسية.',
-  f1t:'محاضر بالذكاء الاصطناعي',f1d:'تفريغ وتلخيص تلقائي للاجتماعات مع استخراج القرارات والمهام فوراً بدقة 98%.',
-  f2t:'توقيع إلكتروني',f2d:'سير موافقة متكامل مع توقيع رقمي متعدد الأطراف وتتبع الحالة في الوقت الفعلي.',
-  f3t:'حوكمة المجالس',f3d:'إدارة مجالس الإدارة واللجان مع صلاحيات متدرجة وتوثيق يلبي معايير الحوكمة.',
-  f4t:'سير الموافقات',f4d:'دورة اعتماد كاملة من المسودة إلى التوقيع النهائي مع إشعارات فورية لجميع الأطراف.',
-  f5t:'تقارير وتحليلات',f5d:'لوحات بيانات تفاعلية تتتبع الإنجاز والقرارات والمهام عبر جميع المجالس.',
-  f6t:'أمان مؤسسي',f6d:'تشفير من الطرف إلى الطرف، وسجل تدقيق شامل، وتحكم دقيق في صلاحيات كل مستخدم.',
-  wb:'سير العمل',wh:'من الاجتماع إلى الأرشيف في 4 خطوات',
-  ws1t:'جدوِل',ws1d:'أنشئ الاجتماع، حدد الأجندة والحضور، وأرسل الدعوات تلقائياً.',
-  ws2t:'سجّل وفرّغ',ws2d:'الذكاء الاصطناعي يستمع ويفرّغ ويلخّص المحضر خلال ثوانٍ.',
-  ws3t:'اعتمد ووقّع',ws3d:'سير موافقة رقمي مع توقيع إلكتروني من جميع الأطراف المعنية.',
-  ws4t:'أرشف رسمياً',ws4d:'الوثيقة المعتمدة تُحفظ بشهادة رقمية في الأرشيف الرسمي.',
-  gb:'حوكمة المجالس',gh:'توثيق يرقى إلى معايير الحوكمة الدولية',
-  gd:'أمين مُصمَّم للمنظمات التي تلتزم بأعلى معايير الشفافية والمساءلة وحوكمة مجالس الإدارة.',
-  gp1t:'صلاحيات متدرجة',gp1d:'تحكم دقيق في من يشاهد ويعدّل ويعتمد كل وثيقة.',
-  gp2t:'أرشيف رسمي معتمد',gp2d:'كل قرار وتوقيع ووثيقة تُحفظ بختم رقمي زمني غير قابل للتغيير.',
-  gp3t:'تقارير الامتثال',gp3d:'تقارير جاهزة لمتطلبات هيئات الحوكمة والمدققين الخارجيين.',
-  gct:'محضر جلسة مجلس الإدارة — يوليو 2026',
-  gr1n:'محمد العتيبي — رئيس المجلس',gr1s:'وقّع',gr2n:'سارة المنصوري — الرئيس التنفيذي',gr2s:'وقّع',
-  gr3n:'فيصل الشهراني — المدير التنفيذي',gr3s:'في الانتظار',gr4n:'دانة الغامدي — سكرتيرة المجلس',gr4s:'لم يُرسل',
-  gpl:'تقدم الاعتماد',gcb:'محفوظ بشهادة رقمية — 18 يوليو 2026',
-  pb:'الأسعار',ph:'خطط تناسب كل منظمة',ps:'ابدأ مجاناً 7 أيام، ثم اختر ما يناسب حجم مؤسستك.',pload:'جارٍ التحميل...',
-  tb:'شهادات العملاء',th:'ماذا يقول قادة المؤسسات؟',
-  tq1:'أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر التي كانت تأخذ ساعات باتت جاهزة في دقائق.',
-  tp1n:'م. محمد الزهراني',tp1r:'رئيس مجلس إدارة، مجموعة صناعية كبرى',
-  tq2:'منصة استثنائية للحوكمة. التوقيع الإلكتروني وسير الموافقات وفّرا علينا أسابيع من المراسلات.',
-  tp2n:'أ. نورة العتيبي',tp2r:'مدير الحوكمة المؤسسية، مؤسسة مالية حكومية',
-  tq3:'أخيراً منصة عربية بمستوى عالمي. سهولة الاستخدام والأمان العالي والذكاء الاصطناعي الدقيق.',
-  tp3n:'د. خالد المالكي',tp3r:'الرئيس التنفيذي، شركة تقنية رائدة',
-  faqb:'الأسئلة الشائعة',faqh:'كل ما تريد معرفته',
-  fq1:'كيف يعمل الذكاء الاصطناعي في تفريغ الاجتماعات؟',fa1:'يستخدم أمين نماذج ذكاء اصطناعي متطورة مدربة على اللغة العربية للتعرف على الكلام وتفريغه.',
-  fq2:'هل بياناتنا آمنة ومحمية؟',fa2:'نعم. جميع البيانات مشفّرة بمعيار AES-256. لديك سجل تدقيق كامل لكل إجراء.',
-  fq3:'هل يمكن لأعضاء متعددين التوقيع في نفس الوقت؟',fa3:'نعم. يدعم أمين سير موافقة متوازي أو تسلسلي بحسب احتياجاتك.',
-  fq4:'ماذا يحدث بعد انتهاء التجربة المجانية؟',fa4:'يمكنك اختيار خطة مناسبة للاستمرار. بياناتك تبقى محفوظة ولا بطاقة ائتمانية خلال التجربة.',
-  fq5:'هل يتكامل أمين مع Zoom وMicrosoft Teams؟',fa5:'يدعم أمين رفع التسجيلات من جميع المنصات. التكامل المباشر قادم قريباً.',
-  fq6:'هل المنصة متاحة باللغة العربية بالكامل؟',fa6:'نعم. أمين مبني أصلاً للغة العربية مع دعم كامل للاتجاه RTL وذكاء اصطناعي مدرّب على اللهجات العربية.',
-  ctah:'ابدأ رحلة الحوكمة الذكية اليوم',ctas:'انضم إلى مئات المنظمات التي تثق بأمين لإدارة اجتماعاتها ومجالسها.',
-  ctab1:'🚀 ابدأ مجاناً — 7 أيام',ctab2:'تسجيل الدخول',
-  fcp:'© 2026 أمين السكرتير. جميع الحقوق محفوظة.',fl1:'الشروط',fl2:'الخصوصية',fl3:'تواصل معنا',
-  dir:'rtl',
-  unlim:'غير محدود',users:'مستخدمين',meetmo:'اجتماع/شهر',trial:'7 أيام مجاناً',permo:'/شهر',popular:'الأكثر شعبياً',getstart:'ابدأ مجاناً',choose:'اختر الخطة',
-  pf:{ai_minutes:'محاضر AI',e_signature:'توقيع إلكتروني',approval_workflow:'سير موافقة',board_management:'إدارة مجالس',advanced_reports:'تقارير متقدمة',email_notifications:'إشعارات بريد',whatsapp_notifications:'إشعارات واتساب',custom_branding:'علامة مخصصة',api_access:'واجهة API',sso:'دخول موحّد',dedicated_support:'دعم مخصص'},
-},
+/* ── Translations ── */
+const T = {
 en:{
-  nl1:'Features',nl2:'How It Works',nl3:'Governance',nl4:'Pricing',nl5:'FAQ',
-  'nav-in':'Sign In','nav-up':'Get Started',
-  ey:'AI-Powered Executive Secretariat Platform',
-  h1a:'Your Executive Secretariat,',h1b:'Powered by AI',
-  hs:'From scheduling meetings to archiving minutes and managing board governance — Ameen handles everything with enterprise precision.',
-  hb1:'🚀 Start Free Trial',hb2:'Explore Platform ↓',
-  ht:'Trusted by <strong>500+</strong> organisations',
-  ec1n:'Mohammed Al-Otaibi',ec1r:'Chairman of the Board',
-  ec2n:'Sarah Al-Mansouri',ec2r:'Chief Executive Officer',
-  ec3n:'Faisal Al-Shahrani',ec3r:'Executive Director',
-  ec4n:'Dana Al-Ghamdi',ec4r:'Board Secretary',
-  'dash-url':'app.ameen-secretary.sa/dashboard',
-  dsl:'Dashboard',si1:'Overview',si2:'Meetings',si3:'Minutes',si4:'Signatures',si5:'Boards',si6:'Members',si7:'Settings',
-  dmh:'Upcoming Meetings',dt1:'My Meetings',dt2:'All',
-  m1t:'Board of Directors Meeting — Q3 Session',m1s:'Complete',m1d:'18 July 2026 • 10:00 AM',
-  m2t:'Audit & Review Committee Meeting',m2s:'In Review',m2d:'22 July 2026 • 2:00 PM',
-  dss1:'Meetings',dss2:'Accuracy',dss3:'Signatures',
-  ait:'Ameen AI processing meeting minutes...',
-  calh:'July 2026',cd1:'Su',cd2:'Mo',cd3:'Tu',cd4:'We',cd5:'Th',cd6:'Fr',cd7:'Sa',
-  tmh:'Tasks',tk1:'Send agenda',tk2:'Collect signatures',tk3:'Review minutes',tk4:'Archive documents',
-  st1:'Trusted Orgs',st2:'AI Accuracy',st3:'Time Saved',st4:'Support',
-  fb:'Features',fh:'Everything in one platform',fs:'From audio recording to official archive — Ameen handles every step with enterprise precision.',
-  f1t:'AI-Powered Minutes',f1d:'Automatic transcription and summarisation with tasks and decisions extracted instantly at 98% accuracy.',
-  f2t:'E-Signature',f2d:'Complete approval workflow with multi-party digital signatures and real-time status tracking.',
-  f3t:'Board Governance',f3d:'Manage boards and committees with tiered permissions and documentation meeting governance standards.',
-  f4t:'Approval Workflow',f4d:'Full approval cycle from draft to final sign-off with instant notifications for all parties.',
-  f5t:'Reports & Analytics',f5d:'Interactive dashboards tracking completion, decisions, and tasks across all boards and committees.',
-  f6t:'Enterprise Security',f6d:'End-to-end encryption, full audit trail, and granular permission control for every user.',
-  wb:'Workflow',wh:'From meeting to archive in 4 steps',
-  ws1t:'Schedule',ws1d:'Create the meeting, set agenda and attendees, send invitations automatically.',
-  ws2t:'Record & Transcribe',ws2d:'AI listens, transcribes, and summarises the minutes within seconds.',
-  ws3t:'Approve & Sign',ws3d:'Digital approval workflow with e-signatures from all relevant parties.',
-  ws4t:'Archive Officially',ws4d:'The approved document is stored with a digital certificate in the official archive.',
-  gb:'Board Governance',gh:'Documentation meeting international governance standards',
-  gd:'Ameen is designed for organisations committed to the highest standards of transparency, accountability, and board governance.',
-  gp1t:'Tiered Permissions',gp1d:'Granular control over who views, edits, and approves each document.',
-  gp2t:'Certified Archive',gp2d:'Every decision and signature is stored with an immutable digital timestamp.',
-  gp3t:'Compliance Reports',gp3d:'Reports ready for governance bodies, regulators, and external auditors.',
-  gct:'Board of Directors Minutes — July 2026',
-  gr1n:'Mohammed Al-Otaibi — Board Chairman',gr1s:'Signed',gr2n:'Sarah Al-Mansouri — CEO',gr2s:'Signed',
-  gr3n:'Faisal Al-Shahrani — Executive Director',gr3s:'Pending',gr4n:'Dana Al-Ghamdi — Board Secretary',gr4s:'Not sent',
-  gpl:'Approval Progress',gcb:'Stored with digital certificate — 18 July 2026',
-  pb:'Pricing',ph:'Plans for every organisation',ps:'Start free for 7 days, then choose the plan that fits your organisation.',pload:'Loading...',
-  tb:'Testimonials',th:'What leaders say',
-  tq1:'Ameen transformed how we manage board meetings. Minutes that used to take hours are ready in minutes with incredible accuracy.',
-  tp1n:'Eng. Mohammed Al-Zahrani',tp1r:'Board Chairman, Major Industrial Group',
-  tq2:'An exceptional governance platform. E-signatures and approval workflows saved us weeks of manual follow-up.',
-  tp2n:'Ms. Noura Al-Otaibi',tp2r:'Corporate Governance Director, Government Financial Institution',
-  tq3:'Finally an Arabic platform at a world-class level. Ease of use, high security, and precise AI — Ameen is worth every riyal.',
-  tp3n:'Dr. Khalid Al-Maliki',tp3r:'CEO, Leading Technology Company',
-  faqb:'FAQ',faqh:'Everything you need to know',
-  fq1:'How does AI meeting transcription work?',fa1:'Ameen uses advanced AI models trained on Arabic to recognise speech and transcribe it. Upload a recording and get a structured minutes document in minutes.',
-  fq2:'Is our data secure?',fa2:'Yes. All data is encrypted with AES-256. You have a full audit trail for every action.',
-  fq3:'Can multiple members sign simultaneously?',fa3:'Yes. Ameen supports parallel or sequential approval workflows based on your needs.',
-  fq4:'What happens after the free trial?',fa4:'Choose a plan to continue. Your data is preserved and no credit card is required during the trial.',
-  fq5:'Does Ameen integrate with Zoom or Teams?',fa5:'Ameen supports uploading recordings from all platforms. Direct integration is coming soon.',
-  fq6:'Is the platform fully available in Arabic?',fa6:'Yes. Ameen is built natively for Arabic with full RTL support and AI trained on Arabic dialects.',
-  ctah:'Start your smart governance journey today',ctas:'Join hundreds of organisations that trust Ameen Secretary to manage their meetings and boards.',
-  ctab1:'🚀 Start Free — 7 Days',ctab2:'Sign In',
-  fcp:'© 2026 Ameen Secretary. All rights reserved.',fl1:'Terms',fl2:'Privacy',fl3:'Contact',
-  dir:'ltr',
-  unlim:'Unlimited',users:'users',meetmo:'mtgs/mo',trial:'7 days free',permo:'/mo',popular:'Most Popular',getstart:'Start Free',choose:'Choose Plan',
-  pf:{ai_minutes:'AI Minutes',e_signature:'E-Signature',approval_workflow:'Approval Workflow',board_management:'Board Management',advanced_reports:'Advanced Reports',email_notifications:'Email Notifications',whatsapp_notifications:'WhatsApp Notifications',custom_branding:'Custom Branding',api_access:'API Access',sso:'SSO',dedicated_support:'Dedicated Support'},
+  'brand-name':'AMEEN','brand-sub':'SECRETARY',
+  'nl-home':'Home','nl-feat':'Features','nl-how':'How It Works','nl-gov':'Governance','nl-price':'Pricing','nl-faq':'FAQ',
+  'nav-in':'Sign In','nav-demo':'Book a Demo',
+  'h-badge':'AI-Powered Executive Secretariat Platform',
+  'h-line1':'Your Executive Secretariat,','h-line2':'Powered by AI',
+  'h-sub':'From scheduling meetings to archiving minutes and managing board governance — Ameen handles everything with enterprise precision.',
+  'h-btn1':'📅 Book a Demo','h-btn2':'▶ Explore Platform',
+  'hb1':'Secure & Compliant','hb2':'Easy to Use','hb3':'Saves Time','hb4':'Built for Governance',
+  'ph-title':'Dashboard','ph-s1':'Meetings','ph-s2':'Tasks','ph-s3':'Docs','ph-s4':'Approved',
+  'ph-ct':'Upcoming','ph-m1':'Board Meeting','ph-m2':'Audit Committee','ph-m3':'Executive Session',
+  'ds-db':'Dash','ds-mt':'Meetings','ds-tk':'Tasks','ds-dc':'Docs','ds-ap':'Approvals','ds-cm':'Boards','ds-rp':'Reports','ds-us':'Users','ds-st':'Settings',
+  'dash-search':'Search anything...','dash-user':'Ahmed Al-Mutairi','dash-title':'Dashboard',
+  'dstat1':'Meetings This Month','dstat2':'Tasks Pending','dstat3':'Documents Awaiting','dstat4':'Approvals',
+  'dash-tbl':'Upcoming Meetings','dash-va':'View All →',
+  'dth1':'Meeting Title','dth2':'Date','dth3':'Time','dth4':'Type','dth5':'Status',
+  'dr1n':'Board of Directors Meeting','dr1s':'Scheduled',
+  'dr2n':'Audit Committee Meeting','dr2s':'Scheduled',
+  'dr3n':'Remuneration Committee','dr3s':'Scheduled',
+  'dr4n':'Executive Committee Meeting','dr4s':'Scheduled',
+  'tr-label':'TRUSTED BY LEADING ORGANIZATIONS',
+  'feat-chip':'FEATURES','feat-h':'Everything in one platform','feat-sub':'From recording to official archiving — every step, handled with enterprise precision.',
+  'f1t':'AI-Powered Minutes','f1d':'Automatic transcription and summarisation with tasks and decisions extracted instantly at 98% accuracy.',
+  'f2t':'E-Signature','f2d':'Complete approval workflow with multi-party digital signatures and real-time status tracking.',
+  'f3t':'Meeting Management','f3d':'End-to-end meeting lifecycle management from scheduling to follow-ups and action tracking.',
+  'f4t':'Reports & Analytics','f4d':'Interactive dashboards and reports for meetings, decisions, tasks and governance KPIs.',
+  'f5t':'Board Governance','f5d':'Built-in governance frameworks, committees management and decision register.',
+  'f6t':'Enterprise Security','f6d':'Enterprise-grade security with encryption, audit trail and granular access control.',
+  'how-chip':'HOW IT WORKS','how-h':'From meeting to archive in 4 steps',
+  'st1t':'Schedule','st1d':'Create the meeting, set agenda and attendees, send invitations automatically.',
+  'st2t':'Record & Transcribe','st2d':'AI listens, transcribes and summarises the minutes within seconds.',
+  'st3t':'Approve & Sign','st3d':'Digital approval workflow with e-signatures from all relevant parties.',
+  'st4t':'Archive Officially','st4d':'The approved document is stored with a digital certificate in the official archive.',
+  'gov-chip':'GOVERNANCE','gov-h':'Documentation meeting international governance standards',
+  'gov-sub':'Ameen is designed for organisations committed to the highest standards of transparency, accountability, and board governance.',
+  'gpt1t':'Tiered Permissions','gpt1d':'Granular control over who views, edits, and approves each document at every board level.',
+  'gpt2t':'Certified Archive','gpt2d':'Every decision and signature stored with an immutable digital timestamp certificate.',
+  'gpt3t':'Compliance Reports','gpt3d':'Reports ready for governance bodies, regulators and external auditors.',
+  'gv-title':'Board Resolution — July 2026',
+  'gv1n':'Mohammed Al-Otaibi','gv1r':'Board Chairman','gv1s':'✓ Signed',
+  'gv2n':'Sarah Al-Mansouri','gv2r':'Chief Executive Officer','gv2s':'✓ Signed',
+  'gv3n':'Faisal Al-Shahrani','gv3r':'Executive Director','gv3s':'⏳ Pending',
+  'gv-prog':'Approval Progress','gv-bottom':'Stored with digital certificate — 18 July 2026',
+  'price-chip':'PRICING','price-h':'Plans for every organisation','price-sub':'Start free for 7 days, no credit card required.',
+  'price-loading':'Loading plans...',
+  'testi-chip':'TESTIMONIALS','testi-h':'What leaders say',
+  'tq1':'Ameen transformed how we manage board meetings. Minutes that used to take hours are ready in minutes with incredible accuracy.',
+  'tn1':'Eng. Mohammed Al-Zahrani','tr1':'Board Chairman, Major Industrial Group',
+  'tq2':'An exceptional governance platform. E-signatures and approval workflows saved us weeks of manual follow-up.',
+  'tn2':'Ms. Noura Al-Otaibi','tr2':'Corporate Governance Director, Government Institution',
+  'tq3':'Finally an Arabic platform at a world-class level. Ease of use, high security and precise AI.',
+  'tn3':'Dr. Khalid Al-Maliki','tr3':'CEO, Leading Technology Company',
+  'faq-chip':'FAQ','faq-h':'Frequently asked questions',
+  'fq1':'How does AI meeting transcription work?','fa1':'Ameen uses advanced AI models trained on Arabic and English to recognise speech and transcribe it. Upload a recording or connect live and get structured minutes in minutes.',
+  'fq2':'Is our board data secure?','fa2':'Yes. All data is encrypted with AES-256 at rest and in transit. You have a full immutable audit trail for every action.',
+  'fq3':'Can multiple members sign simultaneously?','fa3':'Yes. Ameen supports parallel or sequential approval workflows. Members can sign from any device at any time.',
+  'fq4':'What happens after the free trial ends?','fa4':'After 7 days you can choose a plan to continue. No credit card required during the trial.',
+  'fq5':'Does Ameen integrate with Zoom or Teams?','fa5':'Ameen supports uploading recordings from all platforms. Live integration is coming soon.',
+  'fq6':'Is the platform fully available in Arabic?','fa6':'Yes. Ameen is built natively for Arabic with full RTL support and AI trained on Arabic governance terminology.',
+  'cta-h':'Start your smart governance journey today','cta-sub':'Join hundreds of organisations that trust Ameen Secretary.',
+  'cta-b1':'🚀 Start Free Trial — 7 Days','cta-b2':'Sign In →',
+  'fl1':'Features','fl2':'Pricing','fl3':'FAQ','fl4':'Sign In',
+  'ft-copy':'© 2026 Ameen Secretary. All rights reserved.',
+  dir:'ltr',unlim:'Unlimited',users:'users',meetmo:'mtgs/mo','trial-label':'7-day free trial',mo:'mo',popular:'Most Popular','get-start':'Start Free Trial','choose-plan':'Choose Plan',
+  pf:{ai_minutes:'AI-Powered Minutes',e_signature:'E-Signature',approval_workflow:'Approval Workflow',board_management:'Board Management',advanced_reports:'Advanced Reports',email_notifications:'Email Notifications',whatsapp_notifications:'WhatsApp Notifications',custom_branding:'Custom Branding',api_access:'API Access',sso:'Single Sign-On',dedicated_support:'Dedicated Support'},
+},
+ar:{
+  'brand-name':'أمـيـن','brand-sub':'السكرتير',
+  'nl-home':'الرئيسية','nl-feat':'المميزات','nl-how':'كيف يعمل','nl-gov':'الحوكمة','nl-price':'الأسعار','nl-faq':'الأسئلة',
+  'nav-in':'دخول','nav-demo':'احجز عرضاً',
+  'h-badge':'نظام أمانة تنفيذية مدعوم بالذكاء الاصطناعي',
+  'h-line1':'أمانتك التنفيذية،','h-line2':'مدعومة بالذكاء الاصطناعي',
+  'h-sub':'من جدولة الاجتماعات إلى أرشفة المحاضر وإدارة حوكمة مجالس الإدارة — أمين يتولى كل شيء بدقة مؤسسية.',
+  'h-btn1':'📅 احجز عرضاً توضيحياً','h-btn2':'▶ استكشف المنصة',
+  'hb1':'آمن وممتثل','hb2':'سهل الاستخدام','hb3':'يوفر الوقت','hb4':'مبني للحوكمة',
+  'ph-title':'لوحة التحكم','ph-s1':'اجتماعات','ph-s2':'مهام','ph-s3':'مستندات','ph-s4':'موافقات',
+  'ph-ct':'القادمة','ph-m1':'اجتماع مجلس الإدارة','ph-m2':'لجنة التدقيق','ph-m3':'جلسة تنفيذية',
+  'ds-db':'الرئيسية','ds-mt':'الاجتماعات','ds-tk':'المهام','ds-dc':'المستندات','ds-ap':'الموافقات','ds-cm':'المجالس','ds-rp':'التقارير','ds-us':'المستخدمون','ds-st':'الإعدادات',
+  'dash-search':'ابحث عن أي شيء...','dash-user':'أحمد المطيري','dash-title':'لوحة التحكم',
+  'dstat1':'اجتماعات هذا الشهر','dstat2':'مهام معلقة','dstat3':'مستندات بانتظار','dstat4':'الموافقات',
+  'dash-tbl':'الاجتماعات القادمة','dash-va':'عرض الكل →',
+  'dth1':'عنوان الاجتماع','dth2':'التاريخ','dth3':'الوقت','dth4':'النوع','dth5':'الحالة',
+  'dr1n':'اجتماع مجلس الإدارة','dr1s':'مجدول',
+  'dr2n':'اجتماع لجنة التدقيق','dr2s':'مجدول',
+  'dr3n':'لجنة المكافآت','dr3s':'مجدول',
+  'dr4n':'اجتماع اللجنة التنفيذية','dr4s':'مجدول',
+  'tr-label':'تثق بنا منظمات رائدة',
+  'feat-chip':'المميزات','feat-h':'كل شيء في منصة واحدة','feat-sub':'من التسجيل إلى الأرشيف الرسمي — كل خطوة بدقة مؤسسية.',
+  'f1t':'محاضر بالذكاء الاصطناعي','f1d':'تفريغ وتلخيص تلقائي للاجتماعات مع استخراج القرارات والمهام فوراً بدقة 98%.',
+  'f2t':'توقيع إلكتروني','f2d':'سير موافقة متكامل مع توقيع رقمي متعدد الأطراف وتتبع الحالة في الوقت الفعلي.',
+  'f3t':'إدارة الاجتماعات','f3d':'إدارة دورة الاجتماع الكاملة من الجدولة إلى المتابعة وتتبع الإجراءات.',
+  'f4t':'تقارير وتحليلات','f4d':'لوحات بيانات تفاعلية للاجتماعات والقرارات والمهام ومؤشرات الحوكمة.',
+  'f5t':'حوكمة المجالس','f5d':'أطر حوكمة مدمجة، وإدارة اللجان، وسجل قرارات.',
+  'f6t':'أمان مؤسسي','f6d':'أمان على مستوى المؤسسات مع التشفير وسجل التدقيق والتحكم الدقيق في الصلاحيات.',
+  'how-chip':'كيف يعمل','how-h':'من الاجتماع إلى الأرشيف في 4 خطوات',
+  'st1t':'جدوِل','st1d':'أنشئ الاجتماع، حدد الأجندة والحضور، وأرسل الدعوات تلقائياً.',
+  'st2t':'سجّل وفرّغ','st2d':'الذكاء الاصطناعي يستمع ويفرّغ ويلخّص المحضر خلال ثوانٍ.',
+  'st3t':'اعتمد ووقّع','st3d':'سير موافقة رقمي مع توقيع إلكتروني من جميع الأطراف المعنية.',
+  'st4t':'أرشف رسمياً','st4d':'الوثيقة المعتمدة تُحفظ بشهادة رقمية في الأرشيف الرسمي.',
+  'gov-chip':'الحوكمة','gov-h':'توثيق يرقى إلى معايير الحوكمة الدولية',
+  'gov-sub':'أمين مُصمَّم للمنظمات التي تلتزم بأعلى معايير الشفافية والمساءلة وحوكمة مجالس الإدارة.',
+  'gpt1t':'صلاحيات متدرجة','gpt1d':'تحكم دقيق في من يشاهد ويعدّل ويعتمد كل وثيقة على مستوى كل مجلس ولجنة.',
+  'gpt2t':'أرشيف رسمي معتمد','gpt2d':'كل قرار وتوقيع يُحفظ بختم رقمي زمني غير قابل للتغيير.',
+  'gpt3t':'تقارير الامتثال','gpt3d':'تقارير جاهزة لمتطلبات هيئات الحوكمة والرقابة والمدققين الخارجيين.',
+  'gv-title':'قرار مجلس الإدارة — يوليو 2026',
+  'gv1n':'محمد العتيبي','gv1r':'رئيس مجلس الإدارة','gv1s':'✓ وقّع',
+  'gv2n':'سارة المنصوري','gv2r':'الرئيس التنفيذي','gv2s':'✓ وقّع',
+  'gv3n':'فيصل الشهراني','gv3r':'المدير التنفيذي','gv3s':'⏳ في الانتظار',
+  'gv-prog':'تقدم الاعتماد','gv-bottom':'محفوظ بشهادة رقمية — 18 يوليو 2026',
+  'price-chip':'الأسعار','price-h':'خطط تناسب كل منظمة','price-sub':'ابدأ مجاناً 7 أيام، بدون بطاقة ائتمانية.',
+  'price-loading':'جارٍ التحميل...',
+  'testi-chip':'شهادات العملاء','testi-h':'ماذا يقول قادة المؤسسات؟',
+  'tq1':'أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر التي كانت تأخذ ساعات باتت جاهزة في دقائق.',
+  'tn1':'م. محمد الزهراني','tr1':'رئيس مجلس إدارة، مجموعة صناعية كبرى',
+  'tq2':'منصة استثنائية للحوكمة. التوقيع الإلكتروني وسير الموافقات وفّرا علينا أسابيع من المراسلات.',
+  'tn2':'أ. نورة العتيبي','tr2':'مدير الحوكمة المؤسسية، مؤسسة مالية حكومية',
+  'tq3':'أخيراً منصة عربية بمستوى عالمي. سهولة الاستخدام والأمان العالي والذكاء الاصطناعي الدقيق.',
+  'tn3':'د. خالد المالكي','tr3':'الرئيس التنفيذي، شركة تقنية رائدة',
+  'faq-chip':'الأسئلة الشائعة','faq-h':'كل ما تريد معرفته',
+  'fq1':'كيف يعمل الذكاء الاصطناعي في تفريغ الاجتماعات؟','fa1':'يستخدم أمين نماذج ذكاء اصطناعي متطورة مدربة على اللغة العربية للتعرف على الكلام وتفريغه.',
+  'fq2':'هل بياناتنا آمنة ومحمية؟','fa2':'نعم. جميع البيانات مشفّرة بمعيار AES-256 أثناء النقل والتخزين. لديك سجل تدقيق كامل.',
+  'fq3':'هل يمكن لأعضاء متعددين التوقيع في نفس الوقت؟','fa3':'نعم. يدعم أمين سير موافقة متوازي أو تسلسلي بحسب احتياجاتك.',
+  'fq4':'ماذا يحدث بعد انتهاء التجربة المجانية؟','fa4':'يمكنك اختيار خطة مناسبة للاستمرار. بياناتك تبقى محفوظة ولا بطاقة ائتمانية مطلوبة.',
+  'fq5':'هل يتكامل أمين مع Zoom وMicrosoft Teams؟','fa5':'يدعم أمين رفع التسجيلات من جميع المنصات. التكامل المباشر قادم قريباً.',
+  'fq6':'هل المنصة متاحة باللغة العربية بالكامل؟','fa6':'نعم. أمين مبني أصلاً للغة العربية مع دعم كامل للاتجاه من اليمين لليسار.',
+  'cta-h':'ابدأ رحلة الحوكمة الذكية اليوم','cta-sub':'انضم إلى مئات المنظمات التي تثق بأمين السكرتير.',
+  'cta-b1':'🚀 ابدأ تجربة مجانية — 7 أيام','cta-b2':'تسجيل الدخول →',
+  'fl1':'المميزات','fl2':'الأسعار','fl3':'الأسئلة','fl4':'دخول',
+  'ft-copy':'© 2026 أمين السكرتير. جميع الحقوق محفوظة.',
+  dir:'rtl',unlim:'غير محدود',users:'مستخدمين',meetmo:'اجتماع/شهر','trial-label':'7 أيام مجاناً',mo:'شهر',popular:'الأكثر شعبياً','get-start':'ابدأ مجاناً','choose-plan':'اختر الخطة',
+  pf:{ai_minutes:'محاضر AI',e_signature:'توقيع إلكتروني',approval_workflow:'سير الموافقة',board_management:'إدارة المجالس',advanced_reports:'تقارير متقدمة',email_notifications:'إشعارات بريد',whatsapp_notifications:'إشعارات واتساب',custom_branding:'علامة مخصصة',api_access:'واجهة API',sso:'دخول موحّد',dedicated_support:'دعم مخصص'},
 }};
 
-function setLang(l) {
-  lang = l; localStorage.setItem('lang', l);
+function applyLang(l) {
+  LANG = l; localStorage.setItem('lang',l);
   document.documentElement.lang = l;
-  document.documentElement.dir = TR[l].dir;
-  document.getElementById('btn-ar').classList.toggle('on', l==='ar');
-  document.getElementById('btn-en').classList.toggle('on', l==='en');
-  const T = TR[l];
+  document.documentElement.dir = T[l].dir;
+  document.getElementById('lang-label').textContent = l==='ar' ? 'English' : 'عربي';
+  const btn = document.getElementById('lang-toggle');
+  btn.classList.toggle('ar-mode', l==='ar');
+  // Apply all translations
   document.querySelectorAll('[data-t]').forEach(el => {
-    const k = el.dataset.t, v = T[k];
+    const k = el.dataset.t, v = T[l][k];
     if (v !== undefined) el.innerHTML = v;
   });
-  // Flip hero layout for LTR
-  const inner = document.querySelector('.hero-inner');
-  if (inner) inner.style.flexDirection = l==='ar' ? '' : 'row-reverse';
+  // Flip hero layout
+  const hi = document.querySelector('.hero-i');
+  if (hi) hi.style.flexDirection = l==='ar' ? 'row-reverse' : '';
   renderPlans();
+}
+
+function toggleLang() {
+  applyLang(LANG==='en' ? 'ar' : 'en');
 }
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {
-  setLang(lang);
+  applyLang(LANG);
   loadPlans();
-  initTilts();
-  document.querySelectorAll('.reveal').forEach(el => revObs.observe(el));
 });
 </script>
 </body>
