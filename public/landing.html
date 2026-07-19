@@ -119,13 +119,13 @@ nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
 [data-theme="dark"] .pr-note-ic{border-color:#3a5040;color:#4a5c50}
 
 /* ── HERO ─────────────────────────── */
-.hero{min-height:100vh;display:flex;align-items:center;padding:7rem 2.5rem 4rem;background:#fff;position:relative;overflow:hidden}
+.hero{min-height:100vh;display:flex;align-items:center;padding:7rem 2rem 4rem;background:#fff;position:relative;overflow:hidden}
 /* Background decorations */
 .hero-blob{position:absolute;border-radius:50%;pointer-events:none;z-index:0}
 .hero-blob-gold{top:-120px;right:-60px;width:600px;height:600px;background:radial-gradient(circle,rgba(201,168,76,.09) 0%,transparent 68%)}
 .hero-blob-green{bottom:0;right:300px;width:400px;height:400px;background:radial-gradient(circle,rgba(13,40,24,.05) 0%,transparent 70%)}
 .hero-dots{position:absolute;inset:0;background-image:radial-gradient(rgba(201,168,76,.18) 1px,transparent 1px);background-size:26px 26px;-webkit-mask-image:linear-gradient(to right,transparent 0%,transparent 35%,rgba(0,0,0,.6) 55%,rgba(0,0,0,.9) 100%);mask-image:linear-gradient(to right,transparent 0%,transparent 35%,rgba(0,0,0,.6) 55%,rgba(0,0,0,.9) 100%);pointer-events:none;z-index:0}
-.hero-i{max-width:1200px;margin:0 auto;width:100%;display:flex;align-items:center;gap:3.5rem;position:relative;z-index:1}
+.hero-i{max-width:1200px;margin:0 auto;width:100%;display:flex;align-items:center;gap:2.5rem;position:relative;z-index:1}
 .hero-left{flex:0 0 auto;width:470px;max-width:100%}
 /* Badge */
 .badge{display:inline-flex;align-items:center;gap:.5rem;border:1px solid rgba(201,168,76,.38);background:rgba(201,168,76,.09);border-radius:24px;padding:.32rem 1rem;font-size:.68rem;font-weight:700;color:#8a6820;letter-spacing:.06em;text-transform:uppercase;margin-bottom:1.5rem}
@@ -172,10 +172,11 @@ h1.hh .gold{display:block;color:var(--gold)}
 /* ── DEVICE AREA ──────────────────── */
 .hero-right{flex:1;position:relative;display:flex;align-items:center;justify-content:flex-end;min-height:520px}
 
-/* device wrapper — flat, no 3D tilt */
+/* device wrapper — flex row: phone on left, laptop on right */
 .mockup-3d{
+  display:flex;
+  align-items:flex-end;
   position:relative;
-  transition:transform .4s ease;
 }
 
 /* Glow behind laptop */
@@ -218,13 +219,15 @@ h1.hh .gold{display:block;color:var(--gold)}
 }
 .lp-bezel{background:#1a1a1a;border-radius:5px 5px 0 0;padding:6px 6px 0;display:flex;flex-direction:column}
 .lp-cam{width:5px;height:5px;border-radius:50%;background:#2a2a2a;border:1px solid #333;margin:0 auto 4px;flex-shrink:0}
-.lp-screen{width:600px;height:375px;background:#fff;border-radius:2px;overflow:hidden;display:flex;border:none}
+.lp-screen{width:520px;height:325px;background:#fff;border-radius:2px;overflow:hidden;display:flex;border:none}
 .lp-chin-bezel{background:#1a1a1a;height:14px;border-radius:0 0 4px 4px;display:flex;align-items:center;justify-content:center}
 .lp-chin-bezel::after{content:'';width:30px;height:3px;background:#2a2a2a;border-radius:2px}
 .lp-hinge{height:4px;background:linear-gradient(180deg,#b8b8b8,#a8a8a8);box-shadow:0 2px 6px rgba(0,0,0,.18)}
 .lp-base{height:7px;background:linear-gradient(180deg,#d8d8d8,#c8c8c8);border-radius:0 0 3px 3px}
 .lp-foot{width:70%;height:3px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.07),transparent);margin:0 auto;border-radius:0 0 3px 3px}
 
+/* Laptop wrapper z-index */
+.laptop-wrap{position:relative;z-index:2}
 /* Dashboard inside laptop */
 .d-ui{display:flex;height:100%;font-family:'Inter',sans-serif;background:#fff}
 
@@ -335,8 +338,8 @@ h1.hh .gold{display:block;color:var(--gold)}
 .d-td{font-size:7.5px;font-weight:500;color:#334155;padding:6px 9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .d-badge-s{display:inline-flex;padding:2px 7px;border-radius:4px;font-size:7px;font-weight:700;background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
 
-/* PHONE — overlaps left portion of laptop */
-.phone-wrap{position:absolute;left:30px;bottom:0;z-index:5;width:148px}
+/* PHONE — flex item, negative right margin overlaps laptop left frame only */
+.phone-wrap{position:relative;z-index:5;width:148px;flex-shrink:0;margin-right:-18px;margin-bottom:8px}
 .ph-outer{
   background:linear-gradient(165deg,#333 0%,#1a1a1a 60%,#111 100%);
   border-radius:26px;
