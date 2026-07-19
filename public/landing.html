@@ -441,23 +441,61 @@ h1.hh .gold{display:block;color:var(--gold)}
 .gc-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:blink 2s infinite;flex-shrink:0}
 
 /* ── PRICING ──────────────────────── */
-.price-sec{background:#f8fafc;border-top:1px solid var(--bdr)}
-.plan-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:2.8rem}
-.plan{background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:1.75rem 1.55rem;display:flex;flex-direction:column;position:relative;transition:transform .28s,box-shadow .28s}
-.plan:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,.1)}
-.plan.feat{border-color:var(--gold);box-shadow:0 4px 24px rgba(201,168,76,.14)}
-.plan.feat:hover{box-shadow:0 20px 56px rgba(201,168,76,.22)}
-.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--gold);color:#fff;font-size:.66rem;font-weight:800;padding:.22rem .8rem;border-radius:20px;white-space:nowrap}
-.plan-name{font-size:.84rem;font-weight:700;color:var(--dark3);margin-bottom:.35rem}
-.plan-price{font-size:2.4rem;font-weight:900;letter-spacing:-.06em;color:var(--dark);line-height:1;margin-bottom:.2rem}
-.plan-sub{font-size:.8rem;color:var(--dark3);margin-bottom:1.2rem;padding-bottom:1.2rem;border-bottom:1px solid var(--bdr)}
-.plan-feats{flex:1;display:flex;flex-direction:column;gap:.48rem;margin-bottom:1.4rem}
-.pf{display:flex;align-items:center;gap:.48rem;font-size:.79rem;color:var(--dark2)}
-.pf-y{color:#16a34a;flex-shrink:0}.pf-n{color:var(--dark4);flex-shrink:0}
-.plan-btn{display:block;text-align:center;text-decoration:none;font-size:.88rem;font-weight:700;padding:.75rem;border-radius:10px;border:1.5px solid var(--bdr);color:var(--dark);transition:all .2s}
-.plan-btn:hover{border-color:var(--gold);color:var(--gold)}
-.plan.feat .plan-btn{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 4px 14px rgba(201,168,76,.36)}
-.plan.feat .plan-btn:hover{background:var(--gold2);box-shadow:0 8px 28px rgba(201,168,76,.48)}
+.price-sec{background:#f5f5f0;border-top:1px solid var(--bdr)}
+/* toggle */
+.pr-toggle-wrap{display:flex;align-items:center;justify-content:center;gap:.6rem;margin-top:1.8rem}
+.pr-toggle{display:flex;background:#e4e7ec;border-radius:30px;padding:4px;position:relative}
+.pr-tog-opt{position:relative;z-index:1;padding:.45rem 1.4rem;border-radius:26px;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--dark3);transition:color .25s;white-space:nowrap;user-select:none}
+.pr-tog-opt.active{color:#fff}
+.pr-tog-slider{position:absolute;top:4px;bottom:4px;left:4px;background:var(--gdark);border-radius:26px;transition:all .3s cubic-bezier(.23,1,.32,1)}
+.pr-free-badge{background:#f6e5b4;color:#7a5a00;font-size:.72rem;font-weight:700;padding:.22rem .7rem;border-radius:20px;white-space:nowrap}
+/* cards row */
+.plan-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1.1rem;margin-top:2.2rem;align-items:start}
+.plan{background:#fff;border:1.5px solid #e0e3eb;border-radius:18px;padding:1.8rem 1.55rem 1.6rem;display:flex;flex-direction:column;position:relative;transition:transform .26s,box-shadow .26s}
+.plan:hover{transform:translateY(-3px);box-shadow:0 14px 44px rgba(0,0,0,.09)}
+/* Advanced — highlighted */
+.plan.adv{border-color:var(--gold);box-shadow:0 4px 22px rgba(201,168,76,.16)}
+.plan.adv:hover{box-shadow:0 18px 52px rgba(201,168,76,.24)}
+/* Enterprise — dark */
+.plan.ent{background:var(--gdark);border-color:var(--gdark)}
+.plan.ent:hover{transform:translateY(-3px);box-shadow:0 18px 52px rgba(7,26,15,.35)}
+/* Recommended ribbon */
+.plan-ribbon{position:absolute;top:16px;right:-8px;background:var(--gold);color:#fff;font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:.26rem .75rem;border-radius:3px 0 0 3px;box-shadow:-2px 2px 8px rgba(201,168,76,.38)}
+.plan-ribbon::after{content:'';position:absolute;bottom:-6px;right:0;border-left:8px solid transparent;border-top:6px solid #9a6e18}
+/* icon */
+.plan-ic{width:46px;height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem}
+.plan-ic svg{width:40px;height:40px;stroke:var(--dark3);stroke-width:1.3;fill:none}
+.plan.adv .plan-ic svg{stroke:var(--gold)}
+.plan.ent .plan-ic svg{stroke:var(--gold)}
+/* name + desc */
+.plan-name{font-size:1.15rem;font-weight:800;color:var(--dark);margin-bottom:.42rem}
+.plan.ent .plan-name{color:#fff}
+.plan-desc{font-size:.79rem;color:var(--dark3);line-height:1.6;margin-bottom:1.3rem}
+.plan.ent .plan-desc{color:rgba(255,255,255,.55)}
+/* price */
+.plan-price-num{font-size:2.8rem;font-weight:900;letter-spacing:-.05em;color:var(--dark);line-height:1}
+.plan-price-num.custom{font-size:1.6rem;color:var(--gold);font-weight:900;line-height:1.2}
+.plan-price-unit{font-size:.78rem;color:var(--dark4);margin-top:.18rem;margin-bottom:1.3rem;padding-bottom:1.3rem;border-bottom:1px solid #eceef4}
+.plan.ent .plan-price-unit{border-bottom-color:rgba(255,255,255,.1)}
+/* features */
+.plan-feats{flex:1;display:flex;flex-direction:column;gap:.58rem;margin-bottom:1.5rem}
+.pf{display:flex;align-items:flex-start;gap:.55rem;font-size:.8rem;color:var(--dark2);line-height:1.45}
+.pf-ck{flex-shrink:0;margin-top:.1rem}
+.pf-ck svg{width:14px;height:14px;stroke:#16a34a;stroke-width:2.5;fill:none}
+.pf-lock{display:flex;align-items:flex-start;gap:.55rem;font-size:.8rem;color:var(--dark4);line-height:1.45;margin-top:.1rem}
+.pf-lock svg{width:14px;height:14px;stroke:var(--dark4);stroke-width:2;fill:none;flex-shrink:0;margin-top:.1rem}
+.plan.ent .pf{color:rgba(255,255,255,.75)}
+.plan.ent .pf-ck svg{stroke:var(--gold)}
+/* buttons */
+.plan-btn{display:block;text-align:center;text-decoration:none;font-size:.88rem;font-weight:700;padding:.82rem;border-radius:10px;border:1.8px solid #d0d4de;color:var(--dark);transition:all .2s;margin-top:auto}
+.plan-btn:hover{border-color:var(--dark);background:var(--dark);color:#fff}
+.plan.adv .plan-btn{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 4px 18px rgba(201,168,76,.38)}
+.plan.adv .plan-btn:hover{background:var(--gold2);box-shadow:0 8px 28px rgba(201,168,76,.5)}
+.plan.ent .plan-btn{background:transparent;border-color:var(--gold);color:var(--gold)}
+.plan.ent .plan-btn:hover{background:var(--gold);color:#fff}
+/* footer note */
+.pr-note{display:flex;align-items:flex-start;gap:.5rem;font-size:.76rem;color:var(--dark3);margin-top:1.6rem;line-height:1.55}
+.pr-note-ic{flex-shrink:0;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--dark4);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:var(--dark3);margin-top:.05rem}
 
 /* ── TESTIMONIALS ─────────────────── */
 .testi-sec{background:#fff;border-top:1px solid var(--bdr)}
@@ -525,7 +563,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
   .lp-screen{width:500px;height:312px}
   .gov-grid{grid-template-columns:1fr;gap:3rem}
   .feat-grid{grid-template-columns:repeat(3,1fr)}
-  .plan-row{grid-template-columns:1fr;max-width:380px;margin-inline:auto}
+  .plan-row{grid-template-columns:repeat(2,1fr)}
   .testi-row{grid-template-columns:1fr}
   .steps{grid-template-columns:1fr 1fr}.steps::before{display:none}
 }
@@ -541,6 +579,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
   .trusted-i{flex-direction:column;gap:1.2rem}
   .tr-label{border-inline-end:none;padding-inline-end:0}
   .trust-row{flex-wrap:wrap;gap:1rem}
+  .plan-row{grid-template-columns:1fr;max-width:420px;margin-inline:auto}
   .ft-i{flex-direction:column;text-align:center}
   .ft-links{flex-wrap:wrap;justify-content:center}
 }
@@ -1098,13 +1137,132 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <div class="sec price-sec" id="price">
 <div class="sec-i">
   <div class="center rv">
-    <div class="chip">💎 <span data-t="pr-chip">PRICING</span></div>
-    <h2 class="sh" data-t="pr-h">Plans for every organisation</h2>
-    <p class="sp" style="max-width:440px" data-t="pr-p">Start free for 7 days, no credit card required. Choose the plan that fits your organisation.</p>
+    <h2 class="sh" style="font-size:clamp(2rem,4vw,2.9rem)" data-t="pr-h">Plans that scale with your governance needs</h2>
+    <p class="sp" style="max-width:520px;margin-top:.6rem" data-t="pr-p">Simple, transparent pricing designed for boards, companies and holding groups.</p>
   </div>
-  <div class="plan-row" id="plan-row">
-    <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--dark3)" data-t="pr-ld">Loading plans...</div>
+
+  <!-- Monthly / Annual toggle -->
+  <div class="pr-toggle-wrap rv">
+    <div class="pr-toggle" id="pr-toggle">
+      <div class="pr-tog-slider" id="pr-slider"></div>
+      <div class="pr-tog-opt active" id="tog-mo" onclick="setPrTog('mo')">Monthly</div>
+      <div class="pr-tog-opt" id="tog-an" onclick="setPrTog('an')">Annual</div>
+    </div>
+    <div class="pr-free-badge">2 months free</div>
   </div>
+
+  <!-- 4 Plan cards -->
+  <div class="plan-row rv" id="plan-row">
+
+    <!-- Basic -->
+    <div class="plan">
+      <div class="plan-ic">
+        <svg viewBox="0 0 40 40" fill="none">
+          <circle cx="15" cy="13" r="5" stroke-linecap="round"/>
+          <path d="M4 34c0-6.075 4.925-11 11-11" stroke-linecap="round"/>
+          <circle cx="27" cy="13" r="5" stroke-linecap="round"/>
+          <path d="M36 34c0-6.075-4.925-11-11-11" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="plan-name" data-t="pl1n">Ameen Basic</div>
+      <div class="plan-desc" data-t="pl1d">For a single board meeting its legal minimum.</div>
+      <div class="plan-price-num pr-mo">1,500</div>
+      <div class="plan-price-num pr-an" style="display:none">1,250</div>
+      <div class="plan-price-unit" data-t="pl-unit">SAR / month</div>
+      <div class="plan-feats">
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl1f1">Live recording &amp; transcription</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl1f2">Basic task extraction (view-only)</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl1f3">One-time governance assessment</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl1f4">3 document types</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl1f5">Up to 5 members</span></div>
+      </div>
+      <a href="/signup.html" class="plan-btn" data-t="pl-trial">Start 3-Day Trial</a>
+    </div>
+
+    <!-- Plus -->
+    <div class="plan">
+      <div class="plan-ic">
+        <svg viewBox="0 0 40 40" fill="none">
+          <rect x="7" y="4" width="22" height="32" rx="3" stroke-linecap="round"/>
+          <polyline points="13,20 17,24 27,14" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="13" y1="11" x2="27" y2="11" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="plan-name" data-t="pl2n">Ameen Plus</div>
+      <div class="plan-desc" data-t="pl2d">Full legal approval cycle for growing boards.</div>
+      <div class="plan-price-num pr-mo">4,500</div>
+      <div class="plan-price-num pr-an" style="display:none">3,750</div>
+      <div class="plan-price-unit" data-t="pl-unit">SAR / month</div>
+      <div class="plan-feats">
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f1">Everything in Basic</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f2">Full 4-stage approval cycle</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f3">Digital + manual e-signature</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f4">All 10 document types</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f5">Up to 20 members</span></div>
+        <div class="pf-lock"><svg viewBox="0 0 14 14"><rect x="3" y="6" width="8" height="7" rx="1.5"/><path d="M5 6V4.5a2 2 0 0 1 4 0V6"/></svg><span data-t="pl2f6">Task follow-up board (upgrade to unlock)</span></div>
+      </div>
+      <a href="/signup.html" class="plan-btn" data-t="pl-trial">Start 3-Day Trial</a>
+    </div>
+
+    <!-- Advanced — Recommended -->
+    <div class="plan adv">
+      <div class="plan-ribbon" data-t="pl-rec">Recommended</div>
+      <div class="plan-ic">
+        <svg viewBox="0 0 40 40" fill="none">
+          <polyline points="4,30 14,18 21,24 30,12 36,16" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="30,12 36,12 36,18" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="4" y1="34" x2="36" y2="34" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="plan-name" data-t="pl3n">Ameen Advanced</div>
+      <div class="plan-desc" data-t="pl3d">Complete governance and task execution, unlocked.</div>
+      <div class="plan-price-num pr-mo">7,000</div>
+      <div class="plan-price-num pr-an" style="display:none">5,833</div>
+      <div class="plan-price-unit" data-t="pl-unit">SAR / month</div>
+      <div class="plan-feats">
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f1">Everything in Plus</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f2">Full interactive task follow-up with automatic escalation</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f3">Encrypted messaging</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f4">Sub-committees</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f5">Circular resolutions</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f6">Unlimited meetings</span></div>
+      </div>
+      <a href="/signup.html" class="plan-btn" data-t="pl-trial">Start 3-Day Trial</a>
+    </div>
+
+    <!-- Enterprise — dark -->
+    <div class="plan ent">
+      <div class="plan-ic">
+        <svg viewBox="0 0 40 40" fill="none">
+          <rect x="4" y="14" width="32" height="22" rx="2" stroke-linecap="round"/>
+          <path d="M13 14V10a7 7 0 0 1 14 0v4" stroke-linecap="round"/>
+          <line x1="13" y1="22" x2="13" y2="28" stroke-linecap="round"/>
+          <line x1="20" y1="20" x2="20" y2="30" stroke-linecap="round"/>
+          <line x1="27" y1="22" x2="27" y2="28" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="plan-name" data-t="pl4n">Ameen Enterprise</div>
+      <div class="plan-desc" data-t="pl4d">Built for holding companies and multi-entity groups.</div>
+      <div class="plan-price-num custom" data-t="pl4pr">Custom Pricing</div>
+      <div class="plan-price-unit" style="margin-top:.8rem" data-t="pl4u">&nbsp;</div>
+      <div class="plan-feats">
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl4f1">Everything in Advanced</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl4f2">Multi-entity management</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl4f3">Isolated deployment</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl4f4">Dedicated account manager</span></div>
+        <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl4f5">Custom integrations</span></div>
+      </div>
+      <a href="/contact.html" class="plan-btn" data-t="pl4btn">Contact Sales</a>
+    </div>
+
+  </div><!-- /plan-row -->
+
+  <!-- Footer note -->
+  <div class="pr-note rv">
+    <div class="pr-note-ic">i</div>
+    <span data-t="pr-note">All self-serve plans include a 3-day free trial. A payment card is required at signup; billing starts automatically when the trial ends.</span>
+  </div>
+
 </div>
 </div>
 
@@ -1282,8 +1440,18 @@ en:{dir:'ltr',
 'gc2n':'Sarah Al-Mansouri','gc2r':'Chief Executive Officer','gc2s':'✓ Signed',
 'gc3n':'Faisal Al-Shahrani','gc3r':'Executive Director','gc3s':'⏳ Pending',
 'gc-pm':'Approval Progress','gc-ft':'Stored with digital certificate — 18 July 2026',
-'pr-chip':'PRICING','pr-h':'Plans for every organisation','pr-p':'Start free for 7 days, no credit card required.',
-'pr-ld':'Loading plans...',
+'pr-h':'Plans that scale with your governance needs','pr-p':'Simple, transparent pricing designed for boards, companies and holding groups.',
+'pl-rec':'Recommended','pl-trial':'Start 3-Day Trial','pl4btn':'Contact Sales',
+'pl1n':'Ameen Basic','pl1d':'For a single board meeting its legal minimum.',
+'pl2n':'Ameen Plus','pl2d':'Full legal approval cycle for growing boards.',
+'pl3n':'Ameen Advanced','pl3d':'Complete governance and task execution, unlocked.',
+'pl4n':'Ameen Enterprise','pl4d':'Built for holding companies and multi-entity groups.',
+'pl4pr':'Custom Pricing','pl4u':'',
+'pl1f1':'Live recording &amp; transcription','pl1f2':'Basic task extraction (view-only)','pl1f3':'One-time governance assessment','pl1f4':'3 document types','pl1f5':'Up to 5 members',
+'pl2f1':'Everything in Basic','pl2f2':'Full 4-stage approval cycle','pl2f3':'Digital + manual e-signature','pl2f4':'All 10 document types','pl2f5':'Up to 20 members','pl2f6':'Task follow-up board (upgrade to unlock)',
+'pl3f1':'Everything in Plus','pl3f2':'Full interactive task follow-up with automatic escalation','pl3f3':'Encrypted messaging','pl3f4':'Sub-committees','pl3f5':'Circular resolutions','pl3f6':'Unlimited meetings',
+'pl4f1':'Everything in Advanced','pl4f2':'Multi-entity management','pl4f3':'Isolated deployment','pl4f4':'Dedicated account manager','pl4f5':'Custom integrations',
+'pr-note':'All self-serve plans include a 3-day free trial. A payment card is required at signup; billing starts automatically when the trial ends.',
 'te-chip':'TESTIMONIALS','te-h':'What leaders say',
 'tq1':'Ameen transformed how we manage board meetings. Minutes that used to take hours are ready in minutes with incredible accuracy.',
 'tn1':'Eng. Mohammed Al-Zahrani','tr1':'Board Chairman, Major Industrial Group',
@@ -1349,8 +1517,18 @@ ar:{dir:'rtl',
 'gc2n':'سارة المنصوري','gc2r':'الرئيس التنفيذي','gc2s':'✓ وقّع',
 'gc3n':'فيصل الشهراني','gc3r':'المدير التنفيذي','gc3s':'⏳ في الانتظار',
 'gc-pm':'تقدم الاعتماد','gc-ft':'محفوظ بشهادة رقمية — 18 يوليو 2026',
-'pr-chip':'الأسعار','pr-h':'خطط تناسب كل منظمة','pr-p':'ابدأ مجاناً 7 أيام، بدون بطاقة ائتمانية.',
-'pr-ld':'جارٍ التحميل...',
+'pr-h':'خطط تتناسب مع احتياجات حوكمتك','pr-p':'أسعار شفافة مصممة للمجالس والشركات والمجموعات القابضة.',
+'pl-rec':'موصى به','pl-trial':'ابدأ تجربة 3 أيام','pl4btn':'تواصل مع المبيعات',
+'pl1n':'أمين الأساسي','pl1d':'لجلسة مجلس إدارة واحدة بالحد الأدنى القانوني.',
+'pl2n':'أمين بلس','pl2d':'دورة اعتماد قانونية كاملة للمجالس المتنامية.',
+'pl3n':'أمين المتقدم','pl3d':'حوكمة كاملة وتنفيذ مهام بلا قيود.',
+'pl4n':'أمين المؤسسي','pl4d':'مبني للشركات القابضة والمجموعات متعددة الكيانات.',
+'pl4pr':'تسعير مخصص','pl4u':'',
+'pl1f1':'تسجيل مباشر وتفريغ فوري','pl1f2':'استخراج مهام أساسي (عرض فقط)','pl1f3':'تقييم حوكمة لمرة واحدة','pl1f4':'3 أنواع مستندات','pl1f5':'حتى 5 أعضاء',
+'pl2f1':'كل مزايا الأساسي','pl2f2':'دورة اعتماد رباعية المراحل','pl2f3':'توقيع رقمي + يدوي إلكتروني','pl2f4':'جميع أنواع المستندات العشرة','pl2f5':'حتى 20 عضواً','pl2f6':'لوحة متابعة المهام (يتطلب ترقية)',
+'pl3f1':'كل مزايا بلس','pl3f2':'متابعة مهام تفاعلية مع تصعيد تلقائي','pl3f3':'مراسلة مشفرة','pl3f4':'لجان فرعية','pl3f5':'قرارات تداولية','pl3f6':'اجتماعات غير محدودة',
+'pl4f1':'كل مزايا المتقدم','pl4f2':'إدارة متعددة الكيانات','pl4f3':'نشر معزول','pl4f4':'مدير حساب مخصص','pl4f5':'تكاملات مخصصة',
+'pr-note':'تشمل جميع الخطط الذاتية تجربة مجانية لمدة 3 أيام. يُطلب بطاقة سداد عند التسجيل؛ تبدأ الفوترة تلقائياً بعد انتهاء التجربة.',
 'te-chip':'شهادات العملاء','te-h':'ماذا يقول قادة المؤسسات؟',
 'tq1':'أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر باتت جاهزة في دقائق.',
 'tn1':'م. محمد الزهراني','tr1':'رئيس مجلس إدارة، مجموعة صناعية كبرى',
@@ -1373,30 +1551,28 @@ unlim:'غير محدود',usr:'مستخدمين',mmo:'اجتماع/شهر','tria
 pf:{ai_minutes:'محاضر AI',e_signature:'توقيع إلكتروني',approval_workflow:'سير الموافقة',board_management:'إدارة المجالس',advanced_reports:'تقارير متقدمة',email_notifications:'إشعارات بريد',whatsapp_notifications:'واتساب',custom_branding:'علامة مخصصة',api_access:'واجهة API',sso:'دخول موحّد',dedicated_support:'دعم مخصص'}
 }};
 
-async function loadPlans(){
-  try{plansData=await(await fetch('/auth/plans')).json();}catch{plansData=[];}
-  renderPlans();
+/* pricing toggle */
+let prMode='mo';
+function setPrTog(mode){
+  prMode=mode;
+  const mo=document.getElementById('tog-mo');
+  const an=document.getElementById('tog-an');
+  const sl=document.getElementById('pr-slider');
+  if(!mo||!an||!sl)return;
+  if(mode==='mo'){
+    mo.classList.add('active');an.classList.remove('active');
+    sl.style.left='4px';sl.style.width=mo.offsetWidth+'px';
+  } else {
+    an.classList.add('active');mo.classList.remove('active');
+    sl.style.left=(mo.offsetWidth+4)+'px';sl.style.width=an.offsetWidth+'px';
+  }
+  document.querySelectorAll('.pr-mo').forEach(e=>e.style.display=mode==='mo'?'':'none');
+  document.querySelectorAll('.pr-an').forEach(e=>e.style.display=mode==='an'?'':'none');
 }
-function renderPlans(){
-  const el=document.getElementById('plan-row');if(!el)return;
-  if(!plansData.length){el.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--dark3)">${T[L]['pr-ld']}</div>`;return;}
-  const ALL=['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support'];
-  el.innerHTML=plansData.map(p=>{
-    const f=JSON.parse(p.features||'[]');
-    const fr=p.slug==='free_trial',fp=p.slug==='premium';
-    const lk=fr?'/signup.html':`/signup.html?plan=${p.slug}`;
-    const mu=p.max_users>=999?T[L].unlim:`${p.max_users} ${T[L].usr}`;
-    const mm=p.max_meetings_month>=999?T[L].unlim:`${p.max_meetings_month} ${T[L].mmo}`;
-    return `<div class="plan${fp?' feat':''} rv">
-      ${fp?`<div class="plan-badge">${T[L].pop}</div>`:''}
-      <div class="plan-name">${L==='ar'?p.name_ar:p.name_en}</div>
-      <div class="plan-price">$${fr?'0':p.price_monthly_usd}</div>
-      <div class="plan-sub">${fr?T[L]['trial-l']+' · ':''} ${mu} · ${mm}</div>
-      <div class="plan-feats">${ALL.map(k=>`<div class="pf"><span class="${f.includes(k)?'pf-y':'pf-n'}">${f.includes(k)?'✓':'–'}</span> ${T[L].pf[k]||k}</div>`).join('')}</div>
-      <a href="${lk}" class="plan-btn">${fr?T[L].gs:T[L].cp}</a>
-    </div>`;
-  }).join('');
-  el.querySelectorAll('.rv').forEach(el=>io.observe(el));
+function initPrToggle(){
+  const mo=document.getElementById('tog-mo');
+  const sl=document.getElementById('pr-slider');
+  if(mo&&sl){sl.style.width=mo.offsetWidth+'px';sl.style.left='4px';}
 }
 function applyLang(l){
   L=l;localStorage.setItem('ameen-lang',l);
@@ -1409,10 +1585,9 @@ function applyLang(l){
   });
   const hi=document.querySelector('.hero-i');
   if(hi)hi.style.flexDirection=l==='ar'?'row-reverse':'';
-  renderPlans();
 }
 function toggleLang(){applyLang(L==='en'?'ar':'en');}
-document.addEventListener('DOMContentLoaded',()=>{applyLang(L);loadPlans();});
+document.addEventListener('DOMContentLoaded',()=>{applyLang(L);initPrToggle();});
 </script>
 </body>
 </html>
