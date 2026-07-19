@@ -26,9 +26,10 @@ nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
 /* logo */
 .logo-a{display:flex;align-items:center;gap:.55rem;text-decoration:none;flex-shrink:0}
 .gem-svg{width:42px;height:46px;flex-shrink:0}
-.logo-text{display:flex;flex-direction:column;line-height:1}
-.logo-ar{font-family:'Tajawal',sans-serif;font-size:1.05rem;font-weight:900;color:var(--dark)}
-.logo-en{font-size:.5rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dark3);margin-top:2px}
+.logo-text{display:flex;flex-direction:column;line-height:1;gap:0}
+.logo-ar{font-family:'Tajawal',sans-serif;font-size:1.15rem;font-weight:900;color:var(--dark);line-height:1.1}
+.logo-en1{font-size:.65rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--dark);line-height:1.15}
+.logo-en2{font-size:.48rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--dark3);line-height:1.2}
 /* links */
 .nav-links{display:flex;flex:1;align-items:center}
 .nl{text-decoration:none;color:#334155;font-size:.845rem;font-weight:500;padding:.38rem .65rem;border-radius:6px;transition:color .18s;white-space:nowrap;position:relative}
@@ -444,21 +445,29 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
   <!-- Logo -->
   <a href="/" class="logo-a">
     <div class="gem-svg">
-      <svg viewBox="0 0 42 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Faceted pyramid gem — 6 triangular faces -->
-        <polygon points="21,2 41,17 21,17" fill="#F0D060"/>
-        <polygon points="21,2 1,17 21,17" fill="#C9A84C"/>
-        <polygon points="1,17 41,17 21,28" fill="#D8B64E"/>
-        <polygon points="1,17 21,28 1,34" fill="#A88828"/>
-        <polygon points="41,17 21,28 41,34" fill="#D0B040"/>
-        <polygon points="1,34 21,28 21,46" fill="#9A7820"/>
-        <polygon points="41,34 21,28 21,46" fill="#C0A030"/>
-        <polygon points="1,34 41,34 21,46" fill="#B09028"/>
+      <!--
+        Stylized letter "A":
+        left leg = solid dark green (#0d2010)
+        right leg = gold (#C9A84C) with thin dark fill so it contrasts
+        crossbar = thin gold line
+      -->
+      <svg viewBox="0 0 46 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Left leg of A — solid dark green -->
+        <polygon points="23,2 2,50 17,50 23,25" fill="#0d2010"/>
+        <!-- Right leg of A — gold, slightly transparent inner -->
+        <polygon points="23,2 44,50 29,50 23,25" fill="#C9A84C"/>
+        <!-- Thin inner shading on right leg for depth -->
+        <polygon points="23,25 32,50 29,50 23,25" fill="#a88530" opacity=".4"/>
+        <!-- Crossbar of A -->
+        <rect x="13.5" y="31" width="19" height="2.8" rx="1" fill="#C9A84C" opacity=".55"/>
+        <!-- Crossbar on dark side -->
+        <rect x="13.5" y="31" width="9.5" height="2.8" rx="1" fill="#1a4020" opacity=".7"/>
       </svg>
     </div>
     <div class="logo-text">
       <span class="logo-ar" data-t="logo-ar">أمـيـن</span>
-      <span class="logo-en" data-t="logo-en">AMEEN SECRETARY</span>
+      <span class="logo-en1">AMEEN</span>
+      <span class="logo-en2">SECRETARY</span>
     </div>
   </a>
   <!-- Links -->
@@ -473,7 +482,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
   </div>
   <!-- Right -->
   <div class="nav-r">
-    <button class="lang-tog" onclick="toggleLang()">🌐 <span id="lang-lbl">عربي</span> <span style="font-size:.58rem;opacity:.5">▾</span></button>
+    <button class="lang-tog" onclick="toggleLang()">🌐 <span id="lang-lbl">English</span> <span style="font-size:.58rem;opacity:.5">▾</span></button>
     <a href="/login.html"  class="btn-si"   data-t="nav-in">Sign In</a>
     <a href="/signup.html" class="btn-demo" data-t="nav-demo">Book a Demo</a>
   </div>
@@ -1247,7 +1256,7 @@ function applyLang(l){
   L=l;localStorage.setItem('ameen-lang',l);
   document.documentElement.lang=l;
   document.documentElement.dir=T[l].dir;
-  document.getElementById('lang-lbl').textContent=l==='en'?'عربي':'English';
+  document.getElementById('lang-lbl').textContent=l==='en'?'English':'عربي';
   document.querySelectorAll('[data-t]').forEach(el=>{
     const v=T[l][el.dataset.t];
     if(v!==undefined)el.innerHTML=v;
