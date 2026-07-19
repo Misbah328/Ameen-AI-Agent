@@ -441,61 +441,66 @@ h1.hh .gold{display:block;color:var(--gold)}
 .gc-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:blink 2s infinite;flex-shrink:0}
 
 /* ── PRICING ──────────────────────── */
-.price-sec{background:#f5f5f0;border-top:1px solid var(--bdr)}
+.price-sec{background:#f4f4ee;border-top:1px solid var(--bdr)}
 /* toggle */
-.pr-toggle-wrap{display:flex;align-items:center;justify-content:center;gap:.6rem;margin-top:1.8rem}
-.pr-toggle{display:flex;background:#e4e7ec;border-radius:30px;padding:4px;position:relative}
-.pr-tog-opt{position:relative;z-index:1;padding:.45rem 1.4rem;border-radius:26px;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--dark3);transition:color .25s;white-space:nowrap;user-select:none}
+.pr-toggle-wrap{display:flex;align-items:center;justify-content:center;gap:.75rem;margin-top:1.6rem}
+.pr-toggle{display:flex;background:#dde0e8;border-radius:40px;padding:5px;position:relative}
+.pr-tog-opt{position:relative;z-index:1;padding:.5rem 1.55rem;border-radius:34px;font-size:.88rem;font-weight:700;cursor:pointer;color:#555;transition:color .25s;white-space:nowrap;user-select:none}
 .pr-tog-opt.active{color:#fff}
-.pr-tog-slider{position:absolute;top:4px;bottom:4px;left:4px;background:var(--gdark);border-radius:26px;transition:all .3s cubic-bezier(.23,1,.32,1)}
-.pr-free-badge{background:#f6e5b4;color:#7a5a00;font-size:.72rem;font-weight:700;padding:.22rem .7rem;border-radius:20px;white-space:nowrap}
-/* cards row */
-.plan-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1.1rem;margin-top:2.2rem;align-items:start}
-.plan{background:#fff;border:1.5px solid #e0e3eb;border-radius:18px;padding:1.8rem 1.55rem 1.6rem;display:flex;flex-direction:column;position:relative;transition:transform .26s,box-shadow .26s}
-.plan:hover{transform:translateY(-3px);box-shadow:0 14px 44px rgba(0,0,0,.09)}
-/* Advanced — highlighted */
-.plan.adv{border-color:var(--gold);box-shadow:0 4px 22px rgba(201,168,76,.16)}
-.plan.adv:hover{box-shadow:0 18px 52px rgba(201,168,76,.24)}
-/* Enterprise — dark */
-.plan.ent{background:var(--gdark);border-color:var(--gdark)}
-.plan.ent:hover{transform:translateY(-3px);box-shadow:0 18px 52px rgba(7,26,15,.35)}
-/* Recommended ribbon */
-.plan-ribbon{position:absolute;top:16px;right:-8px;background:var(--gold);color:#fff;font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:.26rem .75rem;border-radius:3px 0 0 3px;box-shadow:-2px 2px 8px rgba(201,168,76,.38)}
-.plan-ribbon::after{content:'';position:absolute;bottom:-6px;right:0;border-left:8px solid transparent;border-top:6px solid #9a6e18}
-/* icon */
-.plan-ic{width:46px;height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem}
-.plan-ic svg{width:40px;height:40px;stroke:var(--dark3);stroke-width:1.3;fill:none}
+.pr-tog-slider{position:absolute;top:5px;bottom:5px;left:5px;background:#071a0f;border-radius:34px;transition:all .32s cubic-bezier(.23,1,.32,1)}
+.pr-free-badge{background:#f5dea0;color:#7a5200;font-size:.75rem;font-weight:700;padding:.28rem .9rem;border-radius:30px;white-space:nowrap;letter-spacing:.01em}
+/* cards row — stretch for equal height */
+.plan-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1.15rem;margin-top:2rem;align-items:stretch}
+.plan{background:#fff;border:1.5px solid #e2e5ed;border-radius:20px;padding:2rem 1.6rem 1.75rem;display:flex;flex-direction:column;position:relative;overflow:hidden;transition:transform .26s,box-shadow .26s}
+.plan:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,.1)}
+/* Advanced — gold border highlight */
+.plan.adv{border:2px solid var(--gold);box-shadow:0 6px 28px rgba(201,168,76,.18)}
+.plan.adv:hover{box-shadow:0 20px 56px rgba(201,168,76,.28)}
+/* Enterprise — dark green */
+.plan.ent{background:#071a0f;border-color:#071a0f}
+.plan.ent:hover{box-shadow:0 20px 56px rgba(0,0,0,.32)}
+/* ── Diagonal corner ribbon ── */
+.plan-ribbon-wrap{position:absolute;top:0;right:0;width:84px;height:84px;overflow:hidden;border-top-right-radius:20px;pointer-events:none}
+.plan-ribbon-wrap span{position:absolute;display:block;width:110px;background:var(--gold);color:#fff;font-size:.55rem;font-weight:900;text-align:center;letter-spacing:.07em;text-transform:uppercase;padding:.28rem 0;top:20px;right:-24px;transform:rotate(45deg);transform-origin:center;box-shadow:0 2px 8px rgba(201,168,76,.4)}
+/* icon — centered, larger */
+.plan-ic{display:flex;align-items:center;justify-content:center;margin-bottom:1.1rem}
+.plan-ic svg{width:44px;height:44px;stroke:#555;stroke-width:1.4;fill:none}
 .plan.adv .plan-ic svg{stroke:var(--gold)}
 .plan.ent .plan-ic svg{stroke:var(--gold)}
-/* name + desc */
-.plan-name{font-size:1.15rem;font-weight:800;color:var(--dark);margin-bottom:.42rem}
+/* name */
+.plan-name{font-size:1.22rem;font-weight:800;color:#111;margin-bottom:.38rem;line-height:1.25}
 .plan.ent .plan-name{color:#fff}
-.plan-desc{font-size:.79rem;color:var(--dark3);line-height:1.6;margin-bottom:1.3rem}
-.plan.ent .plan-desc{color:rgba(255,255,255,.55)}
-/* price */
-.plan-price-num{font-size:2.8rem;font-weight:900;letter-spacing:-.05em;color:var(--dark);line-height:1}
-.plan-price-num.custom{font-size:1.6rem;color:var(--gold);font-weight:900;line-height:1.2}
-.plan-price-unit{font-size:.78rem;color:var(--dark4);margin-top:.18rem;margin-bottom:1.3rem;padding-bottom:1.3rem;border-bottom:1px solid #eceef4}
-.plan.ent .plan-price-unit{border-bottom-color:rgba(255,255,255,.1)}
-/* features */
-.plan-feats{flex:1;display:flex;flex-direction:column;gap:.58rem;margin-bottom:1.5rem}
-.pf{display:flex;align-items:flex-start;gap:.55rem;font-size:.8rem;color:var(--dark2);line-height:1.45}
-.pf-ck{flex-shrink:0;margin-top:.1rem}
-.pf-ck svg{width:14px;height:14px;stroke:#16a34a;stroke-width:2.5;fill:none}
-.pf-lock{display:flex;align-items:flex-start;gap:.55rem;font-size:.8rem;color:var(--dark4);line-height:1.45;margin-top:.1rem}
-.pf-lock svg{width:14px;height:14px;stroke:var(--dark4);stroke-width:2;fill:none;flex-shrink:0;margin-top:.1rem}
-.plan.ent .pf{color:rgba(255,255,255,.75)}
+/* desc */
+.plan-desc{font-size:.8rem;color:#666;line-height:1.62;margin-bottom:1.4rem}
+.plan.ent .plan-desc{color:rgba(255,255,255,.5)}
+/* price number */
+.plan-price-num{font-size:3.2rem;font-weight:900;letter-spacing:-.04em;color:#111;line-height:1}
+.plan-price-num.custom{font-size:1.65rem;color:var(--gold);font-weight:900;line-height:1.3}
+/* price unit + divider */
+.plan-price-unit{font-size:.78rem;color:#888;margin-top:.22rem;margin-bottom:1.4rem;padding-bottom:1.4rem;border-bottom:1px solid #eceef4}
+.plan.ent .plan-price-unit{color:rgba(255,255,255,0);border-bottom-color:rgba(255,255,255,.1);margin-bottom:.5rem;padding-bottom:.5rem}
+/* features list */
+.plan-feats{flex:1;display:flex;flex-direction:column;gap:.62rem;margin-bottom:1.6rem}
+.pf{display:flex;align-items:flex-start;gap:.6rem;font-size:.8rem;color:#333;line-height:1.5}
+.pf-ck{flex-shrink:0;margin-top:.15rem}
+.pf-ck svg{width:13px;height:13px;stroke:#1a7a3a;stroke-width:2.8;fill:none}
+/* locked feature row */
+.pf-lock{display:flex;align-items:flex-start;gap:.6rem;font-size:.78rem;color:#aaa;line-height:1.5}
+.pf-lock-ic{flex-shrink:0;margin-top:.12rem}
+.pf-lock-ic svg{width:13px;height:13px;stroke:#bbb;stroke-width:2;fill:none}
+/* enterprise overrides */
+.plan.ent .pf{color:rgba(255,255,255,.78)}
 .plan.ent .pf-ck svg{stroke:var(--gold)}
 /* buttons */
-.plan-btn{display:block;text-align:center;text-decoration:none;font-size:.88rem;font-weight:700;padding:.82rem;border-radius:10px;border:1.8px solid #d0d4de;color:var(--dark);transition:all .2s;margin-top:auto}
-.plan-btn:hover{border-color:var(--dark);background:var(--dark);color:#fff}
+.plan-btn{display:block;text-align:center;text-decoration:none;font-size:.9rem;font-weight:700;padding:.88rem 1rem;border-radius:10px;border:2px solid #222;color:#111;background:#fff;transition:all .22s;margin-top:auto;letter-spacing:.01em}
+.plan-btn:hover{background:#111;color:#fff}
 .plan.adv .plan-btn{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 4px 18px rgba(201,168,76,.38)}
-.plan.adv .plan-btn:hover{background:var(--gold2);box-shadow:0 8px 28px rgba(201,168,76,.5)}
+.plan.adv .plan-btn:hover{background:#b8922e;border-color:#b8922e;box-shadow:0 8px 28px rgba(201,168,76,.5)}
 .plan.ent .plan-btn{background:transparent;border-color:var(--gold);color:var(--gold)}
 .plan.ent .plan-btn:hover{background:var(--gold);color:#fff}
 /* footer note */
-.pr-note{display:flex;align-items:flex-start;gap:.5rem;font-size:.76rem;color:var(--dark3);margin-top:1.6rem;line-height:1.55}
-.pr-note-ic{flex-shrink:0;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--dark4);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:var(--dark3);margin-top:.05rem}
+.pr-note{display:flex;align-items:flex-start;gap:.55rem;font-size:.77rem;color:#777;margin-top:1.8rem;line-height:1.6;max-width:700px;margin-inline:auto}
+.pr-note-ic{flex-shrink:0;width:17px;height:17px;border-radius:50%;border:1.5px solid #999;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:900;color:#888;margin-top:.08rem}
 
 /* ── TESTIMONIALS ─────────────────── */
 .testi-sec{background:#fff;border-top:1px solid var(--bdr)}
@@ -1199,14 +1204,14 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
         <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f3">Digital + manual e-signature</span></div>
         <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f4">All 10 document types</span></div>
         <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f5">Up to 20 members</span></div>
-        <div class="pf-lock"><svg viewBox="0 0 14 14"><rect x="3" y="6" width="8" height="7" rx="1.5"/><path d="M5 6V4.5a2 2 0 0 1 4 0V6"/></svg><span data-t="pl2f6">Task follow-up board (upgrade to unlock)</span></div>
+        <div class="pf-lock"><span class="pf-lock-ic"><svg viewBox="0 0 13 13" fill="none"><rect x="2.5" y="5.5" width="8" height="6.5" rx="1.5" stroke-width="1.8"/><path d="M4.5 5.5V4a2 2 0 0 1 4 0v1.5" stroke-width="1.8" stroke-linecap="round"/></svg></span><span data-t="pl2f6">Task follow-up board (upgrade to unlock)</span></div>
       </div>
       <a href="/signup.html" class="plan-btn" data-t="pl-trial">Start 3-Day Trial</a>
     </div>
 
     <!-- Advanced — Recommended -->
     <div class="plan adv">
-      <div class="plan-ribbon" data-t="pl-rec">Recommended</div>
+      <div class="plan-ribbon-wrap"><span data-t="pl-rec">Recommended</span></div>
       <div class="plan-ic">
         <svg viewBox="0 0 40 40" fill="none">
           <polyline points="4,30 14,18 21,24 30,12 36,16" stroke-linecap="round" stroke-linejoin="round"/>
