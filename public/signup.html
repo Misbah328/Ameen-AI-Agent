@@ -9,9 +9,9 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --gold: #C9A84C; --gold-light: #e2c46a; --gold-dim: rgba(201,168,76,0.13);
-      --navy: #0a0c14; --navy2: #0f1728; --navy3: #12151f; --navy4: #1a1e2e;
-      --border: rgba(255,255,255,0.08); --text: #f0f1f5; --text2: #b4b8cc; --text3: #6b7190;
+      --gold: #C9A84C; --gold-dim: rgba(201,168,76,0.13);
+      --navy: #0a0c14; --navy3: #12151f; --navy4: #1a1e2e;
+      --border: rgba(255,255,255,0.08); --text: #f0f1f5; --text3: #6b7190;
       --red: #e05a5a; --green: #3cc47c;
     }
     html, body { height: 100%; }
@@ -27,7 +27,6 @@
       padding: 2rem 1rem;
     }
 
-    /* Card */
     .form-card {
       width: 100%;
       max-width: 500px;
@@ -38,191 +37,59 @@
       box-shadow: 0 24px 80px rgba(0,0,0,0.5);
     }
 
-    /* Logo at top */
-    .card-top {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-    .logo-link {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.5rem;
-      text-decoration: none;
-    }
-    .card-logo {
-      width: 56px;
-      height: 56px;
-      object-fit: contain;
-      filter: drop-shadow(0 4px 16px rgba(201,168,76,0.35));
-    }
-    .card-brand {
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: -0.02em;
-    }
+    /* Logo */
+    .card-top { text-align: center; margin-bottom: 1.75rem; }
+    .logo-link { display: inline-flex; flex-direction: column; align-items: center; gap: 0.45rem; text-decoration: none; }
+    .card-logo { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(201,168,76,0.35)); }
+    .card-brand { font-size: 1.1rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
     .card-brand span { color: var(--gold); }
 
     /* Top bar */
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.6rem;
-    }
-    .step-badge {
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--text3);
-      background: var(--navy4);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 0.25rem 0.85rem;
-    }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .form-title { font-size: 1.3rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
     .lang-sw { display: flex; gap: 0.3rem; }
     .lang-sw button {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text3);
-      padding: 0.22rem 0.75rem;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 0.75rem;
-      font-family: inherit;
-      transition: all 0.15s;
+      background: none; border: 1px solid var(--border); color: var(--text3);
+      padding: 0.22rem 0.75rem; border-radius: 20px; cursor: pointer;
+      font-size: 0.75rem; font-family: inherit; transition: all 0.15s;
     }
     .lang-sw button.on { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
 
-    /* Inline step indicator */
-    .steps-row {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      margin-bottom: 2rem;
-    }
-    .step-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--text3);
-      transition: color 0.3s;
-    }
-    .step-item.active { color: var(--gold); }
-    .step-item.done  { color: var(--green); }
-    .si-dot {
-      width: 26px; height: 26px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: 800;
-      color: var(--text3);
-      flex-shrink: 0;
-      background: var(--navy);
-      transition: all 0.3s;
-    }
-    .si-dot.active { background: var(--gold); border-color: var(--gold); color: #0f1728; }
-    .si-dot.done   { background: var(--green); border-color: var(--green); color: #fff; }
-    .steps-line {
-      flex: 1;
-      height: 2px;
-      background: rgba(255,255,255,0.07);
-      margin: 0 0.75rem;
-    }
-
-    /* Step panels */
-    .step-panel { display: none; }
-    .step-panel.visible { display: block; }
-
-    /* Step title */
-    .step-title {
-      font-size: 1.45rem;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: -0.02em;
-      line-height: 1.2;
-      margin-bottom: 0.4rem;
-    }
-    .step-sub { font-size: 0.83rem; color: var(--text3); margin-bottom: 1.5rem; line-height: 1.5; }
-
     /* Account type toggle */
-    .type-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      margin-bottom: 1.6rem;
-    }
+    .type-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem; }
     .type-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 1rem 0.75rem;
-      background: var(--navy4);
-      border: 2px solid var(--border);
-      border-radius: 14px;
-      cursor: pointer;
-      font-family: inherit;
-      color: var(--text3);
-      font-size: 0.88rem;
-      font-weight: 700;
+      display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
+      padding: 0.85rem 0.75rem; background: var(--navy4);
+      border: 2px solid var(--border); border-radius: 14px; cursor: pointer;
+      font-family: inherit; color: var(--text3); font-size: 0.88rem; font-weight: 700;
       transition: all 0.2s;
     }
-    .type-btn:hover { border-color: rgba(201,168,76,0.3); color: var(--text2); }
+    .type-btn:hover { border-color: rgba(201,168,76,0.3); color: #b4b8cc; }
     .type-btn.active { border-color: var(--gold); background: rgba(201,168,76,0.08); color: var(--gold); }
-    .type-ic { font-size: 1.6rem; line-height: 1; }
+    .type-ic { font-size: 1.5rem; line-height: 1; }
 
     /* Fields */
-    .fg { margin-bottom: 1rem; }
+    .fg { margin-bottom: 0.9rem; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
     .opt { font-size: 0.7rem; color: var(--text3); font-weight: 400; }
-    label { display: block; font-size: 0.77rem; font-weight: 600; color: var(--text3); margin-bottom: 0.38rem; letter-spacing: 0.01em; }
+    label { display: block; font-size: 0.76rem; font-weight: 600; color: var(--text3); margin-bottom: 0.35rem; }
     input[type=email], input[type=password], input[type=text], input[type=tel] {
-      width: 100%;
-      background: var(--navy4);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 0.78rem 1rem;
-      font-size: 0.92rem;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      direction: ltr;
+      width: 100%; background: var(--navy4); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 0.75rem 1rem;
+      font-size: 0.92rem; font-family: inherit; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s; direction: ltr;
     }
     input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
     input.err { border-color: var(--red); }
-    .field-err { font-size: 0.72rem; color: var(--red); margin-top: 0.3rem; }
+    .field-err { font-size: 0.72rem; color: var(--red); margin-top: 0.28rem; display: none; }
     .pw-wrap { position: relative; }
     .pw-wrap input { padding-inline-end: 2.8rem; }
     .eye {
-      position: absolute;
-      inset-inline-end: 0.85rem;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: var(--text3);
-      cursor: pointer;
-      font-size: 0.95rem;
-      line-height: 1;
-      padding: 0;
-      transition: color 0.15s;
+      position: absolute; inset-inline-end: 0.85rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      font-size: 0.95rem; line-height: 1; padding: 0; transition: color 0.15s;
     }
     .eye:hover { color: var(--gold); }
-
-    /* Strength bar */
-    .sbar { display: flex; gap: 3px; margin-top: 0.45rem; }
-    .seg { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.3s; }
-    .seg.weak { background: var(--red); }
-    .seg.fair { background: #f0a030; }
-    .seg.good, .seg.strong { background: var(--green); }
-    .pw-hint { font-size: 0.72rem; margin-top: 0.3rem; color: var(--text3); }
 
     /* Alert */
     .alert { border-radius: 10px; padding: 0.7rem 1rem; font-size: 0.82rem; margin-bottom: 1rem; display: none; text-align: center; line-height: 1.4; }
@@ -231,52 +98,25 @@
 
     /* Terms */
     .terms-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.65rem;
-      margin-bottom: 1.1rem;
-      font-size: 0.8rem;
-      color: var(--text3);
-      cursor: pointer;
+      display: flex; align-items: flex-start; gap: 0.65rem;
+      margin-bottom: 1.1rem; font-size: 0.8rem; color: var(--text3); cursor: pointer;
     }
-    .terms-row input[type=checkbox] { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; accent-color: var(--gold); direction: ltr; }
+    .terms-row input[type=checkbox] { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; accent-color: var(--gold); direction: ltr; }
     .terms-row a { color: var(--gold); text-decoration: none; }
 
-    /* Buttons */
-    .btn-row { display: flex; gap: 0.75rem; }
-    .btn-back {
-      flex: 0 0 auto;
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text3);
-      border-radius: 10px;
-      padding: 0.88rem 1.2rem;
-      font-size: 0.9rem;
-      font-family: inherit;
-      cursor: pointer;
-      transition: all 0.15s;
+    /* Submit button */
+    .btn-submit {
+      width: 100%; background: var(--gold); color: #0f1728; border: none;
+      border-radius: 10px; padding: 0.95rem; font-size: 1rem; font-weight: 800;
+      font-family: inherit; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.01em; margin-top: 0.25rem;
     }
-    .btn-back:hover { border-color: var(--gold); color: var(--gold); }
-    .btn-next, .btn-submit {
-      flex: 1;
-      background: var(--gold);
-      color: #0f1728;
-      border: none;
-      border-radius: 10px;
-      padding: 0.9rem;
-      font-size: 0.97rem;
-      font-weight: 800;
-      font-family: inherit;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      letter-spacing: 0.01em;
-    }
-    .btn-next:hover, .btn-submit:hover { opacity: 0.9; }
-    .btn-next:active, .btn-submit:active { transform: scale(0.99); }
+    .btn-submit:hover { opacity: 0.9; }
+    .btn-submit:active { transform: scale(0.99); }
     .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* Footer */
-    .foot-link { text-align: center; font-size: 0.82rem; color: var(--text3); margin-top: 1.25rem; }
+    .foot-link { text-align: center; font-size: 0.82rem; color: var(--text3); margin-top: 1.2rem; }
     .foot-link a { color: var(--gold); text-decoration: none; font-weight: 600; }
     .foot-link a:hover { text-decoration: underline; }
 
@@ -288,7 +128,6 @@
   </style>
 </head>
 <body>
-
 <div class="form-card">
 
   <!-- Logo -->
@@ -299,142 +138,75 @@
     </a>
   </div>
 
-  <!-- Top bar: badge + lang -->
+  <!-- Title + lang toggle -->
   <div class="top-bar">
-    <div class="step-badge" id="step-badge">الخطوة 1 من 2</div>
+    <div class="form-title" id="form-title">إنشاء حساب</div>
     <div class="lang-sw">
       <button id="btn-ar" onclick="setLang('ar')">عربي</button>
       <button id="btn-en" onclick="setLang('en')">English</button>
     </div>
   </div>
 
-  <!-- Inline step indicator -->
-  <div class="steps-row">
-    <div class="step-item" id="si1">
-      <div class="si-dot" id="sd1">1</div>
-      <span id="si1-lbl">التفاصيل</span>
-    </div>
-    <div class="steps-line"></div>
-    <div class="step-item" id="si2">
-      <div class="si-dot" id="sd2">2</div>
-      <span id="si2-lbl">الحساب</span>
-    </div>
-  </div>
-
   <div class="alert" id="alert-box"></div>
 
-  <!-- STEP 2: Details -->
-  <div class="step-panel visible" id="step2">
-    <div class="step-title" id="s2-title">بياناتك</div>
-    <div class="step-sub" id="s2-sub">اختر نوع الحساب وأدخل بياناتك</div>
+  <!-- Account type -->
+  <div class="type-row">
+    <button class="type-btn active" id="type-org" onclick="setType('org')">
+      <span class="type-ic">🏢</span>
+      <span id="type-org-lbl">منظمة</span>
+    </button>
+    <button class="type-btn" id="type-ind" onclick="setType('individual')">
+      <span class="type-ic">👤</span>
+      <span id="type-ind-lbl">فرد</span>
+    </button>
+  </div>
 
-    <!-- Account type -->
-    <div class="type-row">
-      <button class="type-btn active" id="type-org" onclick="setType('org')">
-        <span class="type-ic">🏢</span>
-        <span id="type-org-lbl">منظمة</span>
-      </button>
-      <button class="type-btn" id="type-ind" onclick="setType('individual')">
-        <span class="type-ic">👤</span>
-        <span id="type-ind-lbl">فرد</span>
-      </button>
+  <!-- Organisation name (shown for org) -->
+  <div class="fg" id="org-name-wrap">
+    <label id="lbl-org-name">اسم المنظمة</label>
+    <input type="text" id="org-name-ar" placeholder="شركة الأمانة للاستشارات" />
+    <div class="field-err" id="err-org-name"></div>
+  </div>
+
+  <!-- Person name -->
+  <div class="fg">
+    <label id="lbl-person-name">اسم المسؤول</label>
+    <input type="text" id="person-name" placeholder="محمد العتيبي" />
+    <div class="field-err" id="err-person-name"></div>
+  </div>
+
+  <!-- Email + Phone -->
+  <div class="field-row">
+    <div class="fg">
+      <label id="lbl-email">البريد الإلكتروني</label>
+      <input type="email" id="email" placeholder="info@company.com" dir="ltr" />
+      <div class="field-err" id="err-email"></div>
     </div>
-
-    <!-- Org fields -->
-    <div id="org-fields">
-      <div class="fg">
-        <label id="lbl-org-ar">اسم المنظمة (بالعربية)</label>
-        <input type="text" id="org-name-ar" placeholder="شركة الأمانة للاستشارات" />
-        <div class="field-err" id="err-org-ar" style="display:none"></div>
-      </div>
-      <div class="fg">
-        <label id="lbl-org-en">اسم المنظمة (بالإنجليزية) <span class="opt">(اختياري)</span></label>
-        <input type="text" id="org-name-en" placeholder="Ameen Consulting Co." dir="ltr" />
-      </div>
-      <div class="field-row">
-        <div class="fg">
-          <label id="lbl-org-email">البريد الرسمي للمنظمة</label>
-          <input type="email" id="org-email" placeholder="info@company.com" dir="ltr" />
-          <div class="field-err" id="err-org-email" style="display:none"></div>
-        </div>
-        <div class="fg">
-          <label id="lbl-org-phone">رقم الهاتف <span class="opt">(اختياري)</span></label>
-          <input type="tel" id="org-phone" placeholder="+966 5X XXX XXXX" dir="ltr" />
-        </div>
-      </div>
-    </div>
-
-    <!-- Individual fields -->
-    <div id="ind-fields" style="display:none">
-      <div class="fg">
-        <label id="lbl-ind-name">الاسم الكامل</label>
-        <input type="text" id="ind-name" placeholder="محمد العتيبي" />
-        <div class="field-err" id="err-ind-name" style="display:none"></div>
-      </div>
-      <div class="field-row">
-        <div class="fg">
-          <label id="lbl-ind-email">البريد الإلكتروني</label>
-          <input type="email" id="ind-email" placeholder="me@example.com" dir="ltr" />
-          <div class="field-err" id="err-ind-email" style="display:none"></div>
-        </div>
-        <div class="fg">
-          <label id="lbl-ind-phone">رقم الهاتف <span class="opt">(اختياري)</span></label>
-          <input type="tel" id="ind-phone" placeholder="+966 5X XXX XXXX" dir="ltr" />
-        </div>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn-back" onclick="window.location.href='/landing.html'" id="btn-s2-back">→ رجوع</button>
-      <button class="btn-next" onclick="goStep(3)" id="btn-s2-next">التالي ←</button>
+    <div class="fg">
+      <label id="lbl-phone">رقم الهاتف <span class="opt">(اختياري)</span></label>
+      <input type="tel" id="phone" placeholder="+966 5X XXX XXXX" dir="ltr" />
     </div>
   </div>
 
-  <!-- STEP 3: Admin account -->
-  <div class="step-panel" id="step3">
-    <div class="step-title" id="s3-title">بيانات الدخول</div>
-    <div class="step-sub" id="s3-sub">أنشئ بيانات دخول حسابك</div>
-    <div class="fg">
-      <label id="lbl-admin-name">الاسم الكامل</label>
-      <input type="text" id="admin-name" placeholder="محمد العتيبي" />
-      <div class="field-err" id="err-admin-name" style="display:none"></div>
+  <!-- Password -->
+  <div class="fg">
+    <label id="lbl-pw">كلمة المرور</label>
+    <div class="pw-wrap">
+      <input type="password" id="password" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+      <button type="button" class="eye" onclick="togglePw(this)">👁</button>
     </div>
-    <div class="fg">
-      <label id="lbl-admin-email">البريد الإلكتروني</label>
-      <input type="email" id="admin-email" placeholder="admin@company.com" dir="ltr" />
-      <div class="field-err" id="err-admin-email" style="display:none"></div>
-    </div>
-    <div class="fg">
-      <label id="lbl-pw">كلمة المرور</label>
-      <div class="pw-wrap">
-        <input type="password" id="password" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-        <button type="button" class="eye" onclick="togglePw('password',this)">👁</button>
-      </div>
-      <div class="sbar">
-        <div class="seg" id="s1s"></div>
-        <div class="seg" id="s2s"></div>
-        <div class="seg" id="s3s"></div>
-        <div class="seg" id="s4s"></div>
-      </div>
-      <div class="pw-hint" id="pw-hint"></div>
-    </div>
-    <div class="fg">
-      <label id="lbl-cpw">تأكيد كلمة المرور</label>
-      <div class="pw-wrap">
-        <input type="password" id="confirm-pw" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-        <button type="button" class="eye" onclick="togglePw('confirm-pw',this)">👁</button>
-      </div>
-      <div class="field-err" id="err-cpw" style="display:none"></div>
-    </div>
-    <label class="terms-row">
-      <input type="checkbox" id="terms-chk" />
-      <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
-    </label>
-    <div class="btn-row">
-      <button class="btn-back" onclick="goStep(2)" id="btn-s3-back">→ رجوع</button>
-      <button class="btn-submit" id="submit-btn" onclick="submitForm()"><span id="btn-text">إنشاء الحساب</span></button>
-    </div>
+    <div class="field-err" id="err-pw"></div>
   </div>
+
+  <!-- Terms -->
+  <label class="terms-row">
+    <input type="checkbox" id="terms-chk" />
+    <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
+  </label>
+
+  <button class="btn-submit" id="submit-btn" onclick="submitForm()">
+    <span id="btn-text">إنشاء الحساب</span>
+  </button>
 
   <div class="foot-link">
     <span id="signin-txt">لديك حساب بالفعل؟</span>
@@ -445,53 +217,44 @@
 <script>
 const T = {
   ar: {
-    badge: ['الخطوة 1 من 2','الخطوة 2 من 2'],
-    si: ['التفاصيل','الحساب'],
+    title: 'إنشاء حساب',
     typeOrg: 'منظمة', typeInd: 'فرد',
-    s2title: 'بياناتك', s2sub: 'اختر نوع الحساب وأدخل بياناتك',
-    s3title: 'بيانات الدخول', s3sub: 'أنشئ بيانات دخول حسابك',
-    lblOrgAr: 'اسم المنظمة (بالعربية)', lblOrgEn: 'اسم المنظمة (بالإنجليزية)',
-    lblOrgEmail: 'البريد الرسمي للمنظمة', lblOrgPhone: 'رقم الهاتف',
-    lblIndName: 'الاسم الكامل', lblIndEmail: 'البريد الإلكتروني', lblIndPhone: 'رقم الهاتف',
-    lblName: 'الاسم الكامل', lblEmail: 'البريد الإلكتروني', lblPw: 'كلمة المرور', lblCpw: 'تأكيد كلمة المرور',
-    next: 'التالي ←', back: '→ رجوع', submit: 'إنشاء الحساب', loading: 'جارٍ إنشاء الحساب...',
+    lblOrgName: 'اسم المنظمة', lblPersonName: 'اسم المسؤول',
+    lblEmail: 'البريد الإلكتروني', lblPhone: 'رقم الهاتف',
+    lblPw: 'كلمة المرور',
+    submit: 'إنشاء الحساب', loading: 'جارٍ إنشاء الحساب...',
     signinTxt: 'لديك حساب بالفعل؟', signinLink: ' تسجيل الدخول',
     terms: 'أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية',
-    errOrgAr: 'اسم المنظمة (عربي) مطلوب', errOrgEmail: 'يرجى إدخال بريد إلكتروني صحيح للمنظمة',
-    errIndName: 'الاسم مطلوب', errIndEmail: 'يرجى إدخال بريد إلكتروني صحيح',
-    errName: 'الاسم مطلوب', errEmail: 'يرجى إدخال بريد إلكتروني صحيح',
-    errEmailUsed: 'هذا البريد مسجّل مسبقاً', errPw: 'كلمة المرور يجب أن لا تقل عن 8 أحرف',
-    errCpw: 'كلمتا المرور غير متطابقتين', errTerms: 'يجب الموافقة على الشروط',
+    orgPh: 'شركة الأمانة للاستشارات', personPh: 'محمد العتيبي',
+    errOrgName: 'اسم المنظمة مطلوب',
+    errPersonName: 'الاسم مطلوب',
+    errEmail: 'يرجى إدخال بريد إلكتروني صحيح',
+    errEmailUsed: 'هذا البريد مسجّل مسبقاً',
+    errPw: 'كلمة المرور يجب أن لا تقل عن 8 أحرف',
+    errTerms: 'يجب الموافقة على الشروط',
     errNetwork: 'خطأ في الاتصال بالخادم',
-    pwWeak: 'ضعيفة', pwFair: 'مقبولة', pwGood: 'جيدة', pwStrong: 'قوية جداً',
-    namePh: 'محمد العتيبي',
   },
   en: {
-    badge: ['Step 1 of 2','Step 2 of 2'],
-    si: ['Details','Account'],
+    title: 'Create Account',
     typeOrg: 'Organisation', typeInd: 'Individual',
-    s2title: 'Your Details', s2sub: 'Choose account type and enter your information',
-    s3title: 'Login Credentials', s3sub: 'Create your account login',
-    lblOrgAr: 'Organisation name (Arabic)', lblOrgEn: 'Organisation name (English)',
-    lblOrgEmail: 'Official organisation email', lblOrgPhone: 'Phone number',
-    lblIndName: 'Full Name', lblIndEmail: 'Email Address', lblIndPhone: 'Phone number',
-    lblName: 'Full Name', lblEmail: 'Email Address', lblPw: 'Password', lblCpw: 'Confirm Password',
-    next: 'Next →', back: '← Back', submit: 'Create Account', loading: 'Creating account...',
+    lblOrgName: 'Organisation Name', lblPersonName: 'Your Name',
+    lblEmail: 'Email Address', lblPhone: 'Phone Number',
+    lblPw: 'Password',
+    submit: 'Create Account', loading: 'Creating account...',
     signinTxt: 'Already have an account?', signinLink: ' Sign in',
     terms: 'I agree to the <a href="#">Terms of Use</a> and Privacy Policy',
-    errOrgAr: 'Organisation name (Arabic) is required', errOrgEmail: 'Please enter a valid organisation email',
-    errIndName: 'Full name is required', errIndEmail: 'Please enter a valid email address',
-    errName: 'Full name is required', errEmail: 'Please enter a valid email address',
-    errEmailUsed: 'This email is already registered', errPw: 'Password must be at least 8 characters',
-    errCpw: 'Passwords do not match', errTerms: 'You must agree to the terms',
+    orgPh: 'Ameen Consulting Co.', personPh: 'Ahmad Al-Otaibi',
+    errOrgName: 'Organisation name is required',
+    errPersonName: 'Your name is required',
+    errEmail: 'Please enter a valid email address',
+    errEmailUsed: 'This email is already registered',
+    errPw: 'Password must be at least 8 characters',
+    errTerms: 'You must agree to the terms',
     errNetwork: 'Could not connect to the server',
-    pwWeak: 'Weak', pwFair: 'Fair', pwGood: 'Good', pwStrong: 'Strong',
-    namePh: 'Ahmad Al-Otaibi',
   }
 };
 
 let lang = localStorage.getItem('lang') || 'ar';
-let step = 2;
 let accountType = 'org';
 let selectedPlan = (new URLSearchParams(window.location.search)).get('plan') || 'free_trial';
 
@@ -499,8 +262,7 @@ function setType(type) {
   accountType = type;
   document.getElementById('type-org').classList.toggle('active', type === 'org');
   document.getElementById('type-ind').classList.toggle('active', type === 'individual');
-  document.getElementById('org-fields').style.display = type === 'org' ? '' : 'none';
-  document.getElementById('ind-fields').style.display = type === 'individual' ? '' : 'none';
+  document.getElementById('org-name-wrap').style.display = type === 'org' ? '' : 'none';
   clearErrs();
 }
 
@@ -512,95 +274,25 @@ function setLang(l) {
   document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
   document.getElementById('btn-en').classList.toggle('on', l === 'en');
   const t = T[l];
-  document.getElementById('si1-lbl').textContent = t.si[0];
-  document.getElementById('si2-lbl').textContent = t.si[1];
-  document.getElementById('type-org-lbl').textContent = t.typeOrg;
-  document.getElementById('type-ind-lbl').textContent = t.typeInd;
-  document.getElementById('s2-title').textContent = t.s2title;
-  document.getElementById('s2-sub').textContent   = t.s2sub;
-  document.getElementById('s3-title').textContent = t.s3title;
-  document.getElementById('s3-sub').textContent   = t.s3sub;
-  document.getElementById('lbl-org-ar').textContent    = t.lblOrgAr;
-  document.getElementById('lbl-org-en').firstChild.textContent = t.lblOrgEn + ' ';
-  document.getElementById('lbl-org-email').textContent = t.lblOrgEmail;
-  document.getElementById('lbl-org-phone').firstChild.textContent = t.lblOrgPhone + ' ';
-  document.getElementById('lbl-ind-name').textContent  = t.lblIndName;
-  document.getElementById('lbl-ind-email').textContent = t.lblIndEmail;
-  document.getElementById('lbl-ind-phone').firstChild.textContent = t.lblIndPhone + ' ';
-  document.getElementById('lbl-admin-name').textContent = t.lblName;
-  document.getElementById('lbl-admin-email').textContent = t.lblEmail;
-  document.getElementById('lbl-pw').textContent  = t.lblPw;
-  document.getElementById('lbl-cpw').textContent = t.lblCpw;
-  document.getElementById('btn-s2-back').textContent = t.back;
-  document.getElementById('btn-s2-next').textContent = t.next;
-  document.getElementById('btn-s3-back').textContent = t.back;
-  document.getElementById('btn-text').textContent    = t.submit;
-  document.getElementById('signin-txt').textContent  = t.signinTxt;
-  document.getElementById('signin-link').textContent = t.signinLink;
-  document.getElementById('terms-txt').innerHTML     = t.terms;
-  document.getElementById('admin-name').placeholder  = t.namePh;
-  document.getElementById('admin-name').dir = l === 'ar' ? 'rtl' : 'ltr';
-  document.getElementById('ind-name').dir   = l === 'ar' ? 'rtl' : 'ltr';
-  updateProgress();
+  document.getElementById('form-title').textContent     = t.title;
+  document.getElementById('type-org-lbl').textContent   = t.typeOrg;
+  document.getElementById('type-ind-lbl').textContent   = t.typeInd;
+  document.getElementById('lbl-org-name').textContent   = t.lblOrgName;
+  document.getElementById('lbl-person-name').textContent = t.lblPersonName;
+  document.getElementById('lbl-email').textContent      = t.lblEmail;
+  document.getElementById('lbl-phone').firstChild.textContent = t.lblPhone + ' ';
+  document.getElementById('lbl-pw').textContent         = t.lblPw;
+  document.getElementById('btn-text').textContent       = t.submit;
+  document.getElementById('signin-txt').textContent     = t.signinTxt;
+  document.getElementById('signin-link').textContent    = t.signinLink;
+  document.getElementById('terms-txt').innerHTML        = t.terms;
+  document.getElementById('org-name-ar').placeholder   = t.orgPh;
+  document.getElementById('person-name').placeholder   = t.personPh;
+  document.getElementById('person-name').dir = l === 'ar' ? 'rtl' : 'ltr';
 }
 
-function updateProgress() {
-  const t = T[lang];
-  const idx = step - 2;
-  document.getElementById('step-badge').textContent = t.badge[Math.max(0, idx)];
-  [1, 2].forEach(i => {
-    const si = document.getElementById('si' + i);
-    const sd = document.getElementById('sd' + i);
-    const isActive = i === (step - 1);
-    const isDone   = i < (step - 1);
-    si.className = 'step-item' + (isActive ? ' active' : isDone ? ' done' : '');
-    sd.className = 'si-dot'    + (isActive ? ' active' : isDone ? ' done' : '');
-    sd.textContent = isDone ? '✓' : String(i);
-  });
-}
-
-function goStep(n) {
-  const t = T[lang];
-  if (n > step) {
-    if (step === 2) {
-      let ok = true;
-      clearErrs();
-      if (accountType === 'org') {
-        const orgAr    = document.getElementById('org-name-ar').value.trim();
-        const orgEmail = document.getElementById('org-email').value.trim();
-        if (!orgAr) { fieldErr('err-org-ar', t.errOrgAr); ok = false; }
-        if (!orgEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(orgEmail)) { fieldErr('err-org-email', t.errOrgEmail); ok = false; }
-      } else {
-        const indName  = document.getElementById('ind-name').value.trim();
-        const indEmail = document.getElementById('ind-email').value.trim();
-        if (!indName)  { fieldErr('err-ind-name',  t.errIndName);  ok = false; }
-        if (!indEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(indEmail)) { fieldErr('err-ind-email', t.errIndEmail); ok = false; }
-      }
-      if (!ok) return;
-    }
-  }
-  clearAlert();
-  ['step2','step3'].forEach(id => document.getElementById(id).classList.remove('visible'));
-  document.getElementById('step' + n).classList.add('visible');
-  step = n;
-  updateProgress();
-}
-
-document.getElementById('password').addEventListener('input', function() {
-  const v = this.value;
-  const score = [v.length >= 8, /[A-Z]/.test(v), /[0-9]/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
-  ['s1s','s2s','s3s','s4s'].forEach((id, i) => {
-    const s = document.getElementById(id);
-    s.className = 'seg' + (i < score ? ' ' + ['','weak','fair','good','strong'][score] : '');
-  });
-  const hint = document.getElementById('pw-hint');
-  const lbl = [null, T[lang].pwWeak, T[lang].pwFair, T[lang].pwGood, T[lang].pwStrong];
-  hint.textContent = v.length ? (lbl[score] || '') : '';
-  hint.style.color = score <= 1 ? 'var(--red)' : score === 2 ? '#f0a030' : 'var(--green)';
-});
-
-function togglePw(id, btn) {
-  const inp = document.getElementById(id);
+function togglePw(btn) {
+  const inp = document.getElementById('password');
   const show = inp.type === 'password';
   inp.type = show ? 'text' : 'password';
   btn.textContent = show ? '🙈' : '👁';
@@ -608,26 +300,27 @@ function togglePw(id, btn) {
 
 function showAlert(msg, type) { const el = document.getElementById('alert-box'); el.innerHTML = msg; el.className = 'alert ' + type; }
 function clearAlert() { const el = document.getElementById('alert-box'); el.className = 'alert'; el.textContent = ''; }
-function fieldErr(id, msg) { const el = document.getElementById(id); if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; } }
+function fieldErr(id, msg) { const el = document.getElementById(id); if (el) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; } }
 function clearErrs() {
-  ['err-org-ar','err-org-email','err-ind-name','err-ind-email','err-admin-name','err-admin-email','err-cpw'].forEach(id => fieldErr(id, ''));
+  ['err-org-name','err-person-name','err-email','err-pw'].forEach(id => fieldErr(id, ''));
   document.querySelectorAll('.err').forEach(i => i.classList.remove('err'));
 }
 
 async function submitForm() {
   clearErrs(); clearAlert();
   const t = T[lang];
-  const adminName  = document.getElementById('admin-name').value.trim();
-  const adminEmail = document.getElementById('admin-email').value.trim().toLowerCase();
+  const orgName   = document.getElementById('org-name-ar').value.trim();
+  const personName = document.getElementById('person-name').value.trim();
+  const email      = document.getElementById('email').value.trim().toLowerCase();
+  const phone      = document.getElementById('phone').value.trim();
   const pw         = document.getElementById('password').value;
-  const cpw        = document.getElementById('confirm-pw').value;
   const agreed     = document.getElementById('terms-chk').checked;
 
   let ok = true;
-  if (!adminName)  { fieldErr('err-admin-name',  t.errName);  ok = false; }
-  if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) { fieldErr('err-admin-email', t.errEmail); ok = false; }
-  if (pw.length < 8) { showAlert(t.errPw, 'error'); ok = false; }
-  else if (pw !== cpw) { fieldErr('err-cpw', t.errCpw); ok = false; }
+  if (accountType === 'org' && !orgName) { fieldErr('err-org-name', t.errOrgName); ok = false; }
+  if (!personName) { fieldErr('err-person-name', t.errPersonName); ok = false; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fieldErr('err-email', t.errEmail); ok = false; }
+  if (pw.length < 8) { fieldErr('err-pw', t.errPw); ok = false; }
   if (!agreed) { showAlert(t.errTerms, 'error'); ok = false; }
   if (!ok) return;
 
@@ -635,28 +328,36 @@ async function submitForm() {
   btn.disabled = true;
   document.getElementById('btn-text').textContent = t.loading;
 
-  const isOrg = accountType === 'org';
   const payload = {
     accountType,
-    orgNameAr: isOrg ? document.getElementById('org-name-ar').value.trim() : document.getElementById('ind-name').value.trim(),
-    orgNameEn: isOrg ? document.getElementById('org-name-en').value.trim() : '',
-    orgEmail:  isOrg ? document.getElementById('org-email').value.trim()   : document.getElementById('ind-email').value.trim(),
-    orgPhone:  isOrg ? document.getElementById('org-phone').value.trim()   : document.getElementById('ind-phone').value.trim(),
-    planSlug: selectedPlan,
-    adminName,
-    email: adminEmail,
-    password: pw
+    orgNameAr: accountType === 'org' ? orgName : personName,
+    orgNameEn: '',
+    orgEmail:  email,
+    orgPhone:  phone,
+    planSlug:  selectedPlan,
+    adminName: personName,
+    email,
+    password:  pw
   };
 
   try {
-    const res  = await fetch('/auth/signup', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+    const res  = await fetch('/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
     const data = await res.json();
     if ((res.ok || res.status === 201) && data.success && data.pending) {
       showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ إرسال رمز التحقق...' : '✅ Account created! Sending verification code…', 'success');
       setTimeout(() => window.location.replace('/verify-email.html?email=' + encodeURIComponent(data.email)), 1200);
     } else {
-      if (data.error?.includes('email')) { fieldErr('err-admin-email', t.errEmailUsed); document.getElementById('admin-email').classList.add('err'); }
-      else showAlert(data.error || t.errNetwork, 'error');
+      if (data.error?.toLowerCase().includes('email')) {
+        fieldErr('err-email', t.errEmailUsed);
+        document.getElementById('email').classList.add('err');
+      } else {
+        showAlert(data.error || t.errNetwork, 'error');
+      }
       btn.disabled = false;
       document.getElementById('btn-text').textContent = t.submit;
     }
@@ -669,7 +370,6 @@ async function submitForm() {
 
 // Init
 setLang(lang);
-updateProgress();
 </script>
 </body>
 </html>
