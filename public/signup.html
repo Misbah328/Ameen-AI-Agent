@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ameen Secretary — تسجيل المنظمة</title>
+  <title>Ameen Secretary — إنشاء حساب</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -12,203 +12,343 @@
       --gold: #C9A84C; --gold-light: #e2c46a; --gold-dim: rgba(201,168,76,0.13);
       --navy: #0a0c14; --navy2: #0f1728; --navy3: #12151f; --navy4: #1a1e2e;
       --border: rgba(255,255,255,0.08); --text: #f0f1f5; --text2: #b4b8cc; --text3: #6b7190;
-      --red: #e05a5a; --green: #3cc47c; --blue: #4a90d9;
+      --red: #e05a5a; --green: #3cc47c;
     }
     html, body { height: 100%; }
-    body { font-family: 'Inter','Segoe UI',system-ui,sans-serif; background: var(--navy); color: var(--text); min-height: 100vh; display: flex; align-items: stretch; }
+    body {
+      font-family: 'Inter','Segoe UI',system-ui,sans-serif;
+      background: var(--navy);
+      background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 70%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
 
-    /* BRAND PANEL */
-    .brand { flex: 0 0 380px; background: linear-gradient(145deg,#0d1f3c 0%,#0a0c14 50%,#12100a 100%); position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 2rem; overflow: hidden; }
-    .brand::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; border:1px solid rgba(201,168,76,0.1); top:-120px; left:-120px; pointer-events:none; }
-    .brand::after  { content:''; position:absolute; width:340px; height:340px; border-radius:50%; border:1px solid rgba(201,168,76,0.07); bottom:-80px; right:-80px; pointer-events:none; }
-    .brand-glow { position:absolute; width:300px; height:300px; background:radial-gradient(ellipse,rgba(201,168,76,0.12) 0%,transparent 70%); top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none; }
-    .brand-inner { position:relative; z-index:1; text-align:center; width:100%; }
-    .brand-logo { width:84px; height:84px; object-fit:contain; filter:drop-shadow(0 4px 24px rgba(201,168,76,0.35)); margin-bottom:1.2rem; }
-    .brand-name { font-size:1.4rem; font-weight:800; color:var(--text); letter-spacing:-0.02em; margin-bottom:0.35rem; }
-    .brand-name span { color:var(--gold); }
-    .brand-tag { font-size:0.8rem; color:var(--text3); line-height:1.7; max-width:240px; margin:0 auto 2rem; }
-    /* Progress indicator */
-    .prog-wrap { display:flex; flex-direction:column; gap:0; width:100%; }
-    .prog-step { display:flex; align-items:flex-start; gap:0.85rem; padding:0.85rem 0; position:relative; }
-    .prog-step:not(:last-child)::after { content:''; position:absolute; width:2px; height:calc(100% - 16px); background:rgba(255,255,255,0.07); top:calc(50% + 12px); inset-inline-start:13px; }
-    .prog-dot { width:28px; height:28px; border-radius:50%; border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:800; color:var(--text3); flex-shrink:0; background:var(--navy); transition:all 0.3s; }
-    .prog-dot.done { background:var(--green); border-color:var(--green); color:#fff; }
-    .prog-dot.active { background:var(--gold); border-color:var(--gold); color:#0f1728; }
-    .prog-body { flex:1; }
-    .prog-title { font-size:0.82rem; font-weight:700; color:var(--text2); margin-bottom:2px; transition:color 0.3s; }
-    .prog-sub { font-size:0.73rem; color:var(--text3); line-height:1.4; }
-    .prog-step.active .prog-title { color:var(--gold); }
-    .prog-step.done .prog-title { color:var(--green); }
+    /* Card */
+    .form-card {
+      width: 100%;
+      max-width: 500px;
+      background: var(--navy3);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.5rem 2.25rem 2rem;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    }
 
-    /* FORM PANEL */
-    .form-panel { flex:1; background:var(--navy3); display:flex; align-items:center; justify-content:center; padding:2rem 1.5rem; min-height:100vh; overflow-y:auto; }
-    .form-box { width:100%; max-width:460px; }
+    /* Logo at top */
+    .card-top {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .logo-link {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+    .card-logo {
+      width: 56px;
+      height: 56px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 16px rgba(201,168,76,0.35));
+    }
+    .card-brand {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .card-brand span { color: var(--gold); }
 
     /* Top bar */
-    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem; }
-    .step-badge { font-size:0.75rem; font-weight:700; color:var(--text3); background:var(--navy4); border:1px solid var(--border); border-radius:20px; padding:0.25rem 0.8rem; }
-    .lang-sw { display:flex; gap:0.3rem; }
-    .lang-sw button { background:none; border:1px solid var(--border); color:var(--text3); padding:0.22rem 0.75rem; border-radius:20px; cursor:pointer; font-size:0.75rem; font-family:inherit; transition:all 0.15s; }
-    .lang-sw button.on { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.6rem;
+    }
+    .step-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text3);
+      background: var(--navy4);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.25rem 0.85rem;
+    }
+    .lang-sw { display: flex; gap: 0.3rem; }
+    .lang-sw button {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      padding: 0.22rem 0.75rem;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .lang-sw button.on { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+
+    /* Inline step indicator */
+    .steps-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 2rem;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text3);
+      transition: color 0.3s;
+    }
+    .step-item.active { color: var(--gold); }
+    .step-item.done  { color: var(--green); }
+    .si-dot {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: var(--text3);
+      flex-shrink: 0;
+      background: var(--navy);
+      transition: all 0.3s;
+    }
+    .si-dot.active { background: var(--gold); border-color: var(--gold); color: #0f1728; }
+    .si-dot.done   { background: var(--green); border-color: var(--green); color: #fff; }
+    .steps-line {
+      flex: 1;
+      height: 2px;
+      background: rgba(255,255,255,0.07);
+      margin: 0 0.75rem;
+    }
 
     /* Step panels */
-    .step-panel { display:none; }
-    .step-panel.visible { display:block; }
+    .step-panel { display: none; }
+    .step-panel.visible { display: block; }
 
     /* Step title */
-    .step-title { font-size:1.5rem; font-weight:800; color:var(--text); letter-spacing:-0.02em; line-height:1.2; margin-bottom:0.5rem; }
-    .step-sub { font-size:0.84rem; color:var(--text3); margin-bottom:2rem; line-height:1.5; }
-
-    /* Plan cards */
-    .plan-grid { display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.5rem; }
-    .plan-card {
-      background:var(--navy4); border:2px solid var(--border); border-radius:14px;
-      padding:1.1rem 1.25rem; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden;
+    .step-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 0.4rem;
     }
-    .plan-card:hover { border-color:rgba(201,168,76,0.3); background:#1f2335; }
-    .plan-card.selected { border-color:var(--gold); background:rgba(201,168,76,0.06); }
-    .plan-card.featured { border-color:rgba(201,168,76,0.4); }
-    .plan-badge { position:absolute; top:0.6rem; inset-inline-end:0.75rem; background:var(--gold); color:#0f1728; font-size:0.65rem; font-weight:800; padding:0.2rem 0.6rem; border-radius:20px; }
-    .plan-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem; }
-    .plan-name { font-size:0.95rem; font-weight:800; color:var(--text); }
-    .plan-price { text-align:end; }
-    .plan-amount { font-size:1.1rem; font-weight:800; color:var(--gold); }
-    .plan-period { font-size:0.7rem; color:var(--text3); }
-    .plan-desc { font-size:0.78rem; color:var(--text3); margin-bottom:0.6rem; }
-    .plan-feats { display:flex; flex-wrap:wrap; gap:0.35rem; }
-    .plan-feat { font-size:0.7rem; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:6px; padding:0.15rem 0.5rem; color:var(--text2); }
-    .plan-radio { position:absolute; inset-inline-start:1.25rem; top:50%; transform:translateY(-50%); width:18px; height:18px; }
-    .plan-content { padding-inline-start:0; }
+    .step-sub { font-size: 0.83rem; color: var(--text3); margin-bottom: 1.5rem; line-height: 1.5; }
+
+    /* Account type toggle */
+    .type-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1.6rem;
+    }
+    .type-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 0.75rem;
+      background: var(--navy4);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--text3);
+      font-size: 0.88rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+    .type-btn:hover { border-color: rgba(201,168,76,0.3); color: var(--text2); }
+    .type-btn.active { border-color: var(--gold); background: rgba(201,168,76,0.08); color: var(--gold); }
+    .type-ic { font-size: 1.6rem; line-height: 1; }
 
     /* Fields */
-    .fg { margin-bottom:1rem; }
-    .field-row { display:grid; grid-template-columns:1fr 1fr; gap:0.85rem; }
-    label { display:block; font-size:0.77rem; font-weight:600; color:var(--text3); margin-bottom:0.38rem; letter-spacing:0.01em; }
+    .fg { margin-bottom: 1rem; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+    .opt { font-size: 0.7rem; color: var(--text3); font-weight: 400; }
+    label { display: block; font-size: 0.77rem; font-weight: 600; color: var(--text3); margin-bottom: 0.38rem; letter-spacing: 0.01em; }
     input[type=email], input[type=password], input[type=text], input[type=tel] {
-      width:100%; background:var(--navy4); border:1px solid var(--border); color:var(--text);
-      border-radius:10px; padding:0.78rem 1rem; font-size:0.92rem; font-family:inherit;
-      outline:none; transition:border-color 0.2s,box-shadow 0.2s; direction:ltr;
+      width: 100%;
+      background: var(--navy4);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 0.78rem 1rem;
+      font-size: 0.92rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      direction: ltr;
     }
-    input:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,168,76,0.12); }
-    input.err { border-color:var(--red); }
-    .field-err { font-size:0.72rem; color:var(--red); margin-top:0.3rem; }
-    .pw-wrap { position:relative; }
-    .pw-wrap input { padding-inline-end:2.8rem; }
-    .eye { position:absolute; inset-inline-end:0.85rem; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text3); cursor:pointer; font-size:0.95rem; line-height:1; padding:0; transition:color 0.15s; }
-    .eye:hover { color:var(--gold); }
-    /* Strength */
-    .sbar { display:flex; gap:3px; margin-top:0.45rem; }
-    .seg { flex:1; height:3px; border-radius:2px; background:var(--border); transition:background 0.3s; }
-    .seg.weak{background:var(--red);} .seg.fair{background:#f0a030;} .seg.good,.seg.strong{background:var(--green);}
-    .pw-hint { font-size:0.72rem; margin-top:0.3rem; color:var(--text3); }
+    input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
+    input.err { border-color: var(--red); }
+    .field-err { font-size: 0.72rem; color: var(--red); margin-top: 0.3rem; }
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-inline-end: 2.8rem; }
+    .eye {
+      position: absolute;
+      inset-inline-end: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 0.95rem;
+      line-height: 1;
+      padding: 0;
+      transition: color 0.15s;
+    }
+    .eye:hover { color: var(--gold); }
+
+    /* Strength bar */
+    .sbar { display: flex; gap: 3px; margin-top: 0.45rem; }
+    .seg { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.3s; }
+    .seg.weak { background: var(--red); }
+    .seg.fair { background: #f0a030; }
+    .seg.good, .seg.strong { background: var(--green); }
+    .pw-hint { font-size: 0.72rem; margin-top: 0.3rem; color: var(--text3); }
 
     /* Alert */
-    .alert { border-radius:10px; padding:0.7rem 1rem; font-size:0.82rem; margin-bottom:1rem; display:none; text-align:center; line-height:1.4; }
-    .alert.error { background:rgba(224,90,90,0.1); border:1px solid rgba(224,90,90,0.3); color:var(--red); display:block; }
-    .alert.success { background:rgba(60,196,124,0.1); border:1px solid rgba(60,196,124,0.3); color:var(--green); display:block; }
+    .alert { border-radius: 10px; padding: 0.7rem 1rem; font-size: 0.82rem; margin-bottom: 1rem; display: none; text-align: center; line-height: 1.4; }
+    .alert.error   { background: rgba(224,90,90,0.1); border: 1px solid rgba(224,90,90,0.3); color: var(--red); display: block; }
+    .alert.success { background: rgba(60,196,124,0.1); border: 1px solid rgba(60,196,124,0.3); color: var(--green); display: block; }
 
     /* Terms */
-    .terms-row { display:flex; align-items:flex-start; gap:0.65rem; margin-bottom:1.1rem; font-size:0.8rem; color:var(--text3); cursor:pointer; }
-    .terms-row input[type=checkbox] { width:16px; height:16px; flex-shrink:0; margin-top:1px; accent-color:var(--gold); direction:ltr; }
-    .terms-row a { color:var(--gold); text-decoration:none; }
+    .terms-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      margin-bottom: 1.1rem;
+      font-size: 0.8rem;
+      color: var(--text3);
+      cursor: pointer;
+    }
+    .terms-row input[type=checkbox] { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; accent-color: var(--gold); direction: ltr; }
+    .terms-row a { color: var(--gold); text-decoration: none; }
 
     /* Buttons */
-    .btn-row { display:flex; gap:0.75rem; }
-    .btn-back { flex:0 0 auto; background:none; border:1px solid var(--border); color:var(--text3); border-radius:10px; padding:0.88rem 1.2rem; font-size:0.9rem; font-family:inherit; cursor:pointer; transition:all 0.15s; }
-    .btn-back:hover { border-color:var(--gold); color:var(--gold); }
-    .btn-next, .btn-submit { flex:1; background:var(--gold); color:#0f1728; border:none; border-radius:10px; padding:0.9rem; font-size:0.97rem; font-weight:800; font-family:inherit; cursor:pointer; transition:opacity 0.2s,transform 0.1s; letter-spacing:0.01em; }
-    .btn-next:hover, .btn-submit:hover { opacity:0.9; }
-    .btn-next:active, .btn-submit:active { transform:scale(0.99); }
-    .btn-submit:disabled { opacity:0.4; cursor:not-allowed; }
+    .btn-row { display: flex; gap: 0.75rem; }
+    .btn-back {
+      flex: 0 0 auto;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      border-radius: 10px;
+      padding: 0.88rem 1.2rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-back:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-next, .btn-submit {
+      flex: 1;
+      background: var(--gold);
+      color: #0f1728;
+      border: none;
+      border-radius: 10px;
+      padding: 0.9rem;
+      font-size: 0.97rem;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.01em;
+    }
+    .btn-next:hover, .btn-submit:hover { opacity: 0.9; }
+    .btn-next:active, .btn-submit:active { transform: scale(0.99); }
+    .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* Footer */
-    .foot-link { text-align:center; font-size:0.82rem; color:var(--text3); margin-top:1.25rem; }
-    .foot-link a { color:var(--gold); text-decoration:none; font-weight:600; }
-    .foot-link a:hover { text-decoration:underline; }
+    .foot-link { text-align: center; font-size: 0.82rem; color: var(--text3); margin-top: 1.25rem; }
+    .foot-link a { color: var(--gold); text-decoration: none; font-weight: 600; }
+    .foot-link a:hover { text-decoration: underline; }
 
-    @media (max-width:720px) {
-      body { flex-direction:column; }
-      .brand { flex:none; min-height:auto; padding:2rem 1.5rem 1.5rem; }
-      .prog-wrap { display:none; }
-      .brand-logo { width:64px; height:64px; margin-bottom:0.75rem; }
-      .brand-name { font-size:1.15rem; }
-      .brand::before, .brand::after { display:none; }
-      .form-panel { min-height:auto; padding:2rem 1.25rem 3rem; }
-      .field-row { grid-template-columns:1fr; }
+    @media (max-width: 560px) {
+      body { padding: 1.25rem 0.75rem; align-items: flex-start; }
+      .form-card { padding: 2rem 1.25rem 1.75rem; border-radius: 16px; }
+      .field-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
-<!-- Brand -->
-<aside class="brand">
-  <div class="brand-glow"></div>
-  <div class="brand-inner">
-    <a href="/landing.html" style="display:block;text-decoration:none;cursor:pointer;" onclick="window.location.href='/landing.html';return false;">
-    <img src="/logo.png" alt="Ameen" class="brand-logo" style="pointer-events:none;"/>
-    <div class="brand-name" style="pointer-events:none;">أمـيـن <span>Secretary</span></div>
+<div class="form-card">
+
+  <!-- Logo -->
+  <div class="card-top">
+    <a href="/landing.html" class="logo-link">
+      <img src="/logo.png" alt="Ameen" class="card-logo" />
+      <span class="card-brand">أمـيـن <span>Secretary</span></span>
     </a>
-    <p class="brand-tag" id="brand-tag">نظام الأمانة التنفيذية الذكية للمؤسسات</p>
-    <div class="prog-wrap" id="prog-wrap">
-      <div class="prog-step" id="ps0" style="display:none">
-        <div class="prog-dot" id="pd0">1</div>
-        <div class="prog-body">
-          <div class="prog-title" id="pt0">اختيار الخطة</div>
-          <div class="prog-sub" id="ps0s">تجربة مجانية أو Premium أو Pro</div>
-        </div>
-      </div>
-      <div class="prog-step" id="ps1">
-        <div class="prog-dot" id="pd1">2</div>
-        <div class="prog-body">
-          <div class="prog-title" id="pt1">بيانات المنظمة</div>
-          <div class="prog-sub" id="ps1s">اسم المنظمة وبيانات التواصل</div>
-        </div>
-      </div>
-      <div class="prog-step" id="ps2">
-        <div class="prog-dot" id="pd2">3</div>
-        <div class="prog-body">
-          <div class="prog-title" id="pt2">حساب المسؤول</div>
-          <div class="prog-sub" id="ps2s">بيانات الدخول للمسؤول الرئيسي</div>
-        </div>
-      </div>
+  </div>
+
+  <!-- Top bar: badge + lang -->
+  <div class="top-bar">
+    <div class="step-badge" id="step-badge">الخطوة 1 من 2</div>
+    <div class="lang-sw">
+      <button id="btn-ar" onclick="setLang('ar')">عربي</button>
+      <button id="btn-en" onclick="setLang('en')">English</button>
     </div>
   </div>
-</aside>
 
-<!-- Form -->
-<main class="form-panel">
-  <div class="form-box">
-    <div class="top-bar">
-      <div class="step-badge" id="step-badge">الخطوة 1 من 2</div>
-      <div class="lang-sw">
-        <button id="btn-ar" onclick="setLang('ar')">عربي</button>
-        <button id="btn-en" onclick="setLang('en')">English</button>
-      </div>
+  <!-- Inline step indicator -->
+  <div class="steps-row">
+    <div class="step-item" id="si1">
+      <div class="si-dot" id="sd1">1</div>
+      <span id="si1-lbl">التفاصيل</span>
+    </div>
+    <div class="steps-line"></div>
+    <div class="step-item" id="si2">
+      <div class="si-dot" id="sd2">2</div>
+      <span id="si2-lbl">الحساب</span>
+    </div>
+  </div>
+
+  <div class="alert" id="alert-box"></div>
+
+  <!-- STEP 2: Details -->
+  <div class="step-panel visible" id="step2">
+    <div class="step-title" id="s2-title">بياناتك</div>
+    <div class="step-sub" id="s2-sub">اختر نوع الحساب وأدخل بياناتك</div>
+
+    <!-- Account type -->
+    <div class="type-row">
+      <button class="type-btn active" id="type-org" onclick="setType('org')">
+        <span class="type-ic">🏢</span>
+        <span id="type-org-lbl">منظمة</span>
+      </button>
+      <button class="type-btn" id="type-ind" onclick="setType('individual')">
+        <span class="type-ic">👤</span>
+        <span id="type-ind-lbl">فرد</span>
+      </button>
     </div>
 
-    <div class="alert" id="alert-box"></div>
-
-    <!-- STEP 1: Plan (hidden — plan selected from landing page) -->
-    <div class="step-panel" id="step1" style="display:none">
-      <div class="step-title" id="s1-title">اختر خطتك</div>
-      <div class="step-sub" id="s1-sub">ابدأ بتجربة مجانية 7 أيام أو اختر الخطة المناسبة لمنظمتك</div>
-      <div class="plan-grid" id="plan-grid">
-        <!-- Plans injected by JS -->
-      </div>
-      <button class="btn-next" onclick="goStep(2)" id="btn-s1-next">التالي ←</button>
-    </div>
-
-    <!-- STEP 2: Organisation -->
-    <div class="step-panel visible" id="step2">
-      <div class="step-title" id="s2-title">بيانات المنظمة</div>
-      <div class="step-sub" id="s2-sub">أدخل معلومات منظمتك أو شركتك</div>
+    <!-- Org fields -->
+    <div id="org-fields">
       <div class="fg">
         <label id="lbl-org-ar">اسم المنظمة (بالعربية)</label>
         <input type="text" id="org-name-ar" placeholder="شركة الأمانة للاستشارات" />
         <div class="field-err" id="err-org-ar" style="display:none"></div>
       </div>
       <div class="fg">
-        <label id="lbl-org-en">اسم المنظمة (بالإنجليزية) <span style="font-size:0.7rem;color:var(--text3)">(اختياري)</span></label>
+        <label id="lbl-org-en">اسم المنظمة (بالإنجليزية) <span class="opt">(اختياري)</span></label>
         <input type="text" id="org-name-en" placeholder="Ameen Consulting Co." dir="ltr" />
       </div>
       <div class="field-row">
@@ -218,276 +358,245 @@
           <div class="field-err" id="err-org-email" style="display:none"></div>
         </div>
         <div class="fg">
-          <label id="lbl-org-phone">رقم الهاتف <span style="font-size:0.7rem;color:var(--text3)">(اختياري)</span></label>
+          <label id="lbl-org-phone">رقم الهاتف <span class="opt">(اختياري)</span></label>
           <input type="tel" id="org-phone" placeholder="+966 5X XXX XXXX" dir="ltr" />
         </div>
       </div>
-      <div class="btn-row">
-        <button class="btn-back" onclick="window.location.href='/landing.html'" id="btn-s2-back">→ رجوع</button>
-        <button class="btn-next" onclick="goStep(3)" id="btn-s2-next">التالي ←</button>
+    </div>
+
+    <!-- Individual fields -->
+    <div id="ind-fields" style="display:none">
+      <div class="fg">
+        <label id="lbl-ind-name">الاسم الكامل</label>
+        <input type="text" id="ind-name" placeholder="محمد العتيبي" />
+        <div class="field-err" id="err-ind-name" style="display:none"></div>
+      </div>
+      <div class="field-row">
+        <div class="fg">
+          <label id="lbl-ind-email">البريد الإلكتروني</label>
+          <input type="email" id="ind-email" placeholder="me@example.com" dir="ltr" />
+          <div class="field-err" id="err-ind-email" style="display:none"></div>
+        </div>
+        <div class="fg">
+          <label id="lbl-ind-phone">رقم الهاتف <span class="opt">(اختياري)</span></label>
+          <input type="tel" id="ind-phone" placeholder="+966 5X XXX XXXX" dir="ltr" />
+        </div>
       </div>
     </div>
 
-    <!-- STEP 3: Admin account -->
-    <div class="step-panel" id="step3">
-      <div class="step-title" id="s3-title">حساب المسؤول</div>
-      <div class="step-sub" id="s3-sub">بيانات الدخول للمسؤول الرئيسي للمنظمة</div>
-      <div class="fg">
-        <label id="lbl-admin-name">الاسم الكامل</label>
-        <input type="text" id="admin-name" placeholder="محمد العتيبي" />
-        <div class="field-err" id="err-admin-name" style="display:none"></div>
-      </div>
-      <div class="fg">
-        <label id="lbl-admin-email">البريد الإلكتروني</label>
-        <input type="email" id="admin-email" placeholder="admin@company.com" dir="ltr" />
-        <div class="field-err" id="err-admin-email" style="display:none"></div>
-      </div>
-      <div class="fg">
-        <label id="lbl-pw">كلمة المرور</label>
-        <div class="pw-wrap">
-          <input type="password" id="password" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-          <button type="button" class="eye" onclick="togglePw('password',this)">👁</button>
-        </div>
-        <div class="sbar"><div class="seg" id="s1s"></div><div class="seg" id="s2s"></div><div class="seg" id="s3s"></div><div class="seg" id="s4s"></div></div>
-        <div class="pw-hint" id="pw-hint"></div>
-      </div>
-      <div class="fg">
-        <label id="lbl-cpw">تأكيد كلمة المرور</label>
-        <div class="pw-wrap">
-          <input type="password" id="confirm-pw" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
-          <button type="button" class="eye" onclick="togglePw('confirm-pw',this)">👁</button>
-        </div>
-        <div class="field-err" id="err-cpw" style="display:none"></div>
-      </div>
-      <label class="terms-row">
-        <input type="checkbox" id="terms-chk" />
-        <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
-      </label>
-      <div class="btn-row">
-        <button class="btn-back" onclick="goStep(2)" id="btn-s3-back">→ رجوع</button>
-        <button class="btn-submit" id="submit-btn" onclick="submitForm()"><span id="btn-text">إنشاء الحساب</span></button>
-      </div>
-    </div>
-
-    <div class="foot-link">
-      <span id="signin-txt">لديك حساب بالفعل؟</span>
-      <a href="/login.html" id="signin-link"> تسجيل الدخول</a>
+    <div class="btn-row">
+      <button class="btn-back" onclick="window.location.href='/landing.html'" id="btn-s2-back">→ رجوع</button>
+      <button class="btn-next" onclick="goStep(3)" id="btn-s2-next">التالي ←</button>
     </div>
   </div>
-</main>
+
+  <!-- STEP 3: Admin account -->
+  <div class="step-panel" id="step3">
+    <div class="step-title" id="s3-title">بيانات الدخول</div>
+    <div class="step-sub" id="s3-sub">أنشئ بيانات دخول حسابك</div>
+    <div class="fg">
+      <label id="lbl-admin-name">الاسم الكامل</label>
+      <input type="text" id="admin-name" placeholder="محمد العتيبي" />
+      <div class="field-err" id="err-admin-name" style="display:none"></div>
+    </div>
+    <div class="fg">
+      <label id="lbl-admin-email">البريد الإلكتروني</label>
+      <input type="email" id="admin-email" placeholder="admin@company.com" dir="ltr" />
+      <div class="field-err" id="err-admin-email" style="display:none"></div>
+    </div>
+    <div class="fg">
+      <label id="lbl-pw">كلمة المرور</label>
+      <div class="pw-wrap">
+        <input type="password" id="password" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+        <button type="button" class="eye" onclick="togglePw('password',this)">👁</button>
+      </div>
+      <div class="sbar">
+        <div class="seg" id="s1s"></div>
+        <div class="seg" id="s2s"></div>
+        <div class="seg" id="s3s"></div>
+        <div class="seg" id="s4s"></div>
+      </div>
+      <div class="pw-hint" id="pw-hint"></div>
+    </div>
+    <div class="fg">
+      <label id="lbl-cpw">تأكيد كلمة المرور</label>
+      <div class="pw-wrap">
+        <input type="password" id="confirm-pw" autocomplete="new-password" placeholder="••••••••" dir="ltr" />
+        <button type="button" class="eye" onclick="togglePw('confirm-pw',this)">👁</button>
+      </div>
+      <div class="field-err" id="err-cpw" style="display:none"></div>
+    </div>
+    <label class="terms-row">
+      <input type="checkbox" id="terms-chk" />
+      <span id="terms-txt">أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية</span>
+    </label>
+    <div class="btn-row">
+      <button class="btn-back" onclick="goStep(2)" id="btn-s3-back">→ رجوع</button>
+      <button class="btn-submit" id="submit-btn" onclick="submitForm()"><span id="btn-text">إنشاء الحساب</span></button>
+    </div>
+  </div>
+
+  <div class="foot-link">
+    <span id="signin-txt">لديك حساب بالفعل؟</span>
+    <a href="/login.html" id="signin-link"> تسجيل الدخول</a>
+  </div>
+</div>
 
 <script>
 const T = {
   ar: {
     badge: ['الخطوة 1 من 2','الخطوة 2 من 2'],
-    brandTag: 'نظام الأمانة التنفيذية الذكية للمؤسسات',
-    prog: [
-      {t:'اختيار الخطة',s:'تجربة مجانية أو Premium أو Pro'},
-      {t:'بيانات المنظمة',s:'اسم المنظمة وبيانات التواصل'},
-      {t:'حساب المسؤول',s:'بيانات الدخول للمسؤول الرئيسي'},
-    ],
-    s1title:'اختر خطتك', s1sub:'ابدأ بتجربة مجانية 7 أيام أو اختر الخطة المناسبة لمنظمتك',
-    s2title:'بيانات المنظمة', s2sub:'أدخل معلومات منظمتك أو شركتك',
-    s3title:'حساب المسؤول', s3sub:'بيانات الدخول للمسؤول الرئيسي للمنظمة',
-    lblOrgAr:'اسم المنظمة (بالعربية)', lblOrgEn:'اسم المنظمة (بالإنجليزية)',
-    lblOrgEmail:'البريد الرسمي للمنظمة', lblOrgPhone:'رقم الهاتف',
-    lblName:'الاسم الكامل', lblEmail:'البريد الإلكتروني', lblPw:'كلمة المرور', lblCpw:'تأكيد كلمة المرور',
-    next:'التالي ←', back:'→ رجوع', submit:'إنشاء الحساب', loading:'جارٍ إنشاء الحساب...',
-    signinTxt:'لديك حساب بالفعل؟', signinLink:' تسجيل الدخول',
-    terms:'أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية',
-    errOrgAr:'اسم المنظمة (عربي) مطلوب', errOrgEmail:'يرجى إدخال بريد إلكتروني صحيح للمنظمة',
-    errName:'الاسم مطلوب', errEmail:'يرجى إدخال بريد إلكتروني صحيح',
-    errEmailUsed:'هذا البريد مسجّل مسبقاً', errPw:'كلمة المرور يجب أن لا تقل عن 8 أحرف',
-    errCpw:'كلمتا المرور غير متطابقتين', errTerms:'يجب الموافقة على الشروط',
-    errPlan:'يرجى اختيار خطة', errNetwork:'خطأ في الاتصال بالخادم',
-    pwWeak:'ضعيفة', pwFair:'مقبولة', pwGood:'جيدة', pwStrong:'قوية جداً',
-    free:'مجاناً', perMonth:'/شهر', trial7:'7 أيام مجاناً', popular:'الأكثر شعبية', recommended:'مُوصى به',
-    featLabels: {
-      ai_minutes:'محاضر ذكاء اصطناعي', e_signature:'توقيع إلكتروني', basic_reports:'تقارير أساسية',
-      approval_workflow:'سير موافقة', board_management:'إدارة مجالس', advanced_reports:'تقارير متقدمة',
-      email_notifications:'إشعارات بريد', whatsapp_notifications:'إشعارات واتساب',
-      custom_branding:'علامة مخصصة', api_access:'API', sso:'تسجيل موحّد', dedicated_support:'دعم مخصص',
-    },
-    users:'مستخدمين', meetings:'اجتماع/شهر', unlim:'غير محدود',
-    namePh:'محمد العتيبي',
+    si: ['التفاصيل','الحساب'],
+    typeOrg: 'منظمة', typeInd: 'فرد',
+    s2title: 'بياناتك', s2sub: 'اختر نوع الحساب وأدخل بياناتك',
+    s3title: 'بيانات الدخول', s3sub: 'أنشئ بيانات دخول حسابك',
+    lblOrgAr: 'اسم المنظمة (بالعربية)', lblOrgEn: 'اسم المنظمة (بالإنجليزية)',
+    lblOrgEmail: 'البريد الرسمي للمنظمة', lblOrgPhone: 'رقم الهاتف',
+    lblIndName: 'الاسم الكامل', lblIndEmail: 'البريد الإلكتروني', lblIndPhone: 'رقم الهاتف',
+    lblName: 'الاسم الكامل', lblEmail: 'البريد الإلكتروني', lblPw: 'كلمة المرور', lblCpw: 'تأكيد كلمة المرور',
+    next: 'التالي ←', back: '→ رجوع', submit: 'إنشاء الحساب', loading: 'جارٍ إنشاء الحساب...',
+    signinTxt: 'لديك حساب بالفعل؟', signinLink: ' تسجيل الدخول',
+    terms: 'أوافق على <a href="#">شروط الاستخدام</a> وسياسة الخصوصية',
+    errOrgAr: 'اسم المنظمة (عربي) مطلوب', errOrgEmail: 'يرجى إدخال بريد إلكتروني صحيح للمنظمة',
+    errIndName: 'الاسم مطلوب', errIndEmail: 'يرجى إدخال بريد إلكتروني صحيح',
+    errName: 'الاسم مطلوب', errEmail: 'يرجى إدخال بريد إلكتروني صحيح',
+    errEmailUsed: 'هذا البريد مسجّل مسبقاً', errPw: 'كلمة المرور يجب أن لا تقل عن 8 أحرف',
+    errCpw: 'كلمتا المرور غير متطابقتين', errTerms: 'يجب الموافقة على الشروط',
+    errNetwork: 'خطأ في الاتصال بالخادم',
+    pwWeak: 'ضعيفة', pwFair: 'مقبولة', pwGood: 'جيدة', pwStrong: 'قوية جداً',
+    namePh: 'محمد العتيبي',
   },
   en: {
     badge: ['Step 1 of 2','Step 2 of 2'],
-    brandTag: 'Smart Executive Secretariat for Organisations',
-    prog: [
-      {t:'Choose Plan',s:'Free Trial, Premium, or Pro'},
-      {t:'Organisation Details',s:'Name and contact information'},
-      {t:'Admin Account',s:'Login credentials for main admin'},
-    ],
-    s1title:'Choose your plan', s1sub:'Start with a 7-day free trial or select the right plan for your organisation',
-    s2title:'Organisation Details', s2sub:'Enter your organisation or company information',
-    s3title:'Admin Account', s3sub:'Login credentials for the organisation\'s main administrator',
-    lblOrgAr:'Organisation name (Arabic)', lblOrgEn:'Organisation name (English)',
-    lblOrgEmail:'Official organisation email', lblOrgPhone:'Phone number',
-    lblName:'Full Name', lblEmail:'Email Address', lblPw:'Password', lblCpw:'Confirm Password',
-    next:'Next →', back:'← Back', submit:'Create Account', loading:'Creating account...',
-    signinTxt:'Already have an account?', signinLink:' Sign in',
-    terms:'I agree to the <a href="#">Terms of Use</a> and Privacy Policy',
-    errOrgAr:'Organisation name (Arabic) is required', errOrgEmail:'Please enter a valid organisation email',
-    errName:'Full name is required', errEmail:'Please enter a valid email address',
-    errEmailUsed:'This email is already registered', errPw:'Password must be at least 8 characters',
-    errCpw:'Passwords do not match', errTerms:'You must agree to the terms',
-    errPlan:'Please select a plan', errNetwork:'Could not connect to the server',
-    pwWeak:'Weak', pwFair:'Fair', pwGood:'Good', pwStrong:'Strong',
-    free:'Free', perMonth:'/mo', trial7:'7 days free', popular:'Most Popular', recommended:'Recommended',
-    featLabels: {
-      ai_minutes:'AI Minutes', e_signature:'E-Signature', basic_reports:'Basic Reports',
-      approval_workflow:'Approval Workflow', board_management:'Board Management', advanced_reports:'Advanced Reports',
-      email_notifications:'Email Notifications', whatsapp_notifications:'WhatsApp Notifications',
-      custom_branding:'Custom Branding', api_access:'API Access', sso:'SSO', dedicated_support:'Dedicated Support',
-    },
-    users:'users', meetings:'mtgs/mo', unlim:'Unlimited',
-    namePh:'Ahmad Al-Otaibi',
+    si: ['Details','Account'],
+    typeOrg: 'Organisation', typeInd: 'Individual',
+    s2title: 'Your Details', s2sub: 'Choose account type and enter your information',
+    s3title: 'Login Credentials', s3sub: 'Create your account login',
+    lblOrgAr: 'Organisation name (Arabic)', lblOrgEn: 'Organisation name (English)',
+    lblOrgEmail: 'Official organisation email', lblOrgPhone: 'Phone number',
+    lblIndName: 'Full Name', lblIndEmail: 'Email Address', lblIndPhone: 'Phone number',
+    lblName: 'Full Name', lblEmail: 'Email Address', lblPw: 'Password', lblCpw: 'Confirm Password',
+    next: 'Next →', back: '← Back', submit: 'Create Account', loading: 'Creating account...',
+    signinTxt: 'Already have an account?', signinLink: ' Sign in',
+    terms: 'I agree to the <a href="#">Terms of Use</a> and Privacy Policy',
+    errOrgAr: 'Organisation name (Arabic) is required', errOrgEmail: 'Please enter a valid organisation email',
+    errIndName: 'Full name is required', errIndEmail: 'Please enter a valid email address',
+    errName: 'Full name is required', errEmail: 'Please enter a valid email address',
+    errEmailUsed: 'This email is already registered', errPw: 'Password must be at least 8 characters',
+    errCpw: 'Passwords do not match', errTerms: 'You must agree to the terms',
+    errNetwork: 'Could not connect to the server',
+    pwWeak: 'Weak', pwFair: 'Fair', pwGood: 'Good', pwStrong: 'Strong',
+    namePh: 'Ahmad Al-Otaibi',
   }
 };
 
 let lang = localStorage.getItem('lang') || 'ar';
 let step = 2;
+let accountType = 'org';
 let selectedPlan = (new URLSearchParams(window.location.search)).get('plan') || null;
-let plans = [];
+
+function setType(type) {
+  accountType = type;
+  document.getElementById('type-org').classList.toggle('active', type === 'org');
+  document.getElementById('type-ind').classList.toggle('active', type === 'individual');
+  document.getElementById('org-fields').style.display = type === 'org' ? '' : 'none';
+  document.getElementById('ind-fields').style.display = type === 'individual' ? '' : 'none';
+  clearErrs();
+}
 
 function setLang(l) {
-  lang = l; localStorage.setItem('lang', l);
+  lang = l;
+  localStorage.setItem('lang', l);
   document.documentElement.lang = l;
   document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
   document.getElementById('btn-ar').classList.toggle('on', l === 'ar');
   document.getElementById('btn-en').classList.toggle('on', l === 'en');
   const t = T[l];
-  document.getElementById('brand-tag').textContent = t.brandTag;
-  t.prog.forEach((p, i) => {
-    document.getElementById('pt' + i).textContent = p.t;
-    document.getElementById('ps' + i + 's').textContent = p.s;
-  });
-  document.getElementById('step-badge').textContent = t.badge[step - 1];
-  document.getElementById('s1-title').textContent = t.s1title;
-  document.getElementById('s1-sub').textContent = t.s1sub;
+  document.getElementById('si1-lbl').textContent = t.si[0];
+  document.getElementById('si2-lbl').textContent = t.si[1];
+  document.getElementById('type-org-lbl').textContent = t.typeOrg;
+  document.getElementById('type-ind-lbl').textContent = t.typeInd;
   document.getElementById('s2-title').textContent = t.s2title;
-  document.getElementById('s2-sub').textContent = t.s2sub;
+  document.getElementById('s2-sub').textContent   = t.s2sub;
   document.getElementById('s3-title').textContent = t.s3title;
-  document.getElementById('s3-sub').textContent = t.s3sub;
-  document.getElementById('lbl-org-ar').textContent = t.lblOrgAr;
-  document.getElementById('lbl-org-en').textContent = t.lblOrgEn;
+  document.getElementById('s3-sub').textContent   = t.s3sub;
+  document.getElementById('lbl-org-ar').textContent    = t.lblOrgAr;
+  document.getElementById('lbl-org-en').firstChild.textContent = t.lblOrgEn + ' ';
   document.getElementById('lbl-org-email').textContent = t.lblOrgEmail;
-  document.getElementById('lbl-org-phone').textContent = t.lblOrgPhone;
+  document.getElementById('lbl-org-phone').firstChild.textContent = t.lblOrgPhone + ' ';
+  document.getElementById('lbl-ind-name').textContent  = t.lblIndName;
+  document.getElementById('lbl-ind-email').textContent = t.lblIndEmail;
+  document.getElementById('lbl-ind-phone').firstChild.textContent = t.lblIndPhone + ' ';
   document.getElementById('lbl-admin-name').textContent = t.lblName;
   document.getElementById('lbl-admin-email').textContent = t.lblEmail;
-  document.getElementById('lbl-pw').textContent = t.lblPw;
+  document.getElementById('lbl-pw').textContent  = t.lblPw;
   document.getElementById('lbl-cpw').textContent = t.lblCpw;
-  document.getElementById('btn-s1-next').textContent = t.next;
   document.getElementById('btn-s2-back').textContent = t.back;
   document.getElementById('btn-s2-next').textContent = t.next;
   document.getElementById('btn-s3-back').textContent = t.back;
-  document.getElementById('btn-text').textContent = t.submit;
-  document.getElementById('signin-txt').textContent = t.signinTxt;
+  document.getElementById('btn-text').textContent    = t.submit;
+  document.getElementById('signin-txt').textContent  = t.signinTxt;
   document.getElementById('signin-link').textContent = t.signinLink;
-  document.getElementById('terms-txt').innerHTML = t.terms;
-  document.getElementById('admin-name').placeholder = t.namePh;
+  document.getElementById('terms-txt').innerHTML     = t.terms;
+  document.getElementById('admin-name').placeholder  = t.namePh;
   document.getElementById('admin-name').dir = l === 'ar' ? 'rtl' : 'ltr';
-  renderPlans();
+  document.getElementById('ind-name').dir   = l === 'ar' ? 'rtl' : 'ltr';
+  updateProgress();
 }
 
 function updateProgress() {
   const t = T[lang];
-  // Badge maps: step2 → index 0 ("Step 1 of 2"), step3 → index 1 ("Step 2 of 2")
-  const badgeIdx = step - 2;
-  document.getElementById('step-badge').textContent = t.badge[Math.max(0, badgeIdx)];
-  // Step 0 (plan) always done + hidden
-  const d0 = document.getElementById('pd0'); const s0 = document.getElementById('ps0');
-  if (d0) { d0.className = 'prog-dot done'; d0.textContent = '✓'; }
-  if (s0) s0.className = 'prog-step done';
-  // Steps 1 (org) and 2 (admin) — displayed as 1 of 2 / 2 of 2
+  const idx = step - 2;
+  document.getElementById('step-badge').textContent = t.badge[Math.max(0, idx)];
   [1, 2].forEach(i => {
-    const s = document.getElementById('ps' + i);
-    const d = document.getElementById('pd' + i);
-    const isActive = (i + 1 === step);
-    const isDone   = (i + 1 < step);
-    s.className = 'prog-step' + (isActive ? ' active' : isDone ? ' done' : '');
-    d.className = 'prog-dot'  + (isActive ? ' active' : isDone ? ' done' : '');
-    d.textContent = isDone ? '✓' : String(i);
+    const si = document.getElementById('si' + i);
+    const sd = document.getElementById('sd' + i);
+    const isActive = i === (step - 1);
+    const isDone   = i < (step - 1);
+    si.className = 'step-item' + (isActive ? ' active' : isDone ? ' done' : '');
+    sd.className = 'si-dot'    + (isActive ? ' active' : isDone ? ' done' : '');
+    sd.textContent = isDone ? '✓' : String(i);
   });
 }
 
 function goStep(n) {
   const t = T[lang];
   if (n > step) {
-    // Validate current step
     if (step === 2) {
       let ok = true;
-      const orgAr = document.getElementById('org-name-ar').value.trim();
-      const orgEmail = document.getElementById('org-email').value.trim();
-      if (!orgAr) { fieldErr('err-org-ar', t.errOrgAr); ok = false; }
-      if (!orgEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(orgEmail)) { fieldErr('err-org-email', t.errOrgEmail); ok = false; }
+      clearErrs();
+      if (accountType === 'org') {
+        const orgAr    = document.getElementById('org-name-ar').value.trim();
+        const orgEmail = document.getElementById('org-email').value.trim();
+        if (!orgAr) { fieldErr('err-org-ar', t.errOrgAr); ok = false; }
+        if (!orgEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(orgEmail)) { fieldErr('err-org-email', t.errOrgEmail); ok = false; }
+      } else {
+        const indName  = document.getElementById('ind-name').value.trim();
+        const indEmail = document.getElementById('ind-email').value.trim();
+        if (!indName)  { fieldErr('err-ind-name',  t.errIndName);  ok = false; }
+        if (!indEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(indEmail)) { fieldErr('err-ind-email', t.errIndEmail); ok = false; }
+      }
       if (!ok) return;
     }
   }
   clearAlert();
-  ['step1','step2','step3'].forEach(id => document.getElementById(id).classList.remove('visible'));
+  ['step2','step3'].forEach(id => document.getElementById(id).classList.remove('visible'));
   document.getElementById('step' + n).classList.add('visible');
   step = n;
   updateProgress();
 }
 
-async function loadPlans() {
-  try {
-    const res = await fetch('/auth/plans');
-    plans = await res.json();
-    renderPlans();
-  } catch { plans = []; }
-}
-
-function renderPlans() {
-  const t = T[lang];
-  const grid = document.getElementById('plan-grid');
-  if (!plans.length) { grid.innerHTML = '<div style="color:var(--text3);text-align:center;padding:1rem">جارٍ التحميل...</div>'; return; }
-  grid.innerHTML = plans.map(p => {
-    const feats = JSON.parse(p.features || '[]').slice(0, 4);
-    const isFree = p.slug === 'free_trial';
-    const isPremium = p.slug === 'premium';
-    const isPro = p.slug === 'pro';
-    const sel = selectedPlan === p.slug;
-    const maxU = p.max_users >= 999 ? t.unlim : p.max_users + ' ' + t.users;
-    const maxM = p.max_meetings_month >= 999 ? t.unlim : p.max_meetings_month + ' ' + t.meetings;
-    const priceStr = isFree ? '<span class="plan-amount">' + t.free + '</span><span class="plan-period"> · ' + t.trial7 + '</span>'
-      : '<span class="plan-amount">$' + p.price_monthly_usd + '</span><span class="plan-period">' + t.perMonth + '</span>';
-    const badge = isPremium ? '<div class="plan-badge">' + t.popular + '</div>' : (isPro ? '<div class="plan-badge" style="background:#7c6fff">' + t.recommended + '</div>' : '');
-    return `<label class="plan-card${sel?' selected':''}${isPremium?' featured':''}" onclick="selectPlan('${p.slug}',this)">
-      ${badge}
-      <input type="radio" class="plan-radio" name="plan" value="${p.slug}" ${sel?'checked':''} style="display:none">
-      <div class="plan-content">
-        <div class="plan-top">
-          <div class="plan-name">${lang==='ar'?p.name_ar:p.name_en}</div>
-          <div class="plan-price">${priceStr}</div>
-        </div>
-        <div class="plan-desc">${maxU} · ${maxM}</div>
-        <div class="plan-feats">${feats.map(f=>'<span class="plan-feat">'+(t.featLabels[f]||f)+'</span>').join('')}</div>
-      </div>
-    </label>`;
-  }).join('');
-}
-
-function selectPlan(slug, el) {
-  selectedPlan = slug;
-  document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  clearAlert();
-}
-
 document.getElementById('password').addEventListener('input', function() {
   const v = this.value;
-  const score = [v.length>=8,/[A-Z]/.test(v),/[0-9]/.test(v),/[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
-  ['s1s','s2s','s3s','s4s'].forEach((id,i) => {
+  const score = [v.length >= 8, /[A-Z]/.test(v), /[0-9]/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
+  ['s1s','s2s','s3s','s4s'].forEach((id, i) => {
     const s = document.getElementById(id);
-    s.className = 'seg' + (i < score ? ' '+['','weak','fair','good','strong'][score] : '');
+    s.className = 'seg' + (i < score ? ' ' + ['','weak','fair','good','strong'][score] : '');
   });
   const hint = document.getElementById('pw-hint');
-  const lbl = [null,T[lang].pwWeak,T[lang].pwFair,T[lang].pwGood,T[lang].pwStrong];
-  hint.textContent = v.length ? (lbl[score]||'') : '';
-  hint.style.color = score<=1?'var(--red)':score===2?'#f0a030':'var(--green)';
+  const lbl = [null, T[lang].pwWeak, T[lang].pwFair, T[lang].pwGood, T[lang].pwStrong];
+  hint.textContent = v.length ? (lbl[score] || '') : '';
+  hint.style.color = score <= 1 ? 'var(--red)' : score === 2 ? '#f0a030' : 'var(--green)';
 });
 
 function togglePw(id, btn) {
@@ -497,25 +606,25 @@ function togglePw(id, btn) {
   btn.textContent = show ? '🙈' : '👁';
 }
 
-function showAlert(msg, type) { const el=document.getElementById('alert-box'); el.innerHTML=msg; el.className='alert '+type; }
-function clearAlert() { const el=document.getElementById('alert-box'); el.className='alert'; el.textContent=''; }
-function fieldErr(id, msg) { const el=document.getElementById(id); if(el){el.textContent=msg; el.style.display=msg?'':'none';} }
+function showAlert(msg, type) { const el = document.getElementById('alert-box'); el.innerHTML = msg; el.className = 'alert ' + type; }
+function clearAlert() { const el = document.getElementById('alert-box'); el.className = 'alert'; el.textContent = ''; }
+function fieldErr(id, msg) { const el = document.getElementById(id); if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; } }
 function clearErrs() {
-  ['err-org-ar','err-org-email','err-admin-name','err-admin-email','err-cpw'].forEach(id=>fieldErr(id,''));
-  document.querySelectorAll('.err').forEach(i=>i.classList.remove('err'));
+  ['err-org-ar','err-org-email','err-ind-name','err-ind-email','err-admin-name','err-admin-email','err-cpw'].forEach(id => fieldErr(id, ''));
+  document.querySelectorAll('.err').forEach(i => i.classList.remove('err'));
 }
 
 async function submitForm() {
   clearErrs(); clearAlert();
   const t = T[lang];
-  const adminName = document.getElementById('admin-name').value.trim();
+  const adminName  = document.getElementById('admin-name').value.trim();
   const adminEmail = document.getElementById('admin-email').value.trim().toLowerCase();
-  const pw = document.getElementById('password').value;
-  const cpw = document.getElementById('confirm-pw').value;
-  const agreed = document.getElementById('terms-chk').checked;
+  const pw         = document.getElementById('password').value;
+  const cpw        = document.getElementById('confirm-pw').value;
+  const agreed     = document.getElementById('terms-chk').checked;
 
   let ok = true;
-  if (!adminName) { fieldErr('err-admin-name', t.errName); ok = false; }
+  if (!adminName)  { fieldErr('err-admin-name',  t.errName);  ok = false; }
   if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) { fieldErr('err-admin-email', t.errEmail); ok = false; }
   if (pw.length < 8) { showAlert(t.errPw, 'error'); ok = false; }
   else if (pw !== cpw) { fieldErr('err-cpw', t.errCpw); ok = false; }
@@ -526,25 +635,24 @@ async function submitForm() {
   btn.disabled = true;
   document.getElementById('btn-text').textContent = t.loading;
 
+  const isOrg = accountType === 'org';
+  const payload = {
+    accountType,
+    orgNameAr: isOrg ? document.getElementById('org-name-ar').value.trim() : document.getElementById('ind-name').value.trim(),
+    orgNameEn: isOrg ? document.getElementById('org-name-en').value.trim() : '',
+    orgEmail:  isOrg ? document.getElementById('org-email').value.trim()   : document.getElementById('ind-email').value.trim(),
+    orgPhone:  isOrg ? document.getElementById('org-phone').value.trim()   : document.getElementById('ind-phone').value.trim(),
+    planSlug: selectedPlan,
+    adminName,
+    email: adminEmail,
+    password: pw
+  };
+
   try {
-    const res = await fetch('/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        orgNameAr: document.getElementById('org-name-ar').value.trim(),
-        orgNameEn: document.getElementById('org-name-en').value.trim(),
-        orgEmail: document.getElementById('org-email').value.trim(),
-        orgPhone: document.getElementById('org-phone').value.trim(),
-        planSlug: selectedPlan,
-        adminName,
-        email: adminEmail,
-        password: pw
-      })
-    });
+    const res  = await fetch('/auth/signup', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
     const data = await res.json();
     if ((res.ok || res.status === 201) && data.success && data.pending) {
-      showAlert(lang==='ar'?'✅ تم إنشاء الحساب! جارٍ إرسال رمز التحقق...':'✅ Account created! Sending verification code…','success');
+      showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ إرسال رمز التحقق...' : '✅ Account created! Sending verification code…', 'success');
       setTimeout(() => window.location.replace('/verify-email.html?email=' + encodeURIComponent(data.email)), 1200);
     } else {
       if (data.error?.includes('email')) { fieldErr('err-admin-email', t.errEmailUsed); document.getElementById('admin-email').classList.add('err'); }
@@ -559,7 +667,7 @@ async function submitForm() {
   }
 }
 
-// Init — start directly on step 2 (plan was chosen on landing page)
+// Init
 setLang(lang);
 updateProgress();
 </script>
