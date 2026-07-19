@@ -363,16 +363,40 @@ h1.hh .gold{display:block;color:var(--gold)}
 }
 
 /* ── FEATURES ─────────────────────── */
-.feat-sec{background:#fff;border-top:1px solid var(--bdr)}
-.feat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:0;background:var(--bdr);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-top:2.8rem}
-.fc{background:#fff;padding:1.5rem 1.25rem;transition:background .18s;cursor:default}
-.fc:hover{background:#fafafa}
-.fc-ic{width:44px;height:44px;border-radius:10px;border:1.5px solid var(--bdr);display:flex;align-items:center;justify-content:center;margin-bottom:.9rem;transition:all .2s}
-.fc:hover .fc-ic{border-color:rgba(201,168,76,.4);box-shadow:0 3px 14px rgba(201,168,76,.1)}
-.fc-ic svg{width:22px;height:22px;stroke:var(--dark3);stroke-width:1.6;fill:none;transition:stroke .2s}
-.fc:hover .fc-ic svg{stroke:var(--gold)}
-.fc-t{font-size:.88rem;font-weight:800;color:var(--dark);margin-bottom:.38rem}
-.fc-d{font-size:.76rem;color:var(--dark3);line-height:1.65}
+.feat-sec{background:#fafbfc;border-top:1px solid var(--bdr)}
+.feat-grid{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:1.1rem;
+  margin-top:2.8rem;
+}
+.fc{
+  background:#fff;
+  padding:1.8rem 1.4rem 1.6rem;
+  border-radius:14px;
+  border:1px solid #eceef4;
+  box-shadow:0 2px 12px rgba(0,0,0,.045);
+  transition:all .24s cubic-bezier(.23,1,.32,1);
+  cursor:default;
+}
+.fc:hover{
+  border-color:rgba(201,168,76,.32);
+  box-shadow:0 10px 32px rgba(201,168,76,.12),0 2px 8px rgba(0,0,0,.04);
+  transform:translateY(-3px);
+}
+.fc-ic{
+  width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:1.1rem;
+}
+.fc-ic svg{
+  width:34px;height:34px;
+  stroke:var(--gold);stroke-width:1.45;fill:none;
+  transition:stroke .2s;
+}
+.fc:hover .fc-ic svg{stroke:var(--gold2)}
+.fc-t{font-size:.9rem;font-weight:800;color:var(--dark);margin-bottom:.42rem;line-height:1.3}
+.fc-d{font-size:.77rem;color:var(--dark3);line-height:1.72}
 
 /* ── HOW IT WORKS ─────────────────── */
 .how-sec{background:#f8fafc;border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr)}
