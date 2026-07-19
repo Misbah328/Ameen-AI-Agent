@@ -87,13 +87,15 @@ router.post('/signup', async (req, res) => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ error: 'Valid email is required' });
   if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   if (!orgNameAr || !orgNameAr.trim()) return res.status(400).json({ error: 'Organisation name (Arabic) is required' });
-  if (!planSlug) return res.status(400).json({ error: 'Plan selection is required' });
+  // Map legacy/frontend slugs to actual DB slugs
+  const slugMap = { basic: 'free_trial', plus: 'premium', advanced: 'pro' };
+  const resolvedSlug = slugMap[planSlug] || planSlug || 'free_trial';
 
   const cleanEmail = email.trim().toLowerCase();
   const cleanOrgEmail = (orgEmail || cleanEmail).trim().toLowerCase();
 
   // Check plan exists
-  const plan = db.prepare('SELECT * FROM subscription_plans WHERE slug = ? AND is_active = 1').get(planSlug);
+  const plan = db.prepare('SELECT * FROM subscription_plans WHERE slug = ? AND is_active = 1').get(resolvedSlug);
   if (!plan) return res.status(400).json({ error: 'Invalid plan selected' });
 
   // Check duplicate user email

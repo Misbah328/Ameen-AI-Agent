@@ -493,7 +493,7 @@ const T = {
 let lang = localStorage.getItem('lang') || 'ar';
 let step = 2;
 let accountType = 'org';
-let selectedPlan = (new URLSearchParams(window.location.search)).get('plan') || null;
+let selectedPlan = (new URLSearchParams(window.location.search)).get('plan') || 'free_trial';
 
 function setType(type) {
   accountType = type;
