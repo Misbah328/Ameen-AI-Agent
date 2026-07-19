@@ -301,6 +301,27 @@ h1.hh .gold{display:block;color:var(--gold)}
 .sp{font-size:.96rem;color:var(--dark2);line-height:1.8}
 .center{text-align:center}.center .sp{margin:0 auto}
 
+/* ── TRUSTED BY BAND ─────────────── */
+.trusted-band{
+  width:100%;
+  background:#fff;
+  border-top:1px solid #e2e8f0;
+  border-bottom:1px solid #e2e8f0;
+  padding:.5rem 0;
+  overflow:hidden;
+}
+.trusted-inner{
+  max-width:1240px;
+  margin:0 auto;
+  padding:0 2.5rem;
+}
+.trusted-img{
+  display:block;
+  width:100%;
+  height:88px;
+  object-fit:fill;
+}
+
 /* ── FEATURES ─────────────────────── */
 .feat-sec{background:#fff;border-top:1px solid var(--bdr)}
 .feat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:0;background:var(--bdr);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-top:2.8rem}
@@ -847,47 +868,11 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 </div><!-- /hero-i -->
 </section>
 
-<!-- ═══ TRUSTED BY ═══════════════════════════════════ -->
-<div class="trusted">
-<div class="trusted-i">
-  <div class="tr-label" data-t="tr-lbl">TRUSTED BY<br>LEADING<br>ORGANIZATIONS</div>
-  <div class="tr-logos">
-    <div class="lb">
-      <div class="lb-box sabic-box">S</div>
-      <div class="lb-txt"><span class="lb-t1">SABIC</span><span class="lb-t2">سابك</span></div>
-    </div>
-    <div class="lb-sep"></div>
-    <div class="lb">
-      <div class="lb-box aramco-box">⛽</div>
-      <div class="lb-txt"><span class="lb-ar">أرامكو السعودية</span><span class="lb-t2">Saudi Aramco</span></div>
-    </div>
-    <div class="lb-sep"></div>
-    <div class="lb">
-      <div class="lb-box moi-box">🏛️</div>
-      <div class="lb-txt"><span class="lb-ar">وزارة الاستثمار</span><span class="lb-t2">Ministry of Investment</span></div>
-    </div>
-    <div class="lb-sep"></div>
-    <div class="lb">
-      <div class="lb-box pif-box" style="font-size:.7rem;font-weight:900;letter-spacing:-.02em">PIF</div>
-      <div class="lb-txt"><span class="lb-t1">PIF</span><span class="lb-t2">صندوق الاستثمارات</span></div>
-    </div>
-    <div class="lb-sep"></div>
-    <div class="lb">
-      <div class="lb-box roshn-box" style="font-size:.58rem;font-weight:900">ROS</div>
-      <div class="lb-txt"><span class="lb-t1">ROSHN</span><span class="lb-t2">روشن</span></div>
-    </div>
-    <div class="lb-sep"></div>
-    <div class="lb">
-      <div class="lb-box mof-box">🏦</div>
-      <div class="lb-txt"><span class="lb-ar">وزارة المالية</span><span class="lb-t2">Ministry of Finance</span></div>
-    </div>
-    <div class="lb-sep"></div>
-    <div class="lb">
-      <div class="lb-box cma-box">📊</div>
-      <div class="lb-txt"><span class="lb-ar">هيئة السوق المالية</span><span class="lb-t2">Capital Market Authority</span></div>
-    </div>
+<!-- ═══ TRUSTED BY ══════════════════════════════════════ -->
+<div class="trusted-band" id="trusted">
+  <div class="trusted-inner">
+    <img src="/trusted-logos.png" alt="Trusted by SABIC, Saudi Aramco, Ministry of Investment, PIF, ROSHN, Ministry of Finance, Capital Market Authority" class="trusted-img"/>
   </div>
-</div>
 </div>
 
 <!-- ═══ FEATURES ══════════════════════════════════════ -->
@@ -1154,6 +1139,7 @@ en:{dir:'ltr',
 'h-l1':'Your Executive Secretariat,','h-l2':'Powered by AI',
 'h-p':'From scheduling meetings to archiving minutes and managing board governance — Ameen handles everything with enterprise precision.',
 'h-b1':'Book a Demo','h-b2':'Explore Platform',
+'trust-lbl':'TRUSTED BY LEADING<br>ORGANIZATIONS',
 'tb1':'Secure & Compliant','tb2':'Easy to Use','tb3':'Saves Time','tb4':'Built for Governance',
 'ph-t':'Dashboard','ph-s1':'Meetings\nThis Month','ph-s2':'Tasks\nPending','ph-s3':'Documents\nAwaiting','ph-s4':'Approvals','ph-mh':'Upcoming Meetings',
 'ph-m1':'Board of Directors Meeting','ph-m2':'Audit Committee Meeting','ph-btn':'View Details',
@@ -1220,6 +1206,7 @@ ar:{dir:'rtl',
 'h-l1':'أمانتك التنفيذية،','h-l2':'مدعومة بالذكاء الاصطناعي',
 'h-p':'من جدولة الاجتماعات إلى أرشفة المحاضر وإدارة حوكمة مجالس الإدارة — أمين يتولى كل شيء بدقة مؤسسية.',
 'h-b1':'احجز عرضاً','h-b2':'استكشف المنصة',
+'trust-lbl':'موثوق به من قِبَل<br>كبرى المنظمات',
 'tb1':'آمن وممتثل','tb2':'سهل الاستخدام','tb3':'يوفر الوقت','tb4':'مبني للحوكمة',
 'ph-t':'لوحة التحكم','ph-s1':'اجتماعات','ph-s2':'مهام','ph-s3':'مستندات','ph-s4':'موافقات','ph-mh':'الاجتماعات القادمة',
 'ph-m1':'اجتماع مجلس الإدارة','ph-m2':'اجتماع لجنة التدقيق','ph-btn':'عرض التفاصيل',
