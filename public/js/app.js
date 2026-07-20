@@ -336,8 +336,10 @@ const ROLE_ACCESS = {
 // Policies & Resolutions live in the Governance sidebar section — mirror the
 // "documents" visibility so every role that can browse documents can also
 // browse policies/resolutions (backend permissions remain the real gate).
+// Circular Resolutions mirrors governance access.
 Object.values(ROLE_ACCESS).forEach((set) => {
   if (set.has("documents")) { set.add("policies"); set.add("resolutions"); }
+  if (set.has("governance")) { set.add("circular"); }
   if (set.has("scheduled") || set.has("tasks")) set.add("calendar");
   // Activity Log sidebar entry mirrors the "activity" permission.
   if (set.has("activity")) set.add("logs");
@@ -1025,6 +1027,9 @@ const Panels = {
         break;
       case "resolutions":
         if (window.MT) await MT.renderResolutions();
+        break;
+      case "circular":
+        if (window.CR) await CR.init();
         break;
       case "approval-cycle":
         if (window.ApprovalCycle) await ApprovalCycle.refresh();

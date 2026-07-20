@@ -64,6 +64,7 @@
 <link rel="stylesheet" href="/css/app.css?v=20260716f"/>
 <link rel="stylesheet" href="/css/meetings.css?v=20260713m"/>
 <link rel="stylesheet" href="/css/approval-cycle.css?v=20260716i"/>
+<link rel="stylesheet" href="/css/circular.css?v=20260720a"/>
 <script src="/js/vendor/chart.umd.js" defer></script>
 </head>
 <body>
@@ -156,6 +157,10 @@
   <button class="nb" data-p="resolutions">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg></span>
     <span class="nb-label" data-ar="القرارات" data-en="Resolutions">القرارات</span>
+  </button>
+  <button class="nb" data-p="circular">
+    <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg></span>
+    <span class="nb-label" data-ar="القرارات التداولية" data-en="Circular Resolutions">القرارات التداولية</span>
   </button>
   <button class="nb" data-p="documents">
     <span class="nb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
@@ -933,6 +938,11 @@
     </div>
   </div>
   <div class="pbody" id="resolutions-body"><div class="es"><div class="loading"></div></div></div>
+</section>
+
+<!-- ══ CIRCULAR RESOLUTIONS ════════════════════════════════════════ -->
+<section class="panel" id="panel-circular">
+  <div id="cr-root"><div class="es"><div class="loading"></div></div></div>
 </section>
 
 <!-- ══ LIVE MEETINGS ═══════════════════════════════════════════════ -->
@@ -2070,6 +2080,7 @@
 <script src="/js/boards.js?v=20260716h"></script>
 <script src="/js/meetings.js?v=20260714b"></script>
 <script src="/js/approval-cycle.js?v=20260716j"></script>
+<script src="/js/circular.js?v=20260720a"></script>
 
 <!-- ═══ Change Password Modal ══════════════════════════════════════════════ -->
 <div id="modal-change-password" onclick="if(event.target===this)closeChangePassword()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:2000;align-items:center;justify-content:center;">

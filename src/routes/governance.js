@@ -966,4 +966,214 @@ router.post('/boards/:id/invite', auth, requirePermission('governance.boards'), 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+//  CIRCULAR RESOLUTIONS — full 9-step governance workflow
+// ════════════════════════════════════════════════════════════════════════════
+
+function crWithDetail(id) {
+  const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(id);
+  if (!cr) return null;
+  cr.comments   = db.prepare('SELECT * FROM cr_comments   WHERE cr_id=? ORDER BY created_at ASC').all(id);
+  cr.votes      = db.prepare('SELECT * FROM cr_votes      WHERE cr_id=? ORDER BY voted_at   ASC').all(id);
+  cr.signatures = db.prepare('SELECT * FROM cr_signatures WHERE cr_id=? ORDER BY signed_at  ASC').all(id);
+  return cr;
+}
+
+function nextCrRef() {
+  const year = new Date().getFullYear();
+  const last = db.prepare(
+    `SELECT reference_code FROM circular_resolutions WHERE reference_code LIKE 'CR-${year}-%' ORDER BY reference_code DESC LIMIT 1`
+  ).get();
+  const seq = last ? (parseInt(last.reference_code.split('-')[2]) + 1) : 1;
+  return `CR-${year}-${String(seq).padStart(3, '0')}`;
+}
+
+// GET /api/gov/circular-resolutions — list (summary rows, no sub-documents)
+router.get('/circular-resolutions', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM circular_resolutions ORDER BY created_at DESC').all();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/circular-resolutions — create draft
+router.post('/circular-resolutions', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const { title, body = '', description = '', deadline = '', total_members = 7, quorum_required = 4, board_id } = req.body;
+    if (!title) return res.status(400).json({ error: 'title required' });
+    const ref = nextCrRef();
+    const user = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+    const name = user?.name_en || user?.name_ar || req.user.email || '';
+    const row = db.prepare(`
+      INSERT INTO circular_resolutions
+        (reference_code,title,body,description,deadline,total_members,quorum_required,board_id,created_by,created_by_name)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+    `).run(ref, title, body, description, deadline, total_members, quorum_required, board_id || null, req.user.id, name);
+    res.status(201).json(crWithDetail(row.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gov/circular-resolutions/:id — full detail with comments/votes/signatures
+router.get('/circular-resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
+  const cr = crWithDetail(req.params.id);
+  if (!cr) return res.status(404).json({ error: 'Not found' });
+  res.json(cr);
+});
+
+// PATCH /api/gov/circular-resolutions/:id — update (draft only)
+router.patch('/circular-resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
+    if (!cr) return res.status(404).json({ error: 'Not found' });
+    const { title, body, description, deadline, total_members, quorum_required } = req.body;
+    db.prepare(`UPDATE circular_resolutions SET
+      title=COALESCE(?,title), body=COALESCE(?,body), description=COALESCE(?,description),
+      deadline=COALESCE(?,deadline), total_members=COALESCE(?,total_members),
+      quorum_required=COALESCE(?,quorum_required), updated_at=CURRENT_TIMESTAMP WHERE id=?
+    `).run(title||null, body||null, description||null, deadline||null,
+           total_members||null, quorum_required||null, req.params.id);
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/gov/circular-resolutions/:id
+router.delete('/circular-resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    if (!db.prepare('SELECT id FROM circular_resolutions WHERE id=?').get(req.params.id))
+      return res.status(404).json({ error: 'Not found' });
+    db.prepare('DELETE FROM circular_resolutions WHERE id=?').run(req.params.id);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/circular-resolutions/:id/circulate — draft → circulated
+router.post('/circular-resolutions/:id/circulate', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
+    if (!cr) return res.status(404).json({ error: 'Not found' });
+    if (cr.status !== 'draft') return res.status(400).json({ error: 'Only draft resolutions can be circulated' });
+    db.prepare(`UPDATE circular_resolutions SET status='circulated', circulated_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(req.params.id);
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/circular-resolutions/:id/open-voting — circulated → voting
+router.post('/circular-resolutions/:id/open-voting', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
+    if (!cr) return res.status(404).json({ error: 'Not found' });
+    if (!['draft','circulated'].includes(cr.status)) return res.status(400).json({ error: 'Cannot open voting from current status' });
+    db.prepare(`UPDATE circular_resolutions SET status='voting', voting_opened_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(req.params.id);
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/circular-resolutions/:id/close-voting — voting → approved / rejected
+router.post('/circular-resolutions/:id/close-voting', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
+    if (!cr) return res.status(404).json({ error: 'Not found' });
+    if (cr.status !== 'voting') return res.status(400).json({ error: 'Voting is not open' });
+    const quorum = cr.quorum_required || 4;
+    const voted  = (cr.votes_approve||0) + (cr.votes_reject||0) + (cr.votes_abstain||0);
+    const outcome = voted < quorum ? 'lapsed'
+      : (cr.votes_approve||0) > (cr.votes_reject||0) ? 'approved' : 'rejected';
+    const approvedAt = outcome === 'approved' ? 'CURRENT_TIMESTAMP' : 'NULL';
+    db.prepare(`UPDATE circular_resolutions SET status=?, approved_at=${approvedAt}, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(outcome, req.params.id);
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/circular-resolutions/:id/vote — cast vote
+router.post('/circular-resolutions/:id/vote', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
+    if (!cr) return res.status(404).json({ error: 'Not found' });
+    if (cr.status !== 'voting') return res.status(400).json({ error: 'Voting is not open' });
+    const { vote, reason = '' } = req.body;
+    if (!['approve','reject','abstain'].includes(vote)) return res.status(400).json({ error: 'Invalid vote' });
+    const user = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+    const name = user?.name_en || user?.name_ar || '';
+    const existing = db.prepare('SELECT id FROM cr_votes WHERE cr_id=? AND voter_id=?').get(req.params.id, req.user.id);
+    if (existing) {
+      db.prepare('UPDATE cr_votes SET vote=?,reason=?,voted_at=CURRENT_TIMESTAMP WHERE id=?').run(vote, reason, existing.id);
+    } else {
+      db.prepare('INSERT INTO cr_votes (cr_id,voter_id,voter_name,vote,reason) VALUES (?,?,?,?,?)').run(req.params.id, req.user.id, name, vote, reason);
+    }
+    // Re-aggregate
+    const agg = db.prepare('SELECT vote, COUNT(*) as c FROM cr_votes WHERE cr_id=? GROUP BY vote').all(req.params.id);
+    const get = (v) => (agg.find(r => r.vote === v) || {}).c || 0;
+    db.prepare('UPDATE circular_resolutions SET votes_approve=?,votes_reject=?,votes_abstain=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(get('approve'), get('reject'), get('abstain'), req.params.id);
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gov/circular-resolutions/:id/sign — add signature
+router.post('/circular-resolutions/:id/sign', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
+    if (!cr) return res.status(404).json({ error: 'Not found' });
+    const { signature_type = 'digital' } = req.body;
+    const user = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+    const name = user?.name_en || user?.name_ar || '';
+    const existing = db.prepare('SELECT id FROM cr_signatures WHERE cr_id=? AND signer_id=?').get(req.params.id, req.user.id);
+    if (!existing) {
+      db.prepare('INSERT INTO cr_signatures (cr_id,signer_id,signer_name,signature_type) VALUES (?,?,?,?)').run(req.params.id, req.user.id, name, signature_type);
+      const cnt = db.prepare('SELECT COUNT(*) as c FROM cr_signatures WHERE cr_id=?').get(req.params.id).c;
+      db.prepare('UPDATE circular_resolutions SET signatures_count=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(cnt, req.params.id);
+    }
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET  /api/gov/circular-resolutions/:id/comments — all comments
+router.get('/circular-resolutions/:id/comments', auth, requirePermission('governance.resolutions'), (req, res) => {
+  res.json(db.prepare('SELECT * FROM cr_comments WHERE cr_id=? ORDER BY created_at').all(req.params.id));
+});
+
+// POST /api/gov/circular-resolutions/:id/comments — add comment
+router.post('/circular-resolutions/:id/comments', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    if (!db.prepare('SELECT id FROM circular_resolutions WHERE id=?').get(req.params.id))
+      return res.status(404).json({ error: 'Not found' });
+    const { clause_ref = '', comment_text } = req.body;
+    if (!comment_text) return res.status(400).json({ error: 'comment_text required' });
+    const user = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+    const name = user?.name_en || user?.name_ar || '';
+    const row = db.prepare('INSERT INTO cr_comments (cr_id,commenter_id,commenter_name,clause_ref,comment_text) VALUES (?,?,?,?,?)')
+      .run(req.params.id, req.user.id, name, clause_ref, comment_text);
+    res.status(201).json(db.prepare('SELECT * FROM cr_comments WHERE id=?').get(row.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH /api/gov/circular-resolutions/:crId/comments/:cid — accept / reject
+router.patch('/circular-resolutions/:crId/comments/:cid', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    const c = db.prepare('SELECT * FROM cr_comments WHERE id=? AND cr_id=?').get(req.params.cid, req.params.crId);
+    if (!c) return res.status(404).json({ error: 'Comment not found' });
+    const { action, reason = '' } = req.body;
+    if (!['accept','reject'].includes(action)) return res.status(400).json({ error: 'action must be accept or reject' });
+    const user = db.prepare('SELECT name_ar, name_en FROM users WHERE id=?').get(req.user.id);
+    const name = user?.name_en || user?.name_ar || '';
+    db.prepare(`UPDATE cr_comments SET status=?,resolved_by_name=?,resolved_reason=?,resolved_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .run(action === 'accept' ? 'accepted' : 'rejected', name, reason, req.params.cid);
+    res.json(db.prepare('SELECT * FROM cr_comments WHERE id=?').get(req.params.cid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH /api/gov/circular-resolutions/:id/recording-status — update minutes recording
+router.patch('/circular-resolutions/:id/recording-status', auth, requirePermission('governance.resolutions'), (req, res) => {
+  try {
+    if (!db.prepare('SELECT id FROM circular_resolutions WHERE id=?').get(req.params.id))
+      return res.status(404).json({ error: 'Not found' });
+    const { minutes_recording_status, minutes_ref = '' } = req.body;
+    if (!['not_recorded','recorded'].includes(minutes_recording_status))
+      return res.status(400).json({ error: 'Invalid recording status' });
+    db.prepare('UPDATE circular_resolutions SET minutes_recording_status=?,minutes_ref=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(minutes_recording_status, minutes_ref, req.params.id);
+    res.json(crWithDetail(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

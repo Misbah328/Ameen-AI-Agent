@@ -440,6 +440,70 @@ db.exec(`CREATE TABLE IF NOT EXISTS votes (
 )`);
 ensureColumn('resolutions', 'voting_status', "TEXT DEFAULT 'draft'");
 
+// ── Circular Resolutions (stand-alone, not linked to a live meeting) ──────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS circular_resolutions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference_code TEXT UNIQUE,
+    title TEXT NOT NULL,
+    body TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    board_id INTEGER,
+    created_by INTEGER,
+    created_by_name TEXT DEFAULT '',
+    deadline TEXT DEFAULT '',
+    status TEXT DEFAULT 'draft',
+    quorum_required INTEGER DEFAULT 0,
+    total_members INTEGER DEFAULT 0,
+    votes_approve INTEGER DEFAULT 0,
+    votes_reject INTEGER DEFAULT 0,
+    votes_abstain INTEGER DEFAULT 0,
+    signatures_count INTEGER DEFAULT 0,
+    minutes_recording_status TEXT DEFAULT 'not_recorded',
+    minutes_ref TEXT DEFAULT '',
+    minutes_meeting_id INTEGER,
+    circulated_at TEXT DEFAULT '',
+    voting_opened_at TEXT DEFAULT '',
+    approved_at TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS cr_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cr_id INTEGER NOT NULL,
+    commenter_id INTEGER,
+    commenter_name TEXT DEFAULT '',
+    clause_ref TEXT DEFAULT '',
+    comment_text TEXT NOT NULL,
+    status TEXT DEFAULT 'open',
+    resolved_by_name TEXT DEFAULT '',
+    resolved_reason TEXT DEFAULT '',
+    resolved_at TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(cr_id) REFERENCES circular_resolutions(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS cr_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cr_id INTEGER NOT NULL,
+    voter_id INTEGER,
+    voter_name TEXT DEFAULT '',
+    vote TEXT,
+    reason TEXT DEFAULT '',
+    voted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(cr_id, voter_id),
+    FOREIGN KEY(cr_id) REFERENCES circular_resolutions(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS cr_signatures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cr_id INTEGER NOT NULL,
+    signer_id INTEGER,
+    signer_name TEXT DEFAULT '',
+    signature_type TEXT DEFAULT 'digital',
+    signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(cr_id) REFERENCES circular_resolutions(id) ON DELETE CASCADE
+  );
+`);
+
 // ── General Assembly dedicated tables ─────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS ga_shareholders (
@@ -1041,6 +1105,77 @@ if (!db.prepare("SELECT id FROM resolutions WHERE title='الموافقة على
     }
     console.log('✓ Resolutions demo data seeded');
   }
+}
+
+// Seed circular resolutions demo data
+if (!db.prepare('SELECT id FROM circular_resolutions LIMIT 1').get()) {
+  const iCr = db.prepare(`INSERT INTO circular_resolutions
+    (reference_code,title,description,body,status,total_members,quorum_required,
+     votes_approve,votes_reject,votes_abstain,signatures_count,
+     minutes_recording_status,minutes_ref,deadline,created_by_name)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const iVote = db.prepare(`INSERT OR IGNORE INTO cr_votes (cr_id,voter_name,vote,reason,voted_at) VALUES (?,?,?,?,?)`);
+  const iSig  = db.prepare(`INSERT OR IGNORE INTO cr_signatures (cr_id,signer_name,signature_type,signed_at) VALUES (?,?,?,?)`);
+  const iCmt  = db.prepare(`INSERT OR IGNORE INTO cr_comments (cr_id,commenter_name,clause_ref,comment_text,status,resolved_by_name,resolved_at) VALUES (?,?,?,?,?,?,?)`);
+
+  const r1 = iCr.run('CR-2026-014','الموافقة على خطة المراجعة الداخلية لعام 2026',
+    'الموافقة على خطة المراجعة الداخلية الشاملة المقدمة من لجنة المراجعة',
+    'يقرر مجلس الإدارة، بعد الاطلاع على توصية لجنة المراجعة والتدقيق، الموافقة على خطة المراجعة الداخلية للسنة المالية 2026، وتفويض رئيس وحدة المراجعة الداخلية بتنفيذها وفق الجدول الزمني المرفق.',
+    'approved',7,4,5,0,1,4,'not_recorded','','2026-05-10','محمد البولي').lastInsertRowid;
+
+  const r2 = iCr.run('CR-2026-013','تعيين المدير التنفيذي المساعد للعمليات',
+    'الموافقة على تعيين الأستاذ فيصل الشهراني في منصب المدير التنفيذي المساعد للعمليات',
+    'يقرر مجلس الإدارة الموافقة على تعيين الأستاذ فيصل الشهراني في منصب المدير التنفيذي المساعد للعمليات، وذلك بدءاً من تاريخ 1 يونيو 2026، وفقاً للشروط والمزايا المقررة في عقد العمل المرفق.',
+    'approved',7,4,7,0,0,5,'recorded','محضر رقم 12','2026-05-12','محمد البولي').lastInsertRowid;
+
+  const r3 = iCr.run('CR-2026-012','تعديل سياسة المشتريات والمناقصات',
+    'مراجعة وتعديل حدود الصلاحيات في سياسة المشتريات الداخلية',
+    'يقرر مجلس الإدارة تعديل المادة (7) من سياسة المشتريات المعتمدة، بحيث يُرفع حد الموافقة التنفيذية من 500,000 ريال إلى 750,000 ريال، مع إلزام الإدارة التنفيذية بتقديم تقرير ربع سنوي للمجلس حول المشتريات التي تجاوزت 300,000 ريال.',
+    'voting',7,4,3,0,0,0,'not_recorded','','2026-07-25','محمد البولي').lastInsertRowid;
+
+  const r4 = iCr.run('CR-2026-011','اعتماد ميزانية رأسمالية لمشروع التوسعة',
+    'الموافقة على الميزانية الرأسمالية للمرحلة الأولى من مشروع التوسعة الاستراتيجية',
+    'يقرر مجلس الإدارة اعتماد ميزانية رأسمالية بمبلغ 45,000,000 ريال للمرحلة الأولى من مشروع التوسعة الاستراتيجية، وتفويض الرئيس التنفيذي بالتوقيع على العقود ذات الصلة وفق الشروط المرفقة.',
+    'approved',7,4,7,0,0,6,'recorded','محضر رقم 11','2026-04-30','محمد البولي').lastInsertRowid;
+
+  const r5 = iCr.run('CR-2026-010','توصية بتوزيع أرباح استثنائية على المساهمين',
+    'النظر في توزيع أرباح استثنائية بواقع 0.50 ريال للسهم',
+    'يوصي مجلس الإدارة بتوزيع أرباح استثنائية بواقع 0.50 ريال للسهم الواحد، وذلك من فائض الاحتياطيات المتراكمة، على أن تُعرض هذه التوصية على الجمعية العمومية لاعتمادها.',
+    'lapsed',7,4,3,0,2,0,'not_recorded','','2026-04-25','محمد البولي').lastInsertRowid;
+
+  const r6 = iCr.run('CR-2026-009','تفويض التوقيع على اتفاقية الشراكة الاستراتيجية',
+    'تفويض الرئيس التنفيذي بإبرام اتفاقية الشراكة مع شركة التقنيات المتقدمة',
+    'يفوّض مجلس الإدارة الرئيس التنفيذي بالتوقيع على اتفاقية الشراكة الاستراتيجية مع شركة التقنيات المتقدمة، وذلك بعد التحقق من استيفاء الشروط القانونية المطلوبة وموافقة المستشار القانوني.',
+    'draft',7,4,0,0,0,0,'not_recorded','','2026-08-15','محمد البولي').lastInsertRowid;
+
+  // Demo votes for r1 (approved: 5 approve, 1 abstain)
+  [['داري العتيشان','approve'],['راكان العتيشان','approve'],['نوف المطيري','approve'],['عبدالله العتيبي','approve'],['سامر حماد','approve']].forEach(([n,v]) => iVote.run(r1,n,v,'','2026-05-08 10:00:00'));
+  iVote.run(r1,'نورة الفهد','abstain','','2026-05-09 11:00:00');
+  ['داري العتيشان','راكان العتيشان','نوف المطيري','عبدالله العتيبي'].forEach(n => iSig.run(r1,n,'digital','2026-05-10 09:00:00'));
+  iCmt.run(r1,'راكان العتيشان','المادة 3','أطلب توضيح آلية الإشراف على تنفيذ الخطة ومتابعتها ربع السنوية','accepted','محمد البولي','2026-05-07');
+  iCmt.run(r1,'نوف المطيري','','أتفق مع الخطة العامة مع ملاحظة ضرورة توفير الموارد البشرية الكافية','rejected','محمد البولي','2026-05-07');
+
+  // Demo votes for r2 (approved: 7/7)
+  ['داري العتيشان','راكان العتيشان','نوف المطيري','عبدالله العتيبي','سامر حماد','تركي السامري','نورة الفهد'].forEach(n => iVote.run(r2,n,'approve','','2026-05-11 10:00:00'));
+  ['داري العتيشان','راكان العتيشان','نوف المطيري','عبدالله العتيبي','سامر حماد'].forEach(n => iSig.run(r2,n,'digital','2026-05-12 09:00:00'));
+
+  // Demo votes for r3 (voting: 3/7 so far)
+  iVote.run(r3,'داري العتيشان','approve','أوافق على تعديل حدود الصلاحيات','2026-07-18 09:41:00');
+  iVote.run(r3,'راكان العتيشان','approve','أتفق مع التعديل المقترح','2026-07-18 10:12:00');
+  iVote.run(r3,'نوف المطيري','approve','موافق على التعديل','2026-07-19 11:03:00');
+  iCmt.run(r3,'راكان العتيشان','المادة 7','أرجو توضيح آلية تقييم موردي المناقصات في ظل الحد المعدّل','open','','');
+  iCmt.run(r3,'نوف المطيري','','لدي بعض المخاوف بشأن الجدول الزمني للتطبيق','open','','');
+
+  // Demo votes for r4 (approved: 7/7)
+  ['داري العتيشان','راكان العتيشان','نوف المطيري','عبدالله العتيبي','سامر حماد','تركي السامري','نورة الفهد'].forEach(n => iVote.run(r4,n,'approve','','2026-04-28 10:00:00'));
+  ['داري العتيشان','راكان العتيشان','نوف المطيري','عبدالله العتيبي','سامر حماد','نورة الفهد'].forEach(n => iSig.run(r4,n,'digital','2026-04-30 09:00:00'));
+
+  // Demo votes for r5 (lapsed: 3/7 voted — didn't reach quorum of 4)
+  iVote.run(r5,'داري العتيشان','approve','','2026-04-23 10:00:00');
+  iVote.run(r5,'راكان العتيشان','approve','','2026-04-23 11:00:00');
+  iVote.run(r5,'نوف المطيري','abstain','','2026-04-24 09:00:00');
+
+  console.log('✓ Circular resolutions demo data seeded');
 }
 
 // Update Board of Directors with proper Ameen Holdings people
