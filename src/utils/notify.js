@@ -65,17 +65,33 @@ async function resolveResend() {
 async function sendViaResend({ to, subject, text, html }) {
   const { apiKey, from } = await resolveResend();
   const recipients = Array.isArray(to) ? to : [to];
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to: recipients, subject, text, html: html || undefined }),
-  });
-  if (!res.ok) {
-    let err = {};
-    try { err = await res.json(); } catch (e) {}
-    throw new Error(err.message || `Resend send failed (HTTP ${res.status})`);
+
+  async function attempt(fromAddr) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: fromAddr, to: recipients, subject, text, html: html || undefined }),
+    });
+    if (!res.ok) {
+      let err = {};
+      try { err = await res.json(); } catch (e) {}
+      throw new Error(err.message || `Resend send failed (HTTP ${res.status})`);
+    }
+    return { provider: 'resend', from: fromAddr, result: await res.json() };
   }
-  return { provider: 'resend', result: await res.json() };
+
+  try {
+    return await attempt(from);
+  } catch (e) {
+    // If our custom domain isn't verified yet, retry with Resend's built-in
+    // verified domain so emails actually reach external recipients.
+    if (e.message && e.message.toLowerCase().includes('domain') && !from.includes('resend.dev')) {
+      const fallbackFrom = 'Ameen Secretary <onboarding@resend.dev>';
+      console.warn(`Resend domain not verified for "${from}" — retrying with ${fallbackFrom}`);
+      return await attempt(fallbackFrom);
+    }
+    throw e;
+  }
 }
 
 async function sendEmail({ to, subject, text, html }) {
