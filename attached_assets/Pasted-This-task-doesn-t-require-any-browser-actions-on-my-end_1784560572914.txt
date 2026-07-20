@@ -1,0 +1,25 @@
+This task doesn't require any browser actions on my end — you just need text to paste into Replit. Here's a ready-to-use prompt that includes the exact diagnosis so Replit's agent doesn't have to re-investigate from scratch:
+
+---
+
+**Prompt to give Replit:**
+
+> There is a permanent blank/empty space appearing at the top of multiple pages (Dashboard, Meetings, Tasks, Calendar, Boards & Committees, Policies, Resolutions, Documents, Reports). I've already diagnosed the root cause via browser DevTools — please apply the fix directly in the source code, don't just patch it at runtime.
+>
+> **Root cause:** In `css/app.css`, all page sections share the class `.panel` with this base rule:
+> ```css
+> .panel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+> ```
+> Only the currently active panel is supposed to be shown via a `.panel.active` rule that sets `display: flex`. However, `css/circular.css` has this rule targeting the Circular Resolutions panel by ID:
+> ```css
+> #panel-circular { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+> ```
+> Because an ID selector has higher CSS specificity than a class selector, this rule **always forces `#panel-circular` to `display: flex`**, even when it isn't the active page. That makes it render at roughly 238px tall and sit in the page flow above whichever panel is actually active, which is the blank space users see on every page.
+>
+> **Requested fix:** In `css/circular.css`, change the `#panel-circular` rule so it only applies display/layout styling when the panel is actually active — for example, scope it to `#panel-circular.active` instead of `#panel-circular` alone (keep `padding: 0; overflow: hidden; flex-direction: column;` scoped the same way). Do not add `!important` or unscoped `display: flex` back to the bare `#panel-circular` selector, since that reintroduces the bug.
+>
+> After the fix: save the file, restart the server, hard-refresh in a new tab, and confirm the blank space is gone on Dashboard, Meetings, Tasks, Calendar, Boards & Committees, Policies, Resolutions, Documents, and Reports — including after closing/reopening the tab and after a server restart. Then commit the change.
+
+---
+
+A couple of notes on my end: I found this by inspecting computed styles and matched CSS rules live in the browser, so the diagnosis is solid, but I can't edit `circular.css` or restart your server myself — only Replit's own editor/agent (or you) can do that part. If you'd like, once Replit applies the change I'm happy to re-open the live app in a new tab, hard refresh, and verify the fix holds across all those pages for you.
