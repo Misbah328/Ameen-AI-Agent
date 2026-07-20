@@ -1,0 +1,119 @@
+Misbah,
+
+Here is the complete, final pricing structure for Ameen Secretary. This consolidates and replaces all earlier pricing messages — please use this as the single source of truth for the pricing page and account provisioning logic.
+
+---
+
+TIER 1 — AMEEN BASIC — 1,500 SAR/month
+
+Target: a single board with no sub-committees, doing the legal minimum in governance.
+
+Limits:
+- 1 board only, no sub-committees
+- Up to 5 members
+- 4 meetings per YEAR (matches the legal minimum board meeting requirement under Saudi Companies Law)
+- 1 entity (no subsidiaries)
+- 30 "Ask Ameen" queries/month
+- 1 GB storage
+
+Included:
+- Live recording / file upload / paste text
+- Live transcription
+- Basic task/decision extraction (view-only, no interactive tracking)
+- One-time free Governance Maturity Assessment
+- 3 of 10 document types (Minutes AR, Minutes EN, Bilingual Minutes)
+
+Not included: e-signature, task follow-up board, sub-committees, Circular Resolutions.
+
+---
+
+TIER 2 — AMEEN PLUS — 4,500 SAR/month
+
+Target: a mid-size company wanting a full, legally valid approval cycle, without needing daily execution tracking yet.
+
+Limits:
+- Up to 3 boards/committees
+- Up to 20 members
+- 30 meetings per YEAR
+- 1 entity
+- 200 "Ask Ameen" queries/month
+- 10 GB storage
+
+Included (everything in Basic, plus):
+- Full 4-stage minutes approval cycle (Draft -> Review -> Approval -> Archived)
+- Item-level comments visible to all attendees, with dual accept/reject authority (Secretary + Chairman)
+- Full e-signature support (digital AND manual/wet signature with scanned upload)
+- Unique reference code for every archived minutes record
+- All 10 document generation types
+- Expanded "Ask Ameen" usage
+
+Locked (visible upgrade prompt, not hidden): interactive Follow-Up & Execution board — tasks appear but status can't be updated, no proactive check-ins. Sub-committee management and Circular Resolutions are also not available.
+
+Overage pricing beyond 30 meetings/year:
+- Meetings 31–40: 400 SAR each
+- Meetings 41–50: 600 SAR each
+- Beyond 50: no further overage — upgrade to Advanced required to continue
+
+---
+
+TIER 3 — AMEEN ADVANCED — 7,000 SAR/month (marked "Recommended")
+
+Target: a board or company ready to run the platform at full operational capacity.
+
+Limits:
+- Unlimited boards/committees
+- Up to 50 members
+- Effectively unlimited meetings (soft abuse-prevention cap at 150/year)
+- 1 entity
+- 1,000 "Ask Ameen" queries/month
+- 100 GB storage
+
+Included (everything in Plus, plus):
+- Full interactive Follow-Up & Execution: status updates, automatic escalation, scheduled proactive check-ins with task owners, periodic status reports for managers, Pre-Meeting Smart Report
+- Encrypted member-to-member messaging
+- Sub-committee management with independent cycles
+- Circular Resolutions (full workflow: drafting, voting, quorum, signature)
+- "Resolution" formal formatting tag + standalone resolution export
+- Effectively unlimited "Ask Ameen" usage
+
+Overage pricing beyond 150 meetings/year: 100 SAR/meeting, uncapped (this ceiling exists purely to prevent abuse of a low-cost account for heavy-scale usage — genuine customers should never hit it).
+
+---
+
+TIER 4 — AMEEN ENTERPRISE — Custom pricing, sales-assisted only
+
+Target: holding companies and multi-entity groups. No self-serve trial — lead form/contact request, followed by custom proposal and contract.
+
+Included (everything in Advanced, plus):
+- Multi-entity management (holding company + all subsidiaries, unified dashboard)
+- Isolated/private deployment option
+- Custom integrations (e.g. SAP)
+- Dedicated account manager, onboarding, and training
+- Compliance reporting for regulatory bodies (CMA, etc.)
+- SLA agreement
+
+No published price — show "Contact Sales" only.
+
+---
+
+UNIFIED TRIAL POLICY (Basic, Plus, Advanced only — Enterprise excluded)
+
+- 3-day free trial for all three self-serve tiers, no exceptions.
+- Payment card required at signup.
+- Billing starts automatically when the trial ends unless canceled.
+- Reminder (email + WhatsApp) 24 hours before trial ends and billing begins.
+
+---
+
+SMART OVERAGE UX
+
+Before confirming any meeting that would trigger an overage charge, show the exact fee and a choice to continue or upgrade (e.g. "This is meeting #31 this year — a 400 SAR charge will be added. Continue, or upgrade to Advanced for unlimited meetings and full task follow-up?"). Also show a proactive banner once projected year-to-date overage charges exceed the cost difference to the next tier. No surprise billing — every charge is confirmed before the meeting is created.
+
+---
+
+OTHER PRICING NOTES
+
+- Annual billing discount: 2 months free vs. monthly.
+- Do NOT publish the special 4,500 SAR launch price anywhere public — that's a manually negotiated discount for our first 3 clients only.
+- "Recommended" badge on Advanced tier only.
+- Enterprise shows "Contact Us," never a number.

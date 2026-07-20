@@ -88,8 +88,8 @@ router.post('/signup', async (req, res) => {
   if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   if (!orgNameAr || !orgNameAr.trim()) return res.status(400).json({ error: 'Organisation name (Arabic) is required' });
   // Map legacy/frontend slugs to actual DB slugs
-  const slugMap = { basic: 'free_trial', plus: 'premium', advanced: 'pro' };
-  const resolvedSlug = slugMap[planSlug] || planSlug || 'free_trial';
+  const slugMap = { free_trial: 'basic', premium: 'plus', pro: 'advanced' };
+  const resolvedSlug = slugMap[planSlug] || planSlug || 'basic';
 
   const cleanEmail = email.trim().toLowerCase();
   const cleanOrgEmail = (orgEmail || cleanEmail).trim().toLowerCase();
