@@ -11976,24 +11976,7 @@ async function renderOverview() {
       )
       .join("");
 
-    // ── Live KPI bar ────────────────────────────────────────────────────────
-    const in7d = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
-    const meetingsThisWeek = schedule.filter(s => s.status !== 'cancelled' && s.meeting_date && s.meeting_date >= today && s.meeting_date <= in7d).length;
-    const kpiBar = (ico, val, ar, en, accent, onclick) =>
-      `<div onclick="${onclick}" style="flex:1;min-width:110px;cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:16px 12px;background:#fff;border-radius:12px;border:1px solid #E7E9EE;gap:6px;transition:.15s;box-shadow:0 1px 3px rgba(16,24,40,.06)" onmouseover="this.style.boxShadow='0 4px 14px rgba(16,24,40,.1)';this.style.borderColor='${accent}'" onmouseout="this.style.boxShadow='0 1px 3px rgba(16,24,40,.06)';this.style.borderColor='#E7E9EE'">
-        <div style="font-size:22px;line-height:1">${ico}</div>
-        <div style="font-size:26px;font-weight:800;color:${accent};line-height:1;letter-spacing:-.03em">${val}</div>
-        <div style="font-size:11px;color:#697386;text-align:center;font-weight:500">${lbl(ar, en)}</div>
-      </div>`;
-    const kpiBarHtml = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px">
-      ${kpiBar("📅", meetingsThisWeek, "اجتماعات هذا الأسبوع", "This Week's Meetings", "var(--gold)", "Panels.load('schedule')")}
-      ${kpiBar("⚠️", overdueTasks.length, "مهام متأخرة", "Overdue Tasks", overdueTasks.length > 0 ? "var(--red)" : "var(--text3)", "Panels.load('tasks')")}
-      ${kpiBar("🔔", pendingApprovals, "بانتظار الاعتماد", "Pending Approvals", pendingApprovals > 0 ? "var(--amber)" : "var(--text3)", "Panels.load('transcripts')")}
-      ${kpiBar("✅", followDecisions.length, "قرارات تنتظر المتابعة", "Decisions Needing Follow-up", followDecisions.length > 0 ? "#a78bfa" : "var(--text3)", "Panels.load('governance')")}
-    </div>`;
-
     body.innerHTML = `<div class="dashx dx2">
-      ${kpiBarHtml}
       <div class="dx2-cols">
         <div class="dx2-main">
           <div class="dx2-sec-t" style="display:flex;justify-content:space-between;align-items:center">
