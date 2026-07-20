@@ -30,7 +30,7 @@ body{font-family:'DM Sans','Segoe UI',Tahoma,Arial,sans-serif;font-size:15px;lin
 [data-theme="light"]{--navy:#F5F5F1}
 
 /* ── Shell ─────────────────────────────────────────────────────── */
-.shell{display:grid;grid-template-columns:248px 1fr;grid-template-rows:60px 1fr;height:100vh;background:var(--navy);color:var(--text)}
+.shell{display:grid;grid-template-columns:248px 1fr;grid-template-rows:64px 1fr;height:100vh;background:var(--navy);color:var(--text)}
 
 /* ── Topbar ────────────────────────────────────────────────────── */
 .topbar{grid-column:2;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 22px;border-bottom:1px solid var(--border3);background:#fff;z-index:10}
