@@ -850,6 +850,15 @@ async function api(path, opts = {}) {
   // string "CONFLICT" to the user instead of "This time overlaps a
   // confirmed meeting."
   if (!r.ok) {
+    // Global 401 guard — any expired/invalid session from any endpoint
+    // redirects to login immediately so panels never get stuck on their
+    // loading spinner. (App.init() already handles /auth/me 401, but this
+    // catches session expiry mid-use from any other API call.)
+    if (r.status === 401) {
+      sessionStorage.removeItem("ameen_token_fb");
+      window.location.replace("/login.html");
+      return; // navigation imminent, never reached
+    }
     const err = new Error(data.message || data.error || `HTTP ${r.status}`);
     // Expose the HTTP status so callers can detect auth failures reliably —
     // matching on message text alone misses bodies like "Not logged in".
