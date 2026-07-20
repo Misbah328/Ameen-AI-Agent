@@ -53,6 +53,12 @@ app.use('/recordings', auth, express.static(path.join(__dirname, 'data/recording
 // looked "alive" to anything checking response status.
 app.use(['/uploads', '/recordings'], (req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
 
+// ── Public pricing config toggle (no auth — used by landing page) ────────────
+// Set env var LAUNCH_DISCOUNT_ACTIVE=false to end the launch offer, no deploy needed.
+app.get('/api/pricing-config', (req, res) => {
+  res.json({ launchDiscount: process.env.LAUNCH_DISCOUNT_ACTIVE !== 'false' });
+});
+
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', require('./src/routes/api'));
 app.use('/api/gov', require('./src/routes/governance'));

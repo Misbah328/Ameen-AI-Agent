@@ -614,6 +614,14 @@ h1.hh .gold{display:block;color:var(--gold)}
 .pf-lock-ic svg{width:13px;height:13px;stroke:#bbb;stroke-width:2;fill:none}
 /* enterprise overrides */
 .plan.ent .pf{color:rgba(255,255,255,.78)}
+/* ── Launch offer badge ── */
+.plan-launch-badge{display:inline-flex;align-items:center;background:var(--gold);color:#fff;font-size:.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:.28rem .75rem;border-radius:100px;margin-bottom:.85rem;white-space:nowrap}
+.plan.ent .plan-launch-badge{background:rgba(201,169,110,.2);color:var(--gold);border:1px solid rgba(201,169,110,.45)}
+/* ── Strikethrough anchor price ── */
+.plan-price-anchor{font-size:.85rem;color:#bbb;text-decoration:line-through;font-weight:500;margin-bottom:.15rem;line-height:1}
+.plan.ent .plan-price-anchor{color:rgba(255,255,255,.3)}
+/* toggle off: hide discount elements */
+.discount-off .plan-launch-badge,.discount-off .plan-price-anchor{display:none!important}
 .plan.ent .pf-ck svg{stroke:var(--gold)}
 /* buttons */
 .plan-btn{display:block;text-align:center;text-decoration:none;font-size:.9rem;font-weight:700;padding:.88rem 1rem;border-radius:10px;border:2px solid #222;color:#111;background:#fff;transition:all .22s;margin-top:auto;letter-spacing:.01em}
@@ -1268,6 +1276,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 
     <!-- Basic -->
     <div class="plan">
+      <div class="plan-launch-badge" data-t="launch-badge">Launch Offer — Limited Time</div>
       <div class="plan-ic">
         <svg viewBox="0 0 40 40" fill="none">
           <circle cx="15" cy="13" r="5" stroke-linecap="round"/>
@@ -1278,8 +1287,10 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
       </div>
       <div class="plan-name" data-t="pl1n">Basic</div>
       <div class="plan-desc" data-t="pl1d">For a single board meeting its legal minimum.</div>
-      <div class="plan-price-num pr-mo">1,500</div>
-      <div class="plan-price-num pr-an" style="display:none">1,250</div>
+      <div class="plan-price-anchor pr-mo">2,200 SAR/month</div>
+      <div class="plan-price-anchor pr-an" style="display:none">1,833 SAR/month</div>
+      <div class="plan-price-num pr-mo">1,650</div>
+      <div class="plan-price-num pr-an" style="display:none">1,375</div>
       <div class="plan-price-unit" data-t="pl-unit">SAR / month</div>
       <div class="plan-feats">
         <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl1f1">Live recording &amp; transcription</span></div>
@@ -1294,6 +1305,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 
     <!-- Plus -->
     <div class="plan">
+      <div class="plan-launch-badge" data-t="launch-badge">Launch Offer — Limited Time</div>
       <div class="plan-ic">
         <svg viewBox="0 0 40 40" fill="none">
           <rect x="7" y="4" width="22" height="32" rx="3" stroke-linecap="round"/>
@@ -1303,8 +1315,10 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
       </div>
       <div class="plan-name" data-t="pl2n">Plus</div>
       <div class="plan-desc" data-t="pl2d">Full legal approval cycle for growing boards.</div>
-      <div class="plan-price-num pr-mo">4,500</div>
-      <div class="plan-price-num pr-an" style="display:none">3,750</div>
+      <div class="plan-price-anchor pr-mo">6,500 SAR/month</div>
+      <div class="plan-price-anchor pr-an" style="display:none">5,417 SAR/month</div>
+      <div class="plan-price-num pr-mo">4,875</div>
+      <div class="plan-price-num pr-an" style="display:none">4,063</div>
       <div class="plan-price-unit" data-t="pl-unit">SAR / month</div>
       <div class="plan-feats">
         <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl2f1">Everything in Basic</span></div>
@@ -1320,6 +1334,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 
     <!-- Advanced — Recommended -->
     <div class="plan adv">
+      <div class="plan-launch-badge" data-t="launch-badge">Launch Offer — Limited Time</div>
       <div class="plan-ribbon-wrap"><span data-t="pl-rec">Recommended</span></div>
       <div class="plan-ic">
         <svg viewBox="0 0 40 40" fill="none">
@@ -1330,8 +1345,10 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
       </div>
       <div class="plan-name" data-t="pl3n">Advanced</div>
       <div class="plan-desc" data-t="pl3d">Complete governance and task execution, unlocked.</div>
-      <div class="plan-price-num pr-mo">7,000</div>
-      <div class="plan-price-num pr-an" style="display:none">5,833</div>
+      <div class="plan-price-anchor pr-mo">10,000 SAR/month</div>
+      <div class="plan-price-anchor pr-an" style="display:none">8,333 SAR/month</div>
+      <div class="plan-price-num pr-mo">7,500</div>
+      <div class="plan-price-num pr-an" style="display:none">6,250</div>
       <div class="plan-price-unit" data-t="pl-unit">SAR / month</div>
       <div class="plan-feats">
         <div class="pf"><span class="pf-ck"><svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 3"/></svg></span><span data-t="pl3f1">Everything in Plus</span></div>
@@ -1346,6 +1363,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 
     <!-- Enterprise — dark -->
     <div class="plan ent">
+      <div class="plan-launch-badge" data-t="launch-badge">Launch Offer — Limited Time</div>
       <div class="plan-ic">
         <svg viewBox="0 0 40 40" fill="none">
           <rect x="4" y="14" width="32" height="22" rx="2" stroke-linecap="round"/>
@@ -1375,7 +1393,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
   <!-- Footer note -->
   <div class="pr-note rv">
     <div class="pr-note-ic">i</div>
-    <span data-t="pr-note">All self-serve plans include a 3-day free trial. A payment card is required at signup; billing starts automatically when the trial ends.</span>
+    <span data-t="pr-note">3-day free trial requires a payment card. Billing starts automatically when the trial ends. Cancel anytime, effective at the end of your billing period.</span>
   </div>
 
 </div>
@@ -1633,6 +1651,7 @@ ar:{dir:'rtl',
 'gc3n':'فيصل الشهراني','gc3r':'المدير التنفيذي','gc3s':'⏳ في الانتظار',
 'gc-pm':'تقدم الاعتماد','gc-ft':'محفوظ بشهادة رقمية — 18 يوليو 2026',
 'pr-h':'خطط تتناسب مع احتياجات حوكمتك','pr-p':'أسعار شفافة مصممة للمجالس والشركات والمجموعات القابضة.',
+'launch-badge':'عرض الإطلاق — لفترة محدودة',
 'pl-rec':'موصى به','pl-trial':'ابدأ تجربة 3 أيام','pl4btn':'تواصل مع المبيعات',
 'pl1n':'بيسك','pl1d':'لجلسة مجلس إدارة واحدة بالحد الأدنى القانوني.',
 'pl2n':'بلس','pl2d':'دورة اعتماد قانونية كاملة للمجالس المتنامية.',
@@ -1643,7 +1662,7 @@ ar:{dir:'rtl',
 'pl2f1':'كل مزايا الأساسي','pl2f2':'دورة اعتماد رباعية المراحل كاملة','pl2f3':'توقيع رقمي + يدوي إلكتروني','pl2f4':'جميع أنواع المستندات العشرة','pl2f5':'30 اجتماعاً/سنة · 20 عضواً · 10 GB','pl2f6':'200 استفساراً من «اسأل أمين»/شهر','pl2f7':'متابعة المهام · لجان فرعية · قرارات تداولية (ترقية)',
 'pl3f1':'كل مزايا بلس','pl3f2':'متابعة مهام تفاعلية مع تصعيد تلقائي','pl3f3':'لجان فرعية + قرارات تداولية','pl3f4':'مراسلة مشفرة بين الأعضاء','pl3f5':'تقرير ذكي قبل الاجتماع','pl3f6':'50 عضواً · 100 GB · 1,000 استفسار/شهر',
 'pl4f1':'كل مزايا المتقدم','pl4f2':'إدارة متعددة الكيانات (قابضة + فروع)','pl4f3':'نشر معزول ومستقل','pl4f4':'مدير حساب مخصص + اتفاقية SLA','pl4f5':'تكاملات مخصصة (SAP وغيرها)','pl4f6':'تقارير امتثال تنظيمية (هيئة السوق، إلخ)',
-'pr-note':'تشمل جميع الخطط الذاتية تجربة مجانية 3 أيام. يُطلب بطاقة سداد عند التسجيل — تبدأ الفوترة تلقائياً بعد التجربة. الاشتراك السنوي: شهران مجاناً.',
+'pr-note':'تجربة 3 أيام تتطلب بطاقة سداد. تبدأ الفوترة تلقائياً عند انتهاء التجربة. يمكن الإلغاء في أي وقت، ويسري في نهاية فترة الفوترة المدفوعة.',
 'te-chip':'شهادات العملاء','te-h':'ماذا يقول قادة المؤسسات؟',
 'tq1':'أمين حوّل طريقة إدارتنا لاجتماعات مجلس الإدارة. المحاضر باتت جاهزة في دقائق.',
 'tn1':'م. محمد الزهراني','tr1':'رئيس مجلس إدارة، مجموعة صناعية كبرى',
@@ -1716,6 +1735,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   applyLang(L);
   initPrToggle();
   applyTheme(isDark);
+  /* Apply launch-discount toggle from server config */
+  fetch('/api/pricing-config').then(r=>r.json()).then(cfg=>{
+    if(!cfg.launchDiscount){
+      document.getElementById('plan-row').classList.add('discount-off');
+    }
+  }).catch(()=>{});
 });
 </script>
 </body>
