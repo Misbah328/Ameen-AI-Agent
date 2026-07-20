@@ -25,7 +25,8 @@ nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
 .nav-i{max-width:1200px;margin:0 auto;padding:0 2.5rem;height:68px;display:flex;align-items:center;gap:1.2rem}
 /* logo */
 .logo-a{display:flex;align-items:center;gap:.55rem;text-decoration:none;flex-shrink:0}
-.gem-svg{width:42px;height:46px;flex-shrink:0}
+.logo-img-wrap{width:44px;height:44px;border-radius:10px;background:linear-gradient(145deg,#0d2010 0%,#1e4a28 100%);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 2px 8px rgba(13,32,16,.25)}
+.logo-img-wrap img{width:90%;height:90%;object-fit:contain;object-position:center}
 .logo-text{display:flex;flex-direction:column;line-height:1;gap:0}
 .logo-ar{font-family:'Tajawal',sans-serif;font-size:1.15rem;font-weight:900;color:var(--dark);line-height:1.1}
 .logo-en1{font-size:.65rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--dark);line-height:1.15}
@@ -722,25 +723,8 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <div class="nav-i">
   <!-- Logo -->
   <a href="/" class="logo-a">
-    <div class="gem-svg">
-      <!--
-        Stylized letter "A":
-        left leg = solid dark green (#0d2010)
-        right leg = gold (#C9A84C) with thin dark fill so it contrasts
-        crossbar = thin gold line
-      -->
-      <svg viewBox="0 0 46 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Left leg of A — solid dark green -->
-        <polygon points="23,2 2,50 17,50 23,25" fill="#0d2010"/>
-        <!-- Right leg of A — gold, slightly transparent inner -->
-        <polygon points="23,2 44,50 29,50 23,25" fill="#C9A84C"/>
-        <!-- Thin inner shading on right leg for depth -->
-        <polygon points="23,25 32,50 29,50 23,25" fill="#a88530" opacity=".4"/>
-        <!-- Crossbar of A -->
-        <rect x="13.5" y="31" width="19" height="2.8" rx="1" fill="#C9A84C" opacity=".55"/>
-        <!-- Crossbar on dark side -->
-        <rect x="13.5" y="31" width="9.5" height="2.8" rx="1" fill="#1a4020" opacity=".7"/>
-      </svg>
+    <div class="logo-img-wrap">
+      <img src="/ameen-logo.png" alt="أمين"/>
     </div>
     <div class="logo-text">
       <span class="logo-ar" data-t="logo-ar">أمـيـن</span>
@@ -939,12 +923,8 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
               <div class="d-sb">
                 <!-- Brand logo -->
                 <div class="d-sb-brand">
-                  <div class="d-sb-gem">
-                    <svg viewBox="0 0 46 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <polygon points="23,2 2,50 17,50 23,26" fill="#0d2010"/>
-                      <polygon points="23,2 44,50 29,50 23,26" fill="#C9A84C"/>
-                      <rect x="11" y="28" width="24" height="3.5" rx="1.5" fill="#C9A84C"/>
-                    </svg>
+                  <div class="d-sb-gem" style="background:linear-gradient(145deg,#0d2010,#1e4a28);border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    <img src="/ameen-logo.png" alt="أمين" style="width:100%;height:100%;object-fit:contain;"/>
                   </div>
                   <div class="d-sb-name">
                     <div class="d-sb-n1">AMEEN</div>
@@ -1459,7 +1439,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <!-- ═══ FOOTER ════════════════════════════════════════ -->
 <footer>
 <div class="ft-i">
-  <a href="/" class="ft-brand"><img src="/logo.png" alt=""/><span class="ft-bname">AMEEN <em>Secretary</em></span></a>
+  <a href="/" class="ft-brand"><div class="logo-img-wrap" style="width:32px;height:32px;border-radius:7px;"><img src="/ameen-logo.png" alt="أمين"/></div><span class="ft-bname">AMEEN <em>Secretary</em></span></a>
   <div class="ft-links">
     <a href="#feat"  data-t="fl1">Features</a>
     <a href="#how"   data-t="fl2">How It Works</a>
