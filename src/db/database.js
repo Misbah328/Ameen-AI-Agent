@@ -181,6 +181,35 @@ ensureColumn('meeting_documents', 'doc_classification', "TEXT DEFAULT ''");
 ensureColumn('schedule', 'recurrence', "TEXT DEFAULT 'none'");
 ensureColumn('schedule', 'recurrence_group_id', 'TEXT');
 
+// ── Subscription tier migration ────────────────────────────────────────────
+// Add plan column to organizations for authoritative per-org tier storage
+ensureColumn('organizations', 'plan', "TEXT DEFAULT 'basic'");
+// Remap legacy settings: free → basic, pro → advanced (idempotent)
+// Also backfills organizations.plan from settings so existing tenants keep their
+// previously-set tier after the column was added (not reset to DEFAULT 'basic').
+;(function migrateSubscriptionTier() {
+  const row = db.prepare("SELECT value FROM settings WHERE key='plan'").get();
+  let normalised = (row && row.value) || 'basic';
+  if (normalised === 'free') normalised = 'basic';
+  if (normalised === 'pro')  normalised = 'advanced';
+  const validTiers = new Set(['basic','plus','advanced','enterprise']);
+  if (!validTiers.has(normalised)) normalised = 'basic';
+  // Normalise settings table
+  db.prepare("INSERT INTO settings (key,value) VALUES ('plan',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(normalised);
+  // Backfill any org rows whose plan is still NULL or the raw DEFAULT 'basic'
+  // only when settings says something higher — prevents downgrading a paid org.
+  try {
+    // Apply to ALL orgs that haven't been explicitly set yet (plan still NULL)
+    db.prepare("UPDATE organizations SET plan=? WHERE plan IS NULL").run(normalised);
+    // If settings tier is higher than any org's current plan, upgrade to match
+    // (handles the case where the column was just added and defaulted to 'basic')
+    const tierRank = {basic:1,plus:2,advanced:3,enterprise:4};
+    if ((tierRank[normalised] || 1) > 1) {
+      db.prepare("UPDATE organizations SET plan=? WHERE plan='basic'").run(normalised);
+    }
+  } catch (_) { /* column may not yet be committed if schema is very old */ }
+})();
+
 // ── Subscription plans & organisations ───────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS subscription_plans (
@@ -212,9 +241,11 @@ db.exec(`
   );
 `);
 
-// Seed subscription plans (idempotent)
+// Seed subscription plans (idempotent — adds legacy rows on first boot, then
+// upserts the four canonical 4-tier slugs on every boot to keep them current).
 const _planCount = db.prepare("SELECT COUNT(*) as n FROM subscription_plans").get().n;
 if (_planCount === 0) {
+  // Legacy seed rows (kept for any existing FK references)
   db.prepare(`INSERT INTO subscription_plans
     (slug, name_ar, name_en, price_monthly_usd, price_monthly_sar, trial_days, max_users, max_meetings_month, features, sort_order)
     VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
@@ -230,6 +261,22 @@ if (_planCount === 0) {
     VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
     'pro','برو','Pro',99,371,0,999,999,
     JSON.stringify(['ai_minutes','e_signature','approval_workflow','board_management','advanced_reports','email_notifications','whatsapp_notifications','custom_branding','api_access','sso','dedicated_support']),3);
+}
+// Upsert 4-tier canonical rows (idempotent — runs on every boot)
+{
+  const upsertPlan = db.prepare(`
+    INSERT INTO subscription_plans (slug,name_ar,name_en,price_monthly_sar,max_users,max_meetings_month,features,sort_order)
+    VALUES (?,?,?,?,?,?,?,?)
+    ON CONFLICT(slug) DO UPDATE SET
+      name_ar=excluded.name_ar, name_en=excluded.name_en,
+      price_monthly_sar=excluded.price_monthly_sar,
+      max_users=excluded.max_users, max_meetings_month=excluded.max_meetings_month,
+      features=excluded.features, sort_order=excluded.sort_order
+  `);
+  upsertPlan.run('basic','أساسي','Basic',1650,10,50,JSON.stringify(['ai_minutes','tasks','documents','calendar','ask_ameen']),10);
+  upsertPlan.run('plus','بلس','Plus',4875,50,200,JSON.stringify(['ai_minutes','tasks','documents','calendar','ask_ameen','approval_workflow','policies','resolutions','analytics','activity_log']),20);
+  upsertPlan.run('advanced','متقدم','Advanced',7500,999,999,JSON.stringify(['ai_minutes','tasks','documents','calendar','ask_ameen','approval_workflow','policies','resolutions','analytics','activity_log','circular_resolutions','boards','governance','share_outcomes','escalation']),30);
+  upsertPlan.run('enterprise','مؤسسي','Enterprise',0,999,999,JSON.stringify(['all','roles_management','permission_matrix','api_access','sso','multi_entity']),40);
 }
 
 ensureColumn('users', 'organization_id', 'INTEGER');

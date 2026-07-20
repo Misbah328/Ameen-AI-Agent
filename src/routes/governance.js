@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
-const { requirePermission } = auth;
+const { requirePermission, requireTier } = auth;
 const { createNotification } = require('../services/notifications');
 const notify = require('../utils/notify');
 
@@ -285,7 +285,7 @@ router.get('/boards', auth, requirePermission('governance.boards'), (req, res) =
   })));
 });
 
-router.post('/boards', auth, requirePermission('governance.boards'), (req, res) => {
+router.post('/boards', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
   const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
   const row = db.prepare(`INSERT INTO boards (name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?)`)
@@ -293,7 +293,7 @@ router.post('/boards', auth, requirePermission('governance.boards'), (req, res) 
   res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/boards/:id', auth, requirePermission('governance.boards'), (req, res) => {
+router.patch('/boards/:id', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
   const existing = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
@@ -308,7 +308,7 @@ router.patch('/boards/:id', auth, requirePermission('governance.boards'), (req, 
   res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id));
 });
 
-router.delete('/boards/:id', auth, requirePermission('governance.boards'), (req, res) => {
+router.delete('/boards/:id', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
   db.prepare('UPDATE committees SET board_id=NULL WHERE board_id=?').run(req.params.id);
   db.prepare('DELETE FROM boards WHERE id=?').run(req.params.id);
   res.json({ success: true });
@@ -324,7 +324,7 @@ router.get('/committees', auth, requirePermission('governance.committees'), (req
   res.json(rows.map(c => ({ ...c, members: (() => { try { return JSON.parse(c.members||'[]'); } catch { return []; } })() })));
 });
 
-router.post('/committees', auth, requirePermission('governance.committees'), (req, res) => {
+router.post('/committees', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
   const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
   const row = db.prepare(`INSERT INTO committees (board_id,name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?,?)`)
@@ -332,7 +332,7 @@ router.post('/committees', auth, requirePermission('governance.committees'), (re
   res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(row.lastInsertRowid));
 });
 
-router.patch('/committees/:id', auth, requirePermission('governance.committees'), (req, res) => {
+router.patch('/committees/:id', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
   if (!db.prepare('SELECT id FROM committees WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   db.prepare(`UPDATE committees SET
@@ -346,7 +346,7 @@ router.patch('/committees/:id', auth, requirePermission('governance.committees')
   res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(req.params.id));
 });
 
-router.delete('/committees/:id', auth, requirePermission('governance.committees'), (req, res) => {
+router.delete('/committees/:id', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
   db.prepare('DELETE FROM committees WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -901,7 +901,7 @@ router.get('/policies', auth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/policies', auth, (req, res) => {
+router.post('/policies', auth, requireTier('plus'), (req, res) => {
   try {
     const { title_ar, title_en, description_ar, description_en, category, status, version, effective_date, owner, owner_email, approved_by } = req.body;
     if (!title_ar || !title_en) return res.status(400).json({ error: 'title_ar and title_en are required' });
@@ -912,7 +912,7 @@ router.post('/policies', auth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.patch('/policies/:id', auth, (req, res) => {
+router.patch('/policies/:id', auth, requireTier('plus'), (req, res) => {
   try {
     if (!db.prepare('SELECT id FROM policies WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
     const { title_ar, title_en, description_ar, description_en, category, status, version, effective_date, owner, owner_email, approved_by } = req.body;
@@ -928,7 +928,7 @@ router.patch('/policies/:id', auth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.delete('/policies/:id', auth, (req, res) => {
+router.delete('/policies/:id', auth, requireTier('plus'), (req, res) => {
   try {
     if (!db.prepare('SELECT id FROM policies WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Not found' });
     db.prepare('DELETE FROM policies WHERE id=?').run(req.params.id);
@@ -938,7 +938,7 @@ router.delete('/policies/:id', auth, (req, res) => {
 
 // ── Board Member Invitation ───────────────────────────────────────────────────
 
-router.post('/boards/:id/invite', auth, requirePermission('governance.boards'), async (req, res) => {
+router.post('/boards/:id/invite', auth, requireTier('advanced'), requirePermission('governance.boards'), async (req, res) => {
   try {
     const board = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
     if (!board) return res.status(404).json({ error: 'Board not found' });
@@ -996,8 +996,8 @@ router.get('/circular-resolutions', auth, requirePermission('governance.resoluti
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/gov/circular-resolutions — create draft
-router.post('/circular-resolutions', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions — create draft (Advanced+)
+router.post('/circular-resolutions', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const { title, body = '', description = '', deadline = '', total_members = 7, quorum_required = 4, board_id } = req.body;
     if (!title) return res.status(400).json({ error: 'title required' });
@@ -1020,8 +1020,8 @@ router.get('/circular-resolutions/:id', auth, requirePermission('governance.reso
   res.json(cr);
 });
 
-// PATCH /api/gov/circular-resolutions/:id — update (draft only)
-router.patch('/circular-resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
+// PATCH /api/gov/circular-resolutions/:id — update (draft only, Advanced+)
+router.patch('/circular-resolutions/:id', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
     if (!cr) return res.status(404).json({ error: 'Not found' });
@@ -1036,8 +1036,8 @@ router.patch('/circular-resolutions/:id', auth, requirePermission('governance.re
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/gov/circular-resolutions/:id
-router.delete('/circular-resolutions/:id', auth, requirePermission('governance.resolutions'), (req, res) => {
+// DELETE /api/gov/circular-resolutions/:id (Advanced+)
+router.delete('/circular-resolutions/:id', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     if (!db.prepare('SELECT id FROM circular_resolutions WHERE id=?').get(req.params.id))
       return res.status(404).json({ error: 'Not found' });
@@ -1046,8 +1046,8 @@ router.delete('/circular-resolutions/:id', auth, requirePermission('governance.r
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/gov/circular-resolutions/:id/circulate — draft → circulated
-router.post('/circular-resolutions/:id/circulate', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions/:id/circulate — draft → circulated (Advanced+)
+router.post('/circular-resolutions/:id/circulate', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
     if (!cr) return res.status(404).json({ error: 'Not found' });
@@ -1057,8 +1057,8 @@ router.post('/circular-resolutions/:id/circulate', auth, requirePermission('gove
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/gov/circular-resolutions/:id/open-voting — circulated → voting
-router.post('/circular-resolutions/:id/open-voting', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions/:id/open-voting — circulated → voting (Advanced+)
+router.post('/circular-resolutions/:id/open-voting', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
     if (!cr) return res.status(404).json({ error: 'Not found' });
@@ -1068,8 +1068,8 @@ router.post('/circular-resolutions/:id/open-voting', auth, requirePermission('go
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/gov/circular-resolutions/:id/close-voting — voting → approved / rejected
-router.post('/circular-resolutions/:id/close-voting', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions/:id/close-voting — voting → approved / rejected (Advanced+)
+router.post('/circular-resolutions/:id/close-voting', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
     if (!cr) return res.status(404).json({ error: 'Not found' });
@@ -1084,8 +1084,8 @@ router.post('/circular-resolutions/:id/close-voting', auth, requirePermission('g
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/gov/circular-resolutions/:id/vote — cast vote
-router.post('/circular-resolutions/:id/vote', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions/:id/vote — cast vote (Advanced+)
+router.post('/circular-resolutions/:id/vote', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
     if (!cr) return res.status(404).json({ error: 'Not found' });
@@ -1109,8 +1109,8 @@ router.post('/circular-resolutions/:id/vote', auth, requirePermission('governanc
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/gov/circular-resolutions/:id/sign — add signature
-router.post('/circular-resolutions/:id/sign', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions/:id/sign — add signature (Advanced+)
+router.post('/circular-resolutions/:id/sign', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const cr = db.prepare('SELECT * FROM circular_resolutions WHERE id=?').get(req.params.id);
     if (!cr) return res.status(404).json({ error: 'Not found' });
@@ -1132,8 +1132,8 @@ router.get('/circular-resolutions/:id/comments', auth, requirePermission('govern
   res.json(db.prepare('SELECT * FROM cr_comments WHERE cr_id=? ORDER BY created_at').all(req.params.id));
 });
 
-// POST /api/gov/circular-resolutions/:id/comments — add comment
-router.post('/circular-resolutions/:id/comments', auth, requirePermission('governance.resolutions'), (req, res) => {
+// POST /api/gov/circular-resolutions/:id/comments — add comment (Advanced+)
+router.post('/circular-resolutions/:id/comments', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     if (!db.prepare('SELECT id FROM circular_resolutions WHERE id=?').get(req.params.id))
       return res.status(404).json({ error: 'Not found' });
@@ -1147,8 +1147,8 @@ router.post('/circular-resolutions/:id/comments', auth, requirePermission('gover
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/gov/circular-resolutions/:crId/comments/:cid — accept / reject
-router.patch('/circular-resolutions/:crId/comments/:cid', auth, requirePermission('governance.resolutions'), (req, res) => {
+// PATCH /api/gov/circular-resolutions/:crId/comments/:cid — accept / reject (Advanced+)
+router.patch('/circular-resolutions/:crId/comments/:cid', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     const c = db.prepare('SELECT * FROM cr_comments WHERE id=? AND cr_id=?').get(req.params.cid, req.params.crId);
     if (!c) return res.status(404).json({ error: 'Comment not found' });
@@ -1162,8 +1162,8 @@ router.patch('/circular-resolutions/:crId/comments/:cid', auth, requirePermissio
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/gov/circular-resolutions/:id/recording-status — update minutes recording
-router.patch('/circular-resolutions/:id/recording-status', auth, requirePermission('governance.resolutions'), (req, res) => {
+// PATCH /api/gov/circular-resolutions/:id/recording-status — update minutes recording (Advanced+)
+router.patch('/circular-resolutions/:id/recording-status', auth, requireTier('advanced'), requirePermission('governance.resolutions'), (req, res) => {
   try {
     if (!db.prepare('SELECT id FROM circular_resolutions WHERE id=?').get(req.params.id))
       return res.status(404).json({ error: 'Not found' });

@@ -10,3 +10,4 @@
 - [AC step renderer body element](ac-step-body.md) — all AC step renderers must use `document.getElementById('ac-page-body')`, never `this.main` (undefined); wrong reference silently exits and leaves the AC overview visible.
 - [FUE flex-shrink collapse](fue-flex-shrink.md) — overflow:hidden on a .pbody flex child sets min-height:0, crushing it to ~2px; fix with flex-shrink:0 on every direct .pbody child that has overflow.
 - [JWT_SECRET + 401 spinners](jwt-session-stability.md) — JWT_SECRET must be a persistent env var; without it tokens reset on restart. api() needs a global 401→login redirect so panels never stay on loading spinner.
+- [Subscription tier system](subscription-tiers.md) — requireTier() lives in auth.js (shared across all route modules); plan read from organizations.plan primary, settings table fallback; Panels.load() guards all paths including hash/programmatic nav.

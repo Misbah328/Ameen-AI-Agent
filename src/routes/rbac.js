@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
-const { requirePermission } = auth;
+const { requirePermission, requireTier } = auth;
 const rbac = require('../services/rbac');
 
 function resolveActor(userId) {
@@ -47,7 +47,7 @@ router.get('/roles/:id', auth, requirePermission('admin.roles'), (req, res) => {
   res.json(roleWithPermissions(role));
 });
 
-router.post('/roles', auth, requirePermission('admin.roles'), (req, res) => {
+router.post('/roles', auth, requireTier('enterprise'), requirePermission('admin.roles'), (req, res) => {
   const { role_key, name_ar, name_en, description_ar, description_en, permissions } = req.body;
   if (!role_key || !name_ar || !name_en) return res.status(400).json({ error: 'role_key, name_ar and name_en are required' });
   if (db.prepare('SELECT id FROM roles WHERE role_key=?').get(role_key)) {
@@ -71,7 +71,7 @@ router.post('/roles', auth, requirePermission('admin.roles'), (req, res) => {
   res.json(roleWithPermissions(db.prepare('SELECT * FROM roles WHERE id=?').get(roleId)));
 });
 
-router.post('/roles/:id/clone', auth, requirePermission('admin.roles'), (req, res) => {
+router.post('/roles/:id/clone', auth, requireTier('enterprise'), requirePermission('admin.roles'), (req, res) => {
   const src = db.prepare('SELECT * FROM roles WHERE id=?').get(req.params.id);
   if (!src) return res.status(404).json({ error: 'Not found' });
   const { role_key, name_ar, name_en } = req.body;
@@ -96,7 +96,7 @@ router.post('/roles/:id/clone', auth, requirePermission('admin.roles'), (req, re
   res.json(roleWithPermissions(db.prepare('SELECT * FROM roles WHERE id=?').get(roleId)));
 });
 
-router.patch('/roles/:id', auth, requirePermission('admin.roles'), (req, res) => {
+router.patch('/roles/:id', auth, requireTier('enterprise'), requirePermission('admin.roles'), (req, res) => {
   const role = db.prepare('SELECT * FROM roles WHERE id=?').get(req.params.id);
   if (!role) return res.status(404).json({ error: 'Not found' });
   const { name_ar, name_en, description_ar, description_en, is_active, permissions } = req.body;
@@ -132,7 +132,7 @@ router.patch('/roles/:id', auth, requirePermission('admin.roles'), (req, res) =>
   res.json(roleWithPermissions(db.prepare('SELECT * FROM roles WHERE id=?').get(role.id)));
 });
 
-router.delete('/roles/:id', auth, requirePermission('admin.roles'), (req, res) => {
+router.delete('/roles/:id', auth, requireTier('enterprise'), requirePermission('admin.roles'), (req, res) => {
   const role = db.prepare('SELECT * FROM roles WHERE id=?').get(req.params.id);
   if (!role) return res.status(404).json({ error: 'Not found' });
   if (role.is_builtin) return res.status(403).json({ error: 'Cannot delete a built-in role' });
@@ -173,7 +173,7 @@ router.get('/user-permissions/:userId', auth, requirePermission('admin.roles'), 
   res.json(rows);
 });
 
-router.put('/user-permissions/:userId', auth, requirePermission('admin.roles'), (req, res) => {
+router.put('/user-permissions/:userId', auth, requireTier('enterprise'), requirePermission('admin.roles'), (req, res) => {
   const userId = parseInt(req.params.userId);
   if (!userId) return res.status(400).json({ error: 'Invalid user id' });
   const catalogKeys = new Set(rbac.PERMISSION_CATALOG.map(p => p.key));

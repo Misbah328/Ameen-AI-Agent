@@ -1992,37 +1992,75 @@
   </div>
 </div>
 
-<!-- ══ MODAL: PLAN / UPGRADE ══════════════════════════════════ -->
+<!-- ══ MODAL: PLAN ADMIN SELECTOR ══════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-plan">
-  <div class="modal" style="max-width:560px">
-    <div class="modal-title">⭐ <span data-ar="الباقة والاشتراك" data-en="Plan & Subscription">الباقة والاشتراك</span></div>
+  <div class="modal" style="max-width:540px">
+    <div class="modal-title">🏷️ <span data-ar="إدارة الباقة" data-en="Plan Management">إدارة الباقة</span></div>
     <div class="fs">
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px;background:var(--navy3);border:1px solid var(--border2);border-radius:12px;padding:16px">
-          <div style="font-weight:800;color:var(--text);font-size:15px" data-ar="مجاني" data-en="Free">Free</div>
-          <ul style="margin:10px 0 0;padding-inline-start:18px;font-size:12px;color:var(--text3);line-height:1.9">
-            <li data-ar="تسجيل ونسخ مباشر" data-en="Live recording & transcription">تسجيل ونسخ مباشر</li>
-            <li data-ar="استخراج المهام والمحضر بالذكاء الاصطناعي" data-en="AI task & minutes extraction">استخراج المهام والمحضر</li>
-            <li data-ar="استخراج المهام أثناء التسجيل" data-en="Live task extraction while recording">استخراج المهام أثناء التسجيل</li>
-            <li data-ar="تذكيرات بريد/واتساب للاجتماعات" data-en="Email/WhatsApp meeting reminders">تذكيرات بريد/واتساب</li>
-          </ul>
+      <div id="plan-current" style="font-size:13px;color:var(--text3);text-align:center;margin-bottom:4px"></div>
+
+      <!-- 4-tier cards -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="plan-tier-card" style="--tc:#5B9BD6" onclick="App.setPlan('basic')">
+          <div class="ptc-name" data-ar="أساسي" data-en="Basic">أساسي</div>
+          <div class="ptc-price">1,650 <span data-ar="ر.س/شهر" data-en="SAR/mo">ر.س/شهر</span></div>
         </div>
-        <div style="flex:1;min-width:200px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:12px;padding:16px">
-          <div style="font-weight:800;color:var(--gold);font-size:15px" data-ar="⭐ Pro" data-en="⭐ Pro">⭐ Pro</div>
-          <ul style="margin:10px 0 0;padding-inline-start:18px;font-size:12px;color:var(--text);line-height:1.9">
-            <li data-ar="مشاركة النتائج مع الحضور وتأكيد المهام" data-en="Share outcomes & attendee task confirmation">مشاركة النتائج وتأكيد المهام</li>
-            <li data-ar="التحكم في من تُشارك معه" data-en="Sharing & audience controls">التحكم في المشاركة</li>
-            <li data-ar="تعديل المحتوى أثناء التسجيل" data-en="Live editing while recording">تعديل المحتوى أثناء التسجيل</li>
-            <li data-ar="توليد التقارير والوثائق" data-en="Reports & document generation">توليد التقارير</li>
-          </ul>
+        <div class="plan-tier-card" style="--tc:#C9A96E" onclick="App.setPlan('plus')">
+          <div class="ptc-name" data-ar="بلس" data-en="Plus">بلس</div>
+          <div class="ptc-price">4,875 <span data-ar="ر.س/شهر" data-en="SAR/mo">ر.س/شهر</span></div>
+        </div>
+        <div class="plan-tier-card" style="--tc:#9370DB" onclick="App.setPlan('advanced')">
+          <div class="ptc-name" data-ar="متقدم" data-en="Advanced">متقدم</div>
+          <div class="ptc-price">7,500 <span data-ar="ر.س/شهر" data-en="SAR/mo">ر.س/شهر</span></div>
+        </div>
+        <div class="plan-tier-card" style="--tc:#2ECC8A" onclick="App.setPlan('enterprise')">
+          <div class="ptc-name" data-ar="مؤسسي" data-en="Enterprise">مؤسسي</div>
+          <div class="ptc-price" data-ar="مخصص" data-en="Custom">مخصص</div>
         </div>
       </div>
-      <div id="plan-current" style="font-size:12px;color:var(--text3);text-align:center"></div>
-      <div style="font-size:11px;color:var(--text3);background:var(--navy3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;text-align:center" data-ar="ℹ️ هذا تفعيل داخلي للمشرفين فقط — لا توجد عملية دفع أو فوترة حالياً." data-en="ℹ️ This is an admin-only internal toggle — no payment or billing is processed.">ℹ️ هذا تفعيل داخلي للمشرفين فقط — لا توجد عملية دفع أو فوترة حالياً.</div>
+
+      <div style="font-size:11px;color:var(--text3);background:var(--navy3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;text-align:center"
+           data-ar="ℹ️ هذا تفعيل داخلي للمشرفين فقط — لا توجد عملية دفع أو فوترة حالياً."
+           data-en="ℹ️ Admin-only internal toggle — no billing is processed.">
+        ℹ️ هذا تفعيل داخلي للمشرفين فقط — لا توجد عملية دفع أو فوترة حالياً.
+      </div>
       <div class="fa">
-        <button class="btn-gold" id="plan-upgrade-btn" onclick="App.setPlan('pro')">⭐ <span data-ar="تفعيل Pro (إداري)" data-en="Enable Pro (Admin)">تفعيل Pro (إداري)</span></button>
-        <button class="btn-ghost" id="plan-downgrade-btn" onclick="App.setPlan('free')"><span data-ar="الرجوع إلى Free" data-en="Switch to Free">الرجوع إلى Free</span></button>
         <button class="btn-ghost" onclick="App.closePlan()"><span data-ar="إغلاق" data-en="Close">إغلاق</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: UPGRADE PROMPT ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-upgrade">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title" style="gap:8px">
+      🔒 <span data-ar="ترقية الباقة مطلوبة" data-en="Upgrade Required">ترقية الباقة مطلوبة</span>
+    </div>
+    <div class="fs">
+      <div style="text-align:center;margin-bottom:8px">
+        <div style="font-size:13px;color:var(--text3)" data-ar="هذه الميزة متاحة في باقة:" data-en="This feature requires:">هذه الميزة متاحة في باقة:</div>
+        <div id="upgrade-tier-badge" style="font-size:22px;font-weight:800;margin:4px 0">
+          <span id="upgrade-tier-name">—</span>
+        </div>
+        <div id="upgrade-feature-name" style="font-size:12px;color:var(--text3)"></div>
+      </div>
+      <div style="background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:12px 16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"
+             data-ar="ما تحصل عليه:" data-en="What you get:">ما تحصل عليه:</div>
+        <ul id="upgrade-features-list" style="margin:0;padding-inline-start:18px;font-size:12px;color:var(--text3);line-height:2"></ul>
+      </div>
+      <div style="text-align:center;font-size:13px;color:var(--text3)">
+        <span data-ar="للترقية تواصل مع مدير حسابك أو" data-en="To upgrade, contact your account manager or">للترقية تواصل مع مدير حسابك أو</span>
+        <strong id="upgrade-tier-name-2" style="color:var(--gold)"></strong>
+      </div>
+      <div class="fa">
+        <button class="btn-gold" onclick="App.closeUpgradeModal();App.openPlan()">
+          <span data-ar="عرض الباقات" data-en="View Plans">عرض الباقات</span>
+        </button>
+        <button class="btn-ghost" onclick="App.closeUpgradeModal()">
+          <span data-ar="إغلاق" data-en="Close">إغلاق</span>
+        </button>
       </div>
     </div>
   </div>

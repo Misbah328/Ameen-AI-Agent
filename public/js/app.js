@@ -545,7 +545,75 @@ function applySidebarRoles() {
     }
     sec.style.display = hasVisible ? "" : "none";
   });
+  // Apply tier locks after role visibility so only visible buttons get locks
+  applySidebarTierLocks();
 }
+
+// ── Sidebar tier lock overlay — called after role visibility is applied ──────
+// Adds a gold 🔒 icon to nav buttons whose panel requires a higher tier.
+// Does NOT hide them — they remain visible but grayed out.
+function applySidebarTierLocks() {
+  document.querySelectorAll(".nb[data-p]").forEach((btn) => {
+    const panel = btn.dataset.p;
+    const minTier = PANEL_TIER[panel];
+    if (!minTier) return;
+    const locked = !App.hasFeature(minTier);
+    // Add/remove locked class
+    btn.classList.toggle("nb-locked", locked);
+    // Manage lock badge element
+    let lock = btn.querySelector(".nb-lock-badge");
+    if (locked) {
+      if (!lock) {
+        lock = document.createElement("span");
+        lock.className = "nb-lock-badge";
+        lock.textContent = "🔒";
+        btn.appendChild(lock);
+      }
+    } else {
+      if (lock) lock.remove();
+    }
+  });
+}
+
+// ══ Subscription Tier System ══════════════════════════════════════════════════
+const PLAN_RANK = { basic: 1, plus: 2, advanced: 3, enterprise: 4 };
+const PLAN_NAMES = {
+  basic:      { ar: 'أساسي',    en: 'Basic',      sar: '1,650',  color: '#5B9BD6' },
+  plus:       { ar: 'بلس',      en: 'Plus',        sar: '4,875',  color: '#C9A96E' },
+  advanced:   { ar: 'متقدم',    en: 'Advanced',    sar: '7,500',  color: '#9370DB' },
+  enterprise: { ar: 'مؤسسي',   en: 'Enterprise',  sar: 'مخصص',   color: '#2ECC8A' },
+};
+const PLAN_FEATURES = {
+  basic: {
+    ar: ['لوحة التحكم والاجتماعات', 'التقويم وتسجيل الاجتماعات', 'المهام (عرض واستخراج)', 'الوثائق (3 أنواع)', 'اسأل أمين (30 استعلام/شهر)', 'الأرشيف والإعدادات'],
+    en: ['Dashboard & Meetings', 'Calendar & Meeting Recording', 'Tasks (view & extraction)', 'Documents (3 types)', 'Ask Ameen (30 queries/month)', 'Archive & Settings'],
+  },
+  plus: {
+    ar: ['كل ميزات أساسي', 'اعتماد المحاضر (4 مراحل + توقيع)', 'حزمة الحوكمة (سياسات)', 'سجل القرارات', 'التقارير والتحليلات', 'سجل النشاط', 'جميع 10 أنواع مستندات'],
+    en: ['All Basic features', 'Minutes Approval (4-stage + e-sig)', 'Governance Pack (policies)', 'Resolutions register', 'Reports & Analytics', 'Activity Log', 'All 10 document types'],
+  },
+  advanced: {
+    ar: ['كل ميزات بلس', 'القرارات التداولية', 'المجالس واللجان', 'تصعيد المهام التفاعلي', 'مشاركة النتائج'],
+    en: ['All Plus features', 'Circular Resolutions', 'Boards & Committees', 'Interactive task escalation', 'Share Outcomes'],
+  },
+  enterprise: {
+    ar: ['كل ميزات متقدم', 'إدارة الأدوار والصلاحيات', 'مصفوفة الصلاحيات', 'API / SSO / متعدد الكيانات'],
+    en: ['All Advanced features', 'Roles & Permissions management', 'Permission Matrix', 'API / SSO / Multi-entity'],
+  },
+};
+// Panel → minimum tier required to navigate/use
+const PANEL_TIER = {
+  overview: 'basic', scheduled: 'basic', calendar: 'basic',
+  'create-meeting': 'basic', live: 'basic', transcripts: 'basic',
+  history: 'basic', lastmeeting: 'basic', 'meeting-archive': 'basic',
+  tasks: 'basic', ask: 'basic', documents: 'basic',
+  integrations: 'basic', series: 'basic', team: 'basic',
+  record: 'basic',
+  'approval-cycle': 'plus', policies: 'plus', resolutions: 'plus',
+  analytics: 'plus', activity: 'plus', logs: 'plus',
+  circular: 'advanced', boards: 'advanced', governance: 'advanced',
+  roles: 'enterprise', admin: 'enterprise',
+};
 
 // ══ App State ══════════════════════════════════════════════════════════════════
 const App = {
@@ -553,7 +621,7 @@ const App = {
   theme: localStorage.getItem("theme") || "dark",
   user: null,
   systemRole: "Admin",
-  plan: "free",
+  plan: "basic",
   chatHistory: [],
   // Populated from GET /api/rbac/my-permissions in loadSelectLists() — lets
   // the UI hide actions the backend would 403 on anyway (defense in depth,
@@ -608,50 +676,98 @@ const App = {
     Panels.load(firstPanel);
   },
 
-  isPro() {
-    return this.plan === "pro";
+  // ── Tier helpers ────────────────────────────────────────────────────────
+  planRank() {
+    return PLAN_RANK[this.plan] || 1;
   },
+  hasFeature(minTier) {
+    return (PLAN_RANK[this.plan] || 1) >= (PLAN_RANK[minTier] || 1);
+  },
+  // Shows upgrade modal if below minTier, otherwise calls fn (if supplied).
+  requireTier(minTier, featureName) {
+    if (this.hasFeature(minTier)) return true;
+    this.showUpgradeModal(minTier, featureName);
+    return false;
+  },
+  showUpgradeModal(minTier, featureName) {
+    const l = this.lang;
+    const t = (ar, en) => (l === "ar" ? ar : en);
+    const info = PLAN_NAMES[minTier] || PLAN_NAMES.plus;
+    const feats = PLAN_FEATURES[minTier] || PLAN_FEATURES.plus;
+    const name = t(info.ar, info.en);
+    const el = $("modal-upgrade");
+    if (!el) { this.openPlan(); return; }
+    $("upgrade-tier-name").textContent = name;
+    $("upgrade-tier-name-2").textContent = name;
+    if ($("upgrade-feature-name")) {
+      $("upgrade-feature-name").textContent = featureName
+        ? t(`«${featureName}»`, `"${featureName}"`)
+        : t(`هذه الميزة`, `this feature`);
+    }
+    $("upgrade-features-list").innerHTML = feats[l === "ar" ? "ar" : "en"]
+      .map(f => `<li>${esc(f)}</li>`).join("");
+    $("upgrade-tier-badge").style.color = info.color;
+    el.classList.add("open");
+    this.applyLang(l);
+  },
+  closeUpgradeModal() {
+    const el = $("modal-upgrade");
+    if (el) el.classList.remove("open");
+  },
+  // Compat shim: code that checked isPro() now gets true for plus+
+  isPro() { return this.hasFeature('plus'); },
 
   async loadPlan() {
     try {
       const r = await api("/api/plan");
-      this.plan = r.plan || "free";
+      const raw = r.plan || "basic";
+      // normalise legacy values
+      if (raw === "free") this.plan = "basic";
+      else if (raw === "pro") this.plan = "advanced";
+      else this.plan = PLAN_RANK[raw] ? raw : "basic";
     } catch (e) {
-      this.plan = "free";
+      this.plan = "basic";
     }
     this.renderPlan();
   },
 
   renderPlan() {
-    const pro = this.isPro();
+    const info = PLAN_NAMES[this.plan] || PLAN_NAMES.basic;
+    const l = this.lang;
     const txt = $("plan-txt");
-    if (txt) txt.textContent = pro ? "Pro" : (this.lang === "ar" ? "مجاني" : "Free");
+    if (txt) txt.textContent = l === "ar" ? info.ar : info.en;
     const badge = $("plan-badge");
-    if (badge) badge.style.color = pro ? "var(--gold)" : "var(--text3)";
+    if (badge) badge.style.color = this.plan === "basic" ? "var(--text3)" : info.color;
     const btn = $("plan-btn");
-    if (btn) btn.style.borderColor = pro ? "var(--gold-border)" : "";
+    if (btn) btn.style.borderColor = this.plan === "basic" ? "" : "var(--gold-border)";
+    // Legacy data-pro / data-free attributes (kept for backward compat)
+    const isPro = this.hasFeature("plus");
     document.querySelectorAll("[data-pro]").forEach((el) => {
-      el.style.display = pro ? "" : "none";
+      el.style.display = isPro ? "" : "none";
     });
     document.querySelectorAll("[data-free]").forEach((el) => {
-      el.style.display = pro ? "none" : "";
+      el.style.display = isPro ? "none" : "";
     });
+    // Re-apply sidebar tier locks whenever the plan changes
+    applySidebarTierLocks();
   },
 
   openPlan() {
     const l = this.lang;
+    const el = $("modal-plan");
+    if (!el) return;
+    // Populate the admin plan-selector dropdown
+    const sel = $("plan-admin-select");
+    if (sel) sel.value = this.plan;
     const cur = $("plan-current");
-    if (cur)
-      cur.textContent =
-        (l === "ar" ? "باقتك الحالية: " : "Current plan: ") +
-        (this.isPro() ? "Pro ⭐" : "Free");
-    $("plan-upgrade-btn").style.display = this.isPro() ? "none" : "";
-    $("plan-downgrade-btn").style.display = this.isPro() ? "" : "none";
-    $("modal-plan").classList.add("open");
+    const info = PLAN_NAMES[this.plan] || PLAN_NAMES.basic;
+    if (cur) cur.textContent = (l === "ar" ? "الباقة الحالية: " : "Current plan: ") + (l === "ar" ? info.ar : info.en);
+    el.classList.add("open");
     this.applyLang(l);
   },
   closePlan() {
-    $("modal-plan").classList.remove("open");
+    const el = $("modal-plan");
+    if (el) el.classList.remove("open");
   },
 
   async setPlan(plan) {
@@ -660,7 +776,8 @@ const App = {
         method: "PATCH",
         body: JSON.stringify({ plan }),
       });
-      this.plan = r.plan;
+      const raw = r.plan || "basic";
+      this.plan = PLAN_RANK[raw] ? raw : "basic";
       this.renderPlan();
       this.closePlan();
       const cur = document.querySelector(".nb.active") && document.querySelector(".nb.active").dataset.p;
@@ -670,10 +787,9 @@ const App = {
     }
   },
 
+  // Legacy alias
   requirePro() {
-    if (this.isPro()) return true;
-    this.openPlan();
-    return false;
+    return this.requireTier("plus");
   },
 
   setLang(l) {
@@ -859,6 +975,11 @@ async function api(path, opts = {}) {
       window.location.replace("/login.html");
       throw new Error("session_expired"); // stop caller execution while navigation happens
     }
+    // Global 402 tier-gate guard — show upgrade modal instead of a raw error
+    if (r.status === 402 && data.error === 'TIER_REQUIRED' && data.required_tier) {
+      App.showUpgradeModal(data.required_tier);
+      throw new Error("tier_required"); // stop caller execution
+    }
     const err = new Error(data.message || data.error || `HTTP ${r.status}`);
     // Expose the HTTP status so callers can detect auth failures reliably —
     // matching on message text alone misses bodies like "Not logged in".
@@ -908,11 +1029,21 @@ const Panels = {
   init() {
     document.querySelectorAll(".nb[data-p]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        const panel = btn.dataset.p;
+        const minTier = PANEL_TIER[panel];
+        // If this panel requires a higher tier, show upgrade modal instead of navigating
+        if (minTier && !App.hasFeature(minTier)) {
+          const l = App.lang;
+          const labelEl = btn.querySelector(".nb-label");
+          const featureName = labelEl ? (l === "ar" ? labelEl.dataset.ar : labelEl.dataset.en) || labelEl.textContent.trim() : panel;
+          App.showUpgradeModal(minTier, featureName);
+          return;
+        }
         document
           .querySelectorAll(".nb")
           .forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
-        Panels.load(btn.dataset.p);
+        Panels.load(panel);
       });
     });
   },
@@ -927,6 +1058,20 @@ const Panels = {
     overview: renderOverview,
   },
   async load(name) {
+    // Block any navigation path (hash, programmatic, back/forward) to a locked panel.
+    const minTier = PANEL_TIER[name];
+    if (minTier && !App.hasFeature(minTier)) {
+      const l = App.lang;
+      const btn = document.querySelector(`.nb[data-p="${name}"]`);
+      const labelEl = btn && btn.querySelector('.nb-label');
+      const featureName = labelEl
+        ? (l === 'ar' ? labelEl.dataset.ar : labelEl.dataset.en) || labelEl.textContent.trim()
+        : name;
+      App.showUpgradeModal(minTier, featureName);
+      // Fall back to overview so the user is never left on a blank panel
+      if (this.current !== 'overview') this.load('overview');
+      return;
+    }
     // Warn if the Create Meeting form has unsaved changes before navigating away.
     if (this.current === "create-meeting" && name !== "create-meeting"
         && typeof CreateMeetingWizard !== "undefined" && CreateMeetingWizard._dirty) {
@@ -2690,7 +2835,7 @@ const Rec = {
 
     const mid = Rec.currentMeetingId;
     const shareBtn = mid
-      ? `<button class="btn-gold btn-sm" onclick="Share.open(${mid})">📤 ${lbl("مشاركة النتائج", "Share Outcomes")}${App.isPro() ? "" : " ⭐"}</button>`
+      ? `<button class="btn-gold btn-sm" onclick="if(!App.requireTier('advanced','${lbl("مشاركة النتائج","Share Outcomes")}'))return;Share.open(${mid})">📤 ${lbl("مشاركة النتائج", "Share Outcomes")}${App.hasFeature('advanced') ? "" : " 🔒"}</button>`
       : "";
     const actions = `
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap">
@@ -4095,7 +4240,7 @@ async function renderTranscripts() {
             <button id="doc-upload-btn-${m.id}" class="btn-ghost btn-sm" onclick="DocLib.upload(${m.id})">📎 ${l === "ar" ? "إرفاق" : "Attach"}</button>
             <button class="btn-ghost btn-sm" onclick="TranscriptModal.open(${m.id})" title="${l === "ar" ? "إضافة أو تعديل النص" : "Add or edit transcript"}">✏️ ${l === "ar" ? "إضافة نص" : "Add Notes"}</button>
             ${isProcessed ? `<button id="bp-btn-${m.id}" class="btn-ghost btn-sm" onclick="BoardPack.download(${m.id})">📦 ${l === "ar" ? "حزمة المجلس" : "Board Pack"}</button>` : ""}
-            ${isProcessed ? `<button class="btn-gold btn-sm" onclick="Share.open(${m.id})">📤 ${l === "ar" ? "مشاركة النتائج" : "Share Outcomes"}${App.isPro() ? "" : " ⭐"}</button>` : ""}
+            ${isProcessed ? `<button class="btn-gold btn-sm" onclick="if(!App.requireTier('advanced','${l === 'ar' ? 'مشاركة النتائج' : 'Share Outcomes'}'))return;Share.open(${m.id})">📤 ${l === "ar" ? "مشاركة النتائج" : "Share Outcomes"}${App.hasFeature('advanced') ? "" : " 🔒"}</button>` : ""}
             ${mApprovalBtns}
             ${App.can("meetings.delete") ? `<button class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick='deleteMeeting(${m.id}, ${JSON.stringify(title)})'>🗑 ${l === "ar" ? "حذف" : "Delete"}</button>` : ""}
           </div>
@@ -6848,7 +6993,7 @@ const TaskTimeline = {
           style="width:100%;font-size:12px;box-sizing:border-box;margin-bottom:6px"
           placeholder="${l==='ar'?'ملاحظة (اختياري)':'Comment (optional)'}"/>
         <div style="display:flex;justify-content:flex-end">
-          <button class="btn-ghost btn-sm" id="task-escalate-btn" onclick="TaskTimeline.escalate(${taskId})" style="color:#9B72DB;border-color:rgba(155,114,219,.4)">
+          <button class="btn-ghost btn-sm" id="task-escalate-btn" onclick="if(!App.requireTier('advanced','${l==='ar'?'تصعيد المهام':'Task Escalation'}'))return;TaskTimeline.escalate(${taskId})" style="color:#9B72DB;border-color:rgba(155,114,219,.4)">${App.hasFeature('advanced')?'':'🔒 '}
             ↑ ${l==='ar'?'تصعيد':'Escalate'}
           </button>
         </div>
@@ -7839,7 +7984,7 @@ const DocGen = {
       alert(l === "ar" ? "لا توجد وثيقة للمشاركة" : "No document to share");
       return;
     }
-    if (!App.requirePro()) return;
+    if (!App.requireTier('advanced', l === 'ar' ? 'مشاركة الوثيقة' : 'Share Document')) return;
     const typeSel = $("doc-type");
     const title = typeSel.options[typeSel.selectedIndex].text;
     if (
@@ -11227,12 +11372,12 @@ const Templates = {
   },
 };
 
-// ══ Share Outcomes (PRO) ══════════════════════════════════════════════════════
+// ══ Share Outcomes (Advanced+) ════════════════════════════════════════════════
 const Share = {
   meetingId: null,
 
   async open(meetingId) {
-    if (!App.requirePro()) return;
+    if (!App.requireTier('advanced', App.lang === 'ar' ? 'مشاركة النتائج' : 'Share Outcomes')) return;
     this.meetingId = meetingId;
     const box = $("share-attendees");
     box.innerHTML = `<div style="font-size:11px;color:var(--text3)">${App.lang === "ar" ? "جارٍ التحميل..." : "Loading..."}</div>`;

@@ -356,16 +356,13 @@ async function extractFileText(filePath, originalname) {
 }
 
 // ── Plan helpers ────────────────────────────────────────────────────────────
-function getPlan() {
-  const row = db.prepare('SELECT value FROM settings WHERE key=?').get('plan');
-  return (row && row.value) || 'free';
-}
-function requirePro(req, res, next) {
-  if (getPlan() !== 'pro') {
-    return res.status(402).json({ error: 'PRO_REQUIRED', message: 'هذه الميزة متاحة في الباقة المدفوعة / This feature requires the Pro plan' });
-  }
-  next();
-}
+// Tier system — use the shared implementation from auth middleware so all
+// route modules stay in sync. Local aliases retained for backward compat.
+const { requireTier, getOrgPlan } = require('../middleware/auth');
+const TIER_RANK = { basic: 1, plus: 2, advanced: 3, enterprise: 4 };
+function getPlan(userId) { return getOrgPlan(userId); }
+// Kept for backward-compatibility with any remaining requirePro references.
+const requirePro = requireTier('plus');
 function token() { return crypto.randomBytes(16).toString('hex'); }
 function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function baseUrl(req) {
@@ -1789,8 +1786,8 @@ router.delete('/tasks/:id/attachments/:attId', auth, (req, res) => {
   res.json({ success: true });
 });
 
-// ── Task Escalation ────────────────────────────────────────────────────────────
-router.post('/tasks/:id/escalate', auth, async (req, res) => {
+// ── Task Escalation (Advanced+) ────────────────────────────────────────────────
+router.post('/tasks/:id/escalate', auth, requireTier('advanced'), async (req, res) => {
  try {
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
@@ -2723,12 +2720,27 @@ router.get('/documents', auth, requirePermission('documents.download'), (req, re
 
 // ── Subscription Plan ──────────────────────────────────────────────────────
 router.get('/plan', auth, (req, res) => {
-  res.json({ plan: getPlan() });
+  res.json({ plan: getPlan(req.user.id) });
 });
 router.patch('/plan', auth, requirePermission('admin.settings'), (req, res) => {
-  const plan = req.body.plan === 'pro' ? 'pro' : 'free';
-  db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('plan', plan);
-  res.json({ plan });
+  const raw = String(req.body.plan || '').toLowerCase();
+  const LEGACY = { free: 'basic', pro: 'advanced' };
+  const tier = TIER_RANK[raw] ? raw : (TIER_RANK[LEGACY[raw]] ? LEGACY[raw] : 'basic');
+  // Primary: write to the caller's organization (org-scoped)
+  try {
+    const user = db.prepare('SELECT organization_id FROM users WHERE id=?').get(req.user.id);
+    const orgId = user && user.organization_id;
+    if (orgId) {
+      db.prepare('UPDATE organizations SET plan=? WHERE id=?').run(tier, orgId);
+    } else {
+      // Single-tenant fallback: update first org
+      const org = db.prepare('SELECT id FROM organizations ORDER BY id LIMIT 1').get();
+      if (org) db.prepare('UPDATE organizations SET plan=? WHERE id=?').run(tier, org.id);
+    }
+  } catch (_) { /* column may not exist in very old schema — fall through */ }
+  // Legacy fallback: also keep settings table in sync
+  db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('plan', tier);
+  res.json({ plan: tier });
 });
 
 // ── Live AI extraction during recording (free) ─────────────────────────────
@@ -2889,8 +2901,8 @@ router.post('/meetings/:id/notes', auth, (req, res) => {
   res.json(note);
 });
 
-// ── Share meeting outcomes to selected attendees (PRO) ─────────────────────
-router.post('/meetings/:id/share', auth, requirePermission('documents.share'), requirePro, async (req, res) => {
+// ── Share meeting outcomes to selected attendees (Advanced+) ───────────────
+router.post('/meetings/:id/share', auth, requirePermission('documents.share'), requireTier('advanced'), async (req, res) => {
  try {
   const meetingId = req.params.id;
   const meeting = db.prepare('SELECT * FROM meetings WHERE id=?').get(meetingId);
@@ -2978,7 +2990,7 @@ router.post('/meetings/:id/share', auth, requirePermission('documents.share'), r
 });
 
 // ── Share a generated document with the whole team (email) ─────────────────
-router.post('/documents/share', auth, requirePermission('documents.share'), requirePro, async (req, res) => {
+router.post('/documents/share', auth, requirePermission('documents.share'), requireTier('advanced'), async (req, res) => {
  try {
   const content = (req.body.content || '').toString().trim();
   const title = (req.body.title || 'تقرير / Report').toString().trim();
@@ -4466,8 +4478,8 @@ router.get('/meetings/:id/approval-cycle', auth, requirePermission('minutes.view
   }
 });
 
-// PATCH /api/meetings/:id/approval-cycle/comments/:cid  — update resolution
-router.patch('/meetings/:id/approval-cycle/comments/:cid', auth, requirePermission('minutes.view'), (req, res) => {
+// PATCH /api/meetings/:id/approval-cycle/comments/:cid  — update resolution (Plus+)
+router.patch('/meetings/:id/approval-cycle/comments/:cid', auth, requireTier('plus'), requirePermission('minutes.view'), (req, res) => {
   const mid = parseInt(req.params.id);
   const cid = parseInt(req.params.cid);
   const { status, secretary_note } = req.body || {};
@@ -4490,7 +4502,7 @@ router.patch('/meetings/:id/approval-cycle/comments/:cid', auth, requirePermissi
 });
 
 // POST /api/meetings/:id/approval-cycle/advance  — advance cycle stage
-router.post('/meetings/:id/approval-cycle/advance', auth, (req, res) => {
+router.post('/meetings/:id/approval-cycle/advance', auth, requireTier('plus'), (req, res) => {
   const mid = parseInt(req.params.id);
   const { to_stage, note } = req.body || {};
   const canPublish = rbacService.hasPermission(db, req.user.id, 'minutes.publish');
@@ -4556,8 +4568,8 @@ router.post('/meetings/:id/approval-cycle/advance', auth, (req, res) => {
   }
 });
 
-// POST /api/meetings/:id/approval-cycle/deadline  — set comment deadline
-router.post('/meetings/:id/approval-cycle/deadline', auth, requirePermission('minutes.publish'), (req, res) => {
+// POST /api/meetings/:id/approval-cycle/deadline  — set comment deadline (Plus+)
+router.post('/meetings/:id/approval-cycle/deadline', auth, requireTier('plus'), requirePermission('minutes.publish'), (req, res) => {
   const mid = parseInt(req.params.id);
   const { deadline } = req.body || {};
   if (!deadline) return res.status(400).json({ error: 'deadline required' });
@@ -4570,8 +4582,8 @@ router.post('/meetings/:id/approval-cycle/deadline', auth, requirePermission('mi
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/meetings/:id/approval-cycle/comments  — add a comment (requires e-signature)
-router.post('/meetings/:id/approval-cycle/comments', auth, requirePermission('minutes.view'), (req, res) => {
+// POST /api/meetings/:id/approval-cycle/comments  — add a comment (Plus+, requires e-signature)
+router.post('/meetings/:id/approval-cycle/comments', auth, requireTier('plus'), requirePermission('minutes.view'), (req, res) => {
   const mid = parseInt(req.params.id);
   const { content, clause_ref, signature_data, signature_type } = req.body || {};
   if (!content || !content.trim()) return res.status(400).json({ error: 'content required' });
@@ -4588,8 +4600,8 @@ router.post('/meetings/:id/approval-cycle/comments', auth, requirePermission('mi
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/meetings/:id/approval-cycle/comments/:cid/decide  — accept or reject a comment
-router.post('/meetings/:id/approval-cycle/comments/:cid/decide', auth, (req, res) => {
+// POST /api/meetings/:id/approval-cycle/comments/:cid/decide  — accept or reject a comment (Plus+)
+router.post('/meetings/:id/approval-cycle/comments/:cid/decide', auth, requireTier('plus'), (req, res) => {
   const mid = parseInt(req.params.id);
   const cid = parseInt(req.params.cid);
   const { decision, secretary_note } = req.body || {};
@@ -4606,8 +4618,8 @@ router.post('/meetings/:id/approval-cycle/comments/:cid/decide', auth, (req, res
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/meetings/:id/approval-cycle/sign  — submit e-signature (attendee or final approver)
-router.post('/meetings/:id/approval-cycle/sign', auth, requirePermission('minutes.view'), (req, res) => {
+// POST /api/meetings/:id/approval-cycle/sign  — submit e-signature (Plus+)
+router.post('/meetings/:id/approval-cycle/sign', auth, requireTier('plus'), requirePermission('minutes.view'), (req, res) => {
   const mid = parseInt(req.params.id);
   const { sig_stage, signature_data, signature_type } = req.body || {};
   if (!signature_data || !signature_data.trim()) return res.status(400).json({ error: 'signature required' });
