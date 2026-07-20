@@ -1046,6 +1046,29 @@ const Panels = {
         Panels.load(panel);
       });
     });
+
+    // Guard against direct URL-hash navigation (e.g. typing #approval-cycle or
+    // #panel=approval-cycle in the address bar, or navigating with back/forward
+    // after such a hash was in history).  Panels.load() already enforces tier
+    // locks; this listener ensures it is called for every hash-change path.
+    window.addEventListener("hashchange", () => {
+      const raw = location.hash;
+      let panelId = null;
+      const m = /[#&]panel=([\w-]+)/.exec(raw);
+      if (m) {
+        panelId = m[1];
+      } else {
+        const direct = raw.slice(1).trim();
+        if (direct && Object.prototype.hasOwnProperty.call(PANEL_TIER, direct)) {
+          panelId = direct;
+        }
+      }
+      if (panelId) {
+        // Clean the hash so the address bar doesn't retain the panel fragment.
+        history.replaceState(null, "", location.pathname + location.search);
+        Panels.load(panelId);
+      }
+    });
   },
   current: null,
   _pollTimer: null,
