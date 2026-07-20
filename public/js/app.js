@@ -857,7 +857,7 @@ async function api(path, opts = {}) {
     if (r.status === 401) {
       sessionStorage.removeItem("ameen_token_fb");
       window.location.replace("/login.html");
-      return; // navigation imminent, never reached
+      throw new Error("session_expired"); // stop caller execution while navigation happens
     }
     const err = new Error(data.message || data.error || `HTTP ${r.status}`);
     // Expose the HTTP status so callers can detect auth failures reliably —
@@ -11993,6 +11993,7 @@ async function renderOverview() {
     </div>`;
 
     body.innerHTML = `<div class="dashx dx2">
+      ${kpiBarHtml}
       <div class="dx2-cols">
         <div class="dx2-main">
           <div class="dx2-sec-t" style="display:flex;justify-content:space-between;align-items:center">
