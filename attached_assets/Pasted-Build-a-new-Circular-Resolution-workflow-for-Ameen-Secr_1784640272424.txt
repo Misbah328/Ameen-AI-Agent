@@ -1,0 +1,483 @@
+Build a new Circular Resolution workflow for Ameen Secretary.
+
+A Circular Resolution is a formal board or committee decision made without holding a live meeting. It should have its own workflow and should NOT go through Create Meeting or Schedule Meeting.
+
+Keep the current approved UI design. Do not redesign unrelated pages.
+
+Before building, check whether any part of this workflow already exists. Reuse working components from:
+- Minutes review
+- Comments and modification requests
+- Voting
+- Signatures
+- Notifications
+- Decision Registry
+- Tasks
+- Audit Log
+
+Only build or fix what is missing.
+
+==================================================
+CIRCULAR RESOLUTION WORKFLOW
+==================================================
+
+STAGE 1 — DRAFT
+
+Authorized users:
+- Board Secretary
+- Authorized board or committee member
+
+Create a Circular Resolution with:
+- Title
+- Short description
+- Full resolution text
+- Board or committee
+- Voting body
+- Supporting documents
+- Comment deadline
+- Voting deadline
+- Quorum rule
+- Majority rule
+- Optional linked tasks
+
+Initial status:
+Draft
+
+Available actions:
+- Save Draft
+- Edit
+- Delete Draft
+- Mark Ready to Circulate
+
+Do not schedule a meeting.
+
+==================================================
+STAGE 2 — READY TO CIRCULATE
+
+Before circulation, show a review screen with:
+- Resolution text
+- Members who will receive it
+- Comment deadline
+- Voting deadline
+- Quorum requirement
+- Attachments
+
+Secretary confirms circulation.
+
+Status:
+Ready to Circulate
+
+Action:
+Circulate to Members
+
+==================================================
+STAGE 3 — CIRCULATED
+
+When circulated:
+
+- Notify every eligible member by in-platform notification.
+- Keep email and WhatsApp notification hooks ready if integrations exist.
+- Generate an individually watermarked copy for each member.
+- Track when each member opens the resolution.
+- Display:
+  - Not sent
+  - Sent
+  - Opened
+  - Commented
+  - Voted
+
+Status:
+Circulated
+
+==================================================
+STAGE 4 — MEMBER COMMENTS
+
+Before voting, members can:
+
+- Comment on a specific clause
+- Propose a correction
+- Approve the wording with no comment
+
+Every comment must include:
+- Member name
+- Date and time
+- Exact clause or section
+- Original text
+- Proposed text
+- Comment
+
+Comments are visible to all voting members.
+
+Reuse the same review/comment mechanism already used for meeting minutes where possible.
+
+Status:
+Under Comment Review
+
+==================================================
+STAGE 5 — RESOLVE COMMENTS
+
+Authorized users:
+- Board Secretary
+- Chairman
+
+They can:
+- Accept a comment
+- Reject a comment
+- Add a reason
+- Edit the final wording
+
+If accepted:
+- Apply the change automatically to the resolution text.
+- Preserve the previous version.
+
+If rejected:
+- Preserve the comment and rejection reason.
+
+Log:
+- Who decided
+- What was decided
+- Date and time
+- Original text
+- Final text
+
+Voting must not open until:
+- The comment deadline has ended, or
+- All comments are resolved
+
+Status:
+Comments Resolved
+
+==================================================
+STAGE 6 — FORMAL VOTE
+
+Eligible members vote:
+
+- Approve
+- Reject
+- Abstain
+
+Reject requires a mandatory reason.
+
+Show a live progress panel:
+- Members eligible
+- Members voted
+- Approve count
+- Reject count
+- Abstain count
+- Quorum status
+- Deadline
+
+Example:
+5 of 7 voted — 4 Approve, 1 Reject
+
+The system must calculate quorum automatically based on the selected board, committee, or resolution rule.
+
+Status:
+Voting Open
+
+==================================================
+STAGE 7 — OUTCOME
+
+Automatically determine the outcome:
+
+A. Approved
+If:
+- Quorum is reached
+- Required majority is reached
+
+Status:
+Approved — Awaiting Signatures
+
+B. Rejected
+If:
+- Required majority is not reached
+- Or the result is explicitly rejected
+
+Status:
+Rejected
+
+Store all rejection reasons.
+
+C. Lapsed
+If:
+- Voting deadline passes
+- Quorum is not reached
+
+Status:
+Lapsed
+
+When lapsed:
+- Suggest it automatically as an agenda item for the next relevant board or committee meeting.
+
+==================================================
+STAGE 8 — SIGNATURES
+
+Only members who voted Approve must sign.
+
+Support:
+- Digital in-platform signature
+- Manual/wet signature upload
+
+Show signature tracking:
+- Signed
+- Pending
+- Declined or issue
+- Signature date and time
+
+Reuse the same signature mechanism used for approved meeting minutes.
+
+When all required signatures are complete:
+
+Status:
+Signed
+
+==================================================
+STAGE 9 — DECISION REGISTRY
+
+After signatures are complete:
+
+- Generate a unique reference code:
+  Example: CR-2026-014
+
+- Add the resolution automatically to the unified Decision Registry.
+- Tag it as:
+  Circular Resolution
+
+Store:
+- Reference code
+- Title
+- Board or committee
+- Resolution text
+- Vote result
+- Quorum result
+- Signatures
+- Attachments
+- Created date
+- Approval date
+- Audit history
+
+If approved tasks exist:
+- Activate them only after Secretary approval.
+- Add them to Tasks and Follow-Up.
+- Notify the task owners.
+
+Status:
+Registered
+
+==================================================
+STAGE 10 — RECORDED IN MINUTES TRACKING
+
+This is a separate status from approval.
+
+Only the Board Secretary can update it.
+
+Recording Status options:
+
+1. Not Yet Recorded
+Default after approval
+
+2. Recorded in Minutes
+Secretary selects:
+- Meeting
+- Archived minutes reference
+- Date recorded
+
+Example:
+Recorded in Minutes No. BM-2026-04
+
+Provide a direct link to the archived meeting minutes.
+
+Important:
+A resolution can be:
+- Approved and Signed
+- But still Not Yet Recorded in Minutes
+
+Do not combine these statuses.
+
+==================================================
+SEARCH, FILTERS, AND REPORTS
+
+Add Recording Status filters wherever Circular Resolutions or Decision Registry records appear:
+
+- All
+- Recorded in Minutes
+- Not Yet Recorded
+
+Add a one-click saved filter:
+
+Circular Resolutions Not Yet Recorded
+
+Show the Recording Status directly in every list row or card.
+
+Support global search by:
+- Title
+- Reference code
+- Board or committee
+- Member
+- Recording status
+- Meeting minutes reference
+
+Include Recording Status in:
+- Export
+- Audit report
+- Decision Registry report
+- Pre-Meeting Smart Report
+
+==================================================
+PRE-MEETING SMART REPORT
+
+Automatically show:
+
+“3 Circular Resolutions are approved but not yet recorded in official minutes.”
+
+Allow the Secretary to:
+- View them
+- Add them to the next agenda
+- Mark them recorded after the meeting minutes are archived
+
+==================================================
+REQUIRED SCREENS
+
+Create these screens:
+
+1. Circular Resolutions List
+2. Create Circular Resolution
+3. Circular Resolution Details
+4. Comments Review
+5. Voting
+6. Signature Tracking
+7. Decision Registry Record
+8. Recording Status Update
+
+==================================================
+LIST PAGE
+
+Show:
+- Reference code
+- Title
+- Board or committee
+- Current workflow stage
+- Voting progress
+- Approval status
+- Signature status
+- Recording status
+- Deadline
+- Actions
+
+Filters:
+- Board or committee
+- Status
+- Voting deadline
+- Approval outcome
+- Signature status
+- Recording status
+
+==================================================
+PERMISSIONS
+
+Board Secretary:
+- Full access
+- Create
+- Circulate
+- Resolve comments
+- Open voting
+- Update recording status
+
+Chairman:
+- Review
+- Resolve comments
+- Vote
+- Sign
+
+Board or Committee Member:
+- View assigned resolutions
+- Comment
+- Vote
+- Sign
+
+Employee:
+- No access unless assigned a task after approval
+
+Super Admin:
+- Audit and administrative access
+
+Enforce permissions in backend APIs, not only in the UI.
+
+==================================================
+NOTIFICATIONS
+
+Send notifications when:
+
+- Resolution is circulated
+- Comment is submitted
+- Comment is accepted or rejected
+- Voting opens
+- Voting deadline is approaching
+- Member has not voted
+- Resolution is approved
+- Resolution is rejected
+- Resolution lapses
+- Signature is requested
+- Signature is completed
+- Resolution is registered
+- Task is activated
+- Resolution remains Not Yet Recorded before the next meeting
+
+==================================================
+AUDIT LOG
+
+Log every action:
+
+- Creation
+- Edit
+- Circulation
+- Open tracking
+- Comment
+- Comment resolution
+- Vote
+- Quorum calculation
+- Outcome
+- Signature
+- Decision Registry registration
+- Task activation
+- Recording status update
+- Export
+
+Preserve previous versions of the resolution text.
+
+==================================================
+QA WORKFLOW
+
+Test this complete flow in the real browser:
+
+1. Create a Circular Resolution
+2. Save as Draft
+3. Select Board of Directors
+4. Add resolution text
+5. Add attachment
+6. Set comment and voting deadlines
+7. Circulate
+8. Verify member notifications
+9. Verify open tracking
+10. Submit a clause-level comment as a member
+11. Accept it as Secretary
+12. Verify resolution text updates
+13. Open voting
+14. Vote Approve, Reject, and Abstain using different members
+15. Verify quorum and majority
+16. Approve the resolution
+17. Collect signatures
+18. Generate CR reference code
+19. Verify Decision Registry entry
+20. Activate approved task
+21. Verify task owner notification
+22. Verify default Recording Status is Not Yet Recorded
+23. Link it to archived minutes
+24. Verify status becomes Recorded in Minutes
+25. Test the Not Yet Recorded quick filter
+26. Verify Pre-Meeting Smart Report warning
+27. Test Arabic and English
+28. Test desktop and mobile
+29. Verify no unauthorized access
+30. Verify audit trail
+
+Do not mark the feature complete until the full workflow works without using the Meeting scheduling path.

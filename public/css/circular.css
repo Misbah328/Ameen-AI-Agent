@@ -185,6 +185,22 @@
 .btn-reject { border-color: rgba(238,85,85,.4); color: #e55; background: rgba(238,85,85,.08); }
 .btn-reject:hover { background: rgba(238,85,85,.18); }
 
+/* ── Board tag in list row ───────────────────────────── */
+.cr-board-tag { display: flex; align-items: center; gap: .3rem; color: var(--text3); font-size: .72rem; margin-top: .2rem; }
+.cr-board-tag svg { opacity: .6; flex-shrink: 0; }
+
+/* ── Audit Log Tab ───────────────────────────────────── */
+.cr-audit-wrap { display: flex; flex-direction: column; gap: 0; padding: .25rem 0; }
+.cr-audit-row { display: flex; align-items: flex-start; gap: .75rem; padding: .7rem 0; border-bottom: 1px solid rgba(255,255,255,.05); position: relative; }
+.cr-audit-row:last-child { border-bottom: none; }
+.cr-audit-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: .35rem; }
+.cr-audit-content { flex: 1; min-width: 0; }
+.cr-audit-hdr { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; font-size: .8rem; }
+.cr-audit-action { font-weight: 700; }
+.cr-audit-who { color: var(--text2); }
+.cr-audit-time { color: var(--text3); margin-inline-start: auto; font-size: .72rem; white-space: nowrap; }
+.cr-audit-detail { font-size: .75rem; color: var(--text3); margin-top: .25rem; line-height: 1.5; }
+
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 900px) {
   .cr-wrap { grid-template-columns: 1fr; }

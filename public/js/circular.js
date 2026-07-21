@@ -184,12 +184,13 @@ const CR = {
     const dl = this._fmtDeadline(r.deadline);
     const showVote = ['voting','approved','rejected'].includes(r.status);
     const showRec  = ['approved','rejected','lapsed'].includes(r.status);
+    const boardName = ar ? (r.board_display_name_ar||r.board_name||'') : (r.board_display_name||r.board_name||'');
     return `
       <tr class="cr-row" data-id="${r.id}" onclick="CR.openDetail(${r.id})">
         <td><span class="cr-ref">${r.reference_code||'—'}</span></td>
         <td class="cr-title-cell">
           <div class="cr-row-title">${esc(r.title)}</div>
-          ${r.description?`<div class="cr-row-sub">${esc(r.description.slice(0,80))}${r.description.length>80?'…':''}</div>`:''}
+          ${boardName?`<div class="cr-row-sub cr-board-tag"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> ${esc(boardName)}</div>`:''}
         </td>
         <td><span class="cr-badge" style="color:${st.color};background:${st.bg}">${ar?st.ar:st.en}</span></td>
         <td>${showVote?`
@@ -279,47 +280,79 @@ const CR = {
   toggleUnrecorded() { this._unrecordedOnly = !this._unrecordedOnly; this.render(); },
 
   // ── New Resolution Modal ──────────────────────────────────────────────────
-  openNew() {
+  async openNew() {
     const ar = this.isAr();
+    let boards = [], committees = [];
+    try {
+      const data = await api('/api/gov/boards');
+      boards = data || [];
+      data.forEach(b => { if (b.committees) committees = committees.concat(b.committees.map(c => ({...c, board_name: ar ? b.name_ar : b.name_en}))); });
+    } catch(_) {}
+    const boardOpts = `<option value="">${ar?'-- اختر مجلس / لجنة --':'-- Select Board / Committee --'}</option>`
+      + boards.map(b => `<optgroup label="${esc(ar ? b.name_ar : b.name_en)}">`
+        + `<option value="board:${b.id}">${esc(ar ? b.name_ar : b.name_en)} (${ar?'مجلس':'Board'})</option>`
+        + (b.committees||[]).map(c => `<option value="committee:${c.id}">— ${esc(ar ? c.name_ar : c.name_en)} (${ar?'لجنة':'Committee'})</option>`).join('')
+        + `</optgroup>`).join('');
     this._modal(`
       <div class="modal-hdr">
         <h3>${ar?'قرار تداولي جديد':'New Circular Resolution'}</h3>
         <button class="modal-close" onclick="CR._closeModal()">✕</button>
       </div>
-      <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;max-height:72vh;overflow-y:auto;padding-right:4px">
         <div><label class="form-lbl">${ar?'عنوان القرار *':'Resolution Title *'}</label>
           <input class="form-input" id="crn-title" placeholder="${ar?'عنوان القرار...':'Resolution title...'}"></div>
         <div><label class="form-lbl">${ar?'نص القرار الكامل *':'Full Resolution Text *'}</label>
           <textarea class="form-input" id="crn-body" rows="5" placeholder="${ar?'النص الرسمي للقرار المُقترح للتصويت عليه...':'The formal text of the resolution to be voted on...'}"></textarea></div>
         <div><label class="form-lbl">${ar?'وصف موجز':'Short Description'}</label>
           <input class="form-input" id="crn-desc" placeholder="${ar?'ملخص قصير...':'Brief summary...'}"></div>
+        <div><label class="form-lbl">${ar?'المجلس أو اللجنة':'Board / Committee'}</label>
+          <select class="form-input" id="crn-body-select">${boardOpts}</select></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div><label class="form-lbl">${ar?'الموعد النهائي للتعليقات':'Comment Deadline'}</label>
+            <input type="date" class="form-input" id="crn-comment-deadline"></div>
           <div><label class="form-lbl">${ar?'الموعد النهائي للتصويت':'Voting Deadline'}</label>
             <input type="date" class="form-input" id="crn-deadline"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
           <div><label class="form-lbl">${ar?'إجمالي الأعضاء':'Total Members'}</label>
             <input type="number" class="form-input" id="crn-members" value="7" min="1"></div>
+          <div><label class="form-lbl">${ar?'النصاب المطلوب':'Quorum Required'}</label>
+            <input type="number" class="form-input" id="crn-quorum" value="4" min="1"></div>
+          <div><label class="form-lbl">${ar?'قاعدة الأغلبية':'Majority Rule'}</label>
+            <select class="form-input" id="crn-majority">
+              <option value="simple">${ar?'الأغلبية البسيطة':'Simple Majority'}</option>
+              <option value="two_thirds">${ar?'ثلثا الأصوات':'Two-Thirds'}</option>
+              <option value="unanimous">${ar?'الإجماع':'Unanimous'}</option>
+            </select></div>
         </div>
-        <div><label class="form-lbl">${ar?'النصاب المطلوب (عدد الأصوات)':'Required Quorum (votes)'}</label>
-          <input type="number" class="form-input" id="crn-quorum" value="4" min="1"></div>
       </div>
       <div class="modal-ftr">
         <button class="btn-ghost" onclick="CR._closeModal()">${ar?'إلغاء':'Cancel'}</button>
         <button class="btn-primary" onclick="CR.saveNew()">${ar?'حفظ كمسودة':'Save as Draft'}</button>
-      </div>`, '640px');
+      </div>`, '680px');
   },
 
   async saveNew() {
     const ar = this.isAr();
-    const title   = document.getElementById('crn-title')?.value.trim();
-    const body    = document.getElementById('crn-body')?.value.trim();
-    const desc    = document.getElementById('crn-desc')?.value.trim();
-    const deadline= document.getElementById('crn-deadline')?.value;
-    const total   = parseInt(document.getElementById('crn-members')?.value)||7;
-    const quorum  = parseInt(document.getElementById('crn-quorum')?.value)||4;
+    const title          = document.getElementById('crn-title')?.value.trim();
+    const body           = document.getElementById('crn-body')?.value.trim();
+    const desc           = document.getElementById('crn-desc')?.value.trim();
+    const deadline       = document.getElementById('crn-deadline')?.value;
+    const comment_dl     = document.getElementById('crn-comment-deadline')?.value;
+    const total          = parseInt(document.getElementById('crn-members')?.value)||7;
+    const quorum         = parseInt(document.getElementById('crn-quorum')?.value)||4;
+    const majority_rule  = document.getElementById('crn-majority')?.value || 'simple';
+    const bodySelect     = document.getElementById('crn-body-select')?.value || '';
+    let board_id = null, committee_id = null;
+    if (bodySelect.startsWith('board:'))     board_id     = parseInt(bodySelect.split(':')[1]);
+    if (bodySelect.startsWith('committee:')) committee_id = parseInt(bodySelect.split(':')[1]);
     if (!title) return showToast(ar?'العنوان مطلوب':'Title is required','error');
     if (!body)  return showToast(ar?'نص القرار مطلوب':'Resolution text is required','error');
     try {
-      await api('/api/gov/circular-resolutions',{method:'POST',body:JSON.stringify({title,body,description:desc,deadline,total_members:total,quorum_required:quorum})});
+      await api('/api/gov/circular-resolutions',{method:'POST',body:JSON.stringify({
+        title, body, description:desc, deadline, comment_deadline:comment_dl,
+        total_members:total, quorum_required:quorum, majority_rule, board_id, committee_id
+      })});
       this._closeModal();
       showToast(ar?'تم إنشاء القرار التداولي':'Circular resolution created','success');
       await this.load(); this.render();
@@ -386,6 +419,7 @@ const CR = {
           <button class="cr-tab" data-tab="comments">${ar?'التعليقات':'Comments'} ${cr.comments?.length?`<span class="cr-tab-badge">${cr.comments.length}</span>`:''}</button>
           <button class="cr-tab" data-tab="votes">${ar?'التصويت':'Votes'} ${voted?`<span class="cr-tab-badge">${voted}</span>`:''}</button>
           <button class="cr-tab" data-tab="signatures">${ar?'التواقيع':'Signatures'} ${cr.signatures?.length?`<span class="cr-tab-badge">${cr.signatures.length}</span>`:''}</button>
+          <button class="cr-tab" data-tab="audit">${ar?'سجل التدقيق':'Audit Log'} ${cr.audit?.length?`<span class="cr-tab-badge">${cr.audit.length}</span>`:''}</button>
         </div>
         <div id="cr-tab-content"></div>
       </div>`;
@@ -407,6 +441,7 @@ const CR = {
     if (tab === 'comments')   el.innerHTML = this._tabComments(cr);
     if (tab === 'votes')      el.innerHTML = this._tabVotes(cr);
     if (tab === 'signatures') el.innerHTML = this._tabSignatures(cr);
+    if (tab === 'audit')      el.innerHTML = this._tabAudit(cr);
   },
 
   _detailActions(cr) {
@@ -434,12 +469,18 @@ const CR = {
   _tabOverview(cr) {
     const ar = this.isAr();
     const rec = this.REC[cr.minutes_recording_status]||this.REC.not_recorded;
+    const boardName = ar ? (cr.board_display_name_ar||cr.board_name||'') : (cr.board_display_name||cr.board_name||'');
+    const committeeDisplayName = ar ? (cr.committee_display_name_ar||cr.committee_display_name||'') : cr.committee_display_name||'';
+    const majorityLabels = { simple: ar?'الأغلبية البسيطة':'Simple Majority', two_thirds: ar?'ثلثا الأصوات':'Two-Thirds Majority', unanimous: ar?'الإجماع':'Unanimous' };
     const rows = [
       { l:ar?'رمز الإشارة':'Reference',       v: cr.reference_code||'—' },
       { l:ar?'أُنشئ بواسطة':'Created by',     v: cr.created_by_name||'—' },
       { l:ar?'تاريخ الإنشاء':'Created',       v: new Date(cr.created_at).toLocaleDateString(ar?'ar-SA':'en-GB') },
-      cr.deadline ? { l:ar?'الموعد النهائي':'Deadline', v: new Date(cr.deadline).toLocaleDateString(ar?'ar-SA':'en-GB') } : null,
+      boardName ? { l:ar?'المجلس / اللجنة':'Board / Committee', v: (committeeDisplayName ? `${esc(committeeDisplayName)} ← ` : '') + esc(boardName) } : null,
+      cr.comment_deadline ? { l:ar?'موعد التعليقات':'Comment Deadline', v: new Date(cr.comment_deadline).toLocaleDateString(ar?'ar-SA':'en-GB') } : null,
+      cr.deadline ? { l:ar?'موعد التصويت':'Voting Deadline', v: new Date(cr.deadline).toLocaleDateString(ar?'ar-SA':'en-GB') } : null,
       { l:ar?'الأعضاء / النصاب':'Members / Quorum', v: `${cr.total_members||'—'} / ${cr.quorum_required||'—'}` },
+      cr.majority_rule ? { l:ar?'قاعدة الأغلبية':'Majority Rule', v: majorityLabels[cr.majority_rule] || cr.majority_rule } : null,
       ['approved','rejected','lapsed'].includes(cr.status) ? { l:ar?'حالة التدوين':'Recording', v: `<span style="color:${rec.color}">${ar?rec.ar:rec.en}${cr.minutes_ref?` — ${esc(cr.minutes_ref)}`:''}</span>` } : null,
     ].filter(Boolean);
     return `
@@ -567,6 +608,56 @@ const CR = {
               <div class="cr-sig-date">${new Date(s.signed_at).toLocaleDateString(ar?'ar-SA':'en-GB')}</div>
             </div>`).join('')}
         </div>
+      </div>`;
+  },
+
+  // ── Audit Log Tab ─────────────────────────────────────────────────────────
+  _tabAudit(cr) {
+    const ar = this.isAr();
+    const entries = cr.audit || [];
+    const ACTION_LABELS = {
+      created:                  { ar: 'إنشاء',               en: 'Created' },
+      edited:                   { ar: 'تعديل',               en: 'Edited' },
+      circulated:               { ar: 'تعميم',               en: 'Circulated' },
+      voting_opened:            { ar: 'فتح التصويت',         en: 'Voting Opened' },
+      outcome_approved:         { ar: 'قرار: مُعتمَد',       en: 'Outcome: Approved' },
+      outcome_rejected:         { ar: 'قرار: مرفوض',        en: 'Outcome: Rejected' },
+      outcome_lapsed:           { ar: 'قرار: انتهى الأجل',  en: 'Outcome: Lapsed' },
+      voted:                    { ar: 'تصويت',               en: 'Vote Cast' },
+      signed:                   { ar: 'توقيع',               en: 'Signed' },
+      comment_added:            { ar: 'تعليق جديد',          en: 'Comment Added' },
+      comment_accepted:         { ar: 'قبول تعليق',          en: 'Comment Accepted' },
+      comment_rejected:         { ar: 'رفض تعليق',           en: 'Comment Rejected' },
+      recording_status_updated: { ar: 'تحديث حالة التدوين', en: 'Recording Status Updated' },
+    };
+    const STATUS_COLORS = {
+      created: '#5B9BD6', edited: '#888', circulated: '#a78bfa',
+      voting_opened: '#C9A84C', outcome_approved: '#2ECC8A',
+      outcome_rejected: '#e55', outcome_lapsed: '#888',
+      voted: '#C9A84C', signed: '#2ECC8A',
+      comment_added: '#a78bfa', comment_accepted: '#2ECC8A', comment_rejected: '#e55',
+      recording_status_updated: '#5B9BD6',
+    };
+    if (!entries.length) return `<div class="es-sm">${ar?'لا يوجد سجل تدقيق بعد':'No audit entries yet'}</div>`;
+    return `
+      <div class="cr-audit-wrap">
+        ${entries.map(e => {
+          const lbl = ACTION_LABELS[e.action] || { ar: e.action, en: e.action };
+          const col = STATUS_COLORS[e.action] || '#888';
+          const dt  = new Date(e.created_at).toLocaleString(ar?'ar-SA':'en-GB');
+          return `
+            <div class="cr-audit-row">
+              <div class="cr-audit-dot" style="background:${col}"></div>
+              <div class="cr-audit-content">
+                <div class="cr-audit-hdr">
+                  <span class="cr-audit-action" style="color:${col}">${ar?lbl.ar:lbl.en}</span>
+                  <span class="cr-audit-who">${esc(e.user_name||'—')}</span>
+                  <span class="cr-audit-time">${dt}</span>
+                </div>
+                ${e.detail?`<div class="cr-audit-detail">${esc(e.detail)}</div>`:''}
+              </div>
+            </div>`;
+        }).join('')}
       </div>`;
   },
 

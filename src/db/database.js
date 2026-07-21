@@ -549,6 +549,15 @@ db.exec(`
     signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(cr_id) REFERENCES circular_resolutions(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS cr_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cr_id INTEGER NOT NULL,
+    user_name TEXT DEFAULT '',
+    action TEXT NOT NULL,
+    detail TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(cr_id) REFERENCES circular_resolutions(id) ON DELETE CASCADE
+  );
 `);
 
 // ── General Assembly dedicated tables ─────────────────────────────────────────
@@ -832,6 +841,10 @@ ensureColumn('tasks', 'progress', 'INTEGER DEFAULT 0');
 // follows up on, so Transcripts/Meeting History can surface a "Previous
 // Meeting Action Review" — additive, nullable, no schema disruption.
 ensureColumn('meetings', 'prev_meeting_id', 'INTEGER');
+ensureColumn('circular_resolutions', 'comment_deadline', "TEXT DEFAULT ''");
+ensureColumn('circular_resolutions', 'majority_rule', "TEXT DEFAULT 'simple'");
+ensureColumn('circular_resolutions', 'committee_id', 'INTEGER');
+ensureColumn('circular_resolutions', 'board_name', "TEXT DEFAULT ''");
 
 db.exec(`
   UPDATE meeting_documents SET title_ar = COALESCE(title_ar, title), title_en = COALESCE(title_en, title) WHERE title_ar IS NULL OR title_en IS NULL;
