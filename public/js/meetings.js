@@ -47,6 +47,69 @@ const MT = {
     return "📄";
   },
 
+  /* ── Professional input modal (replaces native prompt()) ─────────
+     config: { icon, title, subtitle, fields:[{id,label,type,rows,placeholder,required}], confirmText, cancelText }
+     Returns Promise<{field values}> or null if cancelled.
+  ─────────────────────────────────────────────────────────────── */
+  _showModal(config) {
+    return new Promise(resolve => {
+      const uid = 'mt-modal-' + Date.now();
+      const ar = App.lang === 'ar';
+      const dir = ar ? 'rtl' : 'ltr';
+      const fieldsHtml = (config.fields || []).map(f => `
+        <div style="display:flex;flex-direction:column;gap:5px;text-align:start">
+          <label style="font-size:11.5px;font-weight:700;color:#697386;letter-spacing:.02em;display:block">${f.label}</label>
+          ${f.type === 'textarea'
+            ? `<textarea id="${uid}-${f.id}" class="fi" rows="${f.rows||4}" style="resize:vertical;min-height:90px" placeholder="${f.placeholder||''}" dir="auto"></textarea>`
+            : `<input id="${uid}-${f.id}" class="fi" type="${f.type||'text'}" placeholder="${f.placeholder||''}" dir="auto"/>`
+          }
+        </div>`).join('');
+
+      const el = document.createElement('div');
+      el.className = 'lmt-overlay';
+      el.id = uid;
+      el.innerHTML = `
+        <div class="lmt-modal pm-edit-modal" onclick="event.stopPropagation()" dir="${dir}"
+             style="max-width:480px;width:100%;text-align:start">
+          ${config.icon ? `<div class="lmt-modal-ico" style="font-size:32px;margin-bottom:10px;text-align:${ar?'right':'left'}">${config.icon}</div>` : ''}
+          <div class="lmt-modal-t" style="font-size:18px;margin-bottom:${config.subtitle?'6px':'16px'}">${config.title}</div>
+          ${config.subtitle ? `<div class="lmt-modal-s" style="margin-bottom:18px">${config.subtitle}</div>` : ''}
+          <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:22px">${fieldsHtml}</div>
+          <div style="display:flex;flex-direction:row;gap:8px">
+            <button class="btn-gold" style="flex:1;justify-content:center" id="${uid}-ok">${config.confirmText||(ar?'حفظ':'Save')}</button>
+            <button class="btn-ghost" style="flex:1;justify-content:center" id="${uid}-cancel">${config.cancelText||(ar?'إلغاء':'Cancel')}</button>
+          </div>
+        </div>`;
+
+      const cancel = () => { el.remove(); resolve(null); };
+      const confirm = () => {
+        const vals = {};
+        (config.fields||[]).forEach(f => {
+          const inp = document.getElementById(`${uid}-${f.id}`);
+          vals[f.id] = inp ? inp.value.trim() : '';
+        });
+        const bad = (config.fields||[]).find(f => f.required && !vals[f.id]);
+        if (bad) {
+          const inp = document.getElementById(`${uid}-${bad.id}`);
+          if (inp) { inp.style.outline = '2px solid #F04438'; inp.focus(); }
+          return;
+        }
+        el.remove(); resolve(vals);
+      };
+
+      el.addEventListener('click', cancel);
+      document.body.appendChild(el);
+      document.getElementById(`${uid}-ok`).addEventListener('click', confirm);
+      document.getElementById(`${uid}-cancel`).addEventListener('click', cancel);
+      el.querySelector('.lmt-modal').addEventListener('keydown', e => {
+        if (e.key === 'Escape') cancel();
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); confirm(); }
+      });
+      const first = el.querySelector('input,textarea');
+      if (first) setTimeout(() => first.focus(), 60);
+    });
+  },
+
   // ── view switching inside panel-scheduled ─────────────────────
   _showView(v) {
     this._view = v;
@@ -842,10 +905,17 @@ const MT = {
   },
 
   async addDecision() {
-    const text = prompt(this.t("نص القرار:", "Decision text:"));
-    if (!text || !text.trim()) return;
+    const ar = App.lang === 'ar';
+    const result = await this._showModal({
+      icon: '⚖️',
+      title: this.t('إضافة قرار جديد', 'Add New Decision'),
+      subtitle: this.t('أدخل نص القرار الرسمي ليُسجَّل في محضر الاجتماع.', 'Enter the official decision text to be recorded in the meeting minutes.'),
+      fields: [{ id: 'text', label: this.t('نص القرار', 'Decision text'), type: 'textarea', rows: 4, required: true, placeholder: this.t('اكتب القرار هنا...', 'Type the decision here...') }],
+      confirmText: this.t('تسجيل القرار', 'Record Decision'),
+    });
+    if (!result) return;
     try {
-      await api("/api/decisions", { method: "POST", body: JSON.stringify({ text_ar: text.trim(), meeting_id: this._mid, meeting_title_ar: this._d.meeting.title_ar, meeting_title_en: this._d.meeting.title_en }) });
+      await api("/api/decisions", { method: "POST", body: JSON.stringify({ text_ar: result.text, meeting_id: this._mid, meeting_title_ar: this._d.meeting.title_ar, meeting_title_en: this._d.meeting.title_en }) });
       showToast(this.t("✓ تم تسجيل القرار", "✓ Decision recorded"));
       await this._refreshDetail();
     } catch (e) { showToast(this.t("تعذّر إضافة القرار: ", "Could not add decision: ") + e.message, "error"); }
@@ -861,7 +931,15 @@ const MT = {
   },
 
   async rejectDecision(id) {
-    const reason = prompt(this.t("سبب الرفض (اختياري):", "Reason for rejection (optional):")) || "";
+    const result = await this._showModal({
+      icon: '✖️',
+      title: this.t('رفض القرار', 'Reject Decision'),
+      subtitle: this.t('يمكنك إضافة سبب الرفض (اختياري).', 'You may optionally provide a reason for rejection.'),
+      fields: [{ id: 'reason', label: this.t('سبب الرفض', 'Reason for rejection'), type: 'textarea', rows: 3, placeholder: this.t('اختياري...', 'Optional...') }],
+      confirmText: this.t('تأكيد الرفض', 'Confirm Rejection'),
+    });
+    if (result === null) return;
+    const reason = result.reason || '';
     try {
       await api(`/api/decisions/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
       showToast(this.t("✓ تم رفض القرار", "✓ Decision rejected"));
@@ -928,7 +1006,15 @@ const MT = {
   },
 
   async rejectTask(id) {
-    const reason = prompt(this.t("سبب الرفض (اختياري):", "Reason for rejection (optional):")) || "";
+    const result = await this._showModal({
+      icon: '✖️',
+      title: this.t('رفض المهمة', 'Reject Task'),
+      subtitle: this.t('يمكنك إضافة سبب الرفض (اختياري).', 'You may optionally provide a reason for rejection.'),
+      fields: [{ id: 'reason', label: this.t('سبب الرفض', 'Reason for rejection'), type: 'textarea', rows: 3, placeholder: this.t('اختياري...', 'Optional...') }],
+      confirmText: this.t('تأكيد الرفض', 'Confirm Rejection'),
+    });
+    if (result === null) return;
+    const reason = result.reason || '';
     try {
       await api(`/api/tasks/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
       showToast(this.t("✓ تم رفض المهمة", "✓ Task rejected"));
@@ -2798,14 +2884,21 @@ const LiveMT = {
   },
 
   async addDecision() {
-    const text = prompt(this.t("نص القرار:", "Decision text:"));
-    if (!text?.trim()) return;
+    const result = await this._showModal({
+      icon: '⚖️',
+      title: this.t('إضافة قرار جديد', 'Add New Decision'),
+      subtitle: this.t('أدخل نص القرار الرسمي ليُسجَّل في محضر الاجتماع.', 'Enter the official decision text to be recorded in the meeting minutes.'),
+      fields: [{ id: 'text', label: this.t('نص القرار', 'Decision text'), type: 'textarea', rows: 4, required: true, placeholder: this.t('اكتب القرار هنا...', 'Type the decision here...') }],
+      confirmText: this.t('تسجيل القرار', 'Record Decision'),
+    });
+    if (!result) return;
+    const text = result.text;
     try {
       await api("/api/decisions", { method: "POST", body: JSON.stringify({
-        text_ar: text.trim(), text_en: text.trim(), meeting_id: this._mid,
+        text_ar: text, text_en: text, meeting_id: this._mid,
         meeting_title_ar: this._d?.meeting?.title_ar, meeting_title_en: this._d?.meeting?.title_en,
       }) });
-      this._logEvent("DECISION_CREATED", { new_value: text.trim() });
+      this._logEvent("DECISION_CREATED", { new_value: text });
       showToast(this.t("✓ تم تسجيل القرار", "✓ Decision recorded"));
       MT._d && MT._refreshDetail();
     } catch (e) {
@@ -2814,17 +2907,25 @@ const LiveMT = {
   },
 
   async addAction() {
-    const text = prompt(this.t("وصف الإجراء:", "Action description:"));
-    if (!text?.trim()) return;
-    const assignee = prompt(this.t("المسؤول (اختياري):", "Assignee (optional):")) || "";
-    const due = prompt(this.t("تاريخ الاستحقاق YYYY-MM-DD (اختياري):", "Due date YYYY-MM-DD (optional):")) || "";
+    const result = await this._showModal({
+      icon: '🎯',
+      title: this.t('إضافة إجراء متابعة', 'Add Follow-up Action'),
+      subtitle: this.t('سجّل إجراء المتابعة مع المسؤول وتاريخ الاستحقاق.', 'Record a follow-up action with its owner and due date.'),
+      fields: [
+        { id: 'text',     label: this.t('وصف الإجراء', 'Action description'),          type: 'textarea', rows: 3, required: true, placeholder: this.t('اكتب وصف الإجراء...', 'Describe the action...') },
+        { id: 'assignee', label: this.t('المسؤول (اختياري)', 'Assignee (optional)'),    type: 'text',     placeholder: this.t('اسم المسؤول', 'Owner name') },
+        { id: 'due',      label: this.t('تاريخ الاستحقاق (اختياري)', 'Due date (optional)'), type: 'date' },
+      ],
+      confirmText: this.t('تسجيل الإجراء', 'Record Action'),
+    });
+    if (!result) return;
     try {
       await api("/api/tasks", { method: "POST", body: JSON.stringify({
-        text_ar: text.trim(), text_en: text.trim(), meeting_id: this._mid,
+        text_ar: result.text, text_en: result.text, meeting_id: this._mid,
         status: "pending", priority: "medium",
-        due_date: due || null, owner_name_ar: assignee, owner_name_en: assignee,
+        due_date: result.due || null, owner_name_ar: result.assignee, owner_name_en: result.assignee,
       }) });
-      this._logEvent("ACTION_CREATED", { new_value: text.trim() });
+      this._logEvent("ACTION_CREATED", { new_value: result.text });
       showToast(this.t("✓ تم تسجيل الإجراء", "✓ Action recorded"));
       MT._d && MT._refreshDetail();
     } catch (e) {
