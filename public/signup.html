@@ -349,9 +349,11 @@ async function submitForm() {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if ((res.ok || res.status === 201) && data.success && data.pending) {
-      showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ إرسال رمز التحقق...' : '✅ Account created! Sending verification code…', 'success');
-      setTimeout(() => window.location.replace('/verify-email.html?email=' + encodeURIComponent(data.email)), 1200);
+    if ((res.ok || res.status === 201) && data.success) {
+      if (data.user?.lang_pref) localStorage.setItem('lang', data.user.lang_pref);
+      if (data.token) sessionStorage.setItem('ameen_token_fb', data.token);
+      showAlert(lang === 'ar' ? '✅ تم إنشاء الحساب! جارٍ التوجيه...' : '✅ Account created! Redirecting…', 'success');
+      setTimeout(() => window.location.replace('/'), 1000);
     } else {
       if (data.error?.toLowerCase().includes('email')) {
         fieldErr('err-email', t.errEmailUsed);

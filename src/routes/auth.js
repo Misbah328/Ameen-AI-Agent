@@ -68,10 +68,6 @@ router.post('/login', (req, res) => {
   if (!user) return res.status(401).json({ error: 'Invalid email or password' });
   if (!bcrypt.compareSync(password, user.password || '')) return res.status(401).json({ error: 'Invalid email or password' });
 
-  if (!user.email_verified) {
-    return res.status(403).json({ error: 'email_not_verified', email: user.email });
-  }
-
   const token = issueToken(user, res);
   const { password: _pw, email_verified: _ev, ...safeUser } = user;
   if (IS_REPLIT_DEV) return res.json({ success: true, user: safeUser, token });
@@ -102,12 +98,13 @@ router.post('/signup', async (req, res) => {
   const existingUser = db.prepare('SELECT id, email_verified FROM users WHERE email = ?').get(cleanEmail);
   if (existingUser && existingUser.email_verified) return res.status(409).json({ error: 'An account with this email already exists' });
 
-  // If unverified duplicate — resend OTP
+  // If unverified duplicate — auto-verify and log in directly
   if (existingUser && !existingUser.email_verified) {
-    const code = generateCode();
-    storeCode(existingUser.id, cleanEmail, code);
-    try { await sendVerificationEmail(cleanEmail, code, 'ar'); } catch (e) { console.error('Email send error:', e.message); }
-    return res.json({ success: true, pending: true, email: cleanEmail });
+    db.prepare('UPDATE users SET email_verified = 1, password = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), existingUser.id);
+    const user = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?').get(existingUser.id);
+    const token = issueToken(user, res);
+    if (IS_REPLIT_DEV) return res.json({ success: true, user, token });
+    return res.json({ success: true, user });
   }
 
   // Create or reuse organisation
@@ -134,14 +131,13 @@ router.post('/signup', async (req, res) => {
   const hashed = bcrypt.hashSync(password, 10);
   const result = db.prepare(
     `INSERT INTO users (name_ar, name_en, email, password, role_ar, role_en, lang_pref, system_role, email_verified, organization_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, datetime('now'))`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'))`
   ).run(adminName.trim(), adminName.trim(), cleanEmail, hashed, 'مدير', 'Admin', 'ar', 'Admin', org.id);
 
-  const code = generateCode();
-  storeCode(result.lastInsertRowid, cleanEmail, code);
-  try { await sendVerificationEmail(cleanEmail, code, 'ar'); } catch (e) { console.error('Verification email error:', e.message); }
-
-  res.status(201).json({ success: true, pending: true, email: cleanEmail });
+  const newUser = db.prepare('SELECT id, name_ar, name_en, email, role_ar, role_en, lang_pref, system_role FROM users WHERE id = ?').get(result.lastInsertRowid);
+  const token = issueToken(newUser, res);
+  if (IS_REPLIT_DEV) return res.status(201).json({ success: true, user: newUser, token });
+  res.status(201).json({ success: true, user: newUser });
 });
 
 // ── POST /auth/verify-email ───────────────────────────────────────────────────
