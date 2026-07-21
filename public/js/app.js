@@ -1206,7 +1206,7 @@ const Panels = {
         if (window.MT) await MT.renderResolutions();
         break;
       case "circular":
-        if (window.CR) await CR.init();
+        await CR.init();
         break;
       case "approval-cycle":
         if (window.ApprovalCycle) await ApprovalCycle.refresh();

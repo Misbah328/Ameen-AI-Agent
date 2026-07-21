@@ -36,13 +36,29 @@ const CR = {
     const root = document.getElementById('cr-root');
     if (!root) return;
     root.innerHTML = `<div class="es"><div class="loading"></div></div>`;
-    await this.load();
-    this.render();
+    try {
+      await this.load();
+      this.render();
+    } catch(e) {
+      const ar = this.isAr();
+      const is403 = e && (e.status === 403 || (e.message && e.message.includes('403')) || (e.message && e.message.includes('FORBIDDEN')));
+      const msg = is403
+        ? (ar ? 'ليس لديك صلاحية عرض القرارات التداولية' : 'You do not have permission to view circular resolutions.')
+        : ((e && e.message) || (ar ? 'تعذّر الاتصال بالخادم' : 'Failed to reach the server.'));
+      root.innerHTML = `
+        <div class="es" style="margin-top:3rem;padding:2rem;flex-direction:column;align-items:center;text-align:center" dir="${this.dir()}">
+          <div style="font-size:2.5rem;margin-bottom:.75rem">${is403 ? '🔒' : '⚠️'}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">
+            ${ar ? 'تعذّر تحميل القرارات التداولية' : 'Failed to load circular resolutions'}
+          </div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:18px;max-width:320px;line-height:1.6">${msg}</div>
+          ${is403 ? '' : `<button class="btn-gold" onclick="CR.init()" style="min-width:120px">↺ ${ar ? 'إعادة المحاولة' : 'Retry'}</button>`}
+        </div>`;
+    }
   },
 
   async load() {
-    try { this._list = await api('/api/gov/circular-resolutions'); }
-    catch { this._list = []; }
+    this._list = await api('/api/gov/circular-resolutions');
   },
 
   // ── Main render ───────────────────────────────────────────────────────────

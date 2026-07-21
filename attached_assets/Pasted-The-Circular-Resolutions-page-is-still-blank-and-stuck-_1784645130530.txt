@@ -1,0 +1,83 @@
+The Circular Resolutions page is still blank and stuck on loading.
+
+Do not tell me again that the server is running or that the database has records. That does not prove the page works.
+
+I need you to debug the actual page in the real browser and fix the root cause.
+
+Required debugging steps:
+
+1. Open the app in a real browser session.
+2. Log in with an account that has governance.resolutions permission.
+3. Navigate to Circular Resolutions.
+4. Open browser DevTools.
+5. Check:
+   - Console errors
+   - Network request for the Circular Resolutions API
+   - HTTP status
+   - API response body
+   - whether CR.init() runs
+   - whether the loading state is cleared
+   - whether the correct panel is activated
+   - whether the render function throws an exception
+6. Add temporary console logging if necessary around:
+   - CR.init()
+   - API response
+   - data normalization
+   - CR.render()
+   - loading hide/show logic
+7. Use browser automation to capture:
+   - screenshot before navigation
+   - screenshot while loading
+   - screenshot after fix
+8. Do not stop at API or database checks.
+
+Specific issues to inspect:
+
+- CR.init() may be hanging or throwing before render.
+- The API response shape may not match what the frontend expects.
+- A property may be undefined in the render template.
+- The loading spinner may never be removed in catch/finally.
+- The Circular Resolutions panel may not be set active.
+- The route/sidebar item may point to the wrong panel ID.
+- Chart rendering may throw and stop the rest of the page.
+- Permission checks may hide the content after loading.
+- Empty-state logic may be broken.
+- The page may be rendering behind another overlay.
+- A stale legacy route may be opening instead of the new Circular Resolutions page.
+
+Fix requirements:
+
+- The page must always leave the loading state.
+- If the API fails, show a visible error message with Retry.
+- If there are zero records, show a proper empty state.
+- If records exist, render the table/cards.
+- If Chart.js fails, the main page must still render.
+- No infinite spinner.
+- No blank page.
+- No raw console error.
+- No undefined/null values.
+
+After fixing, test these states:
+
+1. API returns 5 records
+2. API returns empty array
+3. API returns 403
+4. API returns 500
+5. User without permission
+6. Admin user
+7. Arabic
+8. English
+9. Desktop
+10. Mobile
+
+Then provide:
+
+- exact root cause
+- exact file and line changed
+- console error found
+- API response before/after
+- screenshot showing the working page
+- confirmation that the spinner disappears
+- confirmation that clicking Circular Resolutions from the sidebar opens the correct page
+
+Do not claim success until you visually show the Circular Resolutions page with real records rendered in the browser.
