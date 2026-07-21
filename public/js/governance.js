@@ -1076,17 +1076,7 @@ const Gov = {
           <div class="ct">⚖️ ${lbl('القرارات والتصويت','Resolutions & Voting')}</div>
           <div class="ctsub">${resolutions.length} ${lbl('قرار','resolution(s)')}</div>
         </div>
-        <button class="btn-ghost btn-sm" onclick="Gov._showForm('res-form')">+ ${lbl('إضافة قرار','Add Resolution')}</button>
-      </div>
-      <div id="res-form" style="display:none;background:var(--navy3);border-radius:10px;padding:13px;margin-bottom:12px">
-        <div class="fs" style="gap:8px">
-          <div class="frow"><div class="fl">${lbl('عنوان القرار','Resolution Title')} *</div><input class="fi" id="res-title" placeholder="${lbl('عنوان القرار...','Resolution title...')}"/></div>
-          <div class="frow"><div class="fl">${lbl('الوصف','Description')}</div><textarea class="fi" id="res-desc" rows="2" placeholder="${lbl('وصف القرار...','Describe the resolution...')}"></textarea></div>
-          <div class="fa">
-            <button class="btn-gold btn-sm" onclick="Gov.addResolution()">✓ ${lbl('إضافة','Add')}</button>
-            <button class="btn-ghost btn-sm" onclick="Gov._hideForm('res-form')">✕</button>
-          </div>
-        </div>
+        <button class="btn-ghost btn-sm" onclick="Gov.openResolutionModal()">+ ${lbl('إضافة قرار','Add Resolution')}</button>
       </div>
       ${resolutions.length > 1 ? (() => {
         const sorted = [...resolutions].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
@@ -1117,15 +1107,69 @@ const Gov = {
     </div>`;
   },
 
-  async addResolution() {
-    if (!this._guardEls('res-title','res-desc')) return;
-    const title = (($('res-title') || {}).value || '').trim();
-    if (!title) { showToast(this.lbl('يرجى إدخال العنوان','Please enter a title'), 'error'); return; }
-    const body = { title, description: (($('res-desc') || {}).value || '').trim() || '' };
+  openResolutionModal() {
+    const lbl = (ar, en) => App.lang === 'ar' ? ar : en;
+    const dir = App.lang === 'ar' ? 'rtl' : 'ltr';
+    document.getElementById('gov-res-modal')?.remove();
+    const el = document.createElement('div');
+    el.id = 'gov-res-modal';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,40,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)';
+    el.innerHTML = `
+      <div onclick="event.stopPropagation()" dir="${dir}"
+           style="background:#fff;border-radius:20px;padding:32px 28px;max-width:500px;width:100%;
+                  box-shadow:0 24px 64px rgba(15,23,40,.28);animation:lmt-pop .22s cubic-bezier(.34,1.56,.64,1)">
+        <div style="font-size:34px;margin-bottom:10px">⚖️</div>
+        <div style="font-size:20px;font-weight:800;color:#0F1728;margin-bottom:5px;letter-spacing:-.01em">
+          ${lbl('إضافة قرار جديد','Add New Resolution')}
+        </div>
+        <div style="font-size:13px;color:#697386;line-height:1.6;margin-bottom:22px">
+          ${lbl('أضف قراراً جديداً لهذا الاجتماع وابدأ عملية التصويت عليه.','Add a new resolution to this meeting and start the voting process.')}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11.5px;font-weight:700;color:#697386;letter-spacing:.02em">
+              ${lbl('عنوان القرار','Resolution Title')} <span style="color:#F04438">*</span>
+            </label>
+            <input id="gov-res-title" class="fi" placeholder="${lbl('اكتب عنوان القرار...','Enter resolution title...')}" dir="auto"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11.5px;font-weight:700;color:#697386;letter-spacing:.02em">
+              ${lbl('الوصف','Description')} <span style="font-weight:400;color:#9BA5B7">(${lbl('اختياري','optional')})</span>
+            </label>
+            <textarea id="gov-res-desc" class="fi" rows="3" style="resize:vertical;min-height:80px"
+              placeholder="${lbl('وصف القرار أو بنوده...','Describe the resolution or its clauses...')}" dir="auto"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-gold" style="flex:1;justify-content:center" onclick="Gov._saveResolutionFromModal()">
+            ✓ ${lbl('إضافة القرار','Add Resolution')}
+          </button>
+          <button class="btn-ghost" style="flex:1;justify-content:center" onclick="document.getElementById('gov-res-modal').remove()">
+            ${lbl('إلغاء','Cancel')}
+          </button>
+        </div>
+      </div>`;
+    el.addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+    setTimeout(() => { const inp = document.getElementById('gov-res-title'); if (inp) inp.focus(); }, 60);
+  },
+
+  async _saveResolutionFromModal() {
+    const titleEl = document.getElementById('gov-res-title');
+    const descEl  = document.getElementById('gov-res-desc');
+    const title = (titleEl?.value || '').trim();
+    if (!title) {
+      if (titleEl) { titleEl.style.outline = '2px solid #F04438'; titleEl.focus(); }
+      return;
+    }
+    const body = { title, description: (descEl?.value || '').trim() };
     if (this.meetingId) body.meeting_id = this.meetingId; else body.schedule_id = this.scheduleId;
+    document.getElementById('gov-res-modal')?.remove();
     try { await api('/api/gov/resolutions', { method:'POST', body: JSON.stringify(body) }); await this._loadSections(); }
     catch (e) { showToast(e.message, 'error'); }
   },
+
+  async addResolution() { this.openResolutionModal(); },
 
   async vote(resId, vote) {
     const comment = (($('vote-comment-' + resId) || {}).value || '').trim();
