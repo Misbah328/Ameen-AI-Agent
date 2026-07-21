@@ -22,10 +22,11 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#fff;color:var(--dark
 /* ── NAV ──────────────────────────── */
 nav{position:fixed;inset:0 0 auto;z-index:100;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid transparent;transition:border-color .3s,box-shadow .3s}
 nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
-.nav-i{max-width:1200px;margin:0 auto;padding:0 2.5rem;height:68px;display:flex;align-items:center;gap:1.2rem}
+.nav-i{max-width:1200px;margin:0 auto;padding:0 2.5rem;height:80px;display:flex;align-items:center;gap:1.2rem}
 /* logo */
 .logo-a{display:flex;align-items:center;gap:.55rem;text-decoration:none;flex-shrink:0}
-.logo-img-full{height:44px;width:auto;object-fit:contain;display:block}
+.logo-crop{width:260px;height:58px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-crop img{width:371px;height:auto;flex-shrink:0}
 /* links */
 .nav-links{display:flex;flex:1;align-items:center}
 .nl{text-decoration:none;color:#334155;font-size:.845rem;font-weight:500;padding:.38rem .65rem;border-radius:6px;transition:color .18s;white-space:nowrap;position:relative}
@@ -726,7 +727,9 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <div class="nav-i">
   <!-- Logo -->
   <a href="/" class="logo-a">
-    <img src="/logo-light.png" alt="Ameen Secretary" class="logo-img-full" id="nav-logo"/>
+    <div class="logo-crop">
+      <img src="/logo-light.png" alt="Ameen Secretary" id="nav-logo"/>
+    </div>
   </a>
   <!-- Links -->
   <div class="nav-links">
@@ -1445,7 +1448,11 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <!-- ═══ FOOTER ════════════════════════════════════════ -->
 <footer>
 <div class="ft-i">
-  <a href="/" class="ft-brand"><img src="/logo-light.png" alt="Ameen Secretary" id="ft-logo" style="height:34px;width:auto;object-fit:contain;display:block"/></a>
+  <a href="/" class="ft-brand" style="display:inline-flex;align-items:center;text-decoration:none">
+    <div style="width:200px;height:44px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <img src="/logo-light.png" alt="Ameen Secretary" id="ft-logo" style="width:286px;height:auto;flex-shrink:0"/>
+    </div>
+  </a>
   <div class="ft-links">
     <a href="#feat"  data-t="fl1">Features</a>
     <a href="#how"   data-t="fl2">How It Works</a>
