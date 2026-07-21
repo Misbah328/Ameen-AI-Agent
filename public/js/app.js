@@ -7723,7 +7723,7 @@ const Chat = {
     const anchor = this._tailAnchor();
     const wrap = document.createElement("div");
     wrap.className = "msg";
-    wrap.innerHTML = `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>
+    wrap.innerHTML = `<div class="mav"><img src="/logo-dark.png" alt="Ameen"/></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">${esc(headerText)}</div>
         <div style="display:flex;flex-direction:column;gap:6px">
@@ -7768,7 +7768,7 @@ const Chat = {
         .join("") || "?";
     const av = isUser
       ? `<div class="mav">${esc(initials)}</div>`
-      : `<div class="mav"><img src="/logo.png" alt="Ameen"/></div>`;
+      : `<div class="mav"><img src="/logo-dark.png" alt="Ameen"/></div>`;
     const dir = detectTextDir(text);
     const favBtn = isUser
       ? `<button onclick="Chat.toggleFavorite(${esc(JSON.stringify(text))}, this)" style="background:none;border:none;cursor:pointer;font-size:12px;color:${FavoritePrompts.has(text) ? "var(--gold)" : "var(--text3)"};padding:0 4px;flex-shrink:0" title="${App.lang === "ar" ? "مفضّلة" : "Favorite"}" aria-label="${App.lang === "ar" ? "مفضّلة" : "Favorite prompt"}">${FavoritePrompts.has(text) ? "★" : "☆"}</button>`
@@ -7786,7 +7786,7 @@ const Chat = {
     const d = document.createElement("div");
     d.className = "msg";
     d.id = "typ";
-    d.innerHTML = `<div class="mav"><img src="/logo.png"/></div><div class="mb"><div class="tyd"><span></span><span></span><span></span></div></div>`;
+    d.innerHTML = `<div class="mav"><img src="/logo-dark.png"/></div><div class="mb"><div class="tyd"><span></span><span></span><span></span></div></div>`;
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
   },
@@ -7821,7 +7821,7 @@ function buildWelcomeMsg() {
     App.lang === "ar"
       ? "أنا أمين، مساعدكم التنفيذي الذكي. يمكنني تحليل الاجتماعات، متابعة المهام والقرارات، والإجابة على أي سؤال تنفيذي."
       : "I'm Ameen, your executive AI. I can analyse meetings, track tasks and decisions, and answer any executive question.";
-  d.innerHTML = `<div class="mav"><img src="/logo.png" alt="Ameen"/></div><div><div class="mb">${esc(txt)}</div><div class="mts">${now()}</div></div>`;
+  d.innerHTML = `<div class="mav"><img src="/logo-dark.png" alt="Ameen"/></div><div><div class="mb">${esc(txt)}</div><div class="mts">${now()}</div></div>`;
   return d;
 }
 

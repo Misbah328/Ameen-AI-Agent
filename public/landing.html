@@ -25,12 +25,7 @@ nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
 .nav-i{max-width:1200px;margin:0 auto;padding:0 2.5rem;height:68px;display:flex;align-items:center;gap:1.2rem}
 /* logo */
 .logo-a{display:flex;align-items:center;gap:.55rem;text-decoration:none;flex-shrink:0}
-.logo-img-wrap{width:44px;height:44px;border-radius:10px;background:linear-gradient(145deg,#0d2010 0%,#1e4a28 100%);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 2px 8px rgba(13,32,16,.25)}
-.logo-img-wrap img{width:90%;height:90%;object-fit:contain;object-position:center}
-.logo-text{display:flex;flex-direction:column;line-height:1;gap:0}
-.logo-ar{font-family:'Almarai',sans-serif;font-size:1.15rem;font-weight:900;color:var(--dark);line-height:1.1}
-.logo-en1{font-size:.65rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--dark);line-height:1.15}
-.logo-en2{font-size:.48rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--dark3);line-height:1.2}
+.logo-img-full{height:44px;width:auto;object-fit:contain;display:block}
 /* links */
 .nav-links{display:flex;flex:1;align-items:center}
 .nl{text-decoration:none;color:#334155;font-size:.845rem;font-weight:500;padding:.38rem .65rem;border-radius:6px;transition:color .18s;white-space:nowrap;position:relative}
@@ -60,7 +55,7 @@ nav.stuck{border-color:var(--bdr);box-shadow:0 1px 16px rgba(0,0,0,.07)}
 [data-theme="dark"]{color-scheme:dark}
 [data-theme="dark"] body{background:#0c1810;color:#e8f0ea}
 [data-theme="dark"] nav{background:rgba(10,22,14,.97)}
-[data-theme="dark"] .logo-ar,[data-theme="dark"] .logo-en1{color:#e8f0ea}
+[data-theme="dark"] #nav-logo,[data-theme="dark"] #ft-logo{content:url('/logo-dark.png')}
 [data-theme="dark"] .nl{color:#94a3b8}
 [data-theme="dark"] .nl:hover,[data-theme="dark"] .nl.on{color:#e8f0ea}
 [data-theme="dark"] .btn-si{color:#94a3b8;border-color:#2a3d2e;background:transparent}
@@ -731,14 +726,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <div class="nav-i">
   <!-- Logo -->
   <a href="/" class="logo-a">
-    <div class="logo-img-wrap">
-      <img src="/ameen-logo.png" alt="أمين"/>
-    </div>
-    <div class="logo-text">
-      <span class="logo-ar" data-t="logo-ar">أمـيـن</span>
-      <span class="logo-en1">AMEEN</span>
-      <span class="logo-en2">SECRETARY</span>
-    </div>
+    <img src="/logo-light.png" alt="Ameen Secretary" class="logo-img-full" id="nav-logo"/>
   </a>
   <!-- Links -->
   <div class="nav-links">
@@ -931,10 +919,10 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
               <div class="d-sb">
                 <!-- Brand logo -->
                 <div class="d-sb-brand">
-                  <div class="d-sb-gem" style="background:linear-gradient(145deg,#0d2010,#1e4a28);border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                    <img src="/ameen-logo.png" alt="أمين" style="width:100%;height:100%;object-fit:contain;"/>
+                  <div class="d-sb-gem" style="background:transparent;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    <img src="/logo-dark.png" alt="Ameen Secretary" style="width:100%;height:auto;object-fit:contain;"/>
                   </div>
-                  <div class="d-sb-name">
+                  <div class="d-sb-name" style="display:none">
                     <div class="d-sb-n1">AMEEN</div>
                     <div class="d-sb-n2">SECRETARY</div>
                   </div>
@@ -1457,7 +1445,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <!-- ═══ FOOTER ════════════════════════════════════════ -->
 <footer>
 <div class="ft-i">
-  <a href="/" class="ft-brand"><div class="logo-img-wrap" style="width:32px;height:32px;border-radius:7px;"><img src="/ameen-logo.png" alt="أمين"/></div><span class="ft-bname">AMEEN <em>Secretary</em></span></a>
+  <a href="/" class="ft-brand"><img src="/logo-light.png" alt="Ameen Secretary" id="ft-logo" style="height:34px;width:auto;object-fit:contain;display:block"/></a>
   <div class="ft-links">
     <a href="#feat"  data-t="fl1">Features</a>
     <a href="#how"   data-t="fl2">How It Works</a>
