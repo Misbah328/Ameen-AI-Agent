@@ -891,12 +891,13 @@
           <option value="Circular Resolution">قرار تداولي / Circular Resolution</option>
           <option value="Other">أخرى / Other</option>
         </select>
-        <select class="fi" id="sp-sort-filter" style="max-width:200px" onchange="ScheduledPanel.applyFilters()">
-          <option value="meeting_date" data-ar="ترتيب: تاريخ الاجتماع" data-en="Sort: Meeting Date">ترتيب: تاريخ الاجتماع</option>
-          <option value="created_desc" data-ar="ترتيب: الأحدث إنشاءً" data-en="Sort: Latest Created">ترتيب: الأحدث إنشاءً</option>
-          <option value="created_asc" data-ar="ترتيب: الأقدم إنشاءً" data-en="Sort: Oldest Created">ترتيب: الأقدم إنشاءً</option>
-          <option value="upcoming" data-ar="ترتيب: القادم أولاً" data-en="Sort: Upcoming First">ترتيب: القادم أولاً</option>
-          <option value="updated_desc" data-ar="ترتيب: آخر تحديث" data-en="Sort: Recently Updated">ترتيب: آخر تحديث</option>
+        <select class="fi" id="sp-sort-filter" style="max-width:220px" onchange="ScheduledPanel.applyFilters()">
+          <option value="date_desc" data-ar="التاريخ: الأحدث أولاً" data-en="Date: Newest First">التاريخ: الأحدث أولاً</option>
+          <option value="date_asc"  data-ar="التاريخ: الأقدم أولاً" data-en="Date: Oldest First">التاريخ: الأقدم أولاً</option>
+          <option value="updated_desc" data-ar="التعديل: الأحدث أولاً" data-en="Modified: Newest First">التعديل: الأحدث أولاً</option>
+          <option value="updated_asc"  data-ar="التعديل: الأقدم أولاً" data-en="Modified: Oldest First">التعديل: الأقدم أولاً</option>
+          <option value="title_asc"  data-ar="العنوان: أ → ي" data-en="Title: A → Z">العنوان: أ → ي</option>
+          <option value="title_desc" data-ar="العنوان: ي → أ" data-en="Title: Z → A">العنوان: ي → أ</option>
         </select>
         <button class="btn-ghost btn-sm" onclick="ScheduledPanel.refresh()">↺</button>
       </div>
@@ -2111,7 +2112,7 @@
   </div>
 </div>
 
-<script src="/js/app.js?v=20260721h"></script>
+<script src="/js/app.js?v=20260722a"></script>
 <script src="/js/governance.js?v=20260721c"></script>
 <script src="/js/boards.js?v=20260716h"></script>
 <script src="/js/meetings.js?v=20260721g"></script>

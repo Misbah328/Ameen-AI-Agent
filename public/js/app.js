@@ -9825,12 +9825,15 @@ const ScheduledPanel = {
       }
       return true;
     };
+    const titleOf = (x) => (l === "ar" ? x.title_ar : x.title_en || x.title_ar) || "";
     const sortFn = (a, b) => {
-      if (sort === "created_desc") return String(b.created_at || "").localeCompare(String(a.created_at || ""));
-      if (sort === "created_asc") return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      if (sort === "date_asc")     return ((a.meeting_date || "") + (a.meeting_time || "")).localeCompare((b.meeting_date || "") + (b.meeting_time || ""));
       if (sort === "updated_desc") return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
-      // meeting_date and upcoming: sort by date+time ascending
-      return ((a.meeting_date || "") + (a.meeting_time || "")).localeCompare((b.meeting_date || "") + (b.meeting_time || ""));
+      if (sort === "updated_asc")  return String(a.updated_at || a.created_at || "").localeCompare(String(b.updated_at || b.created_at || ""));
+      if (sort === "title_asc")    return titleOf(a).localeCompare(titleOf(b));
+      if (sort === "title_desc")   return titleOf(b).localeCompare(titleOf(a));
+      // default: date_desc — newest meeting date first
+      return ((b.meeting_date || "") + (b.meeting_time || "")).localeCompare((a.meeting_date || "") + (a.meeting_time || ""));
     };
     const today = new Date().toISOString().substring(0, 10);
     const upcoming = [];
@@ -9846,7 +9849,7 @@ const ScheduledPanel = {
       (this._isLive(s) ? inprog : upcoming).push(s);
     });
     upcoming.sort(sortFn);
-    drafts.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    drafts.sort(sortFn);
     const doneStages = new Set(["processing", "minutes", "approval", "closed", "completed"]);
     const completed = Object.values(this._meetingsById)
       .filter((m) => {
@@ -9855,8 +9858,12 @@ const ScheduledPanel = {
         return isDone && match(m.title_ar, m.title_en, m.meeting_type);
       })
       .sort((a, b) => {
-        if (sort === "created_asc") return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+        if (sort === "date_asc")     return String(a.meeting_date || a.created_at || "").localeCompare(String(b.meeting_date || b.created_at || ""));
         if (sort === "updated_desc") return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""));
+        if (sort === "updated_asc")  return String(a.updated_at || a.created_at || "").localeCompare(String(b.updated_at || b.created_at || ""));
+        if (sort === "title_asc")    return titleOf(a).localeCompare(titleOf(b));
+        if (sort === "title_desc")   return titleOf(b).localeCompare(titleOf(a));
+        // default: date_desc
         return String(b.meeting_date || b.created_at || "").localeCompare(String(a.meeting_date || a.created_at || ""));
       });
     this._groups = { upcoming, inprog, completed, drafts };

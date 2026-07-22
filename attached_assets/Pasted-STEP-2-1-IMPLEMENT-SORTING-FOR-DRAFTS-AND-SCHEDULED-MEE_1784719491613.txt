@@ -1,0 +1,127 @@
+STEP 2.1 — IMPLEMENT SORTING FOR DRAFTS AND SCHEDULED MEETINGS
+
+Do NOT modify any functionality related to creating, editing, deleting, saving drafts, audit logs, or meeting navigation.
+
+The Draft Overwrite issue (Step 2) is already fixed and verified.
+
+Your task is ONLY to implement sorting in the Scheduled Meetings/Drafts panel.
+
+==================================================
+REQUIREMENTS
+==================================================
+
+Add a Sort control (dropdown or button) to the Scheduled Meetings panel.
+
+Support the following sorting options:
+
+1. Meeting Date
+   - Newest First
+   - Oldest First
+
+2. Last Modified
+   - Most Recently Updated
+   - Least Recently Updated
+
+3. Meeting Title
+   - A → Z
+   - Z → A
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+Sorting should work for:
+
+- Draft meetings
+- Scheduled meetings
+- Confirmed meetings
+
+Sorting must only change the display order.
+
+It must NOT:
+
+- Modify any database records
+- Change Schedule IDs
+- Change Meeting IDs
+- Change meeting status
+- Update timestamps
+- Trigger API updates
+- Affect audit logs
+
+==================================================
+DATA SOURCE
+==================================================
+
+If sorting is already possible through the backend, use it.
+
+Otherwise perform client-side sorting after data is loaded.
+
+Do not reload the page every time the user changes the sort option.
+
+==================================================
+UI REQUIREMENTS
+==================================================
+
+Place the Sort control near the search/filter controls.
+
+Remember the user's selected sort option while they stay on the page.
+
+When new meetings are loaded, keep the current sort applied.
+
+==================================================
+REGRESSION REQUIREMENTS
+==================================================
+
+Verify that sorting does NOT break:
+
+- Draft creation
+- Draft editing
+- Draft deletion
+- Meeting navigation
+- Search
+- Filters
+- Calendar
+- Dashboard
+- Audit logs
+
+==================================================
+TESTS
+==================================================
+
+Create test meetings with different:
+
+- Titles
+- Dates
+- Updated timestamps
+
+Verify:
+
+✅ Date ascending
+✅ Date descending
+✅ Title A–Z
+✅ Title Z–A
+✅ Last Modified newest first
+✅ Last Modified oldest first
+
+Switch between Draft and Scheduled tabs.
+
+Sorting should remain correct.
+
+Search + Sorting should work together.
+
+Filtering + Sorting should work together.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Files modified
+2. Functions modified
+3. Whether sorting is backend or frontend
+4. Browser screenshots showing each sorting option
+5. PASS/FAIL table for all sorting options
+
+Do not modify any Step 2 data integrity logic.
+Only implement the missing sorting feature.
