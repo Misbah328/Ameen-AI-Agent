@@ -11241,11 +11241,11 @@ const CalendarPanel = {
   _open(kind, id) {
     document.getElementById("gcal-popup")?.remove();
     if (kind === "held") {
-      // Open held meeting full detail page in the new Meetings panel
-      Panels.load("scheduled").then(() => setTimeout(() => MT.openDetail(id), 300));
+      // MT.openDetail sets _pending internally then calls Panels.load — no stale flash
+      MT.openDetail(id);
     } else {
-      // Select the scheduled meeting in the new Meetings panel (not the old schedule editor)
-      Panels.load("scheduled").then(() => setTimeout(() => ScheduledPanel.select("sched", id), 300));
+      // MT.openScheduleItem sets _pending + ScheduledPanel._pendingSel then Panels.load
+      MT.openScheduleItem(id);
     }
   },
 };
