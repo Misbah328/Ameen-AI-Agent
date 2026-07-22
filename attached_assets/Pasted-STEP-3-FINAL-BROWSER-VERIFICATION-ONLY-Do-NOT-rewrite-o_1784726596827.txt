@@ -1,0 +1,229 @@
+STEP 3 — FINAL BROWSER VERIFICATION ONLY
+
+Do NOT rewrite or refactor the existing implementation.
+
+The race-condition fix using _votingSeq has already been implemented.
+
+Your task is ONLY to verify that the fix works correctly in the browser and provide evidence.
+
+Only change code if a test actually fails.
+
+Do NOT start Step 4.
+
+==================================================
+TEST 1 — STALE DATA
+==================================================
+
+Open Resolution A.
+
+Record:
+
+- Resolution ID
+- Title
+- Reference
+- Vote counts
+- Deadline
+
+Close the modal.
+
+Open Resolution B.
+
+Verify:
+
+- Every field belongs to Resolution B.
+- No title from A remains.
+- No vote counts from A remain.
+- No deadline from A remains.
+- No attachments from A remain.
+- No member list from A remains.
+
+==================================================
+TEST 2 — RAPID SWITCHING
+==================================================
+
+Open Resolution A.
+
+Immediately open Resolution B.
+
+Immediately open Resolution C.
+
+Verify:
+
+- Only Resolution C is displayed.
+- Late responses from A or B never overwrite C.
+- No flicker back to old data.
+
+==================================================
+TEST 3 — VOTE SUBMISSION
+==================================================
+
+Open Resolution B.
+
+Cast a vote.
+
+Verify:
+
+- Vote stored against Resolution B ID.
+- Vote count updates only for B.
+- Resolution A unchanged.
+- Resolution C unchanged.
+- Audit log references Resolution B.
+
+==================================================
+TEST 4 — CLOSE / REOPEN
+==================================================
+
+Open Resolution A.
+
+Close the modal.
+
+Reopen Resolution A.
+
+Verify fresh data loads.
+
+Then open Resolution D.
+
+Verify:
+
+- Correct title
+- Correct status
+- Correct vote counts
+- Correct final result
+
+==================================================
+TEST 5 — EVERY ENTRY POINT
+==================================================
+
+Open the voting modal from every available entry point:
+
+- Resolution List
+- Resolution Details
+- Circular Resolution List
+- Dashboard widget (if available)
+- Notifications (if available)
+- Global Search (if available)
+- Decision Registry (if available)
+
+Verify every entry opens the correct resolution.
+
+==================================================
+TEST 6 — REFRESH
+==================================================
+
+Open a resolution.
+
+Refresh the browser.
+
+Verify:
+
+- If deep-linking is supported, the same resolution is restored.
+- Otherwise the modal closes safely.
+- No stale resolution appears.
+
+==================================================
+TEST 7 — BACK / FORWARD
+==================================================
+
+Open Resolution A.
+
+Open Resolution B.
+
+Use browser Back.
+
+Verify Resolution A.
+
+Use browser Forward.
+
+Verify Resolution B.
+
+==================================================
+TEST 8 — LANGUAGE
+==================================================
+
+Open Resolution A.
+
+Switch English → Arabic.
+
+Verify:
+
+- Same Resolution ID.
+- Same vote counts.
+- Same member list.
+- Correct RTL.
+
+Switch back to English.
+
+Verify Resolution A is still selected.
+
+==================================================
+TEST 9 — PERMISSIONS
+==================================================
+
+Verify as:
+
+- Secretary/Admin
+- Voting member
+- Non-voting member
+- Unauthorized user
+
+Confirm each role sees only the correct actions and data.
+
+==================================================
+TEST 10 — DATA INTEGRITY
+==================================================
+
+Opening or closing the modal must NOT:
+
+- Change votes
+- Change resolution status
+- Create audit entries
+- Create duplicate votes
+- Change member eligibility
+
+Only an actual vote may change data.
+
+==================================================
+REQUIRED EVIDENCE
+==================================================
+
+Provide:
+
+1. PASS / FAIL table for Tests 1–10.
+
+2. Browser screenshots showing:
+
+- Resolution A
+- Resolution B
+- Resolution C after rapid switching
+- Vote submitted on Resolution B
+- English view
+- Arabic view
+
+3. For each screenshot include:
+
+- Resolution ID
+- Resolution title
+- Vote counts
+
+4. State whether each optional entry point exists:
+
+- Dashboard
+- Notifications
+- Search
+- Decision Registry
+
+If an entry point does not exist, state "Not implemented" instead of marking it as failed.
+
+5. Confirm that no stale data appeared during any test.
+
+6. Confirm that no database records were modified except by the intentional vote submission.
+
+Do NOT simply say "all tests passed."
+
+Show the actual evidence.
+
+If every applicable test passes, conclude exactly:
+
+"STEP 3 FULLY VERIFIED AND COMPLETE."
+
+Only modify code if a browser test fails.

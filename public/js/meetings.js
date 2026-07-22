@@ -2499,7 +2499,7 @@ const MT = {
           <td>${this._decBadge(x.status)}${voteBadge}${tallyHtml}</td>
           <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
             ${!x.meeting_id ? `<button class="btn-ghost btn-sm" style="padding:3px 8px" onclick="event.stopPropagation();MT.openResolutionModal(${x.id})">✎</button>` : ""}
-            <button class="btn-ghost btn-sm" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();MT.openVotingPanel(${x.id})">🗳 ${t("تصويت","Vote")}</button>
+            <button class="btn-ghost btn-sm" style="padding:3px 8px;font-size:11px" data-res-id="${x.id}" onclick="event.stopPropagation();MT.openVotingPanel(${x.id})">🗳 ${t("تصويت","Vote")}</button>
           </td>
         </tr>`;
       }).join("") || `<tr><td colspan="7" style="color:#98A2B3">${t("لا توجد نتائج مطابقة.","No matching results.")}</td></tr>`}
@@ -2574,7 +2574,10 @@ const MT = {
     const resTitle = res ? (l === 'ar' ? (res.title_ar || res.title_en || res.title) : (res.title_en || res.title_ar || res.title)) : '';
 
     body.innerHTML = `
-      <div class="modal-title">🗳 ${t('التصويت على القرار','Resolution Voting')}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="modal-title" style="margin-bottom:0">🗳 ${t('التصويت على القرار','Resolution Voting')}</div>
+        <button class="btn-ghost btn-sm" onclick="MT.closeVotingPanel()" style="padding:2px 8px;font-size:16px;line-height:1;color:var(--text3)" aria-label="Close">×</button>
+      </div>
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;padding:8px 10px;background:var(--navy3);border-radius:8px">${esc(resTitle)}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <span style="font-size:11.5px;font-weight:700;color:${statusColors[vStatus]||'var(--text3)'};padding:3px 10px;border-radius:12px;border:1px solid currentColor">${statusLabels[vStatus]||vStatus}</span>

@@ -528,10 +528,14 @@ router.get('/resolutions/:id/votes', auth, requirePermission('governance.voting'
     const resolution = db.prepare('SELECT * FROM resolutions WHERE id=?').get(req.params.id);
     if (!resolution) return res.status(404).json({ error: 'Not found' });
     const votes = db.prepare('SELECT * FROM votes WHERE resolution_id=? ORDER BY updated_at DESC').all(req.params.id);
-    const approve = votes.filter(v => v.vote === 'approve').length;
-    const reject  = votes.filter(v => v.vote === 'reject').length;
-    const abstain = votes.filter(v => v.vote === 'abstain').length;
-    const total   = votes.length;
+    // For closed/approved resolutions that have aggregate counts stored in the
+    // resolutions table but no individual vote rows (e.g. GA-imported totals),
+    // fall back to the cached columns so the modal shows meaningful data.
+    const hasLiveVotes = votes.length > 0;
+    const approve = hasLiveVotes ? votes.filter(v => v.vote === 'approve').length : (resolution.votes_approve || 0);
+    const reject  = hasLiveVotes ? votes.filter(v => v.vote === 'reject').length  : (resolution.votes_reject  || 0);
+    const abstain = hasLiveVotes ? votes.filter(v => v.vote === 'abstain').length : (resolution.votes_abstain || 0);
+    const total   = approve + reject + abstain;
     const pct = n => total > 0 ? Math.round((n / total) * 100) : 0;
     // Attendees for quorum + who-hasn't-voted (cross-reference by email)
     let attendees = [];
@@ -548,10 +552,15 @@ router.get('/resolutions/:id/votes', auth, requirePermission('governance.voting'
     const quorum_needed = quorum_total > 0 ? Math.ceil(quorum_total / 2) : 0;
     const quorum_met    = quorum_total > 0 && total >= quorum_needed;
     const quorum_pct    = quorum_total > 0 ? Math.round((total / quorum_total) * 100) : 0;
+    // passed: for resolutions with live vote rows use vote arithmetic;
+    // for aggregate-only rows trust the resolution status field.
+    const passed = hasLiveVotes
+      ? (approve > reject && total > 0)
+      : (resolution.status === 'approved');
     res.json({
       votes, total, approve, reject, abstain,
       approve_pct: pct(approve), reject_pct: pct(reject), abstain_pct: pct(abstain),
-      passed: approve > reject && total > 0,
+      passed,
       quorum_total, quorum_needed, quorum_met, quorum_pct,
       not_voted, attendees,
     });
