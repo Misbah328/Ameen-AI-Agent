@@ -13,3 +13,4 @@
 - [Subscription tier system](subscription-tiers.md) — requireTier() lives in auth.js (shared across all route modules); plan read from organizations.plan primary, settings table fallback; Panels.load() guards all paths including hash/programmatic nav.
 - [window.ScheduledPanel exposure](window-scheduled-panel.md) — const ScheduledPanel in app.js is NOT on window; must add window.ScheduledPanel=ScheduledPanel at bootstrap or all window.ScheduledPanel guards silently no-op.
 - [CalendarPanel._open stale pattern](calendar-open-stale.md) — never use Panels.load().then(setTimeout(MT.openDetail)) in CalendarPanel; use MT.openDetail/MT.openScheduleItem directly (they set _pending themselves).
+- [Draft overwrite bug](draft-overwrite.md) — _editingDraftScheduleId must be reset to null in openCreate() and _renderCreate(reset=true); forgetting this patches the prior draft instead of creating a new record.

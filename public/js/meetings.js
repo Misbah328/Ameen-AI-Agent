@@ -145,6 +145,9 @@ const MT = {
 
   // ── public entry points ───────────────────────────────────────
   openCreate() {
+    // Always reset the draft-editing ID so a fresh form NEVER accidentally
+    // patches a previously-saved draft instead of creating a new record.
+    this._editingDraftScheduleId = null;
     if (Panels.current === "scheduled") { this._renderCreate(true); return; }
     this._pending = { view: "create" };
     Panels.load("scheduled");
@@ -1678,6 +1681,10 @@ const MT = {
     if (!box) return;
     this._showView("create");
     if (reset || !this._cs) {
+      // Defensive: a full reset must never carry over a stale draft-editing ID.
+      // openCreate() already clears it, but cover the case where _renderCreate
+      // is called directly (e.g. from onPanelShow pending-create path).
+      if (reset) this._editingDraftScheduleId = null;
       this._cs = {
         agenda: [{ title: "", mins: 15 }],
         members: [],           // {name, role}
@@ -2132,6 +2139,10 @@ const MT = {
       showToast(isDraft ? t("✓ تم حفظ الاجتماع كمسودة", "✓ Meeting saved as draft") : t("✓ تم إنشاء الاجتماع وجدولته", "✓ Meeting created and scheduled"));
       this._cs = null;
       this._createRendered = false;
+      // Clear the editing ID so navigating back to "New Meeting" never patches
+      // this draft instead of creating a fresh record. editDraft() will set it
+      // correctly when the user explicitly re-opens a draft for editing.
+      if (isDraft) this._editingDraftScheduleId = null;
       this.showList();
     } catch (e) {
       showToast(t("تعذّر إنشاء الاجتماع: ", "Could not create meeting: ") + e.message, "error");
