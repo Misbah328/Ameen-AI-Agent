@@ -2048,6 +2048,15 @@ router.post('/schedule', auth, requirePermission('calendar.manage'), (req, res) 
       }
     }
   })();
+  // ── Draft-save audit log: record creation of a draft in the lifecycle log
+  // so the audit trail captures who saved it and when.
+  if (isDraft && source_meeting_id) {
+    const actor = resolveActor(req.user.id);
+    db.prepare(`INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+      VALUES (?, 'created', 'draft', ?, ?, 'Draft saved')`)
+      .run(source_meeting_id, req.user.id, actor.name || '');
+  }
+
   // Skip attendee notifications for drafts — they haven't been confirmed yet.
   if (!isDraft) {
     const { splitRecipients, isValidEmail } = require('../utils/validate');
@@ -2164,7 +2173,8 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
       meeting_location=COALESCE(?,meeting_location),
       meeting_id_external=COALESCE(?,meeting_id_external), recording_status=COALESCE(?,recording_status),
       recording_provider=COALESCE(?,recording_provider), recording_url=COALESCE(?,recording_url),
-      transcript_provider=COALESCE(?,transcript_provider), reminder_sent=0
+      transcript_provider=COALESCE(?,transcript_provider), reminder_sent=0,
+      updated_at=CURRENT_TIMESTAMP
     WHERE id=?`)
     .run(
       title_ar, title_en !== undefined ? (title_en || title_ar) : null,
@@ -2186,6 +2196,15 @@ router.patch('/schedule/:id', auth, requirePermission('calendar.manage'), (req, 
     );
   if (req.body.source_meeting_id !== undefined) {
     db.prepare('UPDATE schedule SET source_meeting_id=? WHERE id=?').run(req.body.source_meeting_id || null, req.params.id);
+  }
+
+  // ── Draft-edit audit log: record every save of a draft in the lifecycle log
+  // so the audit trail shows who edited it and when, even before it's confirmed.
+  if (row.status === 'draft' && row.source_meeting_id) {
+    const actor = resolveActor(req.user.id);
+    db.prepare(`INSERT INTO meeting_lifecycle_log (meeting_id, from_stage, to_stage, actor_id, actor_name, note)
+      VALUES (?, 'draft', 'draft', ?, ?, 'Draft updated')`)
+      .run(row.source_meeting_id, req.user.id, actor.name || '');
   }
 
   // ── Reschedule audit log: record whenever date or time changes on a

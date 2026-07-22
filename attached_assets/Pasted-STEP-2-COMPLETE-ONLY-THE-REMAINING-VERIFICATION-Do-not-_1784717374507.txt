@@ -1,0 +1,196 @@
+STEP 2 — COMPLETE ONLY THE REMAINING VERIFICATION
+
+Do not repeat tests that already passed.
+
+Do not start Step 3.
+
+The draft-overwrite issue appears fixed, but Step 2 is not complete because several tests were not performed, and the Edit Draft result may be incorrect.
+
+==================================================
+TEST A — VERIFY EDIT UPDATES THE SAME RECORD
+==================================================
+
+This is the most important remaining check.
+
+Select one existing draft, for example:
+
+REGTEST Draft Beta
+
+Before editing, record:
+
+- Schedule ID
+- Meeting ID
+- Title
+- Date
+- Total number of drafts
+
+Edit that exact draft and change:
+
+- Title
+- Date
+- Description
+
+Save it.
+
+Expected behavior:
+
+- The Schedule ID remains exactly the same.
+- The Meeting ID remains exactly the same.
+- The existing database row is updated.
+- No additional draft record is created.
+- The total draft count remains unchanged.
+- Draft Alpha and Draft Gamma remain unchanged.
+
+Important:
+
+The previous report said “Beta EDITED” had a separate schedule ID and meeting row. That may indicate Edit Draft created a new record instead of updating the original record.
+
+Confirm clearly whether editing uses:
+
+PATCH/PUT on the existing ID
+
+and not:
+
+POST creating a new draft.
+
+If edit currently creates a new record, fix it and retest.
+
+==================================================
+TEST B — DUPLICATE-CLICK PROTECTION
+==================================================
+
+Open a fresh Create Meeting form.
+
+Enter a unique title:
+
+DUPLICATE CLICK TEST
+
+Rapidly click Save as Draft multiple times.
+
+Verify:
+
+- Exactly one schedule row is created.
+- Exactly one meeting row is created.
+- Only one draft appears in the UI.
+- No duplicated audit entries are created.
+- The save button disables while the request is in progress.
+
+Do not rely only on the existence of `_submittingCreate`.
+
+Test the behavior in the browser and database.
+
+==================================================
+TEST C — COMPLETE STRESS TEST
+==================================================
+
+Create five new drafts sequentially:
+
+STRESS FINAL 1
+STRESS FINAL 2
+STRESS FINAL 3
+STRESS FINAL 4
+STRESS FINAL 5
+
+Verify:
+
+- All five exist.
+- All five have unique Schedule IDs.
+- All five have unique Meeting IDs.
+- None overwrote another.
+- None duplicated.
+- All have the correct titles and dates.
+
+==================================================
+TEST D — AUDIT LOG
+==================================================
+
+Create one new draft.
+
+Verify audit records include:
+
+- Meeting Created
+- Draft Saved
+- Creator
+- Timestamp
+- Meeting ID
+- Schedule ID, if supported
+
+Then edit that draft.
+
+Verify an update audit record includes:
+
+- Draft Updated
+- Editor
+- Timestamp
+- Same Meeting ID
+- Same Schedule ID
+
+==================================================
+TEST E — DASHBOARD CONSISTENCY
+==================================================
+
+Record the current draft-related count before creating a draft.
+
+Create one draft.
+
+Verify:
+
+- Draft count increases by one wherever draft counts are displayed.
+- Recent activity displays the correct draft creation, if applicable.
+- No scheduled or upcoming meeting count is incorrectly increased.
+
+Edit the draft.
+
+Verify:
+
+- Draft count does not increase.
+- No duplicate recent item is created as a new meeting.
+
+==================================================
+TEST F — CALENDAR CONSISTENCY
+==================================================
+
+Determine the intended product behavior:
+
+- If drafts should appear in the Calendar, verify correct title, date, and only one occurrence.
+- If drafts should not appear in the Calendar, verify they are excluded.
+
+Document the intended behavior and confirm the application follows it.
+
+==================================================
+TEST G — SORTING
+==================================================
+
+Test only the sorting controls that actually exist.
+
+Verify:
+
+- Date sorting
+- Last modified sorting
+- Title sorting
+
+If a requested sorting control does not exist, state that clearly instead of marking it N/A without explanation.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide a PASS/FAIL table for Tests A–G.
+
+For Test A, include before-and-after:
+
+- Schedule ID
+- Meeting ID
+- Draft count
+
+For Test B, include the number of rows created.
+
+For Test C, list all five IDs.
+
+For Test D, list the audit-event types found.
+
+Do not claim Step 2 complete unless every applicable test passes.
+
+If everything passes, conclude exactly:
+
+“STEP 2 FULLY VERIFIED AND COMPLETE.”
