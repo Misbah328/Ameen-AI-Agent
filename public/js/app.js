@@ -7254,20 +7254,22 @@ const NotificationCenter = {
     try { await api(`/api/notifications/${id}/read`, { method: "PATCH" }); } catch (e) {}
     this.close();
     this.refreshBadge();
-    const panelMap = { task: "tasks", meeting: "transcripts", schedule: "scheduled", resolution: "governance", document: "documents", policy: "governance", vote: "governance" };
+    // "meeting" is handled separately below — MT.openDetail manages its own
+    // panel navigation so we must NOT pre-load a different panel (avoids flash
+    // of wrong panel and double navigation).
+    const panelMap = { task: "tasks", schedule: "scheduled", resolution: "governance", document: "documents", policy: "governance", vote: "governance" };
     const goto = panelMap[sourceType];
-    if (goto) {
-      await Panels.load(goto);
-      // Deep-link into specific items when possible
-      if (sourceType === "task" && sourceId) {
-        setTimeout(() => { try { Tasks.edit(sourceId); } catch(e){} }, 200);
-      } else if (sourceType === "meeting" && sourceId) {
-        setTimeout(() => { try { if(window.MT) MT.openDetail(sourceId); } catch(e){} }, 200);
-      } else if (sourceType === "schedule" && sourceId) {
-        setTimeout(() => { try { ScheduledPanel.openWorkspace(sourceId); } catch(e){} }, 300);
-      } else if (sourceType === "resolution") {
-        setTimeout(() => { try { if(typeof MT !== 'undefined') MT.renderResolutions(); } catch(e){} }, 200);
-      }
+    if (goto) await Panels.load(goto);
+    // Deep-link into specific items when possible
+    if (sourceType === "task" && sourceId) {
+      setTimeout(() => { try { Tasks.edit(sourceId); } catch(e){} }, 200);
+    } else if (sourceType === "meeting" && sourceId && window.MT) {
+      // MT.openDetail handles its own panel switch — call directly, no setTimeout
+      MT.openDetail(sourceId);
+    } else if (sourceType === "schedule" && sourceId) {
+      setTimeout(() => { try { ScheduledPanel.openWorkspace(sourceId); } catch(e){} }, 300);
+    } else if (sourceType === "resolution") {
+      setTimeout(() => { try { if(typeof MT !== 'undefined') MT.renderResolutions(); } catch(e){} }, 200);
     }
   },
 
@@ -9859,12 +9861,20 @@ const ScheduledPanel = {
       });
     this._groups = { upcoming, inprog, completed, drafts };
 
-    // keep selection if still visible, else select the first visible item
-    const visible = this._visibleItems();
-    const stillThere = visible.some((it) => it.kind === this._selKind && it.id === this._selId);
-    if (!stillThere) {
-      this._selKind = visible.length ? visible[0].kind : null;
-      this._selId = visible.length ? visible[0].id : null;
+    // If a specific item was requested (e.g. from Dashboard/Calendar "View Details"),
+    // apply it now so the detail pane immediately shows the correct item.
+    if (this._pendingSel) {
+      this._selKind = this._pendingSel.kind;
+      this._selId = this._pendingSel.id;
+      this._pendingSel = null;
+    } else {
+      // keep selection if still visible, else select the first visible item
+      const visible = this._visibleItems();
+      const stillThere = visible.some((it) => it.kind === this._selKind && it.id === this._selId);
+      if (!stillThere) {
+        this._selKind = visible.length ? visible[0].kind : null;
+        this._selId = visible.length ? visible[0].id : null;
+      }
     }
     this.renderTabs();
     this.render();
@@ -11926,7 +11936,7 @@ async function renderOverview() {
       const heroSub = rtl ? nm.title_en : nm.title_ar;
       const openPkg = nm.source_meeting_id
         ? `ScheduledPanel.openWorkspace(${num(nm.source_meeting_id)})`
-        : `Panels.load('scheduled')`;
+        : `MT.openScheduleItem(${num(nm.id)})`;
       heroCard = `<div class="dx2-hero">
         <div class="dx2-hero-main">
           <span class="dx2-chip-type">📋 ${nm.meeting_type ? esc(mtLabel(nm.meeting_type, l)) : lbl("اجتماع", "Meeting")}</span>
@@ -11940,7 +11950,7 @@ async function renderOverview() {
           </div>
           <div class="dx2-hero-btns">
             <button class="btn-amber" onclick="${openPkg}">📦 ${lbl("فتح حزمة الاجتماع", "Open Meeting Package")}</button>
-            <button class="btn-hero-ghost" onclick="Panels.load('scheduled')">${lbl("عرض التفاصيل", "View Details")}</button>
+            <button class="btn-hero-ghost" onclick="MT.openScheduleItem(${num(nm.id)})">${lbl("عرض التفاصيل", "View Details")}</button>
           </div>
         </div>
         <div class="dx2-hero-side">
@@ -13546,6 +13556,9 @@ $("ci").addEventListener("input", function () {
 });
 
 // ══ Bootstrap ══════════════════════════════════════════════════════════════════
+// Expose key singletons so meetings.js (loaded after) can reference them via
+// window.ScheduledPanel guards without relying on const-scope visibility.
+window.ScheduledPanel = ScheduledPanel;
 window.__AMEEN_READY = true;
 App.init();
 

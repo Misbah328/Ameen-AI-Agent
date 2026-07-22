@@ -128,6 +128,7 @@ const MT = {
       this._pending = null;
       if (p.view === "create") { this._renderCreate(true); return; }
       if (p.view === "detail") { this._loadDetail(p.id, p.tab); return; }
+      if (p.view === "list") { this._showView("list"); return; }
     }
     if (this._view === "detail" && this._d) { this._renderDetail(); return; }
     // Re-paint (not just re-show) so a language toggle re-translates the form
@@ -231,6 +232,25 @@ const MT = {
     Panels.load("scheduled");
   },
 
+  // Navigate to the Meetings panel and highlight a *schedule* item in the list
+  // (used from Dashboard hero and Calendar sidebar where we have a schedule ID,
+  // not a held-meeting ID). Sets _pending = {view:"list"} so onPanelShow does
+  // NOT re-render the previously-viewed meeting, and sets ScheduledPanel._pendingSel
+  // so applyFilters() (called inside refresh()) highlights the correct item
+  // before any DOM paint — no fragile .then() timing dependency.
+  openScheduleItem(schedId) {
+    if (Panels.current === "scheduled") {
+      this._showView("list");
+      if (window.ScheduledPanel) ScheduledPanel.select("sched", schedId);
+      return;
+    }
+    this._pending = { view: "list" };
+    if (schedId && window.ScheduledPanel) {
+      ScheduledPanel._pendingSel = { kind: "sched", id: schedId };
+    }
+    Panels.load("scheduled");
+  },
+
   // ═════════════════════════════════════════════════════════════
   //  DETAIL PAGE (mockup 3333 + tab mockups 5555/6666/7777)
   // ═════════════════════════════════════════════════════════════
@@ -238,12 +258,15 @@ const MT = {
     const box = $("mtx-detail-view");
     if (!box) return;
     this._showView("detail");
-    if (this._mid !== meetingId) {
+    const prevMid = this._mid;
+    if (prevMid !== meetingId) {
       this._decSel = null; this._minSec = -1; this._approvalLog = null; this._modRequests = null;
       box.innerHTML = `<div class="es"><div class="loading"></div></div>`;
     }
     this._mid = meetingId;
-    this._tab = tab || (this._mid === meetingId && this._tab) || "overview";
+    // Use prevMid (not this._mid which was just set) to check if same meeting —
+    // otherwise the condition is always true and the tab never resets on switch.
+    this._tab = tab || (prevMid === meetingId ? this._tab : null) || "overview";
     if (tab) this._tab = tab;
     try {
       this._d = await api(`/api/meetings/${meetingId}/full`);
