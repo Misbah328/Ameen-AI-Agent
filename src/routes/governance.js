@@ -7,6 +7,26 @@ const { requirePermission, requireTier } = auth;
 const { createNotification } = require('../services/notifications');
 const notify = require('../utils/notify');
 
+// ── Member deduplication helpers ──────────────────────────────────────────────
+function memberKey(str) {
+  if (typeof str !== 'string') return '';
+  const parts = str.split(' — ');
+  const email = parts[2] ? parts[2].trim().toLowerCase() : null;
+  const name  = parts[0] ? parts[0].trim().toLowerCase() : '';
+  return email || name;
+}
+
+function deduplicateMembers(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Set();
+  return arr.filter(m => {
+    const k = memberKey(typeof m === 'string' ? m : JSON.stringify(m));
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 // ── Ensure policies table exists ──────────────────────────────────────────────
 db.prepare(`CREATE TABLE IF NOT EXISTS policies (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -314,9 +334,42 @@ router.patch('/boards/:id', auth, requireTier('advanced'), requirePermission('go
     members=COALESCE(?,members), total_members=COALESCE(?,total_members),
     default_quorum=COALESCE(?,default_quorum) WHERE id=?`)
     .run(name_ar, name_en, description, chairperson,
-      members !== undefined ? JSON.stringify(members) : null,
+      members !== undefined ? JSON.stringify(deduplicateMembers(members)) : null,
       total_members, default_quorum, req.params.id);
   res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id));
+});
+
+// ── Board member add / remove (atomic, with dedup) ────────────────────────────
+router.post('/boards/:id/members', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
+  const board = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
+  if (!board) return res.status(404).json({ error: 'Board not found' });
+  const { name, role, email } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  const trimName  = name.trim();
+  const trimRole  = (role || 'Member').trim();
+  const trimEmail = email ? email.trim().toLowerCase() : null;
+  const newKey    = trimEmail || trimName.toLowerCase();
+  const members   = JSON.parse(board.members || '[]');
+  const isDup = members.some(m => memberKey(m) === newKey);
+  if (isDup) return res.status(409).json({ error: 'This member already belongs to this board' });
+  const entry = trimEmail ? `${trimName} — ${trimRole} — ${trimEmail}` : `${trimName} — ${trimRole}`;
+  members.push(entry);
+  db.prepare('UPDATE boards SET members=? WHERE id=?').run(JSON.stringify(members), req.params.id);
+  res.json({ success: true, members });
+});
+
+router.delete('/boards/:id/members', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
+  const board = db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
+  if (!board) return res.status(404).json({ error: 'Board not found' });
+  const { identifier } = req.body;
+  if (!identifier) return res.status(400).json({ error: 'identifier required' });
+  const normId  = identifier.trim().toLowerCase();
+  const members = JSON.parse(board.members || '[]');
+  const before  = members.length;
+  const filtered = members.filter(m => memberKey(m) !== normId);
+  if (filtered.length === before) return res.status(404).json({ error: 'Member not found' });
+  db.prepare('UPDATE boards SET members=? WHERE id=?').run(JSON.stringify(filtered), req.params.id);
+  res.json({ success: true, members: filtered });
 });
 
 router.delete('/boards/:id', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
@@ -362,9 +415,42 @@ router.patch('/committees/:id', auth, requireTier('advanced'), requirePermission
     members=COALESCE(?,members), total_members=COALESCE(?,total_members),
     default_quorum=COALESCE(?,default_quorum) WHERE id=?`)
     .run(board_id, name_ar, name_en, description, chairperson,
-      members !== undefined ? JSON.stringify(members) : null,
+      members !== undefined ? JSON.stringify(deduplicateMembers(members)) : null,
       total_members, default_quorum, req.params.id);
   res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(req.params.id));
+});
+
+// ── Committee member add / remove (atomic, with dedup) ────────────────────────
+router.post('/committees/:id/members', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
+  const comm = db.prepare('SELECT * FROM committees WHERE id=?').get(req.params.id);
+  if (!comm) return res.status(404).json({ error: 'Committee not found' });
+  const { name, role, email } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  const trimName  = name.trim();
+  const trimRole  = (role || 'Member').trim();
+  const trimEmail = email ? email.trim().toLowerCase() : null;
+  const newKey    = trimEmail || trimName.toLowerCase();
+  const members   = JSON.parse(comm.members || '[]');
+  const isDup = members.some(m => memberKey(m) === newKey);
+  if (isDup) return res.status(409).json({ error: 'This member already belongs to this committee' });
+  const entry = trimEmail ? `${trimName} — ${trimRole} — ${trimEmail}` : `${trimName} — ${trimRole}`;
+  members.push(entry);
+  db.prepare('UPDATE committees SET members=? WHERE id=?').run(JSON.stringify(members), req.params.id);
+  res.json({ success: true, members });
+});
+
+router.delete('/committees/:id/members', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
+  const comm = db.prepare('SELECT * FROM committees WHERE id=?').get(req.params.id);
+  if (!comm) return res.status(404).json({ error: 'Committee not found' });
+  const { identifier } = req.body;
+  if (!identifier) return res.status(400).json({ error: 'identifier required' });
+  const normId   = identifier.trim().toLowerCase();
+  const members  = JSON.parse(comm.members || '[]');
+  const before   = members.length;
+  const filtered = members.filter(m => memberKey(m) !== normId);
+  if (filtered.length === before) return res.status(404).json({ error: 'Member not found' });
+  db.prepare('UPDATE committees SET members=? WHERE id=?').run(JSON.stringify(filtered), req.params.id);
+  res.json({ success: true, members: filtered });
 });
 
 router.delete('/committees/:id', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {

@@ -1,0 +1,158 @@
+STEP 6 ONLY — FIX DUPLICATE BOARD MEMBERS
+
+Do not modify Meetings, Voting, Permission Counts, Board Creation, Calendar, or previous completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+The same person may appear more than once in a board or committee.
+
+Possible symptoms:
+
+- Same member appears twice in the member list
+- Double-clicking Add Member creates duplicates
+- Same email is added with different letter case
+- Same member appears under slightly different name formats
+- Refresh shows duplicate member rows
+- Member totals are higher than the real number of unique people
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+Each person must appear only once per board or committee.
+
+The system must prevent duplicates using a reliable identifier such as:
+
+- User ID
+- Email address
+- Member ID
+
+Do not rely only on display name.
+
+The same person may belong to different boards, but cannot be added twice to the same board.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Check:
+
+- Add Member form
+- Save button handlers
+- Board member API
+- Committee member API
+- Database member storage
+- JSON member arrays
+- Event listeners
+- Double-click handling
+- Frontend rendering
+- Member import logic
+- Role update logic
+- Email and user ID normalization
+
+Determine whether duplicates come from:
+
+- Duplicate database rows
+- Duplicate JSON entries
+- Multiple POST requests
+- Case differences in email
+- Whitespace differences
+- Duplicate frontend rendering
+- Mock or fallback members
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. Prevent duplicate submissions:
+- Disable Add/Save while the request is processing
+- Ignore repeated clicks
+- Re-enable after success or error
+
+2. Prevent duplicate members in storage:
+- Use user ID or normalized email as the unique identifier
+- Trim spaces
+- Compare emails case-insensitively
+- Block the same person within the same board or committee
+
+3. Do not create a duplicate when changing a member’s role.
+Role changes must update the existing member.
+
+4. Deduplicate API responses and frontend rendering.
+
+5. Show a clear message:
+“This member already belongs to this board or committee.”
+
+6. Do not automatically delete legitimate members.
+
+==================================================
+TESTS
+==================================================
+
+1. Existing Data
+Confirm each board and committee shows unique members only.
+
+2. Add Member
+Add one new member.
+Confirm exactly one member record and one UI row.
+
+3. Double Click
+Double-click Add Member.
+Confirm only one member is added.
+
+4. Same Email
+Try adding:
+- member@example.com
+- MEMBER@EXAMPLE.COM
+- member@example.com with spaces
+
+Confirm duplicates are blocked.
+
+5. Same Name, Different User
+If two users have the same display name but different IDs/emails, confirm both can be added.
+
+6. Role Change
+Change a member from Viewer to Admin.
+Confirm the same member record is updated.
+No new duplicate row should appear.
+
+7. Refresh
+Refresh several times.
+Confirm the member list remains unique.
+
+8. Remove Member
+Remove one member.
+Confirm only that member is removed.
+
+9. Board and Committee Scope
+Confirm the same user can belong to:
+- Board A
+- Board B
+- Committee A
+
+But only once in each individual board or committee.
+
+10. Count Consistency
+Confirm member counts match the number of unique visible members.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+- Root cause
+- Files modified
+- Functions modified
+- Whether duplicates existed in database, API, JSON, or frontend
+- Before and after member counts
+- PASS/FAIL table for all tests
+- Screenshots showing unique member lists
+
+If all tests pass, conclude exactly:
+
+“STEP 6 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 7.

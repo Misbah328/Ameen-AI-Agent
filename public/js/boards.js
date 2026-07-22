@@ -334,20 +334,37 @@ const BC = {
           m.nameEn.toLowerCase().includes(chairName.split(" ")[0].toLowerCase())
         ) || (chairName ? { nameEn: chairName, nameAr: chairName, roleEn: "Chairman", roleAr: "رئيس", attendance: 90 } : BC_MEMBERS[0]);
 
-        // Parse members from API string array (e.g. "Mohammed Al-Otaibi — Chairman")
-        const apiMembers = (b.members || []).map((mStr, i) => {
+        // Parse members from API string array — supports 2-part "Name — Role"
+        // and 3-part "Name — Role — email@domain" (new format with email dedup key)
+        const seenMemberKeys = new Set();
+        const apiMembers = (b.members || []).filter(mStr => {
+          if (typeof mStr !== 'string') return false;
+          const parts = mStr.split(' — ');
+          const email = parts[2] ? parts[2].trim().toLowerCase() : null;
+          const name  = parts[0] ? parts[0].trim().toLowerCase() : '';
+          const key   = email || name;
+          if (seenMemberKeys.has(key)) return false;
+          seenMemberKeys.add(key);
+          return true;
+        }).map((mStr, i) => {
           const parts = mStr.split(" — ");
-          const name = parts[0]?.trim() || mStr;
-          const role = parts[1]?.trim() || "Member";
+          const name  = parts[0]?.trim() || mStr;
+          const role  = parts[1]?.trim() || "Member";
+          const email = parts[2]?.trim() || null;
+          const identifier = email || name.toLowerCase();
           const existing = BC_MEMBERS.find(m => m.nameEn.toLowerCase().includes(name.split(" ")[0].toLowerCase()));
-          return existing || {
-            id: `api-${b.id}-m${i}`,
-            nameEn: name, nameAr: name,
-            roleEn: role, roleAr: role,
-            typeEn: role, typeAr: role,
-            since: b.created_at?.split(" ")[0] || "2024-01-01",
-            attendance: Math.floor(85 + Math.random() * 12)
-          };
+          return existing
+            ? { ...existing, _identifier: identifier, _email: email, roleEn: role, roleAr: role }
+            : {
+                id: `api-${b.id}-m${i}`,
+                nameEn: name, nameAr: name,
+                roleEn: role, roleAr: role,
+                typeEn: "Member", typeAr: "عضو",
+                since: b.created_at?.split(" ")[0] || "2024-01-01",
+                attendance: 90,
+                _identifier: identifier,
+                _email: email,
+              };
         });
 
         // member_count from API = actual JSON roster length; total_members = quorum seat count
@@ -1121,33 +1138,113 @@ const BC = {
       </div>`;
   },
 
-  membersTable(members) {
+  membersTable(members, boardId, kind, apiId) {
+    const canManage = !!apiId;
+    BC._memberCache = BC._memberCache || {};
+    BC._memberCache[boardId] = members;
+    const rows = members.length ? members.map((m, idx) => `
+      <tr class="bc-tr">
+        <td class="bc-td"><div class="bc-owner-wrap"><span class="bc-av-sm" style="background:${bcColor(m.id)}">${bcInit(bcT(m.nameAr, m.nameEn))}</span><div><div class="bc-owner-n">${esc(bcT(m.nameAr, m.nameEn))}</div><div class="bc-owner-r">${bcT(m.roleAr, m.roleEn)}</div></div></div></td>
+        <td class="bc-td"><span class="bc-badge ${m.roleEn === "Chairman" ? "bc-badge-blue" : "bc-badge-gray"}">${bcT(m.roleAr, m.roleEn)}</span></td>
+        <td class="bc-td"><span class="bc-pri ${m.typeEn === "Independent" ? "bc-pri-amber" : "bc-pri-blue"}">${bcT(m.typeAr, m.typeEn)}</span></td>
+        <td class="bc-td bc-td-date">${bcDate(m.since)}</td>
+        <td class="bc-td"><div class="bc-attend-wrap"><span>${m.attendance}%</span><div class="bc-attend-bar"><div class="bc-attend-fill" style="width:${m.attendance}%"></div></div></div></td>
+        <td class="bc-td bc-td-actions">
+          ${canManage
+            ? `<button class="bc-rm-btn" style="color:#e05555;font-size:13px" title="${bcT('إزالة','Remove')}" onclick="BC.removeMember('${boardId}','${kind}',${apiId},${idx})">✕</button>`
+            : `<button class="bc-rm-btn" onclick="showToast(bcT('خيارات العضو قريباً','Member options coming soon'),'info')">⋮</button>`}
+        </td>
+      </tr>`).join("")
+      : `<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--text3)">${bcT("لا يوجد أعضاء بعد", "No members yet")}</td></tr>`;
     return `<div class="bc-tbl-wrap"><table class="bc-tbl">
       <thead><tr>
         <th class="bc-th">${bcT("العضو", "Member")}</th>
         <th class="bc-th">${bcT("الدور", "Role")}</th>
         <th class="bc-th">${bcT("النوع", "Type")}</th>
         <th class="bc-th">${bcT("منذ", "Since")}</th>
-        <th class="bc-th">${bcT("الحضور (هذا العام)", "Attendance (This Year)")}</th>
+        <th class="bc-th">${bcT("الحضور", "Attendance")}</th>
         <th class="bc-th"></th>
       </tr></thead>
-      <tbody>${members.map(m => `
-        <tr class="bc-tr">
-          <td class="bc-td"><div class="bc-owner-wrap"><span class="bc-av-sm" style="background:${bcColor(m.id)}">${bcInit(bcT(m.nameAr, m.nameEn))}</span><div><div class="bc-owner-n">${esc(bcT(m.nameAr, m.nameEn))}</div><div class="bc-owner-r">${bcT(m.roleAr, m.roleEn)}</div></div></div></td>
-          <td class="bc-td"><span class="bc-badge ${m.roleEn === "Chairman" ? "bc-badge-blue" : "bc-badge-gray"}">${bcT(m.roleAr, m.roleEn)}</span></td>
-          <td class="bc-td"><span class="bc-pri ${m.typeEn === "Independent" ? "bc-pri-amber" : "bc-pri-blue"}">${bcT(m.typeAr, m.typeEn)}</span></td>
-          <td class="bc-td bc-td-date">${bcDate(m.since)}</td>
-          <td class="bc-td"><div class="bc-attend-wrap"><span>${m.attendance}%</span><div class="bc-attend-bar"><div class="bc-attend-fill" style="width:${m.attendance}%"></div></div></div></td>
-          <td class="bc-td bc-td-actions"><button class="bc-rm-btn" onclick="showToast(bcT('خيارات العضو قريباً','Member options coming soon'),'info')">⋮</button></td>
-        </tr>`).join("")}</tbody>
+      <tbody>${rows}</tbody>
     </table></div>`;
   },
 
   membersTab(b) {
+    const apiId = b._apiId || null;
+    const kind  = b.type === "board" ? "boards" : "committees";
+    const uid   = b.id;
+    const addForm = apiId ? `
+      <div style="margin-top:16px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-weight:600;font-size:13px;color:var(--gold);margin-bottom:10px">➕ ${bcT("إضافة عضو", "Add Member")}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div><div class="fl">${bcT("الاسم الكامل", "Full Name")}</div><input class="fi" id="bcm-name-${uid}" placeholder="${bcT("اسم العضو", "Member name")}"></div>
+          <div><div class="fl">${bcT("الدور", "Role")}</div>
+            <select class="fi" id="bcm-role-${uid}">
+              <option value="Chairman">${bcT("رئيس", "Chairman")}</option>
+              <option value="Member" selected>${bcT("عضو", "Member")}</option>
+              <option value="Secretary">${bcT("أمين سر", "Secretary")}</option>
+              <option value="Observer">${bcT("مراقب", "Observer")}</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px"><div class="fl">${bcT("البريد الإلكتروني (للتمييز بين أشخاص بنفس الاسم)", "Email (distinguishes people with the same name)")}</div><input class="fi" id="bcm-email-${uid}" type="email" dir="ltr" style="text-align:left" placeholder="name@company.com"></div>
+        <button class="btn-gold btn-sm" id="bcm-btn-${uid}" onclick="BC.addMember('${uid}','${kind}',${apiId})">✓ ${bcT("إضافة", "Add")}</button>
+      </div>` : '';
     return `<div class="bc-card bc-pad">
-      <div class="bc-side-title-row"><span class="bc-side-title">${bcT("الأعضاء", "Members")} (${b.membersCount})</span><button class="btn-gold btn-sm" onclick="BC.openQuickModal('member', '${b.id}')">👥 ${bcT("إدارة الأعضاء", "Manage Members")}</button></div>
-      ${this.membersTable(b.members)}
+      <div class="bc-side-title-row"><span class="bc-side-title">${bcT("الأعضاء", "Members")} (${b.membersCount})</span></div>
+      ${this.membersTable(b.members, uid, kind, apiId)}
+      ${addForm}
     </div>`;
+  },
+
+  async addMember(boardId, kind, apiId) {
+    if (BC._addingMember) return;
+    const nameEl  = $("bcm-name-" + boardId);
+    const roleEl  = $("bcm-role-" + boardId);
+    const emailEl = $("bcm-email-" + boardId);
+    const name  = (nameEl  ? nameEl.value.trim()  : "");
+    const role  = (roleEl  ? roleEl.value         : "Member");
+    const email = (emailEl ? emailEl.value.trim() : "") || null;
+    if (!name) { showToast(bcT("يرجى إدخال اسم العضو", "Please enter the member name"), "error"); return; }
+    BC._addingMember = true;
+    const btn = $("bcm-btn-" + boardId);
+    if (btn) { btn.disabled = true; btn.style.opacity = "0.6"; }
+    try {
+      const res = await fetch(`/api/gov/${kind}/${apiId}/members`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, role, email }),
+      }).then(r => r.json());
+      if (res.error) { showToast(res.error, "error"); return; }
+      showToast(bcT("تم إضافة العضو", "Member added"), "success");
+      if (nameEl)  nameEl.value  = "";
+      if (emailEl) emailEl.value = "";
+      await BC.loadFromAPI();
+      BC.openDetail(boardId, "members");
+    } catch (e) { showToast(e.message, "error"); }
+    finally {
+      BC._addingMember = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ""; }
+    }
+  },
+
+  async removeMember(boardId, kind, apiId, idx) {
+    const cached = (BC._memberCache || {})[boardId] || [];
+    const m = cached[idx];
+    if (!m) { showToast(bcT("العضو غير موجود", "Member not found"), "error"); return; }
+    const identifier = m._identifier || (m._email || m.nameEn || "").toLowerCase();
+    if (!confirm(bcT(`إزالة "${m.nameEn || m.nameAr}" من ${kind === "boards" ? "المجلس" : "اللجنة"}؟`, `Remove "${m.nameEn || m.nameAr}" from this ${kind === "boards" ? "board" : "committee"}?`))) return;
+    try {
+      const res = await fetch(`/api/gov/${kind}/${apiId}/members`, {
+        method: "DELETE", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier }),
+      }).then(r => r.json());
+      if (res.error) { showToast(res.error, "error"); return; }
+      showToast(bcT("تم إزالة العضو", "Member removed"), "success");
+      await BC.loadFromAPI();
+      BC.openDetail(boardId, "members");
+    } catch (e) { showToast(e.message, "error"); }
   },
 
   meetingsTab(b) {
