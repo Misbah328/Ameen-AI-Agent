@@ -1,0 +1,244 @@
+STEP 2.1 — FINAL SORTING VERIFICATION ONLY
+
+Do not modify the code unless a test actually fails.
+
+The sorting feature has already been implemented.
+
+Your task is only to verify that all sorting options work correctly and provide clear evidence.
+
+Do not start Step 3.
+
+==================================================
+TEST DATA
+==================================================
+
+Use or create meetings with clearly different:
+
+- Titles
+- Meeting dates
+- Updated timestamps
+- Statuses
+
+Include examples in:
+
+- Draft meetings
+- Scheduled/Confirmed meetings
+- Completed meetings
+
+Use at least 4 meetings in each applicable category so the order is easy to verify.
+
+==================================================
+TEST 1 — DATE: OLDEST FIRST
+==================================================
+
+Select:
+
+Meeting Date → Oldest First
+
+Verify that meetings are displayed from the earliest date to the latest date.
+
+Record the visible order.
+
+Test in:
+
+- Draft tab
+- Scheduled/Confirmed tab
+- Completed tab
+
+==================================================
+TEST 2 — DATE: NEWEST FIRST
+==================================================
+
+Select:
+
+Meeting Date → Newest First
+
+Verify that meetings are displayed from the latest date to the earliest date.
+
+Record the visible order.
+
+Test in:
+
+- Draft tab
+- Scheduled/Confirmed tab
+- Completed tab
+
+==================================================
+TEST 3 — TITLE: A TO Z
+==================================================
+
+Select:
+
+Meeting Title → A–Z
+
+Verify alphabetical order from A to Z.
+
+Record the visible titles in order.
+
+Test in:
+
+- Draft tab
+- Scheduled/Confirmed tab
+- Completed tab
+
+==================================================
+TEST 4 — TITLE: Z TO A
+==================================================
+
+Select:
+
+Meeting Title → Z–A
+
+Verify reverse alphabetical order from Z to A.
+
+Record the visible titles in order.
+
+Test in:
+
+- Draft tab
+- Scheduled/Confirmed tab
+- Completed tab
+
+==================================================
+TEST 5 — LAST MODIFIED: NEWEST FIRST
+==================================================
+
+Select:
+
+Last Modified → Most Recently Updated
+
+Verify that the most recently updated meeting appears first.
+
+Record:
+
+- Meeting title
+- updated_at timestamp
+- visible order
+
+Test in:
+
+- Draft tab
+- Scheduled/Confirmed tab
+- Completed tab
+
+==================================================
+TEST 6 — LAST MODIFIED: OLDEST FIRST
+==================================================
+
+Select:
+
+Last Modified → Least Recently Updated
+
+Verify that the oldest updated meeting appears first.
+
+Record:
+
+- Meeting title
+- updated_at timestamp
+- visible order
+
+Test in:
+
+- Draft tab
+- Scheduled/Confirmed tab
+- Completed tab
+
+==================================================
+TEST 7 — SEARCH + SORTING
+==================================================
+
+Enter a search keyword that matches multiple meetings.
+
+Then apply each sorting option.
+
+Verify:
+
+- Search results remain filtered correctly.
+- Sorting is applied only to the filtered results.
+- No unrelated meeting appears.
+- No duplicate meeting appears.
+
+==================================================
+TEST 8 — FILTER + SORTING
+==================================================
+
+Apply a status or date filter.
+
+Then apply each sorting option.
+
+Verify:
+
+- Filter remains active.
+- Sorting applies correctly inside the filtered list.
+- No meeting disappears incorrectly.
+- No duplicate appears.
+
+==================================================
+TEST 9 — TAB SWITCHING
+==================================================
+
+Choose a sorting option.
+
+Switch between:
+
+- Draft
+- Scheduled/Confirmed
+- Completed
+
+Verify:
+
+- The selected sorting option remains active.
+- Each tab uses the correct order.
+- The list does not revert to a hardcoded order.
+
+==================================================
+TEST 10 — DATA INTEGRITY
+==================================================
+
+Confirm sorting does not:
+
+- Change Meeting IDs
+- Change Schedule IDs
+- Change meeting status
+- Change dates
+- Change updated_at timestamps
+- Create audit-log entries
+- Send API update requests
+- Modify database records
+
+Sorting should only change the visible display order.
+
+==================================================
+REQUIRED EVIDENCE
+==================================================
+
+Provide:
+
+1. A PASS/FAIL table for Tests 1–10.
+
+2. For each of the six sorting options, show the visible meeting order.
+
+3. Browser screenshots showing:
+   - Date Oldest First
+   - Date Newest First
+   - Title A–Z
+   - Title Z–A
+   - Last Modified Newest First
+   - Last Modified Oldest First
+
+4. Confirm which tabs were tested:
+   - Draft
+   - Scheduled/Confirmed
+   - Completed
+
+5. Confirm Search + Sorting and Filter + Sorting.
+
+6. Confirm that no database records were modified by sorting.
+
+Do not say “all tests passed” without showing the actual order and evidence.
+
+If any sorting option fails, fix only that sorting issue and rerun the failed test.
+
+If every applicable test passes, conclude exactly:
+
+“STEP 2.1 SORTING FULLY VERIFIED AND COMPLETE.”
