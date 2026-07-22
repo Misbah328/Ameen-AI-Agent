@@ -1,0 +1,221 @@
+STEP 8 — FINAL VERIFICATION & EVIDENCE ONLY
+
+Do NOT modify the implementation unless you discover a real failing test.
+
+The implementation already reports "12/12 PASSED". This task is ONLY to provide the complete verification evidence that is still missing.
+
+==================================================
+PROVIDE THE COMPLETE STEP 8 FINAL REPORT
+==================================================
+
+1. Root Cause
+- Explain every root cause found.
+- Explain why the old implementation failed.
+
+2. Dashboard Review Item Data Structure
+Show the actual dashboard review object used by the application.
+
+Include fields such as:
+- recordType
+- recordId
+- title
+- status
+- meetingId (if applicable)
+- approvalStage
+- destination module
+- button action
+
+3. Files Modified
+
+List every modified file.
+
+For each file include:
+- functions added
+- functions modified
+- functions removed (if any)
+
+4. Functions Modified
+
+Explain every modified function.
+
+For each function include:
+
+- old behaviour
+- new behaviour
+- why the change was required
+
+5. Record Type Routing Map
+
+Show the routing table used by openReviewItem().
+
+Example:
+
+Meeting Review
+→ ApprovalCycle.open()
+
+Policy Review
+→ Policies.open()
+
+Resolution Review
+→ Resolutions.open()
+
+Circular Resolution
+→ CircularResolutions.open()
+
+Meeting Package
+→ MeetingPackage.open()
+
+Pending Approval
+→ ApprovalCycle.open()
+
+Document Approval
+→ Documents.open()
+
+Unsupported Type
+→ Unsupported Review Type screen
+
+Show the ACTUAL routing implemented.
+
+==================================================
+TEST RESULTS
+==================================================
+
+Provide a PASS/FAIL table for ALL 12 tests.
+
+Include:
+
+T1
+Exact Review Item A
+
+T2
+Review Item B
+
+T3
+Correct destination module
+
+T4
+Rapid switching
+
+T5
+Dashboard data matches opened record
+
+T6
+Refresh behaviour
+
+T7
+Missing record
+
+T8
+Unsupported review type
+
+T9
+Permission handling
+
+T10
+Data integrity
+
+T11
+Repeated open/close
+
+T12
+Existing review actions still work
+
+==================================================
+EXACT TEST DATA
+==================================================
+
+Show exactly which records were tested.
+
+For every test include:
+
+Record ID
+
+Record Type
+
+Meeting ID (if applicable)
+
+Approval Stage
+
+Destination module
+
+API endpoint used
+
+Returned ID
+
+Confirm the returned ID exactly matched the requested ID.
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+Show before and after values proving that opening "Review Now" NEVER changes:
+
+Status
+
+Approval stage
+
+Meeting
+
+Assignee
+
+Reviewer
+
+Signatures
+
+Audit log
+
+Approval history
+
+Workflow state
+
+Database record count
+
+Confirm zero mutations occurred.
+
+==================================================
+BROWSER VERIFICATION
+==================================================
+
+Run Playwright browser verification.
+
+Capture authenticated screenshots showing:
+
+1. Review Item A opened
+
+2. Review Item B opened
+
+3. Correct destination module
+
+4. Dashboard before clicking
+
+5. Dashboard after clicking Review Now
+
+6. Missing record state
+
+7. Unsupported review type
+
+8. Refresh behaviour
+
+9. Rapid switching
+
+==================================================
+FINAL SUMMARY
+==================================================
+
+Include:
+
+Old behaviour
+
+New behaviour
+
+Known limitations (if any)
+
+Regression risk
+
+Final conclusion.
+
+If every applicable test passes, finish with exactly:
+
+✅ STEP 8 FULLY VERIFIED AND COMPLETE.
+
+Do NOT start Step 9.
