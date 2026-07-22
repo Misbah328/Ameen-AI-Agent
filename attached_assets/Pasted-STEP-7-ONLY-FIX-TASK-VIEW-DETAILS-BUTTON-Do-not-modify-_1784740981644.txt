@@ -1,0 +1,160 @@
+STEP 7 ONLY — FIX TASK “VIEW DETAILS” BUTTON
+
+Do not modify Meetings, Voting, Boards, Members, Permission Counts, or previous completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+The “View Details” button in the Tasks section does not work correctly.
+
+Possible symptoms:
+
+- Nothing happens when clicked
+- Wrong task opens
+- Old task details appear
+- Modal opens blank
+- Button works only once
+- Task details disappear after refresh
+- Dashboard task links open the wrong task
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+When the user clicks “View Details”:
+
+- The exact selected task must open
+- Correct Task ID must be used
+- Show:
+  - Task title
+  - Description
+  - Assignee
+  - Due date
+  - Priority
+  - Status
+  - Related meeting or resolution
+  - Attachments, if available
+  - Activity or audit history, if available
+
+No stale data from another task should appear.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Check:
+
+- Task list View Details button
+- Task card click handlers
+- Dashboard task links
+- Task detail modal or page
+- Task API endpoint
+- Selected task state
+- Event listeners
+- Data attributes
+- Browser navigation
+- Cached task data
+- Loading and error states
+
+Determine whether the problem comes from:
+
+- Missing click handler
+- Wrong Task ID
+- Duplicate event listeners
+- Stale selected-task state
+- Missing API request
+- Broken modal selector
+- Incorrect route
+- Mock data replacing real data
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. Pass the clicked Task ID explicitly.
+
+2. Clear previous task details before loading.
+
+3. Load fresh task data from the API.
+
+4. Confirm the API response ID matches the requested Task ID.
+
+5. Prevent race conditions:
+If Task A is loading and Task B is opened, Task A must not overwrite Task B.
+
+6. Add clear states:
+- Loading
+- Error
+- Task not found
+- Permission denied
+
+7. The close button must always be visible and work.
+
+8. Dashboard and Tasks page must use the same task-opening function.
+
+9. Refresh and Back/Forward must behave safely.
+
+Do not create duplicate task records.
+
+==================================================
+TESTS
+==================================================
+
+1. Open Task A
+Confirm all details belong to Task A.
+
+2. Open Task B
+Confirm no data from Task A remains.
+
+3. Rapidly open A → B → C
+Confirm only Task C is shown.
+
+4. Close and reopen
+Confirm fresh data loads.
+
+5. Dashboard
+Open the task from the Dashboard.
+Confirm the correct task opens.
+
+6. Refresh
+Refresh while task details are open.
+Restore the same task if deep linking exists, or close safely.
+
+7. Back and Forward
+Confirm correct task state.
+
+8. Missing Task
+Open a deleted or invalid Task ID.
+Show “Task not found.”
+
+9. Permissions
+Unauthorized users must not see restricted task details.
+
+10. Data Integrity
+Opening task details must not:
+- Change task status
+- Change assignee
+- Change due date
+- Create audit records
+- Create duplicate tasks
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+- Root cause
+- Files modified
+- Functions modified
+- Old behavior
+- New behavior
+- PASS/FAIL table for all tests
+- Screenshots showing Task A, Task B, and Dashboard task opening
+
+If all applicable tests pass, conclude exactly:
+
+“STEP 7 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 8.

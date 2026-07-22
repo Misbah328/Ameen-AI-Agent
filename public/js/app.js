@@ -6558,6 +6558,14 @@ const FUE = {
     const l = App.lang;
     panel.innerHTML = `<div class="fue-dp-header"><span class="fue-dp-title-label">${l === "ar" ? "تفاصيل المهمة" : "TASK DETAILS"}</span><button class="fue-dp-close" onclick="FUE.closeDetail()">✕</button></div><div style="text-align:center;padding:40px"><div class="loading"></div></div>`;
     panel.classList.add("open");
+    // Ensure tasks cache is loaded (needed when opened from Dashboard or other panels)
+    if (!App.tasksCache || !App.tasksCache.length) {
+      try {
+        const fresh = await api('/api/tasks');
+        if (this._taskId !== id) return; // stale — user already opened another task
+        App.tasksCache = Array.isArray(fresh) ? fresh : [];
+      } catch (_) {}
+    }
     await this._renderDetail(id);
   },
 
@@ -6601,10 +6609,24 @@ const FUE = {
   async _renderDetail(id) {
     const panel = document.getElementById("fue-detail-panel");
     if (!panel) return;
+    if (this._taskId !== id) return; // race guard — another task was opened
     const l = App.lang;
     const ar = (a, e) => l === "ar" ? a : e;
-    const t = (App.tasksCache || []).find(x => x.id === id);
-    if (!t) return;
+    let t = (App.tasksCache || []).find(x => x.id === id);
+    if (!t) {
+      // Cache miss — fetch fresh task list from API
+      try {
+        const fresh = await api('/api/tasks');
+        if (this._taskId !== id) return; // race guard
+        App.tasksCache = Array.isArray(fresh) ? fresh : [];
+        t = App.tasksCache.find(x => x.id === id);
+      } catch (_) {}
+    }
+    if (this._taskId !== id) return; // race guard after async
+    if (!t) {
+      panel.innerHTML = `<div class="fue-dp-header"><span class="fue-dp-title-label">${ar("تفاصيل المهمة","TASK DETAILS")}</span><button class="fue-dp-close" onclick="FUE.closeDetail()">✕</button></div><div style="text-align:center;padding:48px 20px;color:#9CA3AF"><div style="font-size:32px;margin-bottom:12px">🔍</div><div style="font-size:14px;font-weight:600;color:#344054">${ar("المهمة غير موجودة","Task not found")}</div><div style="font-size:12.5px;margin-top:6px">${ar("ربما تم حذفها أو لا تملك صلاحية الوصول.","It may have been deleted or you may not have access.")}</div></div>`;
+      return;
+    }
 
     const today = new Date().toISOString().substring(0, 10);
     const now2 = Date.now();
@@ -6641,6 +6663,7 @@ const FUE = {
 
     let updates = [];
     try { updates = await api(`/api/tasks/${id}/updates`); } catch (_) {}
+    if (this._taskId !== id) return; // race guard — user opened a different task while updates were loading
 
     const historyHtml = updates.length === 0
       ? `<div style="font-size:12.5px;color:#9CA3AF;text-align:center;padding:14px 0">${ar("لا يوجد سجل تحديثات بعد","No update history yet")}</div>`
@@ -12096,7 +12119,7 @@ async function renderOverview() {
       if (diff === 1) return `<span class="dx-chip dx-amber">${lbl("غداً", "Tomorrow")}</span>`;
       return `<span class="dx-chip dx-gray">${rtl ? "خلال " + diff + " يوم" : "in " + diff + "d"}</span>`;
     };
-    const taskRow = (t) => `<div class="dx2-item" role="button" tabindex="0" onclick="Panels.load('tasks')" onkeydown="if(event.key==='Enter')Panels.load('tasks')">
+    const taskRow = (t) => `<div class="dx2-item" role="button" tabindex="0" onclick="Panels.load('tasks').then(()=>FUE.openDetail(${t.id}))" onkeydown="if(event.key==='Enter')Panels.load('tasks').then(()=>FUE.openDetail(${t.id}))">
       <div class="dx2-item-main"><div class="dx2-item-t">${btxt(t.text_ar, t.text_en)}</div>
         <div class="dx2-item-s">${btxt(t.owner_name_ar, t.owner_name_en)}</div></div>
       ${relDue(t)}${av(t.owner_name_ar, t.owner_name_en)}
