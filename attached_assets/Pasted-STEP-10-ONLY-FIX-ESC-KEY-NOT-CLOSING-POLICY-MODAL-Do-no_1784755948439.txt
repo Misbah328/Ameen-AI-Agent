@@ -1,0 +1,348 @@
+STEP 10 ONLY — FIX ESC KEY NOT CLOSING POLICY MODAL
+
+Do not modify Tasks, Meetings, Dashboard Review Now, Boards, Members, Voting, Search, Autofill, or any previously completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+In the Policies module, pressing the Escape key does not close the open Policy modal.
+
+Possible symptoms:
+
+- ESC does nothing
+- ESC closes the wrong layer
+- ESC works only after clicking inside the modal
+- ESC works once but not after reopening
+- ESC closes a dropdown but leaves the modal stuck
+- ESC closes the modal but leaves the overlay visible
+- Body or application scrolling remains locked after closing
+- ESC triggers an unrelated action
+- ESC behaves differently in English and Arabic
+- ESC does not work in create, edit, or view mode
+- Nested dialogs or confirmation prompts interfere with the Policy modal
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+When a Policy modal is open:
+
+1. Pressing Escape should close the topmost eligible Policy modal.
+
+2. ESC must work regardless of which field or control currently has focus.
+
+3. ESC should work in:
+
+- Create Policy modal
+- Edit Policy modal
+- View Policy modal
+- Any existing Policy details modal
+- Any Policy-related side panel that is intended to behave as a modal
+
+4. ESC must not close the modal when:
+
+- A nested confirmation dialog is open and should receive ESC first
+- A date picker, dropdown, select menu, autocomplete, file picker, or nested popup is actively open and is designed to consume ESC
+- A destructive operation is actively processing and closing would create an unsafe state
+
+5. When the modal closes:
+
+- The modal receives its closed state
+- The overlay/backdrop disappears
+- Focus returns to the element that opened the modal
+- Body/application scrolling is restored correctly
+- No stale keyboard listener remains
+- No duplicate listener is created after reopening
+- No form data is submitted accidentally
+- No unsaved data is silently destroyed if the application already has a confirmation mechanism
+
+6. ESC must not affect the page when no Policy modal is open.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect:
+
+- Policy modal HTML
+- Policy modal open and close functions
+- Global keyboard listeners
+- Existing Escape-key handlers
+- Modal stack or overlay manager
+- Focus trap logic
+- Body overflow or scroll-lock logic
+- Backdrop click handler
+- Create Policy flow
+- Edit Policy flow
+- View Policy flow
+- Nested dialogs
+- Dropdown and select components inside the modal
+- Event listener registration and cleanup
+- Event propagation and preventDefault usage
+- English and Arabic modal implementations
+- Responsive/mobile modal behavior
+
+Look specifically for:
+
+- No keydown listener
+- Listener attached to the wrong element
+- Listener added only after clicking inside the modal
+- Listener checking event.keyCode incorrectly
+- Listener using "Esc" but not "Escape"
+- Event handler removed too early
+- Event handler never removed
+- Duplicate listeners after multiple opens
+- A child control calling stopPropagation()
+- Modal state not synchronized with DOM classes
+- Close function removing only the modal but not the overlay
+- Body overflow not restored
+- Competing global ESC handlers
+- Wrong z-index or modal stack order
+- Focus-trap code blocking Escape
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+==================================================
+
+1. Reuse the existing Policy modal close function.
+
+Do not create a second independent close path if a correct close function already exists.
+
+2. Add a reliable keydown handler for Escape.
+
+Use:
+
+event.key === "Escape"
+
+Support legacy fallback only if the codebase already requires it.
+
+3. The handler must check that:
+
+- A Policy modal is currently open
+- It is the topmost eligible modal
+- No nested popup should consume ESC first
+- The modal is not in a protected processing state
+
+4. Avoid duplicate listeners.
+
+Use one of these patterns:
+
+- One global delegated keydown listener
+- Register on modal open and remove on modal close
+- AbortController-based listener cleanup
+
+Choose the pattern that best fits the existing architecture.
+
+5. Restore focus.
+
+Before opening the modal, store the triggering element.
+
+After closing with ESC, return focus to that element if it still exists and is visible.
+
+6. Preserve unsaved-change behavior.
+
+If the existing close button or backdrop prompts the user about unsaved changes, ESC must use the same close function and trigger the same protection.
+
+7. Restore scrolling.
+
+If opening the Policy modal changes:
+
+- document.body.style.overflow
+- application wrapper overflow
+- scroll position
+- modal scroll lock
+
+restore the exact previous state on close.
+
+8. Clear modal state completely.
+
+After ESC closes the modal:
+
+- open class removed
+- aria-hidden updated
+- aria-modal state correct
+- backdrop removed/hidden
+- focus trap removed
+- event listener cleaned up
+- internal selected policy ID reset only if existing close logic already does so
+
+9. Accessibility requirements:
+
+- Modal uses role="dialog" or role="alertdialog"
+- aria-modal="true" while open
+- Initial focus moves into the modal
+- ESC closes unless intentionally blocked
+- Focus returns to the opener
+
+10. Do not change the visual design.
+
+==================================================
+TESTS
+==================================================
+
+T1 — Create Policy modal
+Open Create Policy.
+Press ESC.
+Confirm modal and backdrop close.
+
+T2 — Edit Policy modal
+Open an existing policy in Edit mode.
+Press ESC.
+Confirm the correct modal closes.
+
+T3 — View Policy modal
+Open policy details/view mode.
+Press ESC.
+Confirm it closes.
+
+T4 — Focus inside text input
+Open the modal.
+Focus a text input.
+Press ESC.
+Confirm modal closes.
+
+T5 — Focus inside textarea
+Focus a textarea.
+Press ESC.
+Confirm modal closes.
+
+T6 — Focus on button
+Focus a modal action button.
+Press ESC.
+Confirm modal closes without triggering the button.
+
+T7 — Reopen repeatedly
+Open and close the Policy modal using ESC at least five times.
+Confirm:
+- no duplicate close behavior
+- no error
+- no stale overlay
+- no listener leak
+
+T8 — Focus restoration
+Open the modal from a specific button.
+Close using ESC.
+Confirm focus returns to that exact button.
+
+T9 — Overlay cleanup
+After ESC:
+- modal is not visible
+- backdrop is not visible
+- no invisible layer intercepts clicks
+
+T10 — Scroll restoration
+Record body/application overflow before opening.
+Open modal.
+Close with ESC.
+Confirm the exact original overflow state is restored.
+
+T11 — No modal open
+Press ESC while the Policies page has no modal open.
+Confirm nothing changes.
+
+T12 — Nested dropdown
+Open the Policy modal.
+Open an existing select/dropdown/date picker inside it.
+Press ESC once.
+Confirm the nested control closes first if that is the component’s intended behavior.
+Press ESC again.
+Confirm the Policy modal closes.
+
+T13 — Unsaved changes
+Modify a field.
+Press ESC.
+Confirm ESC follows the same unsaved-change behavior as the normal close button.
+
+T14 — Processing state
+If the modal has a save/loading state:
+- trigger processing
+- press ESC
+- confirm behavior matches the normal close protection
+- no partial save or corrupted state
+
+T15 — English
+Run create/edit/view ESC tests in English.
+
+T16 — Arabic / RTL
+Run create/edit/view ESC tests in Arabic.
+Confirm modal direction and focus behavior remain correct.
+
+T17 — Mobile
+Test ESC using a hardware keyboard or Playwright keyboard event at mobile viewport.
+Confirm modal closes and layout remains intact.
+
+T18 — Browser Back/Forward safety
+Open and close the Policy modal using ESC.
+Use browser Back and Forward.
+Confirm no stale modal or overlay reappears unexpectedly.
+
+T19 — Console errors
+Run all tests and confirm no new JavaScript errors or unhandled promise rejections.
+
+T20 — Regression
+Verify:
+- close button still works
+- backdrop click still works if supported
+- save still works
+- cancel still works
+- reopening still works
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+This is a modal keyboard and lifecycle fix only.
+
+Confirm the fix does not:
+
+- Create a policy
+- Delete a policy
+- Change policy content
+- Change policy status
+- Change owner
+- Change effective date
+- Change approval state
+- Create duplicate policies
+- Create unexpected audit entries
+
+Use non-mutating test data wherever possible.
+
+If a create/edit test changes data, restore the original value immediately.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause
+2. Exact modal DOM structure
+3. Existing open and close functions
+4. Keyboard listener architecture before and after
+5. Files modified
+6. Functions modified
+7. Old behavior
+8. New behavior
+9. Modal stack and nested-popup behavior
+10. Focus restoration behavior
+11. Scroll-lock restoration behavior
+12. PASS/FAIL table for all 20 tests
+13. English and Arabic verification
+14. Desktop and mobile viewport verification
+15. Console error check
+16. Data integrity confirmation
+17. Authenticated screenshots showing:
+   - Create Policy modal open
+   - Edit Policy modal open
+   - View Policy modal open
+   - Modal closed after ESC
+   - Focus returned to opener
+   - Arabic modal
+   - Mobile modal
+
+If all applicable tests pass, conclude exactly:
+
+“STEP 10 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 11.

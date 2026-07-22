@@ -2258,6 +2258,7 @@ const MT = {
   },
 
   openPolicyModal(id) {
+    MT._polOpener = document.activeElement;
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
     const p = id ? (this._polAll||[]).find(x=>x.id===id) : null;
@@ -2302,9 +2303,22 @@ const MT = {
         </div>
       </div>`;
     document.body.appendChild(modal);
+    modal.addEventListener("keydown", MT._polEscHandler = e => {
+      if (e.key === "Escape") { e.stopPropagation(); MT.closePolicyModal(); }
+    });
+    setTimeout(() => modal.querySelector(".fi")?.focus(), 50);
   },
 
-  closePolicyModal() { const m = $("pol-modal"); if (m) m.remove(); },
+  closePolicyModal() {
+    const m = $("pol-modal");
+    if (m) {
+      m.removeEventListener("keydown", MT._polEscHandler);
+      m.remove();
+    }
+    MT._polEscHandler = null;
+    try { MT._polOpener?.focus(); } catch (_) {}
+    MT._polOpener = null;
+  },
 
   async savePolicy(id) {
     const t = (ar, en) => this.t(ar, en);
