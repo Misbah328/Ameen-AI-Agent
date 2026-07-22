@@ -1,0 +1,139 @@
+STEP 5 ONLY — FIX DUPLICATE BOARDS
+
+Do not modify Meetings, Voting, Permission Counts, Calendar, or previous completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+The Boards & Committees section may show duplicate boards.
+
+Possible symptoms:
+
+- Same board appears more than once
+- Duplicate board is created after double-clicking Save
+- Refresh creates another copy
+- Same board appears with slightly different IDs
+- Dashboard and Governance show different board totals
+- Duplicate API results or duplicate database rows
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+Each real board must appear only once.
+
+Creating a board must create exactly one database record.
+
+Double-clicking Save must not create duplicates.
+
+Refreshing or reopening the page must not duplicate boards.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Check:
+
+- Board creation form
+- Save button handlers
+- API POST endpoint
+- Database insert logic
+- Event listeners
+- Double-click handling
+- Retry logic
+- Frontend rendering
+- API joins
+- Cached board data
+- Seed or fallback data
+- Board name and organization matching
+
+Determine whether duplicates come from:
+
+- Duplicate database rows
+- Duplicate API response rows
+- Duplicate frontend rendering
+- Multiple POST requests
+- Fake/mock fallback boards
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. Prevent duplicate submissions:
+- Disable Save while the request is processing
+- Ignore repeated clicks
+- Re-enable Save after success or error
+
+2. Prevent duplicate database records:
+- Use a safe uniqueness rule for board name within the same organization
+- Trim spaces
+- Compare names case-insensitively
+- Do not create another board if the same board already exists
+
+3. Prevent duplicate rendering:
+- Render each unique board ID only once
+- Remove mock/fallback duplicates when real API data exists
+
+4. Show a clear message if a duplicate board already exists.
+
+Do not delete legitimate boards automatically.
+
+==================================================
+TESTS
+==================================================
+
+1. Existing Data
+Confirm every board appears once.
+
+2. Create Board
+Create “QA Test Board”.
+Confirm exactly one database row and one UI card.
+
+3. Double Click
+Double-click Save rapidly.
+Confirm only one board is created.
+
+4. Same Name
+Try to create:
+- QA Test Board
+- qa test board
+- QA Test Board with extra spaces
+
+Confirm duplicates are blocked within the same organization.
+
+5. Refresh
+Refresh the browser several times.
+Confirm no duplicate appears.
+
+6. Navigation
+Open Boards, Dashboard, Governance, and Search.
+Confirm the same unique board count everywhere.
+
+7. Edit Board
+Edit an existing board.
+Confirm it updates the same record instead of creating a new board.
+
+8. Delete Test Data
+Delete the test board.
+Confirm only that board is removed.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+- Root cause
+- Files modified
+- Functions modified
+- Whether duplicates existed in the database, API, or frontend
+- Before and after board counts
+- PASS/FAIL table for all tests
+- Screenshots showing unique board cards
+
+If all tests pass, conclude exactly:
+
+“STEP 5 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 6.

@@ -540,6 +540,7 @@ const Gov = {
   },
 
   async addBoard() {
+    if (this._addingBoard) return;
     if (!this._guardEls('b-name-ar','b-name-en','b-desc','b-chair','b-total','b-quorum')) return;
     const ar = (($('b-name-ar') || {}).value || '').trim();
     if (!ar) { showToast(this.lbl('يرجى إدخال اسم المجلس (عربي)','Please enter the board name (Arabic)'), 'error'); return; }
@@ -548,6 +549,9 @@ const Gov = {
     const quorum = parseInt(($('b-quorum') || {}).value) || 0;
     if (quorum < 1) { showToast(this.lbl('يرجى إدخال نصاب المجلس (1 على الأقل)','Please enter the board quorum (at least 1)'), 'error'); return; }
     if (quorum > total) { showToast(this.lbl('النصاب لا يمكن أن يتجاوز عدد الأعضاء الكلي','Quorum cannot exceed total members'), 'error'); return; }
+    this._addingBoard = true;
+    const btn = document.querySelector('#sec-boards .btn-gold');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
     try {
       await api('/api/gov/boards', { method:'POST', body: JSON.stringify({
         name_ar: ar, name_en: (($('b-name-en') || {}).value || '').trim() || ar,
@@ -559,6 +563,10 @@ const Gov = {
       await this._reloadBoards();
       showToast(this.lbl('تم إضافة المجلس','Board added'), 'success');
     } catch (e) { showToast(e.message, 'error'); }
+    finally {
+      this._addingBoard = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
   },
 
   async delBoard(id) {
@@ -568,11 +576,16 @@ const Gov = {
   },
 
   async addCommittee(boardId) {
+    if (this._addingComm && this._addingComm[boardId]) return;
     if (!this._guardEls('c-name-ar-'+boardId,'c-name-en-'+boardId,'c-desc-'+boardId,'c-chair-'+boardId,'c-total-'+boardId)) return;
     const ar = (($('c-name-ar-' + boardId) || {}).value || '').trim();
     if (!ar) { showToast(this.lbl('يرجى إدخال اسم اللجنة (عربي)','Please enter the committee name (Arabic)'), 'error'); return; }
     const total = parseInt(($('c-total-' + boardId) || {}).value) || 0;
     if (total < 1) { showToast(this.lbl('يرجى إدخال عدد أعضاء اللجنة (1 على الأقل)','Please enter the number of committee members (at least 1)'), 'error'); return; }
+    if (!this._addingComm) this._addingComm = {};
+    this._addingComm[boardId] = true;
+    const btn = document.querySelector(`#sec-comm-${boardId} .btn-gold`);
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
     try {
       await api('/api/gov/committees', { method:'POST', body: JSON.stringify({
         board_id: boardId,
@@ -584,6 +597,10 @@ const Gov = {
       await this._reloadBoards();
       showToast(this.lbl('تم إضافة اللجنة','Committee added'), 'success');
     } catch (e) { showToast(e.message, 'error'); }
+    finally {
+      this._addingComm[boardId] = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
   },
 
   async delCommittee(id) {

@@ -294,8 +294,13 @@ router.get('/boards', auth, requirePermission('governance.boards'), (req, res) =
 router.post('/boards', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
   const { name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
+  const resolvedEn = (name_en || name_ar).trim();
+  const resolvedAr = name_ar.trim();
+  const dup = db.prepare('SELECT id, name_en FROM boards WHERE LOWER(TRIM(name_en))=LOWER(?) OR LOWER(TRIM(name_ar))=LOWER(?)')
+    .get(resolvedEn, resolvedAr);
+  if (dup) return res.status(409).json({ error: `A board named "${dup.name_en}" already exists` });
   const row = db.prepare(`INSERT INTO boards (name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?)`)
-    .run(name_ar, name_en||name_ar, description||'', chairperson||'', JSON.stringify(members||[]), total_members||0, default_quorum||0);
+    .run(resolvedAr, resolvedEn, description||'', chairperson||'', JSON.stringify(members||[]), total_members||0, default_quorum||0);
   res.json(db.prepare('SELECT * FROM boards WHERE id=?').get(row.lastInsertRowid));
 });
 
@@ -338,8 +343,13 @@ router.get('/committees', auth, requirePermission('governance.committees'), (req
 router.post('/committees', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
   const { board_id, name_ar, name_en, description, chairperson, members, total_members, default_quorum } = req.body;
   if (!name_ar) return res.status(400).json({ error: 'name_ar required' });
+  const resolvedEn = (name_en || name_ar).trim();
+  const resolvedAr = name_ar.trim();
+  const dup = db.prepare('SELECT id, name_en FROM committees WHERE LOWER(TRIM(name_en))=LOWER(?) OR LOWER(TRIM(name_ar))=LOWER(?)')
+    .get(resolvedEn, resolvedAr);
+  if (dup) return res.status(409).json({ error: `A committee named "${dup.name_en}" already exists` });
   const row = db.prepare(`INSERT INTO committees (board_id,name_ar,name_en,description,chairperson,members,total_members,default_quorum) VALUES (?,?,?,?,?,?,?,?)`)
-    .run(board_id||null, name_ar, name_en||name_ar, description||'', chairperson||'', JSON.stringify(members||[]), total_members||0, default_quorum||0);
+    .run(board_id||null, resolvedAr, resolvedEn, description||'', chairperson||'', JSON.stringify(members||[]), total_members||0, default_quorum||0);
   res.json(db.prepare('SELECT * FROM committees WHERE id=?').get(row.lastInsertRowid));
 });
 

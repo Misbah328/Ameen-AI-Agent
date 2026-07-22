@@ -539,6 +539,7 @@ const BC = {
   },
 
   saveForm(id) {
+    if (BC._savingForm) return;
     const nameAr = $("bcf-name-ar").value.trim();
     const nameEn = $("bcf-name-en").value.trim();
     if (!nameAr || !nameEn) {
@@ -556,6 +557,34 @@ const BC = {
 
     const existing = id ? bcById(id) : null;
     if (existing) {
+      const apiId = existing._apiId;
+      if (apiId) {
+        BC._savingForm = true;
+        const saveBtn = document.querySelector('#bc-form-modal .btn-gold');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.6'; }
+        const endpoint = existing.type === 'board' ? `/api/gov/boards/${apiId}` : `/api/gov/committees/${apiId}`;
+        fetch(endpoint, {
+          method: 'PATCH', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name_ar: nameAr, name_en: nameEn, description: descEn, chairperson: chair.nameEn }),
+        }).then(r => r.json()).then(updated => {
+          if (updated.error) { showToast(updated.error, 'error'); return; }
+          Object.assign(existing, {
+            nameAr, nameEn, status, chairperson: chair,
+            frequency: { ar: freq === "Monthly" ? "شهري" : freq === "Semi-Annual" ? "نصف سنوي" : "ربع سنوي", en: freq },
+            nextMeeting,
+            descAr: descAr || existing.descAr, descEn: descEn || existing.descEn,
+          });
+          showToast(bcT("تم حفظ التعديلات بنجاح", "Changes saved successfully"), "success");
+          BC.closeModal();
+          BC.openDetail(existing.id, BC.activeTab);
+        }).catch(e => showToast(e.message, 'error'))
+          .finally(() => {
+            BC._savingForm = false;
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
+          });
+        return;
+      }
       Object.assign(existing, {
         nameAr, nameEn, status, chairperson: chair,
         frequency: { ar: freq === "Monthly" ? "شهري" : freq === "Semi-Annual" ? "نصف سنوي" : "ربع سنوي", en: freq },
@@ -581,29 +610,49 @@ const BC = {
       task_force:   { icon: "🎯", ar: "فرقة مهام",      en: "Task Force" },
     };
     const _gm = _grpMeta[type] || _grpMeta.committee;
-    const newItem = {
-      id: bcNextId(type), type, icon: _gm.icon,
-      nameAr, nameEn, subtitleAr: nameAr, subtitleEn: nameEn,
-      descAr: descAr || "", descEn: descEn || "",
-      status, committeeType: { ar: _gm.ar, en: _gm.en },
-      chairperson: chair, secretariat: "Ameen Secretary Team",
-      established: new Date().toISOString().slice(0, 10),
-      frequency: { ar: freq === "Monthly" ? "شهري" : freq === "Semi-Annual" ? "نصف سنوي" : "ربع سنوي", en: freq },
-      nextMeeting, location: { ar: "القاعة الرئيسية", en: "Main Boardroom" },
-      membersCount: 1, meetingsCount: 0, documentsCount: 0, tasksCount: 0, resolutionsCount: 0,
-      members: [chair],
-      memberSummary: [{ label: { ar: "الرئيس", en: "Chairman" }, n: 1, color: "#5B9BD5" }],
-      attendanceAvg: 0,
-      purposeAr: descAr, purposeEn: descEn,
-      responsibilities: [],
-      upcomingMeetings: [{ title: { ar: nameAr, en: nameEn }, date: nextMeeting, location: { ar: "القاعة الرئيسية", en: "Main Boardroom" } }],
-      recentDocuments: [], recentResolutions: [],
-      activity: [{ icon: "🆕", title: { ar: "تم الإنشاء", en: "Created" }, sub: nameEn, time: { ar: "الآن", en: "Just now" } }],
-    };
-    if (BC._apiData) BC._apiData.unshift(newItem); else BC_DATA.unshift(newItem);
-    showToast(bcT("تم إنشاء العنصر بنجاح", "Created successfully"), "success");
-    this.closeModal();
-    this.openDetail(newItem.id, "overview");
+
+    BC._savingForm = true;
+    const saveBtn = document.querySelector('#bc-form-modal .btn-gold');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.6'; }
+
+    const isBoard = type === 'board';
+    const endpoint = isBoard ? '/api/gov/boards' : '/api/gov/committees';
+    const payload = isBoard
+      ? { name_ar: nameAr, name_en: nameEn, description: descEn, chairperson: chair.nameEn, total_members: 1, default_quorum: 1 }
+      : { name_ar: nameAr, name_en: nameEn, description: descEn, chairperson: chair.nameEn, total_members: 1 };
+
+    fetch(endpoint, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(r => r.json()).then(created => {
+      if (created.error) { showToast(created.error, 'error'); return; }
+      const newItem = {
+        id: String(created.id), _apiId: created.id, type, icon: _gm.icon,
+        nameAr, nameEn, subtitleAr: nameAr, subtitleEn: nameEn,
+        descAr: descAr || "", descEn: descEn || "",
+        status, committeeType: { ar: _gm.ar, en: _gm.en },
+        chairperson: chair, secretariat: "Ameen Secretary Team",
+        established: new Date().toISOString().slice(0, 10),
+        frequency: { ar: freq === "Monthly" ? "شهري" : freq === "Semi-Annual" ? "نصف سنوي" : "ربع سنوي", en: freq },
+        nextMeeting, location: { ar: "القاعة الرئيسية", en: "Main Boardroom" },
+        membersCount: 1, meetingsCount: 0, documentsCount: 0, tasksCount: 0, resolutionsCount: 0,
+        members: [chair],
+        memberSummary: [{ label: { ar: "الرئيس", en: "Chairman" }, n: 1, color: "#5B9BD5" }],
+        attendanceAvg: 0, purposeAr: descAr, purposeEn: descEn, responsibilities: [],
+        upcomingMeetings: [{ title: { ar: nameAr, en: nameEn }, date: nextMeeting, location: { ar: "القاعة الرئيسية", en: "Main Boardroom" } }],
+        recentDocuments: [], recentResolutions: [],
+        activity: [{ icon: "🆕", title: { ar: "تم الإنشاء", en: "Created" }, sub: nameEn, time: { ar: "الآن", en: "Just now" } }],
+      };
+      if (BC._apiData) BC._apiData.unshift(newItem); else BC_DATA.unshift(newItem);
+      showToast(bcT("تم إنشاء العنصر بنجاح", "Created successfully"), "success");
+      BC.closeModal();
+      BC.openDetail(newItem.id, "overview");
+    }).catch(e => showToast(e.message, 'error'))
+      .finally(() => {
+        BC._savingForm = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
+      });
   },
 
   openQuickModal(kind, boardId) {
@@ -721,7 +770,10 @@ const BC = {
   },
 
   filteredData() {
+    const seenIds = new Set();
     return BC.data.filter(b => {
+      if (seenIds.has(b.id)) return false;
+      seenIds.add(b.id);
       if (this.type && b.type !== this.type) return false;
       if (this.status && b.status !== this.status) return false;
       if (this.q) {
