@@ -1,0 +1,134 @@
+STEP 4 ONLY — FIX IMPOSSIBLE PERMISSION COUNTS
+
+Do not modify Meetings, Voting, Calendar, Dashboard, or any previous fixes.
+
+Steps 1, 2, and 3 are complete.
+
+==================================================
+PROBLEM
+==================================================
+
+Some pages display incorrect permission counts.
+
+Examples:
+
+- More users shown than actually exist.
+- Counts don't match the members list.
+- Admins counted twice.
+- Removed users still included.
+- Different pages show different totals.
+
+This is a data integrity issue.
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+Permission counts must always match the real data.
+
+Every page should show:
+
+- Total Members
+- Admins
+- Editors
+- Viewers
+- Guests (if applicable)
+
+The totals must exactly equal the users who currently have those permissions.
+
+No duplicates.
+
+No deleted users.
+
+No inactive users unless intentionally included.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect:
+
+- Permission calculation functions
+- Member list queries
+- Role assignment logic
+- Dashboard summaries
+- Board & Committee permissions
+- Resolution permissions
+- Cached permission data
+- API responses
+- Database queries
+
+Look for:
+
+- Duplicate joins
+- Cached values
+- Double counting
+- Incorrect filters
+- Missing DISTINCT
+- Soft-deleted records
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+- Calculate counts from current database records.
+- Remove duplicate counting.
+- Exclude deleted or inactive users where appropriate.
+- Ensure every screen uses the same calculation logic.
+- Create one shared permission-count function if duplicate logic exists.
+
+==================================================
+TESTS
+==================================================
+
+Test with:
+
+- 1 Admin
+- 2 Editors
+- 3 Viewers
+- 1 Guest
+
+Verify:
+
+✓ Total Members = 7
+
+Remove one Viewer.
+
+Verify Total Members = 6.
+
+Change an Editor to Admin.
+
+Verify:
+
+Admins = 2
+
+Editors = 1
+
+Viewers = 2
+
+Delete one user.
+
+Verify all counts update immediately.
+
+Refresh the browser.
+
+Counts must remain correct.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause.
+2. Files modified.
+3. Functions modified.
+4. Before vs After behavior.
+5. PASS/FAIL table for all tests.
+6. Screenshots showing correct permission counts.
+
+If every test passes, conclude exactly:
+
+"STEP 4 FULLY VERIFIED AND COMPLETE."
+
+Do not start Step 5.

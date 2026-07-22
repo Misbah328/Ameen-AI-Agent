@@ -350,7 +350,18 @@ const BC = {
           };
         });
 
-        const _memberCount = b.total_members || apiMembers.length || 1;
+        // member_count from API = actual JSON roster length; total_members = quorum seat count
+        const _memberCount = apiMembers.length > 0 ? apiMembers.length : (b.member_count ?? b.total_members ?? 0);
+        // Derive memberSummary from actual member types — never use fake Math.ceil/floor estimates
+        const _computedSummary = (() => {
+          if (!apiMembers.length) return [];
+          const typeCounts = {};
+          const typeColors = { Executive: "#4A6FA5", Independent: "#4CAF7D", "Non-Executive": "#E08A3C", Member: "#8B6BA8" };
+          apiMembers.forEach(m => { const t = m.typeEn || "Member"; typeCounts[t] = (typeCounts[t] || 0) + 1; });
+          return Object.entries(typeCounts).map(([type, n]) => ({
+            label: { ar: type, en: type }, n, color: typeColors[type] || "#6B7C93"
+          }));
+        })();
         return {
           // Use numeric id as string for routing
           id: String(b.id),
@@ -371,17 +382,14 @@ const BC = {
           frequency: match?.frequency || { ar: "ربع سنوي", en: "Quarterly" },
           nextMeeting: match?.nextMeeting || new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
           location: match?.location || { ar: "القاعة الرئيسية", en: "Main Boardroom" },
-          quorum: { required: b.default_quorum || 3, total: b.total_members || 5 },
+          quorum: { required: b.default_quorum || 3, total: b.total_members || _memberCount },
           membersCount: _memberCount,
           meetingsCount: match?.meetingsCount || 0,
           tasksCount: match?.tasksCount || 0,
           documentsCount: match?.documentsCount || 0,
           resolutionsCount: match?.resolutionsCount || 0,
           attendanceAvg: match?.attendanceAvg || 0,
-          memberSummary: match?.memberSummary || [
-            { label: { ar: "تنفيذي", en: "Executive" }, n: Math.ceil(_memberCount / 2), color: "#4A6FA5" },
-            { label: { ar: "مستقل", en: "Independent" }, n: Math.max(1, Math.floor(_memberCount / 2)), color: "#4CAF7D" },
-          ],
+          memberSummary: match?.memberSummary || _computedSummary,
           purposeAr: match?.purposeAr || b.description || "",
           purposeEn: match?.purposeEn || b.description || "",
           members: apiMembers.length ? apiMembers : (match?.members || BC_MEMBERS.slice(0, 3)),

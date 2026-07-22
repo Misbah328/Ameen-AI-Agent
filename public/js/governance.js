@@ -490,7 +490,7 @@ const Gov = {
           ${b.description ? `<div style="font-size:13px;color:var(--text3);margin-top:4px;line-height:1.5">${esc(b.description)}</div>` : ''}
           <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
             ${b.chairperson ? `<span class="tag tgold">👤 ${lbl('الرئيس:','Chair:')} ${esc(b.chairperson)}</span>` : ''}
-            ${b.total_members ? `<span class="tag tb">👥 ${b.total_members} ${lbl('عضو','members')}</span>` : ''}
+            ${b.member_count != null ? `<span class="tag tb">👥 ${b.member_count} ${lbl('عضو','members')}</span>` : ''}
             ${b.default_quorum ? `<span class="tag" style="background:var(--navy4)">⚖️ ${lbl('نصاب:','Quorum:')} ${b.default_quorum}</span>` : ''}
             <span class="tag" style="background:var(--navy4);color:var(--text3)">⚙️ ${coms.length} ${lbl('لجنة','committee(s)')}</span>
           </div>
@@ -528,7 +528,7 @@ const Gov = {
               <div style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(cname)}</div>
               <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
                 ${c.chairperson ? `<span class="tag tgold" style="font-size:11px">👤 ${esc(c.chairperson)}</span>` : ''}
-                ${c.total_members ? `<span class="tag" style="background:var(--navy3);font-size:11px">👥 ${c.total_members}</span>` : ''}
+                ${c.member_count != null ? `<span class="tag" style="background:var(--navy3);font-size:11px">👥 ${c.member_count}</span>` : ''}
                 ${c.description ? `<span style="font-size:12px;color:var(--text3)">${esc(c.description.substring(0,55))}${c.description.length>55?'…':''}</span>` : ''}
               </div>
             </div>

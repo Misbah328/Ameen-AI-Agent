@@ -275,14 +275,19 @@ router.delete('/followups/:id', auth, requirePermission('governance.resolutions'
 router.get('/boards', auth, requirePermission('governance.boards'), (req, res) => {
   const boards = db.prepare('SELECT * FROM boards ORDER BY id').all();
   const committees = db.prepare('SELECT * FROM committees ORDER BY board_id, id').all();
-  res.json(boards.map(b => ({
-    ...b,
-    members: (() => { try { return JSON.parse(b.members || '[]'); } catch { return []; } })(),
-    committees: committees.filter(c => c.board_id === b.id).map(c => ({
-      ...c,
-      members: (() => { try { return JSON.parse(c.members || '[]'); } catch { return []; } })(),
-    })),
-  })));
+  const parseMembers = (raw) => { try { return JSON.parse(raw || '[]'); } catch { return []; } };
+  res.json(boards.map(b => {
+    const bMembers = parseMembers(b.members);
+    return {
+      ...b,
+      members: bMembers,
+      member_count: bMembers.length,
+      committees: committees.filter(c => c.board_id === b.id).map(c => {
+        const cMembers = parseMembers(c.members);
+        return { ...c, members: cMembers, member_count: cMembers.length };
+      }),
+    };
+  }));
 });
 
 router.post('/boards', auth, requireTier('advanced'), requirePermission('governance.boards'), (req, res) => {
@@ -321,7 +326,11 @@ router.get('/committees', auth, requirePermission('governance.committees'), (req
   const rows = boardId
     ? db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id WHERE c.board_id=? ORDER BY c.id').all(boardId)
     : db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id ORDER BY c.board_id, c.id').all();
-  res.json(rows.map(c => ({ ...c, members: (() => { try { return JSON.parse(c.members||'[]'); } catch { return []; } })() })));
+  const parseMembers = (raw) => { try { return JSON.parse(raw || '[]'); } catch { return []; } };
+  res.json(rows.map(c => {
+    const m = parseMembers(c.members);
+    return { ...c, members: m, member_count: m.length };
+  }));
 });
 
 router.post('/committees', auth, requireTier('advanced'), requirePermission('governance.committees'), (req, res) => {
