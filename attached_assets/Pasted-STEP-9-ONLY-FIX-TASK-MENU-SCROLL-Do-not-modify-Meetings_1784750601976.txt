@@ -1,0 +1,269 @@
+STEP 9 ONLY — FIX TASK MENU SCROLL
+
+Do not modify Meetings, Task View Details, Dashboard Review Now, Boards, Members, Voting, Permission Counts, or any previously completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+The Tasks section has a scrolling problem.
+
+Possible symptoms:
+
+- The task menu or task tabs do not scroll
+- The entire page scrolls instead of the task area
+- The task list becomes cut off
+- The detail panel prevents scrolling
+- Scrolling stops after opening or closing a task
+- Mouse wheel or touchpad scrolling does not work
+- The sidebar or header moves when only the task content should move
+- Horizontal scrolling appears unexpectedly
+- The last tasks cannot be reached
+- The page jumps back to the top after changing tabs or filters
+- Scrolling behaves differently in English and Arabic
+- Mobile or smaller screens cannot access all task actions
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+The Tasks module must have stable and predictable scrolling.
+
+1. The main application sidebar and top header should remain stable.
+
+2. The Tasks content area should scroll vertically when its content exceeds the available height.
+
+3. The task tabs or filter menu must remain usable and visible.
+
+4. The user must be able to reach the first and last task.
+
+5. Opening the Task Details panel must not disable or break task-list scrolling unless intentionally using a modal lock.
+
+6. Closing Task Details must restore normal scrolling.
+
+7. No unnecessary horizontal scrollbar should appear.
+
+8. Scrolling must work with:
+
+- Mouse wheel
+- Touchpad
+- Keyboard Page Up and Page Down
+- Arrow keys when the task area is focused
+- Touch scrolling on smaller screens
+
+9. English and Arabic layouts must both work.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect:
+
+- Tasks panel HTML structure
+- Parent containers of the Tasks module
+- Task filter/tab menu
+- Task list container
+- Task detail side panel
+- Main content wrapper
+- Sidebar wrapper
+- Header wrapper
+- CSS height, max-height, min-height, overflow and position rules
+- JavaScript that changes body overflow
+- Modal or side-panel scroll locking
+- Scroll event handlers
+- Tab and filter rendering
+- Responsive breakpoints
+- RTL-specific CSS
+
+Look specifically for:
+
+- overflow: hidden on the wrong parent
+- multiple nested scroll containers
+- height: 100% without a defined parent height
+- fixed or absolute containers without bottom boundaries
+- body scroll locking that is not removed
+- detail panel overlays intercepting wheel events
+- min-height preventing container shrink
+- missing min-height: 0 in flex or grid children
+- duplicate IDs or selectors
+- scrollTop being reset during every render
+- horizontal overflow from wide tables or controls
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. Use one primary vertical scroll container for the Tasks content.
+
+2. Ensure the Tasks module fits within the viewport below the application header.
+
+3. In flex or grid layouts, add min-height: 0 where required so the scrollable child can shrink.
+
+4. Set appropriate overflow behavior:
+
+- overflow-y: auto for the task content
+- overflow-x: hidden unless horizontal scrolling is genuinely required
+
+5. Keep the task filter tabs/menu accessible while scrolling.
+
+Use a sticky task toolbar only if it fits the existing design and does not cover task rows.
+
+6. Do not apply permanent overflow: hidden to body or the main application wrapper.
+
+7. If Task Details intentionally locks the background:
+
+- lock scrolling only while the panel is open
+- restore the exact previous overflow state when it closes
+- do not leave the page locked after errors or refreshes
+
+8. Preserve the user’s scroll position when:
+
+- Opening and closing Task Details
+- Changing a task’s status
+- Performing a quick update
+- Returning from Dashboard to Tasks
+
+9. For filters or tabs:
+
+- If changing filters intentionally resets scroll, reset only the task-list container
+- Do not scroll the entire application page to the top
+
+10. Prevent the detail panel from intercepting scroll events when it is closed.
+
+11. Ensure the last task row and its action buttons are fully reachable and not hidden behind fixed elements.
+
+12. Keep RTL and mobile layouts functional.
+
+==================================================
+TESTS
+==================================================
+
+T1 — Long task list
+Load enough tasks to exceed the viewport.
+Confirm the task list scrolls from first to last item.
+
+T2 — Main layout stability
+Confirm the application sidebar and header remain stable while the task list scrolls.
+
+T3 — Mouse wheel and touchpad
+Confirm smooth vertical scrolling in the task area.
+
+T4 — Keyboard
+Focus the task content and test:
+- Arrow Down
+- Arrow Up
+- Page Down
+- Page Up
+- Home
+- End
+
+Confirm the first and last tasks are reachable.
+
+T5 — Open Task Details
+Scroll to the middle of the task list and open a task.
+Confirm the detail panel opens correctly.
+
+T6 — Close Task Details
+Close the panel.
+Confirm normal task scrolling works and the previous task-list position is preserved.
+
+T7 — Repeated open and close
+Open and close task details at least five times.
+Confirm no scroll lock remains.
+
+T8 — Filter tabs
+Test:
+- All
+- Pending
+- In Progress
+- Completed
+- Overdue
+- Review
+- Any other existing tabs
+
+Confirm every filtered list can scroll correctly.
+
+T9 — Quick update
+Change a task using an existing quick-update action.
+Confirm the task list does not jump unexpectedly to the top.
+
+T10 — Dashboard navigation
+Open Tasks from the Dashboard.
+Confirm the correct task or filter opens and scrolling remains functional.
+
+T11 — No horizontal overflow
+Confirm no unnecessary horizontal scrollbar appears at desktop widths.
+
+T12 — Responsive layout
+Test at:
+- Desktop
+- Tablet
+- Mobile or narrow browser width
+
+Confirm tasks, tabs and actions remain accessible.
+
+T13 — Arabic / RTL
+Switch to Arabic.
+Confirm vertical scrolling works and no horizontal overflow is introduced.
+
+T14 — Refresh
+Refresh while the Tasks module is open.
+Confirm the Tasks page loads in a usable scroll state.
+
+T15 — Error state
+Simulate a task API error.
+Confirm the error panel does not permanently lock scrolling.
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+This is a layout and scrolling fix only.
+
+Confirm the fix does not:
+
+- Create tasks
+- Delete tasks
+- Change task status
+- Change assignee
+- Change due date
+- Change priority
+- Create audit records
+- Duplicate task rows
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause
+2. Exact DOM and CSS containers involved
+3. Files modified
+4. CSS rules modified or added
+5. JavaScript functions modified, if any
+6. Old behavior
+7. New behavior
+8. PASS/FAIL table for all 15 tests
+9. Desktop, tablet and mobile viewport sizes tested
+10. English and Arabic verification
+11. Before-and-after scroll measurements, including:
+   - scroll container clientHeight
+   - scrollHeight
+   - initial scrollTop
+   - final scrollTop
+12. Confirmation that body and application overflow are restored correctly
+13. Authenticated screenshots showing:
+   - Top of task list
+   - Middle of task list
+   - Bottom of task list
+   - Task Details open
+   - Task Details closed with preserved position
+   - Arabic layout
+   - Mobile layout
+
+If all applicable tests pass, conclude exactly:
+
+“STEP 9 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 10.

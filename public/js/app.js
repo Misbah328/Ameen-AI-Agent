@@ -6005,6 +6005,7 @@ const TK = {
 
 async function renderTasks() {
   const body = $("tasks-body");
+  const savedScroll = body.scrollTop;
   body.innerHTML = '<div class="es"><div class="loading"></div></div>';
   try {
     const [tasksRaw, members] = await Promise.all([
@@ -6153,7 +6154,7 @@ async function renderTasks() {
     });
 
     // ── Pagination ─────────────────────────────────────────────────────────
-    const PAGE_SIZE = 5;
+    const PAGE_SIZE = 15;
     const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
     const page = Math.min(Math.max(1, TK.page || 1), totalPages);
     const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -6293,7 +6294,11 @@ async function renderTasks() {
         </div>
         <div class="fue-tbl-foot">
           <span class="fue-count">${ar(`عرض ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} من ${sorted.length} مهمة`,`Showing ${(page-1)*PAGE_SIZE+1}–${Math.min(page*PAGE_SIZE,sorted.length)} of ${sorted.length} task${sorted.length !== 1 ? "s" : ""}`)}</span>
-          <a href="javascript:void(0)" class="fue-viewall" onclick="TK.setTab('active');TK.reset()">${ar("عرض كل المهام","View all tasks")} →</a>
+          ${totalPages > 1 ? `<div class="fue-pg-wrap">
+            <button class="fue-pg-btn" onclick="TK.setPage(${page - 1})"${page <= 1 ? " disabled" : ""}>‹</button>
+            <span class="fue-pg-info">${page} / ${totalPages}</span>
+            <button class="fue-pg-btn" onclick="TK.setPage(${page + 1})"${page >= totalPages ? " disabled" : ""}>›</button>
+          </div>` : ""}
         </div>`;
 
     // ── Pending review tab ─────────────────────────────────────────────────
@@ -6413,6 +6418,7 @@ async function renderTasks() {
       <div class="fue-main-card">${tabHtml}${filterBar}${tab === "review" ? reviewContent : tableContent}</div>
       ${tab !== "review" ? bottomHtml : ""}
       <div class="fue-footer-note">${ar("جميع التحديثات مسجّلة وقابلة للتدقيق. الأوقات بالتوقيت العربي السعودي (GMT+3).","All updates are logged and auditable. Times are shown in Arabia Standard Time (GMT+3).")}</div>`;
+    body.scrollTop = savedScroll;
 
   } catch (e) {
     body.innerHTML = `<div class="es" style="color:var(--red)">${esc(e.message)}</div>`;
