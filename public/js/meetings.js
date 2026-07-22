@@ -2511,6 +2511,14 @@ const MT = {
   async openVotingPanel(resId) {
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
+
+    // ── Race-condition guard ────────────────────────────────────────────────
+    // Each call gets a unique sequence number. After every await we verify
+    // the seq still matches; if it doesn't, a newer call has taken over and
+    // we silently discard this stale response.
+    if (!this._votingSeq) this._votingSeq = 0;
+    const seq = ++this._votingSeq;
+
     const res = (this._resAll || []).find(x => x.id === resId);
 
     // Build or reuse overlay modal
@@ -2527,10 +2535,27 @@ const MT = {
       modal.style.display = 'flex';
     }
     const body = document.getElementById('vote-modal-body');
+    // Clear immediately — no stale content visible while loading
     body.innerHTML = `<div class="es"><div class="loading"></div></div>`;
 
     let data = {};
-    try { data = await api(`/api/gov/resolutions/${resId}/votes`); } catch(e) { data = {}; }
+    let fetchErr = null;
+    try { data = await api(`/api/gov/resolutions/${resId}/votes`); } catch(e) { fetchErr = e; data = {}; }
+
+    // Discard this response if a newer openVotingPanel call has started
+    if (seq !== this._votingSeq) return;
+
+    if (fetchErr) {
+      body.innerHTML = `
+        <div class="modal-title">🗳 ${t('التصويت على القرار','Resolution Voting')}</div>
+        <div style="font-size:12px;color:var(--red);padding:12px 0">${esc(fetchErr.message || t('حدث خطأ','An error occurred'))}</div>
+        <div class="fa" style="margin-top:14px">
+          <button class="btn-gold btn-sm" onclick="MT.openVotingPanel(${resId})">${t('إعادة المحاولة','Retry')}</button>
+          <button class="btn-ghost" onclick="MT.closeVotingPanel()">${t('إغلاق','Close')}</button>
+        </div>`;
+      return;
+    }
+
     const votes = data.votes || [];
     const vStatus = res ? (res.voting_status || 'draft') : 'draft';
     const approve = data.approve || 0, reject = data.reject || 0, abstain = data.abstain || 0;
@@ -2643,8 +2668,18 @@ const MT = {
   },
 
   closeVotingPanel() {
+    // Invalidate any in-flight openVotingPanel fetch so its response
+    // cannot render after this close (or after a different resolution opens).
+    if (!this._votingSeq) this._votingSeq = 0;
+    this._votingSeq++;
     const modal = document.getElementById('vote-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.style.display = 'none';
+      // Clear body so no stale resolution data is visible if the modal
+      // is reopened before the next fetch completes.
+      const body = document.getElementById('vote-modal-body');
+      if (body) body.innerHTML = '';
+    }
   },
 };
 

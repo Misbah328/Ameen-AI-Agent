@@ -1,0 +1,339 @@
+STEP 3 ONLY — FIX STALE OR INCORRECT DATA IN THE RESOLUTION VOTING MODAL
+
+Do not modify meeting navigation, draft creation, sorting, calendar, dashboard, or any unrelated module.
+
+Step 1 and Step 2 are already complete.
+
+Your task is only to fix the Resolution Voting Modal so it always displays the data for the resolution the user actually clicked.
+
+==================================================
+PROBLEM
+==================================================
+
+The Resolution Voting Modal may show stale data from a previously opened resolution.
+
+Example:
+
+1. Open Resolution A.
+2. Close the voting modal.
+3. Open Resolution B.
+4. The modal may still display Resolution A’s:
+   - Title
+   - Description
+   - Resolution reference
+   - Vote counts
+   - Member vote statuses
+   - Attachments
+   - Deadline
+   - Approval threshold
+   - Previous voting result
+
+This is a serious data-integrity and governance issue.
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+Every time a user clicks Vote, View Voting, Review Votes, or Open Resolution:
+
+- The exact clicked resolution ID must be passed.
+- The modal must clear all previous data immediately.
+- The system must load fresh data for that resolution.
+- The modal must not reuse cached data from another resolution.
+- Vote buttons must submit against the correct resolution ID.
+- Vote counts must belong only to the selected resolution.
+- Member statuses must belong only to the selected resolution.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect all resolution voting entry points, including:
+
+- Resolution list
+- Resolution detail page
+- Circular Resolution list
+- Dashboard widgets
+- Notifications
+- Global search
+- Decision Registry, if it opens voting
+- Direct URL or deep link
+- Approval workflow pages
+
+Search for stale state such as:
+
+- currentResolutionId
+- selectedResolution
+- activeResolution
+- votingResolution
+- modalResolution
+- cached resolution object
+- localStorage
+- sessionStorage
+- global window variables
+- reused DOM values
+- delayed setTimeout callbacks
+- unresolved async requests
+
+Also inspect:
+
+- Modal open function
+- Modal close function
+- Resolution API fetch
+- Voting API submission
+- Vote-results refresh
+- Event listeners
+- Re-render logic
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. Pass the clicked resolution ID explicitly.
+
+2. Before loading:
+   - Clear title
+   - Clear description
+   - Clear vote counts
+   - Clear member list
+   - Clear attachments
+   - Clear deadline
+   - Clear status
+   - Disable vote actions until fresh data loads
+
+3. Fetch the selected resolution using its unique ID.
+
+4. Confirm the API response ID matches the requested ID.
+
+5. Prevent race conditions:
+   - If Resolution A is loading and the user opens Resolution B, the response for A must not overwrite B.
+   - Use a request token, request counter, AbortController, or equivalent safe method.
+
+6. When the modal closes:
+   - Clear selected resolution state
+   - Remove temporary listeners
+   - Clear loading and error states
+
+7. Voting submission must use the currently selected resolution ID, not a stale global ID.
+
+8. After a vote:
+   - Refresh only the current resolution
+   - Update the correct counts
+   - Do not update another row or modal
+
+==================================================
+ERROR HANDLING
+==================================================
+
+If loading fails:
+
+- Stop the loading spinner
+- Show a clear error message
+- Do not show old resolution data
+- Provide Retry
+- Keep voting disabled
+
+If the resolution no longer exists:
+
+- Show “Resolution not found”
+- Do not fall back to a previously loaded resolution
+
+If the user has no permission:
+
+- Show a permission message
+- Do not reveal restricted voting data
+
+==================================================
+TEST DATA
+==================================================
+
+Use at least four clearly different resolutions:
+
+Resolution A:
+- Unique title
+- Unique reference
+- 3 Yes, 1 No
+- Deadline 1
+
+Resolution B:
+- Different title
+- Different reference
+- 1 Yes, 4 No
+- Deadline 2
+
+Resolution C:
+- Different title
+- No votes yet
+- Deadline 3
+
+Resolution D:
+- Closed or approved resolution
+- Final result available
+
+==================================================
+REGRESSION TESTS
+==================================================
+
+TEST 1 — A THEN B
+
+Open Resolution A.
+
+Record:
+- ID
+- Title
+- Reference
+- Vote counts
+- Deadline
+
+Close it.
+
+Open Resolution B.
+
+Verify every field belongs to B.
+
+No value from A may remain.
+
+==================================================
+TEST 2 — RAPID SWITCHING
+
+Open A, then immediately open B, then C.
+
+Verify the final modal displays only C.
+
+Late API responses from A or B must not overwrite C.
+
+==================================================
+TEST 3 — VOTE SUBMISSION
+
+Open Resolution B.
+
+Submit a vote.
+
+Verify:
+
+- The vote is stored against B’s ID.
+- A and C remain unchanged.
+- B’s vote count updates correctly.
+- Audit log references B.
+
+==================================================
+TEST 4 — CLOSE AND REOPEN
+
+Open A.
+
+Close the modal.
+
+Reopen A.
+
+Verify fresh data is loaded.
+
+Then close A and open D.
+
+Verify D’s final status and result are correct.
+
+==================================================
+TEST 5 — MULTIPLE ENTRY POINTS
+
+Open resolutions through:
+
+1. Resolution list
+2. Resolution detail
+3. Circular Resolution list
+4. Dashboard
+5. Notifications
+6. Global Search
+7. Direct URL, if supported
+
+Verify the same correct resolution opens from every entry point.
+
+==================================================
+TEST 6 — REFRESH
+
+Open a resolution.
+
+Refresh the browser.
+
+Verify:
+
+- Correct resolution is restored if deep linking is supported
+- Or the modal safely closes if it is not supported
+- No stale resolution appears
+
+==================================================
+TEST 7 — BACK AND FORWARD
+
+Open A, then B.
+
+Use browser Back and Forward.
+
+Verify the correct resolution state is restored.
+
+==================================================
+TEST 8 — LANGUAGE
+
+Open a resolution in English.
+
+Switch to Arabic.
+
+Verify:
+
+- Same resolution ID
+- Same vote data
+- Correct RTL display
+- No stale English content from another resolution
+
+Switch back to English and confirm the same resolution remains selected.
+
+==================================================
+TEST 9 — PERMISSIONS
+
+Test as:
+
+- Secretary/Admin
+- Eligible voting member
+- Non-voting member
+- Unauthorized user
+
+Verify each role sees only permitted actions and data.
+
+==================================================
+TEST 10 — DATA INTEGRITY
+
+Confirm that opening or closing the modal does not:
+
+- Modify vote records
+- Change resolution status
+- Create duplicate votes
+- Change member eligibility
+- Create audit events unnecessarily
+
+Only a real vote submission should change voting data.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause
+2. Files modified
+3. Functions modified
+4. Old behavior
+5. New behavior
+6. API changes, if any
+7. Database changes, if any
+8. PASS/FAIL table for Tests 1–10
+9. Browser screenshots showing:
+   - Resolution A
+   - Resolution B
+   - Rapid switching result
+   - Successful vote on the correct resolution
+   - Arabic view
+
+Do not claim completion based on one modal test.
+
+If every applicable test passes, conclude exactly:
+
+“STEP 3 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 4.
