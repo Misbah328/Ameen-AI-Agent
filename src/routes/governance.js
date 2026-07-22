@@ -276,15 +276,16 @@ router.get('/boards', auth, requirePermission('governance.boards'), (req, res) =
   const boards = db.prepare('SELECT * FROM boards ORDER BY id').all();
   const committees = db.prepare('SELECT * FROM committees ORDER BY board_id, id').all();
   const parseMembers = (raw) => { try { return JSON.parse(raw || '[]'); } catch { return []; } };
+  const uniqueCount = (arr) => new Set(arr.map(m => (typeof m === 'string' ? m : JSON.stringify(m)).trim())).size;
   res.json(boards.map(b => {
     const bMembers = parseMembers(b.members);
     return {
       ...b,
       members: bMembers,
-      member_count: bMembers.length,
+      member_count: uniqueCount(bMembers),
       committees: committees.filter(c => c.board_id === b.id).map(c => {
         const cMembers = parseMembers(c.members);
-        return { ...c, members: cMembers, member_count: cMembers.length };
+        return { ...c, members: cMembers, member_count: uniqueCount(cMembers) };
       }),
     };
   }));
@@ -327,9 +328,10 @@ router.get('/committees', auth, requirePermission('governance.committees'), (req
     ? db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id WHERE c.board_id=? ORDER BY c.id').all(boardId)
     : db.prepare('SELECT c.*, b.name_ar as board_name_ar, b.name_en as board_name_en FROM committees c LEFT JOIN boards b ON c.board_id=b.id ORDER BY c.board_id, c.id').all();
   const parseMembers = (raw) => { try { return JSON.parse(raw || '[]'); } catch { return []; } };
+  const uniqueCount = (arr) => new Set(arr.map(m => (typeof m === 'string' ? m : JSON.stringify(m)).trim())).size;
   res.json(rows.map(c => {
     const m = parseMembers(c.members);
-    return { ...c, members: m, member_count: m.length };
+    return { ...c, members: m, member_count: uniqueCount(m) };
   }));
 });
 

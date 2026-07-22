@@ -344,7 +344,7 @@ const BC = {
             id: `api-${b.id}-m${i}`,
             nameEn: name, nameAr: name,
             roleEn: role, roleAr: role,
-            typeEn: "Executive", typeAr: "تنفيذي",
+            typeEn: role, typeAr: role,
             since: b.created_at?.split(" ")[0] || "2024-01-01",
             attendance: Math.floor(85 + Math.random() * 12)
           };
@@ -392,7 +392,7 @@ const BC = {
           memberSummary: match?.memberSummary || _computedSummary,
           purposeAr: match?.purposeAr || b.description || "",
           purposeEn: match?.purposeEn || b.description || "",
-          members: apiMembers.length ? apiMembers : (match?.members || BC_MEMBERS.slice(0, 3)),
+          members: apiMembers,
           committees: b.committees || match?.committees || [],
           responsibilities: match?.responsibilities || [],
           upcomingMeetings: match?.upcomingMeetings || [],
