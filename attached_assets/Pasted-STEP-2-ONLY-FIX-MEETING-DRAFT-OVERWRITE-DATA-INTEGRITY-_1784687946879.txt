@@ -1,0 +1,347 @@
+STEP 2 ONLY — FIX MEETING DRAFT OVERWRITE & DATA INTEGRITY
+
+Do not work on any other issue.
+
+The navigation issue will be handled separately. Ignore it for now.
+
+==================================================
+PROBLEM
+When creating a new meeting and clicking "Save as Draft", the system sometimes overwrites an existing draft instead of creating a completely new meeting draft.
+
+Example:
+
+Existing Draft:
+QA GA
+1 September 2026
+
+Create New Draft:
+QA Test Meeting
+15 August 2026
+
+Expected:
+Two draft meetings.
+
+Actual:
+The old draft disappears and only one draft remains.
+
+This is a serious data integrity issue.
+
+==================================================
+YOUR TASK
+Investigate the complete Draft workflow from frontend to backend.
+
+Check:
+
+• Create Meeting form
+• Save as Draft button
+• Draft API endpoint
+• Meeting database
+• Meeting ID generation
+• Draft list rendering
+• Edit Draft workflow
+• Auto-save logic
+• Local storage/session storage
+• Cached meeting object
+• Duplicate save requests
+
+==================================================
+ROOT CAUSE ANALYSIS
+Find exactly WHY an existing draft is replaced.
+
+Possible causes:
+
+• POST vs PUT confusion
+• Wrong API endpoint
+• Existing Meeting ID reused
+• Hidden meetingId field
+• State not reset after previous draft
+• Local cache reused
+• Update API called instead of Create API
+• Duplicate primary key
+• Wrong upsert logic
+• ORM update instead of insert
+• Draft UUID not regenerated
+
+Do not guess.
+
+Find the actual root cause.
+
+==================================================
+REQUIRED FIX
+A NEW meeting must ALWAYS create:
+
+• New Meeting ID
+• New UUID
+• New database record
+• New Draft record
+• New Audit Log entry
+Editing an existing draft must:
+
+• Update ONLY that draft
+• Never affect any other meeting
+
+==================================================
+SAVE LOGIC
+==================================================
+
+New Meeting
+
+↓
+
+Save as Draft
+
+↓
+
+INSERT new record
+
+NOT
+
+UPDATE existing record
+
+Only Edit Draft should call Update.
+
+==================================================
+AFTER SAVING
+==================================================
+
+After clicking Save Draft:
+• Show success message
+• Return new Draft ID
+• Refresh Draft list
+• Keep previous drafts
+• Do not lose unsaved attachments
+• Update dashboard counters
+
+==================================================
+DRAFT LIST
+==================================================
+
+Verify:
+
+• Search
+• Filters
+• Sorting
+• Draft count
+• Recently modified
+• Created date
+• Updated date
+
+==================================================
+TEST CASES
+==================================================
+
+Test 1
+
+Create Draft A
+
+Verify saved
+
+--------------------------------
+Test 2
+
+Create Draft B
+
+Verify:
+
+Draft A still exists
+
+--------------------------------
+
+Test 3
+
+Create Draft C
+
+Verify:
+
+A
+B
+C
+
+all exist
+
+--------------------------------
+
+Test 4
+
+Refresh browser
+
+Verify:
+
+A
+B
+C
+
+still exist
+--------------------------------
+
+Test 5
+
+Logout
+
+Login
+
+Verify:
+
+A
+B
+C
+
+still exist
+
+--------------------------------
+
+Test 6
+
+Edit Draft B
+
+Change title
+
+Save
+
+Verify:
+
+Only Draft B changes
+
+Draft A unchanged
+
+Draft C unchanged
+
+--------------------------------
+
+Test 7
+
+Duplicate click protection
+
+Rapidly click Save Draft
+
+10 times
+
+Expected:
+
+Only ONE draft created
+
+==================================================
+DATABASE
+==================================================
+
+Verify:
+
+Meeting IDs
+
+UUIDs
+
+Primary Keys
+
+Created Date
+
+Updated Date
+
+Draft Status
+
+Audit Logs
+
+Every new draft must have unique identifiers.
+
+==================================================
+API
+==================================================
+
+Verify:
+
+POST
+
+creates new draft
+
+PATCH/PUT
+
+updates existing draft
+
+No endpoint should overwrite another meeting unintentionally.
+
+==================================================
+AUDIT LOG
+==================================================
+
+Every new draft should create:
+
+Meeting Created
+
+Draft Saved
+
+Creator
+
+Timestamp
+
+Meeting ID
+
+==================================================
+UI
+==================================================
+Verify:
+
+Draft badge
+
+Draft count
+
+Search
+
+Sorting
+
+Filtering
+
+Dashboard
+
+Meeting List
+
+Calendar
+
+Archive
+
+Everything must show the correct draft count.
+
+==================================================
+REGRESSION TEST
+==================================================
+
+After fixing:
+
+Create
+
+10
+
+different draft meetings.
+
+Verify:
+No draft disappears.
+
+No draft is replaced.
+
+No duplicate IDs.
+
+No data loss.
+
+==================================================
+DELIVERABLE
+==================================================
+
+When finished provide ONLY:
+
+1. Root cause
+
+2. Files modified
+
+3. Functions modified
+
+4. Old behavior
+
+5. New behavior
+
+6. Database fix
+
+7. API fix
+
+8. Browser test results
+
+9. Screenshot showing multiple drafts existing simultaneously
+
+Do not work on Resolution, Tasks, Calendar, Permissions, or any other module until this Draft issue is fully fixed and verified.
