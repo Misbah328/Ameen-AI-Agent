@@ -1,0 +1,202 @@
+STEP 8 ONLY — FIX DASHBOARD “REVIEW NOW” BUTTON
+
+Do not modify Meetings, Tasks View Details, Boards, Members, Voting, Permission Counts, or any previously completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+The “Review Now” button on the Dashboard does not work correctly.
+
+Possible symptoms:
+
+- Nothing happens when clicked
+- It opens the wrong record
+- It opens a generic list instead of the exact item
+- It opens stale data from a previously selected item
+- It works only once
+- It opens a blank panel or endless loading state
+- The button points to the wrong module
+- The record cannot be found after refresh
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+When the user clicks “Review Now”:
+
+1. Identify the exact record represented by that dashboard card or row.
+2. Open the correct module.
+3. Open the exact record requiring review.
+4. Show the correct review stage and available actions.
+5. Never display stale content from a previously opened record.
+
+The button may represent:
+
+- Meeting minutes review
+- Attendee review
+- Policy review
+- Resolution review
+- Circular resolution
+- Document approval
+- Governance approval item
+- Another pending-review record
+
+Do not assume the type. Inspect the dashboard data and determine the correct destination from the record metadata.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect:
+
+- Dashboard “Review Now” button HTML
+- Dashboard card/row rendering function
+- Button onclick handler
+- Record ID passed by the dashboard
+- Record type/module metadata
+- Review stage/status metadata
+- Destination panel or route
+- Existing open-detail or open-review functions
+- API endpoint used to populate dashboard review items
+- Loading, error, and permission states
+- Event listener duplication
+- Cached selected-record state
+
+Determine whether the failure is caused by:
+
+- Missing click handler
+- Wrong ID
+- Wrong record type
+- Hard-coded destination
+- Generic module navigation without opening the item
+- Stale selected-record state
+- Cache miss
+- Async race condition
+- Missing destination function
+- Incorrect data attributes
+- Mock data not matching API data
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. Pass both the exact record ID and record type explicitly.
+
+2. Create or use one shared function such as:
+
+openReviewItem(recordType, recordId)
+
+Do not duplicate review-opening logic across dashboard widgets.
+
+3. Map each supported record type to the correct module and detail/review function.
+
+4. Load fresh record data from the API before rendering where necessary.
+
+5. Confirm the returned record ID matches the requested ID.
+
+6. Clear old review content before loading a new record.
+
+7. Prevent race conditions:
+If Review Item A is loading and the user clicks Review Item B, A must not overwrite B.
+
+8. Add clear states:
+
+- Loading
+- Record not found
+- Permission denied
+- Unsupported review type
+- API error
+
+9. Keep the close/back action visible and functional.
+
+10. Clicking “Review Now” must not automatically approve, reject, submit, sign, change status, or create audit entries.
+
+11. Existing review actions inside the destination screen must continue to work normally.
+
+12. Do not create duplicate dashboard items or duplicate review records.
+
+==================================================
+TESTS
+==================================================
+
+T1 — Exact item opening
+Click “Review Now” for Review Item A.
+Confirm the exact record opens.
+
+T2 — Different item
+Click “Review Now” for Review Item B.
+Confirm Item B opens and no Item A content remains.
+
+T3 — Correct module
+Confirm each review type opens in its proper module, not a generic or incorrect page.
+
+T4 — Rapid switching
+Click A → B → C rapidly.
+Confirm only C remains visible.
+
+T5 — Dashboard consistency
+Confirm the title, type, status, and ID shown on the dashboard match the opened record.
+
+T6 — Refresh
+Refresh after opening a review item.
+Either restore the same item if deep linking exists, or close safely without stale content.
+
+T7 — Missing record
+Open an invalid or deleted review item.
+Show “Review item not found.”
+
+T8 — Unsupported type
+Pass an unsupported record type.
+Show a clear “Unsupported review type” message.
+
+T9 — Permissions
+Unauthorized users must not see restricted review details.
+
+T10 — Data integrity
+Opening “Review Now” must not:
+
+- Approve the item
+- Reject the item
+- Submit a review
+- Change workflow stage
+- Change status
+- Add a signature
+- Create an audit event
+- Duplicate a record
+
+T11 — Button repeatability
+Open, close, and reopen the same review item several times.
+It must work every time.
+
+T12 — Existing destination actions
+Confirm normal review actions still work after the navigation fix.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause
+2. Dashboard review-item data structure
+3. Files modified
+4. Functions modified
+5. Record-type routing map
+6. Old behavior
+7. New behavior
+8. PASS/FAIL table for all 12 tests
+9. Exact IDs and types used during testing
+10. Before-and-after data integrity comparison
+11. Authenticated screenshots showing:
+   - Review Item A
+   - Review Item B
+   - Correct destination module
+   - Missing-record state
+   - Unsupported-type state
+
+If all applicable tests pass, conclude exactly:
+
+“STEP 8 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 9.

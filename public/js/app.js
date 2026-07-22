@@ -11869,6 +11869,46 @@ $("modal-member").addEventListener("click", (e) => {
   if (e.target === $("modal-member")) Team.closeModal();
 });
 
+// ══ openReviewItem — shared "Review Now" router for all dashboard alerts ════
+window.openReviewItem = function(type, id) {
+  const _id = (id !== null && id !== undefined) ? Number(id) : null;
+  switch (String(type)) {
+    case 'overdue_tasks':
+      // Navigate to Tasks panel with Overdue tab pre-selected
+      Panels.load('tasks').then(() => { try { TK.setTab('overdue'); } catch (_) {} });
+      break;
+    case 'pending_tasks':
+      // Navigate to Tasks panel with Pending Review tab pre-selected
+      Panels.load('tasks').then(() => { try { TK.setTab('review'); } catch (_) {} });
+      break;
+    case 'circulated_meeting':
+      // Open the exact meeting's full approval cycle
+      if (_id) {
+        ApprovalCycle.open(_id);
+      } else {
+        Panels.load('approval-cycle');
+      }
+      break;
+    case 'meeting_package':
+      // Open the specific scheduled meeting's package
+      if (_id) {
+        Panels.load('scheduled').then(() => setTimeout(() => {
+          try { MT.openScheduleItem(_id); } catch (_) {}
+        }, 200));
+      } else {
+        Panels.load('scheduled');
+      }
+      break;
+    case 'todays_meetings':
+      Panels.load('schedule');
+      break;
+    default:
+      showToast(App.lang === 'ar'
+        ? 'نوع عنصر المراجعة غير مدعوم'
+        : 'Unsupported review type', 'info');
+  }
+};
+
 // ══ Overview / Dashboard ══════════════════════════════════════════════════════
 async function renderOverview() {
   const body = $("overview-body");
@@ -12136,6 +12176,11 @@ async function renderOverview() {
     </div>`;
 
     // ── Smart Alerts (only real, data-backed alerts) ────────────────────────
+    // Identify the first circulated meeting so the Pending Approvals button
+    // opens its exact approval cycle rather than a generic list.
+    const firstCirculated = meetings.find(m => (m.minutes_status || '') === 'circulated');
+    const pendingReviewTaskCount = tasks.filter(t => (t.review_status || '') === 'pending').length;
+
     const alerts = [];
     if (overdueTasks.length)
       alerts.push({
@@ -12144,7 +12189,7 @@ async function renderOverview() {
         t: lbl("تأخير في المهام", "Overdue Tasks"),
         s: rtl ? overdueTasks.length + " مهام متأخرة تتطلب المتابعة" : overdueTasks.length + " overdue tasks need follow-up",
         a: lbl("راجع الآن", "Review Now"),
-        go: "tasks",
+        onclick: "openReviewItem('overdue_tasks')",
       });
     if (pendingApprovals)
       alerts.push({
@@ -12152,8 +12197,12 @@ async function renderOverview() {
         cls: "dx2-al-amber",
         t: lbl("موافقات معلّقة", "Pending Approvals"),
         s: rtl ? pendingApprovals + " عنصر بانتظار المراجعة" : pendingApprovals + " items awaiting review",
-        a: lbl("عرض", "View"),
-        go: "transcripts",
+        a: firstCirculated
+          ? lbl("فتح دورة الاعتماد", "Open Approval Cycle")
+          : lbl("مراجعة المهام", "Review Tasks"),
+        onclick: firstCirculated
+          ? `openReviewItem('circulated_meeting',${num(firstCirculated.id)})`
+          : "openReviewItem('pending_tasks')",
       });
     if (nm && num(nm.doc_count) === 0)
       alerts.push({
@@ -12162,7 +12211,7 @@ async function renderOverview() {
         t: lbl("حزمة الاجتماع غير مكتملة", "Meeting Package Incomplete"),
         s: lbl("لا مستندات مرفقة للاجتماع القادم", "No documents attached to the next meeting"),
         a: lbl("أكمل الآن", "Complete Now"),
-        go: "scheduled",
+        onclick: `openReviewItem('meeting_package',${num(nm.id)})`,
       });
     if (todays.length)
       alerts.push({
@@ -12171,7 +12220,7 @@ async function renderOverview() {
         t: lbl("اجتماعات اليوم", "Today's Meetings"),
         s: rtl ? todays.length + " اجتماع مجدول اليوم (" + liveCount + " مباشر)" : todays.length + " scheduled today (" + liveCount + " live)",
         a: lbl("عرض الجدول", "View Schedule"),
-        go: "schedule",
+        onclick: "openReviewItem('todays_meetings')",
       });
     const alertsHtml = alerts
       .slice(0, 4)
@@ -12179,7 +12228,7 @@ async function renderOverview() {
         (a) => `<div class="dx2-alert ${a.cls}">
         <div class="dx2-alert-h"><span class="dx2-alert-ico">${a.ico}</span><span class="dx2-alert-t">${a.t}</span></div>
         <div class="dx2-alert-s">${a.s}</div>
-        <button class="dx-link" onclick="Panels.load('${a.go}')">${a.a}</button>
+        <button class="dx-link" onclick="${a.onclick}">${a.a}</button>
       </div>`,
       )
       .join("");
