@@ -326,12 +326,10 @@ const MT = {
       return;
     }
     this._tab = k;
-    // Issue 1 fix: set LiveMT._mid synchronously BEFORE rendering, so the
-    // "Start Meeting" button works on the very first click even if onMount's
-    // 80ms timer hasn't fired yet.
+    // Set LiveMT._mid synchronously BEFORE rendering so the "Start Meeting"
+    // button works on the very first click (onMount fires via _renderDetail).
     if (k === "live" && this._mid) LiveMT._mid = this._mid;
     this._renderDetail();
-    if (k === "live") setTimeout(() => { try { LiveMT.onMount(this._mid, this._d); } catch (_) {} }, 0);
   },
 
   _renderDetail() {
@@ -396,6 +394,9 @@ const MT = {
       </div>
       ${meta}${tabs}
       <div id="mtx-tabbody">${body}</div>`;
+    if (this._tab === "live") {
+      setTimeout(() => { try { LiveMT.onMount(this._mid, this._d); } catch (_) {} }, 0);
+    }
   },
 
   // ── Overview tab (mockup 3333) ────────────────────────────────
