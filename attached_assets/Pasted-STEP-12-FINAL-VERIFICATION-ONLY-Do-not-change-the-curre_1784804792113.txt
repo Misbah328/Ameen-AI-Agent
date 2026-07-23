@@ -1,0 +1,656 @@
+STEP 12 — FINAL VERIFICATION ONLY
+
+Do not change the current implementation unless a test reveals a real defect.
+
+Do not start the final full regression test.
+
+The Step 12 autofill implementation is already in place. This task is only to complete the missing verification and produce the final structured report.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Complete the remaining Step 12 autofill verification.
+
+Previous testing stopped because the iteration limit was reached.
+
+Do not rely only on code inspection for tests that can be executed.
+
+Execute the remaining applicable tests, clearly mark genuinely non-existent forms as NOT APPLICABLE, verify data integrity, clean up temporary records, and produce the complete final report.
+
+==================================================
+IMPORTANT RULES
+==================================================
+
+1. Do not rewrite or redesign the autofill implementation.
+
+2. Do not modify Smart Search, Policies, Tasks, Meetings navigation, Dashboard Review Now, Boards, Members, Voting, or previous completed fixes unless an actual Step 12 defect is proven.
+
+3. Do not mark a test PASS only because the code appears correct.
+
+Use runtime evidence whenever the form or workflow exists.
+
+4. If a requested form or field does not exist, write:
+
+NOT APPLICABLE — FORM/FIELD DOES NOT EXIST
+
+Explain exactly what exists instead.
+
+5. Use the correct navigation paths and real element IDs.
+
+Known navigation detail:
+
+- Team Members panel is opened programmatically with:
+  Panels.load('team')
+
+Do not fail a test because the sidebar does not contain a visible Team button.
+
+6. Use isolated temporary records.
+
+7. Restore changed values and delete all temporary records after testing.
+
+8. Do not begin the final application regression test.
+
+==================================================
+VERIFY IMPLEMENTATION STATE FIRST
+==================================================
+
+Before testing, confirm the current Step 12 changes are still present.
+
+Audit the modified fields in:
+
+- Login
+- Signup
+- Organization fields
+- Profile fields
+- Team Member form
+- Board Member form
+- Policy form
+- Meeting form
+- Attendee inputs
+- Smart Search input
+
+Record for every relevant field:
+
+- id
+- name
+- type
+- autocomplete
+- inputmode
+- required
+- disabled or read-only state
+
+Confirm save and submit functions read current DOM values rather than stale cached values.
+
+==================================================
+RE-RUN ALL APPLICABLE TESTS
+==================================================
+
+Produce an individual result for every test from T1 to T35.
+
+Do not group tests together without separate evidence.
+
+--------------------------------------------------
+T1 — Login email autofill
+--------------------------------------------------
+
+Autofill the login email.
+
+Confirm:
+
+- correct field is populated
+- validation recognizes it
+- login payload uses the exact visible value
+
+Capture:
+
+- field id
+- name
+- type
+- autocomplete
+- DOM value before submit
+- payload email value
+
+--------------------------------------------------
+T2 — Login password autofill
+--------------------------------------------------
+
+Autofill the password.
+
+Confirm:
+
+- correct password field is populated
+- autocomplete is current-password
+- password-manager metadata is correct
+- login succeeds with valid credentials
+
+Do not print or expose the password value in the report.
+
+--------------------------------------------------
+T3 — Signup name autofill
+--------------------------------------------------
+
+Autofill all existing personal-name fields.
+
+Confirm correct mapping.
+
+If the signup form contains only one full-name field, mark given-name and family-name as:
+
+NOT APPLICABLE — SEPARATE FIELD DOES NOT EXIST
+
+Do not treat a missing split-name field as a failure.
+
+--------------------------------------------------
+T4 — Signup email
+--------------------------------------------------
+
+Autofill email.
+
+Confirm no unrelated field receives the email.
+
+--------------------------------------------------
+T5 — Signup phone
+--------------------------------------------------
+
+Autofill a phone number containing:
+
+- leading +
+- country code
+- spaces or hyphens where accepted
+
+Confirm:
+
+- type is tel
+- inputmode is appropriate
+- leading + is preserved
+- payload contains the exact intended value
+
+--------------------------------------------------
+T6 — Organization name
+--------------------------------------------------
+
+Autofill the organization field.
+
+Confirm it does not populate personal-name fields.
+
+--------------------------------------------------
+T7 — Job title or role
+--------------------------------------------------
+
+Test the existing job-title or role field.
+
+If it is a selectable application role rather than a real professional job title, verify that identity autofill is disabled or neutral.
+
+Do not force organization-title onto a field where it is semantically incorrect.
+
+--------------------------------------------------
+T8 — Required validation
+--------------------------------------------------
+
+Autofill all required signup fields.
+
+Confirm:
+
+- validation errors clear
+- submit becomes available
+- autofilled values are recognized without manual typing
+
+--------------------------------------------------
+T9 — Submit after autofill
+--------------------------------------------------
+
+Submit a form using autofilled values only.
+
+Confirm the payload matches every displayed value.
+
+Use isolated test data and clean it afterward.
+
+--------------------------------------------------
+T10 — Mixed manual and autofill
+--------------------------------------------------
+
+Manually type one field and autofill the others.
+
+Confirm the manual value is not overwritten unexpectedly.
+
+--------------------------------------------------
+T11 — Edit existing record
+--------------------------------------------------
+
+Open Team Members with:
+
+Panels.load('team')
+
+Open an existing member in Edit mode.
+
+Confirm:
+
+- current saved values populate correctly
+- browser autofill does not silently replace them
+- no blank Add Member form is mistaken for Edit mode
+
+--------------------------------------------------
+T12 — Deliberate autofill in Edit mode
+--------------------------------------------------
+
+In an existing member Edit form, intentionally change one autofill-supported field.
+
+Confirm only intended fields change.
+
+Restore the original record afterward.
+
+--------------------------------------------------
+T13 — Re-render preservation
+--------------------------------------------------
+
+Autofill or populate the Edit Member form.
+
+Trigger a harmless render or close/reopen cycle.
+
+Confirm values remain intact.
+
+--------------------------------------------------
+T14 — Error then correction
+--------------------------------------------------
+
+Trigger required-field validation.
+
+Then populate the fields using autofill-style input.
+
+Confirm validation errors clear correctly.
+
+--------------------------------------------------
+T15 — Change-event synchronization
+--------------------------------------------------
+
+Populate autofill-supported fields and blur them.
+
+Confirm the values used by validation and submit match the DOM values.
+
+--------------------------------------------------
+T16 — Submit-time synchronization
+--------------------------------------------------
+
+Set a visible DOM value using an autofill-like programmatic update without relying on keyup.
+
+Dispatch the appropriate input/change event if browser autofill would do so.
+
+Submit.
+
+Confirm the API payload uses the current visible DOM value.
+
+--------------------------------------------------
+T17 — Hidden-field safety
+--------------------------------------------------
+
+Inspect all tested forms.
+
+Confirm hidden fields do not receive personal identity autofill.
+
+Confirm no hidden duplicate input has the same identity-related name as a visible field.
+
+--------------------------------------------------
+T18 — Smart Search safety
+--------------------------------------------------
+
+Confirm Smart Search does not use personal identity autocomplete tokens.
+
+Verify it does not receive:
+
+- email
+- name
+- phone
+- password autofill
+
+Also confirm Step 11 focus behavior remains working.
+
+--------------------------------------------------
+T19 — Policy form safety
+--------------------------------------------------
+
+Open Create Policy and Edit Policy forms.
+
+Inspect the actual fields:
+
+- Arabic title
+- English title
+- descriptions
+- owner
+- approver
+- category
+- status
+- version
+- effective date
+
+Confirm personal identity autofill does not incorrectly populate title or description fields.
+
+Test runtime autofill behavior where possible.
+
+Do not mark PASS only from code inspection.
+
+If owner or approver is a freeform person field, document its chosen semantic behavior and verify it.
+
+--------------------------------------------------
+T20 — Meeting form safety
+--------------------------------------------------
+
+Open the real Meeting creation form.
+
+Inspect and test:
+
+- meeting title
+- agenda
+- location
+- attendee-related fields
+- organization/entity fields
+
+Confirm unrelated identity autofill does not populate meeting title, agenda, or location.
+
+--------------------------------------------------
+T21 — Board Member form
+--------------------------------------------------
+
+Open the real Board Member form.
+
+Test existing fields such as:
+
+- name
+- email
+- phone
+- role
+- organization
+
+Confirm correct mapping and verify the save payload.
+
+Use temporary data and clean it afterward.
+
+--------------------------------------------------
+T22 — Attendee form
+--------------------------------------------------
+
+Inspect the real attendee workflow.
+
+If attendees are selected only from an existing dropdown and there is no freeform identity input, mark:
+
+NOT APPLICABLE — ATTENDEE IDENTITY INPUT DOES NOT EXIST
+
+Then verify the existing selector does not receive unrelated autofill.
+
+If freeform inputs do exist, execute the autofill test.
+
+--------------------------------------------------
+T23 — Duplicate prevention
+--------------------------------------------------
+
+Do not assume a database unique constraint covers every duplicate workflow.
+
+Test duplicate prevention in the actual applicable form.
+
+For Team Members:
+
+- attempt to add the same email twice
+- confirm duplicate handling
+
+For Board Members:
+
+- attempt to add the same member/email twice to the same board
+- confirm the duplicate is prevented or deduplicated
+
+This is important because board members may be stored inside a board JSON structure rather than a standalone table.
+
+If duplicate Board Members are still allowed, mark T23 FAIL and report the defect clearly.
+
+Do not silently change the implementation unless instructed after reporting the result.
+
+--------------------------------------------------
+T24 — English
+--------------------------------------------------
+
+Run relevant autofill tests in English.
+
+--------------------------------------------------
+T25 — Arabic / RTL
+--------------------------------------------------
+
+Run relevant forms in Arabic.
+
+Confirm:
+
+- RTL layout remains correct
+- field mapping remains correct
+- Arabic content fields are not mistaken for personal identity fields
+
+--------------------------------------------------
+T26 — Desktop
+--------------------------------------------------
+
+Test at approximately 1280×720.
+
+--------------------------------------------------
+T27 — Tablet
+--------------------------------------------------
+
+Test at approximately 768×1024.
+
+--------------------------------------------------
+T28 — Mobile
+--------------------------------------------------
+
+Test at approximately 390×844.
+
+Confirm:
+
+- correct input types
+- appropriate mobile keyboard metadata
+- fields remain accessible
+- values remain preserved
+
+Do not use a JavaScript workaround as the only proof if the visible form can be opened normally.
+
+If navigation requires Panels.load('team'), using that navigation is acceptable.
+
+--------------------------------------------------
+T29 — Password manager metadata
+--------------------------------------------------
+
+Inspect Login and Signup password fields.
+
+Confirm correct usage of:
+
+- username or email
+- current-password
+- new-password
+- confirm-password field behavior
+
+Do not expose secrets.
+
+--------------------------------------------------
+T30 — Browser refresh
+--------------------------------------------------
+
+Open and populate a form.
+
+Refresh.
+
+Reopen it.
+
+Confirm there is no stale application state or unintended preserved temporary state.
+
+--------------------------------------------------
+T31 — Browser Back/Forward
+--------------------------------------------------
+
+Navigate away from a populated form and return.
+
+Confirm:
+
+- no corrupted values
+- no duplicate records
+- no stale modal
+- no unexpected autofill overwrite
+
+--------------------------------------------------
+T32 — Save loading state
+--------------------------------------------------
+
+Autofill and save an applicable form.
+
+Confirm values are not cleared before the save succeeds.
+
+If no loading state exists, state:
+
+NOT APPLICABLE — NO ASYNCHRONOUS LOADING STATE EXISTS
+
+Then verify normal save behavior does not clear prematurely.
+
+--------------------------------------------------
+T33 — API error
+--------------------------------------------------
+
+Simulate an API failure during an autofilled form submission.
+
+Confirm:
+
+- visible values remain
+- user can correct or retry
+- no duplicate record is created
+- retry succeeds after restoring the API
+
+--------------------------------------------------
+T34 — Console errors
+--------------------------------------------------
+
+Explicitly capture:
+
+- console.error
+- pageerror
+- unhandled promise rejections
+
+Do not report “none observed” without actually installing error capture.
+
+--------------------------------------------------
+T35 — Regression
+--------------------------------------------------
+
+Confirm:
+
+- Smart Search focus still works
+- Smart Search Ctrl+K guard still works
+- Policy ESC still works
+- Task scrolling still works
+- Board duplicate protections from previous steps still work
+- manual typing still works
+- Edit Member still works
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+Record counts before testing for:
+
+- users or Team Members
+- organizations
+- boards
+- board member counts
+- attendees, if stored
+- relevant audit entries
+
+Record every temporary test record created.
+
+After testing:
+
+- restore edited values
+- delete temporary signup user if safe and supported
+- delete temporary Team Members
+- remove temporary Board Members
+- delete temporary boards if created
+- remove temporary attendees
+- confirm no test policies or meetings were saved accidentally
+
+Provide counts after cleanup.
+
+The expected final state must match the initial state except for unavoidable authentication/session activity.
+
+==================================================
+REQUIRED FINAL REPORT
+==================================================
+
+Provide the following sections:
+
+1. Final Step 12 verdict
+2. Root causes
+3. Complete list of forms audited
+4. Complete list of fields audited
+5. Semantic attributes before and after
+6. Duplicate ID and name findings
+7. Event and state synchronization behavior
+8. Validation behavior
+9. Submit payload behavior
+10. Edit-mode protection
+11. Files modified by the existing Step 12 implementation
+12. Functions modified by the existing Step 12 implementation
+13. Old behavior
+14. New behavior
+15. Login and password-manager verification
+16. Phone-field verification
+17. Policy and Meeting form-safety verification
+18. Team and Board Member verification
+19. English and Arabic verification
+20. Desktop, tablet, and mobile verification
+21. Browser refresh and Back/Forward verification
+22. API error verification
+23. Explicit console-error capture result
+24. Data-integrity result
+25. Temporary test-data cleanup result
+26. Individual PASS / FAIL / NOT APPLICABLE table for T1–T35
+27. Authenticated screenshot list
+
+==================================================
+EVIDENCE REQUIREMENTS
+==================================================
+
+Include exact runtime evidence for applicable tests:
+
+- field ID
+- field name
+- field type
+- autocomplete value
+- inputmode
+- DOM value before submit
+- internal value used by validation
+- API payload value
+- existing record value before Edit form opens
+- value after Edit form opens
+- value after close/reopen
+- duplicate attempt response
+- record counts before testing
+- record counts after cleanup
+- console-error capture output
+
+Do not expose passwords or access tokens.
+
+==================================================
+FINAL CONCLUSION RULE
+==================================================
+
+Conclude with:
+
+“STEP 12 FULLY VERIFIED AND COMPLETE.”
+
+only if:
+
+- every applicable test passes
+- all NOT APPLICABLE items are justified
+- no temporary test data remains
+- no new console errors exist
+- duplicate prevention is confirmed for each applicable workflow
+
+If any applicable test fails, do not use that conclusion.
+
+Instead conclude:
+
+“STEP 12 NOT COMPLETE — REMAINING DEFECTS:”
+
+and list only the verified remaining defects.
+
+Do not begin the final regression test.
