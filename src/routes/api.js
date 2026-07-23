@@ -1236,6 +1236,57 @@ router.post('/meetings/:id/process', auth, requirePermission('ai.generate_minute
   }
 });
 
+// ── Manual Extract: save user-edited tasks/decisions as ai_draft (no AI needed) ─
+router.post('/meetings/:id/manual-extract', auth, requirePermission('meetings.edit', 'meetings.create'), (req, res) => {
+  const meeting = db.prepare('SELECT id, title_ar, title_en FROM meetings WHERE id=?').get(req.params.id);
+  if (!meeting) return res.status(404).json({ error: 'Not found' });
+  const { tasks = [], decisions = [] } = req.body;
+
+  // Idempotency — clear previous ai_draft rows before re-inserting
+  db.prepare("DELETE FROM tasks WHERE source_meeting_id=? AND ai_status='ai_draft'").run(meeting.id);
+  db.prepare("DELETE FROM decisions WHERE meeting_id=? AND ai_status='ai_draft'").run(meeting.id);
+
+  const insertTask = db.prepare(`
+    INSERT INTO tasks
+      (text_ar, text_en, owner_name_ar, owner_name_en, due_date, priority,
+       status, ai_status, needs_review, review_status, created_from_ai,
+       source_meeting_id, source_meeting_title_ar, source_meeting_title_en, created_by)
+    VALUES (?,?,?,?,?,?, 'ai_draft','ai_draft',1,'pending',1, ?,?,?,?)
+  `);
+  const insertDec = db.prepare(`
+    INSERT INTO decisions
+      (text_ar, text_en, meeting_id, meeting_title_ar, meeting_title_en,
+       ai_status, created_from_ai, confidence)
+    VALUES (?,?,?,?,?, 'ai_draft',1,'medium')
+  `);
+
+  let tasksCreated = 0, decisionsCreated = 0;
+  for (const t of tasks) {
+    const text = (t.text_ar || t.text || '').trim();
+    if (!text) continue;
+    insertTask.run(
+      text, t.text_en || text,
+      t.owner_name_ar || '', t.owner_name_en || '',
+      t.due_date || '', t.priority || 'normal',
+      meeting.id, meeting.title_ar, meeting.title_en, req.user.id
+    );
+    tasksCreated++;
+  }
+  for (const d of decisions) {
+    const text = (d.text_ar || d.text || '').trim();
+    if (!text) continue;
+    insertDec.run(text, d.text_en || text, meeting.id, meeting.title_ar, meeting.title_en);
+    decisionsCreated++;
+  }
+
+  // Mark meeting as processed and transition lifecycle
+  db.prepare("UPDATE meetings SET status='processed' WHERE id=?").run(meeting.id);
+  transitionMeeting(meeting.id, 'ai_minutes_generated', req.user.id,
+    `Manual extract: ${tasksCreated} tasks, ${decisionsCreated} decisions`);
+
+  res.json({ success: true, tasks_created: tasksCreated, decisions_created: decisionsCreated });
+});
+
 // ── Deep Log Debugger: recent AI pipeline trace (what the AI "saw" + did) ──────
 router.get('/ai/debug-log', auth, (req, res) => {
   res.json({ entries: readRecent(Number(req.query.limit) || 200) });

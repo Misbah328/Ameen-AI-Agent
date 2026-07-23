@@ -578,6 +578,7 @@ const MT = {
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
             ${canRec ? `<button class="btn-gold btn-sm" onclick="LiveMT._aiProcessError=null;LiveMT._triggerAIProcess(${m.id})">🔄 ${t("إعادة المحاولة", "Retry")}</button>` : ""}
+            <button class="btn-gold btn-sm" style="background:#4F46E5;border-color:#4F46E5" onclick="LiveMT.showManualExtract(${m.id})">✏️ ${t("استخراج وتعديل", "Extract & Edit")}</button>
             <button class="btn-ghost btn-sm" onclick="MT.setTab('minutes')">📝 ${t("متابعة يدوياً", "Continue Manually")}</button>
           </div>
         </div>`;
@@ -604,7 +605,10 @@ const MT = {
         ${m.actual_start_time ? `<div style="font-size:11.5px;color:#697386;margin-bottom:12px">🕐 ${t("بدأ", "Started")} ${this._fmtDT(m.actual_start_time)}${m.actual_end_time ? " · " + t("انتهى", "Ended") + " " + this._fmtDT(m.actual_end_time) : ""}</div>` : ""}
         ${tr.length ? `<div class="lmt-transcript lmt-transcript-ro">${tr.map((r) => `<div class="lmt-tr-row">${r.speaker ? `<div class="lmt-tr-ts">${esc(r.speaker)}</div>` : ""}<div class="lmt-tr-text">${esc(r.text)}</div></div>`).join("")}</div>`
           : `<div class="mx-empty" style="padding:32px"><div class="ic">📝</div><div class="t">${t("لا يوجد نسخ", "No transcript")}</div><div class="s">${t("سيُولَّد المحضر بعد معالجة التسجيل.", "Minutes will be generated after processing.")}</div></div>`}
-        ${canRec && !isProcessed && !isProcessing ? `<div style="margin-top:14px"><button class="btn-gold btn-sm" id="pm-trigger-ai-btn" onclick="LiveMT._triggerAIProcess(${m.id})">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button></div>` : ""}
+        ${canRec && !isProcessed && !isProcessing ? `<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-gold btn-sm" id="pm-trigger-ai-btn" onclick="LiveMT._triggerAIProcess(${m.id})">✨ ${t("بدء معالجة الذكاء الاصطناعي", "Trigger AI Processing")}</button>
+          <button class="btn-ghost btn-sm" onclick="LiveMT.showManualExtract(${m.id})">✏️ ${t("استخراج يدوي وتعديل", "Manual Extract & Edit")}</button>
+        </div>` : ""}
       </div>`;
     }
 
@@ -2858,6 +2862,162 @@ const LiveMT = {
     document.body.appendChild(el);
   },
 
+  // ── Manual extract — local parser + editable review modal ────
+  _meItems: { tasks: [], decisions: [] },
+
+  _localExtract(transcript) {
+    if (!transcript || transcript.trim().length < 10) return { tasks: [], decisions: [] };
+    const lines = transcript
+      .split(/\n/)
+      .map(s => s.replace(/^\[\d{2}:\d{2}\]\s*/, '').trim())
+      .join(' ')
+      .split(/[.!?؟](?=\s|$)/)
+      .map(s => s.trim())
+      .filter(s => s.length > 15);
+    const taskKw = /\b(will|should|must|need[s]? to|action|task|follow.?up|to do|يجب|سيقوم|ينبغي|مطلوب|متابعة|إجراء|مهمة|سنقوم|سيتم)\b/i;
+    const decKw = /\b(decided|agreed|approved|resolved|confirmed|قرر|اتُّفق|وافق|تم الاتفاق|تقرر|اعتُمد|القرار|تقرير)\b/i;
+    const tasks = [], decisions = [], seen = new Set();
+    for (const line of lines) {
+      const key = line.toLowerCase().slice(0, 60);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (decKw.test(line)) decisions.push({ text_ar: line, text_en: line });
+      else if (taskKw.test(line)) tasks.push({ text_ar: line, text_en: line, owner_name_ar: '', due_date: '', priority: 'normal' });
+    }
+    return { tasks: tasks.slice(0, 15), decisions: decisions.slice(0, 10) };
+  },
+
+  showManualExtract(meetingId) {
+    const transcript = MT._d?.meeting?.transcript || this._segments.map(s => s.text).join(' ');
+    const extracted = this._localExtract(transcript);
+    this._meItems = {
+      tasks: extracted.tasks.length ? extracted.tasks : [{ text_ar: '', text_en: '', owner_name_ar: '', due_date: '', priority: 'normal' }],
+      decisions: extracted.decisions.length ? extracted.decisions : [{ text_ar: '', text_en: '' }],
+    };
+    this._renderManualExtractModal(meetingId || this._mid);
+  },
+
+  _renderManualExtractModal(meetingId) {
+    const t = this.t.bind(this);
+    document.getElementById('me-modal')?.remove();
+    const el = document.createElement('div');
+    el.className = 'modal-overlay open';
+    el.id = 'me-modal';
+    const taskRows = this._meItems.tasks.map((task, i) => `
+      <div style="background:#F9FAFB;border:1px solid #E4E7EC;border-radius:8px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;gap:6px;align-items:flex-start">
+          <textarea class="fi me-task-text" rows="2" style="flex:1;resize:vertical;font-size:12.5px"
+            placeholder="${t('وصف المهمة...', 'Task description...')}"
+            >${esc(task.text_ar || '')}</textarea>
+          <button class="btn-ghost btn-sm" style="flex-shrink:0;color:#E02020;padding:3px 8px" onclick="LiveMT._meDeleteTask(${i})">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+          <input class="fi" style="font-size:11.5px" placeholder="${t('المسؤول (اختياري)', 'Assignee (optional)')}"
+            value="${esc(task.owner_name_ar || '')}" data-me-owner="${i}" />
+          <input class="fi" type="date" style="font-size:11.5px" value="${esc(task.due_date || '')}" data-me-due="${i}" />
+        </div>
+      </div>`).join('');
+    const decRows = this._meItems.decisions.map((dec, i) => `
+      <div style="background:#F9FAFB;border:1px solid #E4E7EC;border-radius:8px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;gap:6px;align-items:flex-start">
+          <textarea class="fi me-dec-text" rows="2" style="flex:1;resize:vertical;font-size:12.5px"
+            placeholder="${t('نص القرار...', 'Decision text...')}"
+            >${esc(dec.text_ar || '')}</textarea>
+          <button class="btn-ghost btn-sm" style="flex-shrink:0;color:#E02020;padding:3px 8px" onclick="LiveMT._meDeleteDecision(${i})">✕</button>
+        </div>
+      </div>`).join('');
+    el.innerHTML = `<div class="modal-box" style="max-width:880px;width:96vw;max-height:90vh;overflow:auto" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span>✏️ ${t('مراجعة وتعديل العناصر المستخرجة', 'Review & Edit Extracted Items')}</span>
+        <button class="modal-close" onclick="document.getElementById('me-modal').remove()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#FFF8E7;border:1px solid #F3D57A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#7A5A00">
+          ${t('تم استخراج هذه العناصر تلقائياً من نص الاجتماع. راجعها وعدّلها قبل الحفظ، ثم ستظهر في تبويب الإجراءات والقرارات.', 'Items were auto-extracted from the transcript. Edit them below, then save — they will appear in the Actions and Decisions tabs for final review.')}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <div style="font-weight:700;font-size:13px;color:#0F1728;margin-bottom:10px">🎯 ${t('المهام والإجراءات', 'Tasks & Actions')} <span style="background:#EEF2FF;color:#4F46E5;border-radius:10px;padding:1px 8px;font-size:11px">${this._meItems.tasks.length}</span></div>
+            <div id="me-tasks-list">${taskRows || `<div style="font-size:12px;color:#98A2B3;padding:8px">${t('لا توجد مهام مستخرجة — أضف يدوياً.', 'No tasks extracted — add manually.')}</div>`}</div>
+            <button class="btn-ghost btn-sm" style="width:100%;margin-top:4px" onclick="LiveMT._meAddTask()">+ ${t('إضافة مهمة', 'Add Task')}</button>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:13px;color:#0F1728;margin-bottom:10px">⚖️ ${t('القرارات', 'Decisions')} <span style="background:#ECFDF5;color:#059669;border-radius:10px;padding:1px 8px;font-size:11px">${this._meItems.decisions.length}</span></div>
+            <div id="me-decisions-list">${decRows || `<div style="font-size:12px;color:#98A2B3;padding:8px">${t('لا توجد قرارات مستخرجة — أضف يدوياً.', 'No decisions extracted — add manually.')}</div>`}</div>
+            <button class="btn-ghost btn-sm" style="width:100%;margin-top:4px" onclick="LiveMT._meAddDecision()">+ ${t('إضافة قرار', 'Add Decision')}</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('me-modal').remove()">${t('إلغاء', 'Cancel')}</button>
+        <button class="btn-gold" id="me-save-btn" onclick="LiveMT._meSave(${meetingId})">💾 ${t('حفظ وإضافة للاجتماع', 'Save & Add to Meeting')}</button>
+      </div>
+    </div>`;
+    el.addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+  },
+
+  _meCaptureFormState() {
+    document.querySelectorAll('.me-task-text').forEach((el, i) => {
+      if (this._meItems.tasks[i]) { this._meItems.tasks[i].text_ar = el.value; this._meItems.tasks[i].text_en = el.value; }
+    });
+    document.querySelectorAll('[data-me-owner]').forEach(el => {
+      const i = parseInt(el.dataset.meOwner, 10);
+      if (this._meItems.tasks[i]) this._meItems.tasks[i].owner_name_ar = el.value;
+    });
+    document.querySelectorAll('[data-me-due]').forEach(el => {
+      const i = parseInt(el.dataset.meDue, 10);
+      if (this._meItems.tasks[i]) this._meItems.tasks[i].due_date = el.value;
+    });
+    document.querySelectorAll('.me-dec-text').forEach((el, i) => {
+      if (this._meItems.decisions[i]) { this._meItems.decisions[i].text_ar = el.value; this._meItems.decisions[i].text_en = el.value; }
+    });
+  },
+
+  _meAddTask() {
+    this._meCaptureFormState();
+    this._meItems.tasks.push({ text_ar: '', text_en: '', owner_name_ar: '', due_date: '', priority: 'normal' });
+    this._renderManualExtractModal(this._mid);
+  },
+
+  _meAddDecision() {
+    this._meCaptureFormState();
+    this._meItems.decisions.push({ text_ar: '', text_en: '' });
+    this._renderManualExtractModal(this._mid);
+  },
+
+  _meDeleteTask(i) {
+    this._meCaptureFormState();
+    this._meItems.tasks.splice(i, 1);
+    this._renderManualExtractModal(this._mid);
+  },
+
+  _meDeleteDecision(i) {
+    this._meCaptureFormState();
+    this._meItems.decisions.splice(i, 1);
+    this._renderManualExtractModal(this._mid);
+  },
+
+  async _meSave(meetingId) {
+    this._meCaptureFormState();
+    const tasks = this._meItems.tasks.filter(t => (t.text_ar || '').trim());
+    const decisions = this._meItems.decisions.filter(d => (d.text_ar || '').trim());
+    const btn = document.getElementById('me-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = this.t('جارٍ الحفظ…', 'Saving…'); }
+    try {
+      await api(`/api/meetings/${meetingId}/manual-extract`, {
+        method: 'POST', body: JSON.stringify({ tasks, decisions }),
+      });
+      document.getElementById('me-modal')?.remove();
+      this._aiProcessError = null;
+      showToast(this.t('✅ تم الحفظ — راجع الإجراءات والقرارات', '✅ Saved — review Actions and Decisions tabs'));
+      await MT._refreshDetail();
+    } catch (e) {
+      showToast(this.t('تعذّر الحفظ: ', 'Could not save: ') + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = this.t('💾 حفظ وإضافة للاجتماع', '💾 Save & Add to Meeting'); }
+    }
+  },
+
   // ── AI Processing (triggered from post-meeting state) ─────────
   async _triggerAIProcess(meetingId) {
     const btn = document.getElementById("pm-trigger-ai-btn");
@@ -2873,10 +3033,11 @@ const LiveMT = {
     } catch (e) {
       console.error(`[LiveMT] AI processing failed:`, e.message);
       this._processingAI = false;
-      // Show a user-friendly error (backend sanitizes the raw API error)
       this._aiProcessError = e.message;
       MT._renderDetail();
       showToast(e.message, "error");
+      // Auto-open manual extract modal so the user can still get items
+      setTimeout(() => { try { this.showManualExtract(meetingId); } catch (_) {} }, 400);
     }
   },
 
@@ -2914,8 +3075,10 @@ const LiveMT = {
             this._processingAI = false;
             this._aiProcessError = e.message;
             MT._renderDetail();
-            // Show friendly toast — backend already sanitized the raw API error
             showToast(e.message, "error");
+            // Auto-open editable manual extract modal
+            const mid = this._mid;
+            setTimeout(() => { try { LiveMT.showManualExtract(mid); } catch (_) {} }, 400);
           });
       }
     } catch (e) {
