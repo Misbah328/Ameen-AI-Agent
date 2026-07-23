@@ -667,8 +667,8 @@ const MT = {
       <div class="lmt-ctrl-bar" id="lmt-ctrl-bar"></div>`;
   },
 
-  startRecording() { LiveMT.showStartModal(); },
-  stopRecording()  { LiveMT.showEndModal(); },
+  startRecording() { if (this._mid) LiveMT._mid = this._mid; LiveMT.showStartModal(); },
+  stopRecording()  { if (this._mid) LiveMT._mid = this._mid; LiveMT.showEndModal(); },
 
   // ── Minutes tab (mockup 6666) ─────────────────────────────────
   setMinSec(i) { this._minSec = i; this._renderDetail(); },
