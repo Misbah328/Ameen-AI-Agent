@@ -2425,32 +2425,74 @@ ${schedule.map(s => `- ${s.title_ar} | ${s.meeting_date} ${s.meeting_time} | ${s
     res.json({ reply });
   } catch (e) {
     const lastMsg = Array.isArray(messages) ? (messages[messages.length - 1]?.content || '') : '';
-    res.json({ reply: getDemoReply(lastMsg, lang), demo: true });
+    const demoCtx = { tasks, decisions, meetings, schedule };
+    res.json({ reply: getDemoReply(lastMsg, lang, demoCtx), demo: true });
   }
 });
 
-function getDemoReply(q, lang) {
+function getDemoReply(q, lang, ctx = {}) {
   const isEn = lang === 'en';
-  const ql = q.toLowerCase();
-  if (ql.includes('متأخر') || ql.includes('overdue'))
+  const ql = (q || '').toLowerCase();
+  const { tasks = [], decisions = [], meetings = [], schedule = [] } = ctx;
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (ql.includes('متأخر') || ql.includes('overdue')) {
+    const overdue = tasks.filter(t => t.status !== 'done' && t.due_date && t.due_date < today);
+    if (overdue.length) {
+      const lines = overdue.slice(0, 5).map((t, i) =>
+        `${i + 1}. ${isEn ? (t.text_en || t.text_ar) : t.text_ar} — ${isEn ? (t.owner_name_en || t.owner_name_ar || '—') : (t.owner_name_ar || '—')}`
+      ).join('\n');
+      return isEn
+        ? `Current overdue tasks (${overdue.length} total):\n\n${lines}\n\nAll require immediate follow-up.`
+        : `المهام المتأخرة حالياً (${overdue.length} إجمالاً):\n\n${lines}\n\nجميعها تستوجب متابعة فورية.`;
+    }
+    return isEn ? 'No overdue tasks at the moment.' : 'لا توجد مهام متأخرة في الوقت الحالي.';
+  }
+
+  if (ql.includes('قرار') || ql.includes('decision')) {
+    if (decisions.length) {
+      const lines = decisions.slice(0, 5).map(d =>
+        `⚖️ ${isEn ? (d.text_en || d.text_ar) : d.text_ar} [${d.status}]`
+      ).join('\n');
+      return isEn ? `Active board decisions:\n\n${lines}` : `قرارات المجلس النشطة:\n\n${lines}`;
+    }
+    return isEn ? 'No active decisions found.' : 'لا توجد قرارات نشطة.';
+  }
+
+  if (ql.includes('ملخص') || ql.includes('summary')) {
+    const last = meetings[0];
+    if (last) {
+      const title = isEn ? (last.title_en || last.title_ar) : last.title_ar;
+      const summary = isEn ? (last.ai_summary_en || last.ai_summary_ar || '') : (last.ai_summary_ar || '');
+      return isEn
+        ? `Last Meeting: ${title} (${(last.meeting_date || '').slice(0, 10)})\n\n${summary || 'No AI summary available yet.'}`
+        : `آخر اجتماع: ${title} (${(last.meeting_date || '').slice(0, 10)})\n\n${summary || 'لم يُولَّد ملخص ذكاء اصطناعي بعد.'}`;
+    }
+    return isEn ? 'No recent meetings found.' : 'لا توجد اجتماعات حديثة.';
+  }
+
+  if (ql.includes('قادم') || ql.includes('upcoming') || ql.includes('مجدول') || ql.includes('scheduled')) {
+    const upcoming = schedule.filter(s => s.meeting_date >= today).slice(0, 5);
+    if (upcoming.length) {
+      const lines = upcoming.map(s =>
+        `• ${isEn ? (s.title_en || s.title_ar) : s.title_ar} — ${s.meeting_date} ${s.meeting_time || ''}`
+      ).join('\n');
+      return isEn ? `Upcoming meetings:\n\n${lines}` : `الاجتماعات القادمة:\n\n${lines}`;
+    }
+    return isEn ? 'No upcoming meetings scheduled.' : 'لا توجد اجتماعات مجدولة قادمة.';
+  }
+
+  if (ql.includes('مهمة') || ql.includes('task') || ql.includes('مهام') || ql.includes('tasks')) {
+    const open = tasks.filter(t => t.status !== 'done');
+    const done = tasks.filter(t => t.status === 'done');
     return isEn
-      ? 'Current overdue tasks:\n\n1. Prepare 5-hire recruitment plan — Khalid (3 days overdue)\n2. Q2 shareholders report — Khalid (overdue)\n3. New investment policy review — Ahmed\n\nAll require immediate follow-up.'
-      : 'المهام المتأخرة حالياً:\n\n1. إعداد خطة التوظيف للموظفين الخمسة — م. خالد (3 أيام تأخير)\n2. تقرير المساهمين الربعي — م. خالد (متأخر)\n3. مراجعة السياسة الاستثمارية — م. أحمد\n\nجميعها تستوجب متابعة فورية.';
-  if (ql.includes('قرار') || ql.includes('decision'))
-    return isEn
-      ? 'Active board decisions:\n\n⚖️ Team expansion (5 new hires) — Approved\n⚖️ Gulf Partnership Contract — Under legal review\n⚖️ Projects continue per plan — Implemented'
-      : 'قرارات المجلس النشطة:\n\n⚖️ توسعة الفريق (5 موظفين) — معتمدة\n⚖️ عقد الشراكة الخليجية — قيد المراجعة القانونية\n⚖️ استمرار المشاريع وفق الخطة — مُنفَّذ';
-  if (ql.includes('ملخص') || ql.includes('summary'))
-    return isEn
-      ? 'Last Board Meeting (15 May 2026):\n\nQ2 results showed 18% growth. Approved team expansion (5 hires). Gulf Partnership referred for legal review. 3 tasks currently overdue.'
-      : 'ملخص آخر اجتماع للمجلس (15 مايو 2026):\n\nنتائج الربع الثاني: نمو 18%. الموافقة على توسعة الفريق (5 موظفين). إحالة عقد الشراكة الخليجية للمراجعة القانونية. 3 مهام متأخرة.';
-  if (ql.includes('أداء') || ql.includes('performance'))
-    return isEn
-      ? 'Team Performance Overview:\n\n• Sara: 1 task in progress (on track)\n• Khalid: 2 tasks overdue — requires immediate action\n• Ahmed: 2 tasks in progress\n• Noura: 1 task completed ✓\n\nOverall completion rate: 29%'
-      : 'ملخص أداء الفريق:\n\n• م. سارة: مهمة واحدة قيد التنفيذ\n• م. خالد: مهمتان متأخرتان — تستوجبان تدخلاً فورياً\n• م. أحمد: مهمتان جاريتان\n• م. نورة: مهمة مكتملة ✓\n\nمعدل الإنجاز الكلي: 29%';
+      ? `Tasks overview: ${open.length} open, ${done.length} completed out of ${tasks.length} total.`
+      : `نظرة على المهام: ${open.length} مفتوحة، ${done.length} مكتملة من أصل ${tasks.length} إجمالاً.`;
+  }
+
   return isEn
-    ? "I'm Ameen, your executive AI secretary. I have full context of all meetings, tasks, and decisions. Ask me about overdue tasks, pending decisions, meeting summaries, team performance, upcoming meetings, or anything else."
-    : 'أنا أمين، مساعدكم الذكي التنفيذي. لديّ سياق كامل لجميع الاجتماعات والمهام والقرارات. يمكنكم سؤالي عن المهام المتأخرة، القرارات المعلقة، ملخصات الاجتماعات، أداء الفريق، الاجتماعات القادمة، أو أي موضوع آخر.';
+    ? `I'm Ameen, your executive AI secretary. I can see ${meetings.length} meetings, ${tasks.length} tasks, and ${decisions.length} decisions in the system.\n\nAsk me about: overdue tasks, decisions, meeting summaries, upcoming meetings, or team performance.\n\n_Note: AI responses are currently in demo mode. Configure your Anthropic API key to enable full AI capabilities._`
+    : `أنا أمين، مساعدكم الذكي التنفيذي. لديّ اطلاع على ${meetings.length} اجتماعاً، ${tasks.length} مهمة، و${decisions.length} قراراً في النظام.\n\nيمكنكم سؤالي عن: المهام المتأخرة، القرارات، ملخصات الاجتماعات، الاجتماعات القادمة، أو أداء الفريق.\n\n_ملاحظة: الردود حالياً في الوضع التجريبي. لتفعيل قدرات الذكاء الاصطناعي الكاملة، قم بتهيئة مفتاح Anthropic API._`;
 }
 
 // ── AI: Document Generator (PRO — reports/documents) ───────────────────────
@@ -4121,10 +4163,14 @@ router.get('/search', auth, (req, res) => {
   // schedule covers scheduled meetings, committee meetings, and general
   // assemblies — same table, split by meeting_type/committee_id/board_id
   // exactly like the Master Calendar UI already does.
+  // Exclude any schedule row whose source_meeting_id is set — that meeting
+  // already appears in the meetings results above, so including it here
+  // would produce a duplicate result for the same real meeting.
   for (const s of db.prepare(`
     SELECT id, title_ar, title_en, agenda_ar, agenda_en, meeting_date, meeting_type, committee_id, board_id
     FROM schedule
-    WHERE title_ar LIKE ? OR title_en LIKE ? OR agenda_ar LIKE ? OR agenda_en LIKE ?
+    WHERE (title_ar LIKE ? OR title_en LIKE ? OR agenda_ar LIKE ? OR agenda_en LIKE ?)
+      AND source_meeting_id IS NULL
     ORDER BY meeting_date DESC LIMIT ?
   `).all(like, like, like, like, limitPer)) {
     const category = s.meeting_type === 'general_assembly' ? 'general_assembly'
