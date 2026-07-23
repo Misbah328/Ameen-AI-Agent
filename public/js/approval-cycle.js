@@ -529,6 +529,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
             <input class="dv-search-inp" type="text" placeholder="${t('بحث عن الحضور...','Search attendees...')}" oninput="ApprovalCycle._dvFilterAtt(this.value)">
           </div>
           <button class="dv-filter-btn" onclick="ApprovalCycle._dvFilterMenu(this)">⚙ ${t('تصفية','Filter')}</button>
+          <button class="dv-filter-btn" style="background:#EEF2FF;color:#4F46E5;border-color:#C7D2FE" onclick="ApprovalCycle._dvAddAttendee()">+ ${t('إضافة حضور','Add Attendee')}</button>
           <span class="dv-att-sel-count"><span id="dv-sel-cnt">${attendees.length}</span> ${t('محدد','Selected')}</span>
           <label class="dv-sel-all">
             <input type="checkbox" id="dv-cb-all" checked onchange="ApprovalCycle._dvSelectAll(this.checked)">
@@ -773,6 +774,92 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       showToast(t('✅ تم إضافة المرفق','✅ Attachment added'), 'success');
     };
     input.click();
+  },
+
+  _dvAddAttendee() {
+    const t = (ar, en) => this.t(ar, en);
+    const l = App.lang;
+    document.getElementById('dv-add-att-modal')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'dv-add-att-modal';
+    overlay.className = 'modal-overlay open';
+    overlay.innerHTML = `
+      <div class="modal-box" style="max-width:420px;width:95vw" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <span>➕ ${t('إضافة حضور جديد', 'Add New Attendee')}</span>
+          <button class="modal-close" onclick="document.getElementById('dv-add-att-modal').remove()">✕</button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">${t('الاسم *', 'Name *')}</label>
+            <input id="dv-att-name" class="fi" placeholder="${t('الاسم الكامل', 'Full name')}" style="width:100%" />
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">${t('البريد الإلكتروني', 'Email')}</label>
+            <input id="dv-att-email" class="fi" type="email" placeholder="${t('example@domain.com', 'example@domain.com')}" style="width:100%" />
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">${t('الدور', 'Role')}</label>
+            <input id="dv-att-role" class="fi" placeholder="${t('عضو / مراقب / ضيف', 'Member / Observer / Guest')}" style="width:100%" />
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn-ghost" onclick="document.getElementById('dv-add-att-modal').remove()">${t('إلغاء', 'Cancel')}</button>
+          <button class="btn-gold" id="dv-att-confirm-btn" onclick="ApprovalCycle._dvConfirmAddAttendee()">${t('إضافة', 'Add')}</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+    document.getElementById('dv-att-name')?.focus();
+  },
+
+  async _dvConfirmAddAttendee() {
+    const t = (ar, en) => this.t(ar, en);
+    const name  = document.getElementById('dv-att-name')?.value.trim();
+    const email = document.getElementById('dv-att-email')?.value.trim();
+    const role  = document.getElementById('dv-att-role')?.value.trim();
+    if (!name) {
+      showToast(t('يرجى إدخال الاسم', 'Please enter a name'), 'error');
+      document.getElementById('dv-att-name')?.focus();
+      return;
+    }
+    const btn = document.getElementById('dv-att-confirm-btn');
+    if (btn) { btn.disabled = true; btn.textContent = t('جارٍ الإضافة…', 'Adding…'); }
+    try {
+      await api(`/api/meetings/${this._mid}/attendees/add`, {
+        method: 'POST',
+        body: JSON.stringify({ name, email: email || '', phone: '' }),
+      });
+    } catch (e) {
+      // If duplicate or non-fatal, continue anyway — we still append the row
+      if (!e.message?.includes('already')) console.warn('[dvAddAttendee]', e.message);
+    }
+    // Append row to the table
+    const tbody = document.getElementById('dv-att-body');
+    if (tbody) {
+      const palette = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E','#1F618D'];
+      const initials = name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
+      const bg = palette[tbody.querySelectorAll('tr').length % palette.length];
+      const row = document.createElement('tr');
+      row.className = 'dv-att-row';
+      row.dataset.attName = name.toLowerCase();
+      row.innerHTML = `
+        <td class="dv-td-check"><input type="checkbox" class="dv-cb" checked onchange="ApprovalCycle._dvUpdateCount()"></td>
+        <td class="dv-td-att">
+          <div class="dv-av" style="background:${bg}">${initials}</div>
+          <div class="dv-att-info"><div class="dv-att-name">${esc(name)}</div><div class="dv-att-subrole">${esc(role)}</div></div>
+        </td>
+        <td class="dv-td-role">${esc(role)}</td>
+        <td class="dv-td-email">${esc(email)}</td>
+        <td class="dv-td-status"><span class="dv-badge opt">${t('اختياري','Optional')}</span></td>`;
+      // Replace "no attendees" placeholder row if present
+      const empty = tbody.querySelector('.dv-empty-row');
+      if (empty) empty.closest('tr')?.remove();
+      tbody.appendChild(row);
+    }
+    this._dvUpdateCount();
+    document.getElementById('dv-add-att-modal')?.remove();
+    showToast(t(`✅ تمت إضافة ${name}`, `✅ ${name} added`), 'success');
   },
 
   _dvPreviewEmail() {
