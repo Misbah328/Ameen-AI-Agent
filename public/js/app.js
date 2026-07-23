@@ -6916,17 +6916,19 @@ const Modals = {
     const l = App.lang;
     const statusSel = $("nt-status");
     const data = {
-      text_ar: $("nt-ar").value.trim(),
-      text_en: $("nt-en").value.trim() || $("nt-ar").value.trim(),
-      owner_id: $("nt-owner").value || null,
-      due_date: $("nt-due").value,
-      priority: $("nt-priority").value,
+      text_ar: ($("nt-ar") || {}).value?.trim() || "",
+      text_en: ($("nt-en") || {}).value?.trim() || ($("nt-ar") || {}).value?.trim() || "",
+      owner_id: ($("nt-owner") || {}).value || null,
+      due_date: ($("nt-due") || {}).value || "",
+      priority: ($("nt-priority") || {}).value || "medium",
     };
     if (this._editingId && statusSel && statusSel.value) data.status = statusSel.value;
     if (!data.text_ar) {
-      alert(l === "ar" ? "أدخل نص المهمة" : "Enter task text");
+      showToast(l === "ar" ? "أدخل نص المهمة" : "Enter task text", "error");
       return;
     }
+    const saveBtn = document.querySelector("#modal-task .btn-gold");
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = "0.6"; }
     try {
       if (this._editingId) {
         await api(`/api/tasks/${this._editingId}`, {
@@ -6941,7 +6943,9 @@ const Modals = {
       await renderTasks();
       await loadBadges();
     } catch (e) {
-      alert(e.message);
+      showToast(e.message || (l === "ar" ? "حدث خطأ" : "An error occurred"), "error");
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ""; }
     }
   },
 };
@@ -7333,7 +7337,10 @@ const SmartSearch = {
     if (!dd) return;
     dd.style.display = "block";
     const input = $("smart-search-input");
-    if (input) { input.value = ""; setTimeout(() => input.focus(), 0); }
+    if (input) {
+      input.value = "";
+      requestAnimationFrame(() => { try { input.focus(); } catch (_) {} });
+    }
     $("smart-search-results").innerHTML = "";
     this._outsideHandler = (e) => {
       if (!dd.contains(e.target) && !e.target.closest("#smart-search-btn")) this.close();
@@ -7402,7 +7409,14 @@ const SmartSearch = {
       return;
     }
     if (seq !== this._seq) return;
-    const all = [...(data.results || []), ...this._localAskAmeenMatches(q)];
+    const _seen = new Set();
+    const _dedup = (data.results || []).filter(r => {
+      const key = (r.source_type || r.category) + ':' + r.source_id;
+      if (r.source_id && _seen.has(key)) return false;
+      if (r.source_id) _seen.add(key);
+      return true;
+    });
+    const all = [..._dedup, ...this._localAskAmeenMatches(q)];
     if (!all.length) {
       results.innerHTML = `<div class="es" style="padding:24px"><div style="font-size:26px;margin-bottom:6px">🔍</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا نتائج" : "No results"}</div></div>`;
       return;
@@ -12792,7 +12806,7 @@ const RolesPanel = {
   async _renderRolesTab(body) {
     const l = App.lang;
     const roles = await this._loadRoles(true);
-    const TOTAL_PERMS = 34;
+    const TOTAL_PERMS = 36;
     const ICONS = {
       "Super Admin": "👑", Admin: "🛡️", "Organization Admin": "🏛️", CEO: "💼",
       "Board Secretary": "📋", "Board Member": "🏛️", "Committee Chair": "⚡",
@@ -13695,6 +13709,12 @@ function openChangePassword() {
     if (el) el.style.display = "none";
   });
   m.style.display = "flex";
+  setTimeout(function () {
+    ["cp-current", "cp-new", "cp-confirm"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+  }, 150);
 }
 function closeChangePassword() {
   var m = document.getElementById("modal-change-password");

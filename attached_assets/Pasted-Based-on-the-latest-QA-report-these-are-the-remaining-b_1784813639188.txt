@@ -1,0 +1,124 @@
+Based on the latest QA report, these are the remaining bugs and issues:
+
+🔴 Critical (Release Blocker)
+1. Add Task form freezes the application
+
+Module: Tasks
+
+Issue:
+
+Open Tasks → + Add Task
+Leave required fields (Task Title, Owner) empty
+Click Save
+The entire application freezes and becomes unresponsive.
+Only a full page refresh recovers the application.
+
+Status: ❌ Must Fix
+
+🟠 High Priority
+2. Incorrect permission counts
+
+Module: Roles & Permissions
+
+Issue:
+
+Super Admin shows 36 / 34 permissions
+Organization Admin shows 35 / 34 permissions
+
+Permission counts should never exceed the maximum.
+
+Status: ❌ Bug
+
+3. Duplicate meeting search results
+
+Module: Global Search
+
+Issue:
+Searching for "Board Meeting" returns duplicate meeting entries.
+
+Possible causes:
+
+Duplicate database records
+Duplicate search index
+Duplicate seed/demo data
+
+Status: ❌ Needs Investigation
+
+🟡 Medium Priority
+4. Sticky footer overlaps page content
+
+Module: Create Meeting
+
+Issue:
+The bottom action bar overlaps:
+
+Agenda section
+Add Agenda Item button
+Other page content while scrolling
+
+Status: ❌ UI Bug
+
+5. Meeting tabs are clipped
+
+Module: Meetings
+
+Issue:
+The Upcoming tab is partially hidden behind the + Create Meeting button.
+
+Status: ❌ UI Bug
+
+6. Ask Ameen is still running in Demo mode
+
+Module: AI Assistant
+
+Issue:
+Instead of answering questions, it returns:
+
+Demo reply – Add Anthropic API key
+
+This is expected if the API is not configured.
+
+Status: ⚠ Environment Configuration (not a code bug)
+
+7. Password field appears pre-filled
+
+Module: Change Password
+
+Issue:
+Current Password appears filled when opening the dialog.
+
+Most likely browser autofill, but it should be verified.
+
+Status: ⚠ Verify
+
+8. Global Search requires two clicks
+
+Module: Smart Search
+
+Issue:
+
+First click expands the search box.
+User cannot type immediately.
+Second click is required before typing works.
+
+Likely a focus-handling issue.
+
+Status: ❌ UX Bug
+
+Summary
+#	Issue	Severity
+1	Add Task freezes application	🔴 Critical
+2	Permission counts exceed maximum	🟠 High
+3	Duplicate search results	🟠 High
+4	Sticky footer overlaps content	🟡 Medium
+5	Meeting tabs clipped	🟡 Medium
+6	Ask Ameen demo mode	⚠ Configuration
+7	Password field auto-filled	⚠ Verify
+8	Global Search needs two clicks	🟡 Medium
+Total Remaining Items
+🔴 Critical: 1
+🟠 High: 2
+🟡 Medium/UI: 3
+⚠ Configuration/Verification: 2
+
+The only release-blocking issue is the Add Task application freeze. The other items should be addressed before production for a polished and reliable user experience.
