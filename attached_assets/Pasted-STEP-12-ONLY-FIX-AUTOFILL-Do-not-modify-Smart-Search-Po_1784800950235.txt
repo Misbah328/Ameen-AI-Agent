@@ -1,0 +1,513 @@
+STEP 12 ONLY — FIX AUTOFILL
+
+Do not modify Smart Search, Policies, Tasks, Meetings navigation, Dashboard Review Now, Boards, Members, Voting, or any previously completed fixes unless a shared autofill dependency makes a narrowly targeted change unavoidable.
+
+==================================================
+PROBLEM
+==================================================
+
+Autofill behavior is inconsistent or unreliable across forms.
+
+Possible symptoms:
+
+- Browser autofill does not populate fields
+- Autofilled values appear visually but are not saved
+- Autofilled fields do not trigger validation
+- Reactivity or dependent fields do not update after autofill
+- Autofill inserts data into the wrong field
+- First name, last name, email, phone, company, or address fields are mismatched
+- Password managers confuse unrelated fields
+- Browser autofill overwrites existing form data unexpectedly
+- Arabic and English fields receive the wrong value
+- Form values disappear after re-render
+- Autofilled values are not reflected in internal application state
+- Submit button stays disabled even though all required fields are filled
+- Validation errors remain visible after valid autofill
+- Date, phone, email, organization, owner, or attendee values fail to persist
+- Edit forms replace existing values with browser-stored values
+- Mobile autofill behaves differently from desktop
+- Chrome, Safari, Edge, or password managers behave inconsistently
+- Hidden fields or duplicate names cause incorrect autofill mapping
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+1. Forms must use correct semantic field attributes.
+
+Where applicable, fields should include appropriate:
+
+- name
+- id
+- type
+- autocomplete
+- inputmode
+- aria-label or associated label
+- required
+
+2. Browser autofill must populate the intended field only.
+
+Examples:
+
+- Full name → name
+- Given name → given-name
+- Family name → family-name
+- Email → email
+- Phone → tel
+- Organization → organization
+- Job title → organization-title
+- Address → street-address
+- Country → country-name or country
+- Username → username
+- Current password → current-password
+- New password → new-password
+- One-time code → one-time-code
+
+Use only values appropriate to the actual form.
+
+3. Autofilled values must synchronize with application state.
+
+The value shown in the input must be the same value used by:
+
+- validation
+- submit
+- save
+- dependent dropdowns
+- preview
+- API payload
+- dirty-state detection
+
+4. Autofill must trigger the same logical behavior as manual typing.
+
+After autofill:
+
+- required validation clears
+- submit button state updates
+- dependent values recalculate
+- duplicate checks run if applicable
+- formatting is applied safely
+- no field remains internally empty
+
+5. Existing edit data must take priority.
+
+Opening an Edit form must not allow browser autofill to silently replace existing record data unless the user explicitly selects an autofill suggestion.
+
+6. Autofill must not affect read-only or disabled fields.
+
+7. Autofill must not populate hidden honeypot, search, filter, or unrelated fields.
+
+8. Autofill must work in:
+
+- English
+- Arabic / RTL
+- Desktop
+- Tablet
+- Mobile
+
+9. Autofill must not create duplicate records or unintended writes.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect all forms that currently support user-entered identity or organization data, especially:
+
+- Organization signup
+- Login
+- User or member creation
+- Board member creation
+- Attendee forms
+- Profile or organization settings
+- Meeting participant forms
+- Policy owner or approver fields
+- Any contact, email, phone, role, company, or address forms
+
+Inspect:
+
+- Field IDs
+- Field names
+- autocomplete attributes
+- type attributes
+- duplicate IDs
+- duplicate name attributes
+- labels and for attributes
+- form wrappers
+- input event handlers
+- change event handlers
+- validation functions
+- form serialization
+- save payload construction
+- state objects
+- render functions
+- edit form population
+- mobile and RTL variants
+- password manager interaction
+- hidden fields
+- browser autofill CSS or animation hooks
+
+Look specifically for:
+
+- Missing name attributes
+- Wrong autocomplete values
+- autocomplete="off" used unnecessarily
+- Same name used for unrelated inputs
+- Input values read only from keyup events
+- oninput not firing for browser autofill
+- Controlled/uncontrolled field mismatch
+- Validation only triggered on blur
+- State initialized after autofill and overwriting the value
+- innerHTML re-render replacing populated fields
+- Edit form values assigned after browser autofill
+- Hidden duplicate fields with matching names
+- Search inputs incorrectly marked as email/name
+- Password fields missing current-password/new-password distinctions
+- Phone inputs using type="number"
+- Arabic and English title fields sharing semantic autofill names
+- Browser autofill styling hiding text
+- Submit payload reading stale cached variables instead of DOM values
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+==================================================
+
+1. Audit first, then modify only actual autofill defects.
+
+Do not add autocomplete attributes blindly to every field.
+
+2. Correct semantic attributes.
+
+Use:
+
+- type="email" for email
+- type="tel" for phone
+- type="password" for passwords
+- inputmode="email" where useful
+- inputmode="tel" where useful
+- appropriate autocomplete tokens
+
+3. Every autofill-relevant field must have a stable and unique:
+
+- id
+- name
+
+4. Do not reuse identity-related autocomplete tokens for unrelated business fields.
+
+For example:
+
+- Policy title must not use name
+- Search field must not use email
+- Board name must not use organization unless it truly represents an organization
+- Arabic and English content fields must not both claim the same personal identity token
+
+5. Synchronize autofill with application logic.
+
+Use a robust approach consistent with the architecture:
+
+- input and change listeners
+- form-level value collection at submit time
+- explicit state synchronization
+- autofill detection only if genuinely necessary
+
+Prefer reading final DOM values during save rather than relying exclusively on cached state.
+
+6. If the browser applies autofill without firing expected events, implement a safe synchronization mechanism.
+
+Possible methods:
+
+- listen to input and change
+- synchronize on focus, blur, submit, and visibility change
+- compare DOM values before validation/save
+- use CSS animation autofill detection only as a last resort
+
+7. Validation must run against the current DOM values.
+
+Do not validate stale state.
+
+8. Edit-mode protection.
+
+When editing an existing record:
+
+- populate existing record data deterministically
+- avoid clearing fields
+- avoid delayed assignments that overwrite user input
+- preserve user changes during re-render
+- do not trigger unexpected autofill after opening
+
+9. Login and password forms.
+
+Use correct distinctions:
+
+- username or email
+- current-password
+- new-password
+- confirm password should normally use new-password
+- avoid disabling password manager support unless there is a documented security reason
+
+10. Phone fields.
+
+Do not use type="number".
+
+Preserve:
+
+- leading +
+- country code
+- spaces
+- hyphens
+- leading zeroes
+
+11. Arabic and English fields.
+
+Content fields such as Arabic title and English title should generally use autocomplete="off" or a neutral value if browser identity autofill would be inappropriate.
+
+Do not map both to personal name autofill.
+
+12. Do not change visual design.
+
+13. Do not alter existing database schemas unless absolutely necessary.
+
+14. Do not implement Step 12 by disabling all autofill globally.
+
+The purpose is correct autofill, not removal of autofill.
+
+==================================================
+TESTS
+==================================================
+
+T1 — Login email autofill
+Autofill the login email.
+Confirm:
+- correct field populated
+- validation recognizes it
+- login payload uses it
+
+T2 — Login password autofill
+Autofill password.
+Confirm:
+- field populated
+- password manager compatibility
+- login works with correct credentials
+
+T3 — Signup name autofill
+Autofill name fields.
+Confirm values map correctly.
+
+T4 — Signup email
+Autofill email.
+Confirm no unrelated field receives it.
+
+T5 — Signup phone
+Autofill phone.
+Confirm:
+- + and country code preserved
+- field uses type tel
+- payload contains exact intended value
+
+T6 — Organization name
+Autofill organization where supported.
+Confirm it does not populate personal-name fields.
+
+T7 — Job title or role
+Autofill organization-title where applicable.
+Confirm correct mapping.
+
+T8 — Required validation
+Open a form with required fields.
+Autofill all required values.
+Confirm validation clears and submit enables.
+
+T9 — Submit after autofill
+Autofill a form and submit without manually typing.
+Confirm saved payload contains every displayed value.
+
+T10 — Mixed manual and autofill
+Manually type one field and autofill the others.
+Confirm no manually entered value is overwritten unexpectedly.
+
+T11 — Edit existing record
+Open an existing user/member/contact in Edit mode.
+Confirm existing values remain intact and browser autofill does not silently replace them.
+
+T12 — Edit then autofill deliberately
+Select an autofill suggestion manually.
+Confirm only intended fields update.
+
+T13 — Re-render preservation
+Autofill fields.
+Trigger a harmless render, tab update, validation update, or dependent dropdown.
+Confirm values remain.
+
+T14 — Error then correction
+Submit invalid form.
+Apply autofill.
+Confirm errors clear correctly.
+
+T15 — Change event synchronization
+Autofill then blur each field.
+Confirm internal state matches DOM values.
+
+T16 — Submit-time synchronization
+Change a DOM value using autofill-like programmatic input without relying on keyup.
+Submit.
+Confirm payload uses the visible current value.
+
+T17 — Hidden field safety
+Confirm hidden fields do not receive autofill unexpectedly.
+
+T18 — Search field safety
+Confirm Smart Search does not receive email, name, phone, or password autofill.
+
+T19 — Policy form safety
+Confirm Policy title, owner, approver, and description fields are not incorrectly populated by personal identity autofill.
+
+T20 — Meeting form safety
+Confirm meeting title, agenda, and location do not receive unrelated autofill.
+
+T21 — Board member form
+Autofill member name, email, phone, role, or organization where those fields exist.
+Confirm correct mapping and save payload.
+
+T22 — Attendee form
+Autofill attendee data.
+Confirm no duplicate attendee is created and correct values are used.
+
+T23 — Duplicate prevention
+Autofill the same person twice in a form where duplicate checks exist.
+Confirm existing duplicate protection still works.
+
+T24 — English
+Test all relevant identity fields in English.
+
+T25 — Arabic / RTL
+Test autofill in Arabic mode.
+Confirm:
+- fields remain mapped correctly
+- RTL layout remains intact
+- Arabic content fields are not confused with identity fields
+
+T26 — Desktop Chrome or Chromium
+Test normal browser autofill behavior.
+
+T27 — Tablet
+Test at approximately 768×1024.
+
+T28 — Mobile
+Test at approximately 390×844.
+Confirm correct mobile keyboard and autofill suggestions.
+
+T29 — Password manager
+Where testable, confirm login fields expose correct semantic metadata.
+
+T30 — Browser refresh
+Autofill a form, refresh, reopen it, and confirm no stale application state remains.
+
+T31 — Browser Back/Forward
+Navigate away from an autofilled form and return.
+Confirm fields are not corrupted or duplicated.
+
+T32 — Save loading state
+Autofill and save.
+Confirm values are not cleared prematurely before the save result.
+
+T33 — API error
+Autofill and submit while simulating an API error.
+Confirm:
+- values remain available for correction/retry
+- no silent clearing
+- retry works
+
+T34 — Console errors
+Confirm no new JavaScript errors or unhandled promise rejections.
+
+T35 — Regression
+Confirm:
+- Smart Search focus still works
+- Policy ESC still works
+- Task scrolling still works
+- Board member duplicate protection still works
+- normal manual typing still works
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+This is primarily a form semantics, state synchronization, and validation fix.
+
+Confirm the implementation does not:
+
+- Create unintended users
+- Create unintended organizations
+- Create duplicate members
+- Create duplicate attendees
+- Change existing records without explicit save
+- Alter policy content
+- Alter meeting content
+- Change workflow status
+- Change approvals
+- Create unexpected audit entries
+
+Use isolated test records.
+
+Record all temporary records created during testing and delete them afterward.
+
+Confirm record counts before and after cleanup.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause or root causes
+2. Complete list of forms audited
+3. Complete list of autofill-relevant fields audited
+4. Semantic attributes before and after
+5. Duplicate ID or name findings
+6. Event and state synchronization architecture before and after
+7. Validation behavior before and after
+8. Submit payload behavior before and after
+9. Edit-mode protection behavior
+10. Files modified
+11. Functions modified
+12. Old behavior
+13. New behavior
+14. Login and password-manager behavior
+15. Phone field behavior
+16. English and Arabic verification
+17. Desktop, tablet, and mobile verification
+18. PASS/FAIL table for all 35 tests
+19. Console error check
+20. Data integrity confirmation
+21. Temporary test-data cleanup confirmation
+22. Authenticated screenshots showing:
+   - Login fields with correct semantic attributes
+   - Signup or organization form autofilled
+   - Validation cleared after autofill
+   - Edit form preserving existing values
+   - Member or attendee form autofilled
+   - Arabic / RTL form
+   - Mobile form
+   - API error state retaining autofilled values
+
+Include exact evidence for:
+
+- field id
+- field name
+- field type
+- autocomplete value
+- DOM value before submit
+- internal state value before submit
+- API payload value
+- existing record value before and after edit-form opening
+- record counts before testing and after cleanup
+
+If a requested form or field does not exist, mark it:
+
+NOT APPLICABLE — FORM/FIELD DOES NOT EXIST
+
+Do not mark a non-existent form as PASS without explanation.
+
+If all applicable tests pass, conclude exactly:
+
+“STEP 12 FULLY VERIFIED AND COMPLETE.”
+
+Do not begin the final regression test.

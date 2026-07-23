@@ -165,14 +165,14 @@
   <!-- Organisation name (shown for org) -->
   <div class="fg" id="org-name-wrap">
     <label id="lbl-org-name">اسم المنظمة</label>
-    <input type="text" id="org-name-ar" placeholder="شركة الأمانة للاستشارات" />
+    <input type="text" id="org-name-ar" name="organization" autocomplete="organization" placeholder="شركة الأمانة للاستشارات" />
     <div class="field-err" id="err-org-name"></div>
   </div>
 
   <!-- Person name -->
   <div class="fg">
     <label id="lbl-person-name">اسم المسؤول</label>
-    <input type="text" id="person-name" placeholder="محمد العتيبي" />
+    <input type="text" id="person-name" name="name" autocomplete="name" placeholder="محمد العتيبي" />
     <div class="field-err" id="err-person-name"></div>
   </div>
 
@@ -180,12 +180,12 @@
   <div class="field-row">
     <div class="fg">
       <label id="lbl-email">البريد الإلكتروني</label>
-      <input type="email" id="email" placeholder="info@company.com" dir="ltr" />
+      <input type="email" id="email" name="email" autocomplete="email" placeholder="info@company.com" dir="ltr" />
       <div class="field-err" id="err-email"></div>
     </div>
     <div class="fg">
       <label id="lbl-phone">رقم الهاتف <span class="opt">(اختياري)</span></label>
-      <input type="tel" id="phone" placeholder="+966 5X XXX XXXX" dir="ltr" />
+      <input type="tel" id="phone" name="tel" autocomplete="tel" placeholder="+966 5X XXX XXXX" dir="ltr" />
     </div>
   </div>
 

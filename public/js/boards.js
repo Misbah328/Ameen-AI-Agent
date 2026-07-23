@@ -701,9 +701,9 @@ const BC = {
       fields = `<div class="frow"><div class="fl">${bcT("عنوان القرار (عربي)", "Resolution Title (Arabic)")}</div><input class="fi" id="bcq-title-ar"></div>
         <div class="frow"><div class="fl">${bcT("عنوان القرار (إنجليزي)", "Resolution Title (English)")}</div><input class="fi" id="bcq-title-en" dir="ltr" style="text-align:left"></div>`;
     } else if (kind === "member") {
-      fields = `<div class="frow"><div class="fl">${bcT("الاسم", "Name")}</div><input class="fi" id="bcq-mname" placeholder="${bcT("اسم العضو", "Member name")}"></div>
-        <div class="frow"><div class="fl">${bcT("البريد الإلكتروني", "Email")}</div><input class="fi" id="bcq-email" type="email" dir="ltr" style="text-align:left" placeholder="name@company.com"></div>
-        <div class="frow"><div class="fl">${bcT("الدور", "Role")}</div><input class="fi" id="bcq-role" placeholder="${bcT("عضو مجلس", "Board Member")}"></div>
+      fields = `<div class="frow"><div class="fl">${bcT("الاسم", "Name")}</div><input class="fi" id="bcq-mname" autocomplete="off" placeholder="${bcT("اسم العضو", "Member name")}"></div>
+        <div class="frow"><div class="fl">${bcT("البريد الإلكتروني", "Email")}</div><input class="fi" id="bcq-email" type="email" autocomplete="off" dir="ltr" style="text-align:left" placeholder="name@company.com"></div>
+        <div class="frow"><div class="fl">${bcT("الدور", "Role")}</div><input class="fi" id="bcq-role" autocomplete="off" placeholder="${bcT("عضو مجلس", "Board Member")}"></div>
         <div class="frow"><div class="fl">${bcT("رسالة شخصية (اختياري)", "Personal message (optional)")}</div><textarea class="fi" id="bcq-msg" style="min-height:52px" placeholder="${bcT("أضف رسالة ترحيب...", "Add a welcome message...")}"></textarea></div>`;
     }
     root.innerHTML = `
@@ -1177,7 +1177,7 @@ const BC = {
       <div style="margin-top:16px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
         <div style="font-weight:600;font-size:13px;color:var(--gold);margin-bottom:10px">➕ ${bcT("إضافة عضو", "Add Member")}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div><div class="fl">${bcT("الاسم الكامل", "Full Name")}</div><input class="fi" id="bcm-name-${uid}" placeholder="${bcT("اسم العضو", "Member name")}"></div>
+          <div><div class="fl">${bcT("الاسم الكامل", "Full Name")}</div><input class="fi" id="bcm-name-${uid}" autocomplete="off" placeholder="${bcT("اسم العضو", "Member name")}"></div>
           <div><div class="fl">${bcT("الدور", "Role")}</div>
             <select class="fi" id="bcm-role-${uid}">
               <option value="Chairman">${bcT("رئيس", "Chairman")}</option>
@@ -1187,7 +1187,7 @@ const BC = {
             </select>
           </div>
         </div>
-        <div style="margin-bottom:10px"><div class="fl">${bcT("البريد الإلكتروني (للتمييز بين أشخاص بنفس الاسم)", "Email (distinguishes people with the same name)")}</div><input class="fi" id="bcm-email-${uid}" type="email" dir="ltr" style="text-align:left" placeholder="name@company.com"></div>
+        <div style="margin-bottom:10px"><div class="fl">${bcT("البريد الإلكتروني (للتمييز بين أشخاص بنفس الاسم)", "Email (distinguishes people with the same name)")}</div><input class="fi" id="bcm-email-${uid}" type="email" autocomplete="off" dir="ltr" style="text-align:left" placeholder="name@company.com"></div>
         <button class="btn-gold btn-sm" id="bcm-btn-${uid}" onclick="BC.addMember('${uid}','${kind}',${apiId})">✓ ${bcT("إضافة", "Add")}</button>
       </div>` : '';
     return `<div class="bc-card bc-pad">

@@ -79,7 +79,7 @@
     </div>
     <div id="smart-search-dropdown" style="display:none;position:fixed;top:64px;inset-inline-end:calc(50% - 210px);width:420px;max-width:calc(100vw - 20px);max-height:520px;overflow-y:auto;background:#fff;border:1px solid var(--border3);border-radius:12px;box-shadow:var(--shadow-lg);z-index:3000">
       <div style="padding:10px 12px;border-bottom:1px solid var(--border3)">
-        <input class="fi" id="smart-search-input" data-ph-ar="ابحث في الاجتماعات، المهام، الوثائق، الحوكمة..." data-ph-en="Search meetings, tasks, documents, governance..." placeholder="ابحث في الاجتماعات، المهام، الوثائق، الحوكمة..." oninput="SmartSearch.onInput(this.value)" onkeydown="SmartSearch.onKey(event)"/>
+        <input class="fi" id="smart-search-input" autocomplete="off" data-ph-ar="ابحث في الاجتماعات، المهام، الوثائق، الحوكمة..." data-ph-en="Search meetings, tasks, documents, governance..." placeholder="ابحث في الاجتماعات، المهام، الوثائق، الحوكمة..." oninput="SmartSearch.onInput(this.value)" onkeydown="SmartSearch.onKey(event)"/>
       </div>
       <div id="smart-search-results"></div>
     </div>
@@ -1543,20 +1543,20 @@
       <div class="fr2">
         <div class="frow">
           <div class="fl" data-ar="الاسم (عربي)" data-en="Name (Arabic)">الاسم (عربي)</div>
-          <input class="fi" id="amr-name-ar" placeholder="محمد أحمد"/>
+          <input class="fi" id="amr-name-ar" autocomplete="off" placeholder="محمد أحمد"/>
         </div>
         <div class="frow">
           <div class="fl" data-ar="الاسم (إنجليزي)" data-en="Name (English)">الاسم (إنجليزي)</div>
-          <input class="fi" id="amr-name-en" dir="ltr" style="text-align:left" placeholder="Mohammed Ahmed"/>
+          <input class="fi" id="amr-name-en" autocomplete="off" dir="ltr" style="text-align:left" placeholder="Mohammed Ahmed"/>
         </div>
       </div>
       <div class="frow">
         <div class="fl" data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني</div>
-        <input class="fi" id="amr-email" type="email" dir="ltr" style="text-align:left" placeholder="name@company.com"/>
+        <input class="fi" id="amr-email" type="email" autocomplete="off" dir="ltr" style="text-align:left" placeholder="name@company.com"/>
       </div>
       <div class="frow">
         <div class="fl" data-ar="كلمة المرور الأولية" data-en="Initial Password">كلمة المرور الأولية</div>
-        <input class="fi" id="amr-password" type="password" placeholder="••••••••"/>
+        <input class="fi" id="amr-password" type="password" autocomplete="new-password" placeholder="••••••••"/>
       </div>
       <div class="frow">
         <div class="fl" data-ar="الدور" data-en="Role">الدور</div>
@@ -1758,16 +1758,16 @@
       <div class="fr2">
         <div class="frow">
           <div class="fl" data-ar="الاسم (عربي)" data-en="Name (Arabic)">الاسم (عربي)</div>
-          <input class="fi" id="prof-name-ar" placeholder="محمد أحمد"/>
+          <input class="fi" id="prof-name-ar" autocomplete="off" placeholder="محمد أحمد"/>
         </div>
         <div class="frow">
           <div class="fl" data-ar="الاسم (إنجليزي)" data-en="Name (English)">Name (English)</div>
-          <input class="fi" id="prof-name-en" dir="ltr" style="text-align:left" placeholder="Mohammed Ahmed"/>
+          <input class="fi" id="prof-name-en" autocomplete="off" dir="ltr" style="text-align:left" placeholder="Mohammed Ahmed"/>
         </div>
       </div>
       <div class="frow">
         <div class="fl" data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني</div>
-        <input class="fi" id="prof-email" type="email" dir="ltr" style="text-align:left"/>
+        <input class="fi" id="prof-email" type="email" autocomplete="email" dir="ltr" style="text-align:left"/>
       </div>
       <div style="font-size:11.5px;font-weight:700;color:var(--text3);margin:10px 0 4px;border-top:1px solid var(--border2);padding-top:10px" data-ar="تغيير كلمة المرور (اتركها فارغة إن لم تُرد تغييرها)" data-en="Change Password (leave blank to keep current)">تغيير كلمة المرور</div>
       <div class="frow">
@@ -1822,7 +1822,7 @@
     <div class="fs">
       <div class="frow">
         <div class="fl" data-ar="إلى (البريد الإلكتروني)" data-en="To (Email)">إلى</div>
-        <input class="fi" id="ec-to" type="email" dir="ltr" style="text-align:left" placeholder="user@example.com"/>
+        <input class="fi" id="ec-to" type="email" autocomplete="off" dir="ltr" style="text-align:left" placeholder="user@example.com"/>
       </div>
       <div class="frow">
         <div class="fl" data-ar="الموضوع" data-en="Subject">الموضوع</div>
@@ -1921,35 +1921,35 @@
       <div class="fr2">
         <div class="frow">
           <div class="fl" data-ar="الاسم (عربي)" data-en="Name (Arabic)">الاسم (عربي)</div>
-          <input class="fi" id="m-name-ar" placeholder="م. محمد الأحمد"/>
+          <input class="fi" id="m-name-ar" autocomplete="off" placeholder="م. محمد الأحمد"/>
         </div>
         <div class="frow">
           <div class="fl">Name (English)</div>
-          <input class="fi" id="m-name-en" placeholder="Mohammed Al-Ahmad" dir="ltr" style="text-align:left"/>
+          <input class="fi" id="m-name-en" autocomplete="off" placeholder="Mohammed Al-Ahmad" dir="ltr" style="text-align:left"/>
         </div>
       </div>
       <div class="frow">
         <div class="fl" data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني</div>
-        <input class="fi" id="m-email" type="email" placeholder="mohammed@company.com" dir="ltr" style="text-align:left"/>
+        <input class="fi" id="m-email" type="email" autocomplete="off" placeholder="mohammed@company.com" dir="ltr" style="text-align:left"/>
       </div>
       <div class="fr2">
         <div class="frow">
           <div class="fl" data-ar="المسمى الوظيفي (عربي)" data-en="Designation (Arabic)">المسمى الوظيفي (عربي)</div>
-          <input class="fi" id="m-role-ar" placeholder="مدير المشاريع"/>
+          <input class="fi" id="m-role-ar" autocomplete="off" placeholder="مدير المشاريع"/>
         </div>
         <div class="frow">
           <div class="fl">Designation (English)</div>
-          <input class="fi" id="m-role-en" placeholder="Project Manager" dir="ltr" style="text-align:left"/>
+          <input class="fi" id="m-role-en" autocomplete="off" placeholder="Project Manager" dir="ltr" style="text-align:left"/>
         </div>
       </div>
       <div class="fr2">
         <div class="frow">
           <div class="fl" data-ar="القسم" data-en="Department">القسم</div>
-          <input class="fi" id="m-department" data-ph-ar="مثال: المالية" data-ph-en="e.g. Finance" placeholder="مثال: المالية"/>
+          <input class="fi" id="m-department" autocomplete="off" data-ph-ar="مثال: المالية" data-ph-en="e.g. Finance" placeholder="مثال: المالية"/>
         </div>
         <div class="frow">
           <div class="fl" data-ar="رقم الهاتف (لواتساب)" data-en="Phone (for WhatsApp)">رقم الهاتف (لواتساب)</div>
-          <input class="fi" id="m-phone" placeholder="+9665xxxxxxxx" dir="ltr" style="text-align:left"/>
+          <input class="fi" id="m-phone" type="tel" autocomplete="off" placeholder="+9665xxxxxxxx" dir="ltr" style="text-align:left"/>
         </div>
       </div>
       <div style="background:var(--navy3);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--text3);line-height:1.6">
@@ -2126,11 +2126,11 @@
     <div id="cp-error" style="display:none;background:rgba(224,90,90,0.12);border:1px solid #e05a5a;color:#e05a5a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;"></div>
     <div id="cp-success" style="display:none;background:rgba(46,204,138,0.12);border:1px solid #2ecc8a;color:#2ecc8a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;"></div>
     <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="كلمة المرور الحالية" data-en="Current Password">كلمة المرور الحالية</label>
-    <input type="password" id="cp-current" data-ph-ar="••••••••" data-ph-en="••••••••" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <input type="password" id="cp-current" autocomplete="current-password" data-ph-ar="••••••••" data-ph-en="••••••••" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
     <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="كلمة المرور الجديدة (٨ أحرف على الأقل)" data-en="New Password (min 8 characters)">كلمة المرور الجديدة (٨ أحرف على الأقل)</label>
-    <input type="password" id="cp-new" data-ph-ar="الحد الأدنى ٨ أحرف" data-ph-en="Min 8 characters" placeholder="الحد الأدنى ٨ أحرف" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <input type="password" id="cp-new" autocomplete="new-password" data-ph-ar="الحد الأدنى ٨ أحرف" data-ph-en="Min 8 characters" placeholder="الحد الأدنى ٨ أحرف" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.75rem;outline:none;direction:ltr;box-sizing:border-box;">
     <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="تأكيد كلمة المرور" data-en="Confirm Password">تأكيد كلمة المرور</label>
-    <input type="password" id="cp-confirm" data-ph-ar="••••••••" data-ph-en="••••••••" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:1.25rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <input type="password" id="cp-confirm" autocomplete="new-password" data-ph-ar="••••••••" data-ph-en="••••••••" placeholder="••••••••" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:1.25rem;outline:none;direction:ltr;box-sizing:border-box;">
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
       <button onclick="closeChangePassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
       <button id="cp-submit-btn" onclick="submitChangePassword()" style="background:var(--accent,#C9A84C);color:#1a1a2e;border:none;padding:0.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;"><span data-ar="حفظ" data-en="Save">حفظ</span></button>
@@ -2146,7 +2146,7 @@
     <div id="rp-error" style="display:none;background:rgba(224,90,90,0.12);border:1px solid #e05a5a;color:#e05a5a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;"></div>
     <div id="rp-success" style="display:none;background:rgba(46,204,138,0.12);border:1px solid #2ecc8a;color:#2ecc8a;border-radius:8px;padding:0.5rem 0.75rem;font-size:0.85rem;margin-bottom:0.75rem;word-break:break-all;"></div>
     <label style="font-size:0.8rem;color:var(--muted,#888899);display:block;margin-bottom:0.3rem;" data-ar="كلمة المرور الجديدة" data-en="New Password">كلمة المرور الجديدة</label>
-    <input type="text" id="rp-new" data-ph-ar="الحد الأدنى ٨ أحرف" data-ph-en="Min 8 characters" placeholder="الحد الأدنى ٨ أحرف" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.5rem;outline:none;direction:ltr;box-sizing:border-box;">
+    <input type="text" id="rp-new" autocomplete="off" data-ph-ar="الحد الأدنى ٨ أحرف" data-ph-en="Min 8 characters" placeholder="الحد الأدنى ٨ أحرف" style="width:100%;background:var(--bg,#0f0f1a);border:1px solid var(--border,#2a2a45);color:var(--text,#e8e8f0);border-radius:8px;padding:0.6rem 0.75rem;font-size:0.9rem;margin-bottom:0.5rem;outline:none;direction:ltr;box-sizing:border-box;">
     <button onclick="generateResetPassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;margin-bottom:1.25rem;display:block;">🎲 <span data-ar="توليد تلقائي" data-en="Auto-generate">توليد تلقائي</span></button>
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
       <button onclick="closeResetPassword()" style="background:none;border:1px solid var(--border,#2a2a45);color:var(--muted,#888899);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;"><span data-ar="إلغاء" data-en="Cancel">إلغاء</span></button>
