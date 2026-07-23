@@ -2382,8 +2382,22 @@ router.post('/ai/chat', auth, requirePermission('ai.ask'), async (req, res) => {
   const { messages, lang } = req.body;
   const tasks = db.prepare("SELECT * FROM tasks WHERE status != 'done' LIMIT 20").all();
   const decisions = db.prepare('SELECT * FROM decisions ORDER BY created_at DESC LIMIT 10').all();
-  const meetings = db.prepare('SELECT id, title_ar, title_en, meeting_date, ai_summary_ar, ai_summary_en FROM meetings ORDER BY meeting_date DESC LIMIT 5').all();
+  const meetings = db.prepare('SELECT id, title_ar, title_en, meeting_date, ai_summary_ar, ai_summary_en, lifecycle_stage FROM meetings ORDER BY meeting_date DESC LIMIT 5').all();
   const schedule = db.prepare('SELECT * FROM schedule ORDER BY meeting_date ASC LIMIT 5').all();
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const mNow = new Date();
+  const mStart = `${mNow.getFullYear()}-${String(mNow.getMonth() + 1).padStart(2, '0')}-01`;
+  const mEnd = new Date(mNow.getFullYear(), mNow.getMonth() + 1, 1).toISOString().slice(0, 10);
+  const demoExtra = {
+    boards: db.prepare('SELECT COUNT(*) as n FROM boards').get().n,
+    committees: db.prepare('SELECT COUNT(*) as n FROM committees').get().n,
+    approvals: db.prepare("SELECT COUNT(*) as n FROM minutes_cycle WHERE cycle_stage NOT IN ('approved','completed')").get().n,
+    nextMeeting: db.prepare("SELECT title_ar, title_en, meeting_date, meeting_time, platform FROM schedule WHERE meeting_date >= ? ORDER BY meeting_date ASC LIMIT 1").get(todayDate),
+    completedCount: db.prepare("SELECT COUNT(*) as n FROM meetings WHERE lifecycle_stage IN ('archived','completed')").get().n,
+    thisMonthCount: db.prepare('SELECT COUNT(*) as n FROM meetings WHERE meeting_date >= ? AND meeting_date < ?').get(mStart, mEnd).n + db.prepare('SELECT COUNT(*) as n FROM schedule WHERE meeting_date >= ? AND meeting_date < ?').get(mStart, mEnd).n,
+    openTasksCount: db.prepare("SELECT COUNT(*) as n FROM tasks WHERE status NOT IN ('done','cancelled')").get().n,
+    overdueCount: db.prepare("SELECT COUNT(*) as n FROM tasks WHERE status NOT IN ('done','cancelled') AND due_date != '' AND due_date < ?").get(todayDate).n,
+  };
   const users = db.prepare('SELECT name_ar, name_en, role_ar, role_en FROM users').all();
 
   const risks = db.prepare("SELECT ai_risks, title_ar FROM meetings WHERE ai_risks IS NOT NULL AND ai_risks != '[]' ORDER BY meeting_date DESC LIMIT 3").all();
@@ -2425,74 +2439,130 @@ ${schedule.map(s => `- ${s.title_ar} | ${s.meeting_date} ${s.meeting_time} | ${s
     res.json({ reply });
   } catch (e) {
     const lastMsg = Array.isArray(messages) ? (messages[messages.length - 1]?.content || '') : '';
-    const demoCtx = { tasks, decisions, meetings, schedule };
+    const demoCtx = { tasks, decisions, meetings, schedule, ...demoExtra };
     res.json({ reply: getDemoReply(lastMsg, lang, demoCtx), demo: true });
   }
 });
 
 function getDemoReply(q, lang, ctx = {}) {
   const isEn = lang === 'en';
-  const ql = (q || '').toLowerCase();
-  const { tasks = [], decisions = [], meetings = [], schedule = [] } = ctx;
+  const ql = (q || '').toLowerCase().trim();
+  const {
+    tasks = [], decisions = [], meetings = [], schedule = [],
+    boards = 0, committees = 0, approvals = 0, nextMeeting = null,
+    completedCount = 0, thisMonthCount = 0, openTasksCount = 0, overdueCount = 0,
+  } = ctx;
   const today = new Date().toISOString().slice(0, 10);
+  const nowD = new Date();
+  const monthName = isEn
+    ? nowD.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+    : nowD.toLocaleString('ar-SA', { month: 'long', year: 'numeric' });
 
+  // 1. Overdue tasks
   if (ql.includes('متأخر') || ql.includes('overdue')) {
     const overdue = tasks.filter(t => t.status !== 'done' && t.due_date && t.due_date < today);
-    if (overdue.length) {
+    const count = overdueCount || overdue.length;
+    if (count) {
       const lines = overdue.slice(0, 5).map((t, i) =>
         `${i + 1}. ${isEn ? (t.text_en || t.text_ar) : t.text_ar} — ${isEn ? (t.owner_name_en || t.owner_name_ar || '—') : (t.owner_name_ar || '—')}`
       ).join('\n');
       return isEn
-        ? `Current overdue tasks (${overdue.length} total):\n\n${lines}\n\nAll require immediate follow-up.`
-        : `المهام المتأخرة حالياً (${overdue.length} إجمالاً):\n\n${lines}\n\nجميعها تستوجب متابعة فورية.`;
+        ? `Overdue tasks (${count} total):\n\n${lines || '(see full list in Tasks panel)'}\n\nAll require immediate follow-up.`
+        : `المهام المتأخرة (${count} إجمالاً):\n\n${lines || '(انظر قائمة المهام الكاملة)'}\n\nجميعها تستوجب متابعة فورية.`;
     }
-    return isEn ? 'No overdue tasks at the moment.' : 'لا توجد مهام متأخرة في الوقت الحالي.';
+    return isEn ? 'No overdue tasks at the moment. ✅' : 'لا توجد مهام متأخرة في الوقت الحالي. ✅';
   }
 
+  // 2. This month's meetings
+  if (ql.includes('هذا الشهر') || ql.includes('this month') || ql.includes('الشهر الحالي') || ql.includes('current month')) {
+    return isEn
+      ? `This month (${monthName}): ${thisMonthCount} meetings are scheduled.`
+      : `هذا الشهر (${monthName}): ${thisMonthCount} اجتماعاً مجدولاً.`;
+  }
+
+  // 3. Completed / archived meetings
+  if (ql.includes('مكتمل') || ql.includes('منجز') || ql.includes('مؤرشف') || ql.includes('completed') || ql.includes('archived') || ql.includes('finished')) {
+    return isEn
+      ? `Completed or archived meetings: ${completedCount}`
+      : `الاجتماعات المكتملة أو المؤرشفة: ${completedCount}`;
+  }
+
+  // 4. Boards and committees
+  if (ql.includes('مجلس') || ql.includes('لجنة') || ql.includes('هيئة') || ql.includes('board') || ql.includes('committee')) {
+    return isEn
+      ? `Organization structure: ${boards} board${boards !== 1 ? 's' : ''}, ${committees} committee${committees !== 1 ? 's' : ''}.`
+      : `هيكل المنظمة: ${boards} مجلس، ${committees} لجنة.`;
+  }
+
+  // 5. Next meeting
+  if (ql.includes('القادم') || ql.includes('الأقرب') || ql.includes('next meeting') || ql.includes('following meeting') || (ql.includes('next') && ql.includes('meeting'))) {
+    if (nextMeeting) {
+      const nm = nextMeeting;
+      const title = isEn ? (nm.title_en || nm.title_ar) : nm.title_ar;
+      const platform = nm.platform ? (isEn ? ` via ${nm.platform}` : ` عبر ${nm.platform}`) : '';
+      const time = nm.meeting_time ? (isEn ? ` at ${nm.meeting_time}` : ` الساعة ${nm.meeting_time}`) : '';
+      return isEn
+        ? `Next meeting: **${title}** on ${nm.meeting_date}${time}${platform}.`
+        : `الاجتماع القادم: **${title}** بتاريخ ${nm.meeting_date}${time}${platform}.`;
+    }
+    return isEn ? 'No upcoming meetings found in the schedule.' : 'لا توجد اجتماعات قادمة في الجدول.';
+  }
+
+  // 6. Pending approvals
+  if (ql.includes('موافقة') || ql.includes('اعتماد') || ql.includes('معلق') || ql.includes('approval') || ql.includes('pending') || ql.includes('pending approvals')) {
+    return isEn
+      ? `Pending approvals: ${approvals} minutes cycle${approvals !== 1 ? 's' : ''} awaiting review or approval.`
+      : `الموافقات المعلقة: ${approvals} دورة محاضر في انتظار المراجعة أو الاعتماد.`;
+  }
+
+  // 7. Decisions
   if (ql.includes('قرار') || ql.includes('decision')) {
     if (decisions.length) {
       const lines = decisions.slice(0, 5).map(d =>
-        `⚖️ ${isEn ? (d.text_en || d.text_ar) : d.text_ar} [${d.status}]`
+        `⚖️ ${isEn ? (d.text_en || d.text_ar) : d.text_ar} [${d.status || ''}]`
       ).join('\n');
-      return isEn ? `Active board decisions:\n\n${lines}` : `قرارات المجلس النشطة:\n\n${lines}`;
+      return isEn ? `Recent board decisions:\n\n${lines}` : `قرارات المجلس الأخيرة:\n\n${lines}`;
     }
     return isEn ? 'No active decisions found.' : 'لا توجد قرارات نشطة.';
   }
 
+  // 8. Meeting summary
   if (ql.includes('ملخص') || ql.includes('summary')) {
     const last = meetings[0];
     if (last) {
       const title = isEn ? (last.title_en || last.title_ar) : last.title_ar;
       const summary = isEn ? (last.ai_summary_en || last.ai_summary_ar || '') : (last.ai_summary_ar || '');
       return isEn
-        ? `Last Meeting: ${title} (${(last.meeting_date || '').slice(0, 10)})\n\n${summary || 'No AI summary available yet.'}`
-        : `آخر اجتماع: ${title} (${(last.meeting_date || '').slice(0, 10)})\n\n${summary || 'لم يُولَّد ملخص ذكاء اصطناعي بعد.'}`;
+        ? `Last meeting: **${title}** (${(last.meeting_date || '').slice(0, 10)})\n\n${summary || 'No AI summary available yet.'}`
+        : `آخر اجتماع: **${title}** (${(last.meeting_date || '').slice(0, 10)})\n\n${summary || 'لم يُولَّد ملخص ذكاء اصطناعي بعد.'}`;
     }
     return isEn ? 'No recent meetings found.' : 'لا توجد اجتماعات حديثة.';
   }
 
-  if (ql.includes('قادم') || ql.includes('upcoming') || ql.includes('مجدول') || ql.includes('scheduled')) {
+  // 9. Upcoming scheduled meetings (general)
+  if (ql.includes('قادم') || ql.includes('upcoming') || ql.includes('مجدول') || (ql.includes('scheduled') && !ql.includes('this month'))) {
     const upcoming = schedule.filter(s => s.meeting_date >= today).slice(0, 5);
     if (upcoming.length) {
       const lines = upcoming.map(s =>
-        `• ${isEn ? (s.title_en || s.title_ar) : s.title_ar} — ${s.meeting_date} ${s.meeting_time || ''}`
+        `• ${isEn ? (s.title_en || s.title_ar) : s.title_ar} — ${s.meeting_date}${s.meeting_time ? ' ' + s.meeting_time : ''}`
       ).join('\n');
       return isEn ? `Upcoming meetings:\n\n${lines}` : `الاجتماعات القادمة:\n\n${lines}`;
     }
     return isEn ? 'No upcoming meetings scheduled.' : 'لا توجد اجتماعات مجدولة قادمة.';
   }
 
-  if (ql.includes('مهمة') || ql.includes('task') || ql.includes('مهام') || ql.includes('tasks')) {
-    const open = tasks.filter(t => t.status !== 'done');
-    const done = tasks.filter(t => t.status === 'done');
+  // 10. Tasks overview
+  if (ql.includes('مهمة') || ql.includes('task') || ql.includes('مهام') || ql.includes('tasks') || ql.includes('مفتوح') || ql.includes('open task')) {
     return isEn
-      ? `Tasks overview: ${open.length} open, ${done.length} completed out of ${tasks.length} total.`
-      : `نظرة على المهام: ${open.length} مفتوحة، ${done.length} مكتملة من أصل ${tasks.length} إجمالاً.`;
+      ? `Tasks overview: ${openTasksCount} open${overdueCount ? ` (${overdueCount} overdue)` : ''}.`
+      : `نظرة على المهام: ${openTasksCount} مفتوحة${overdueCount ? ` (${overdueCount} متأخرة)` : ''}.`;
   }
 
+  // Default — show live summary and supported questions
+  const demoBadge = isEn ? '🤖 **Demo Mode**' : '🤖 **الوضع التجريبي**';
   return isEn
-    ? `I'm Ameen, your executive AI secretary. I can see ${meetings.length} meetings, ${tasks.length} tasks, and ${decisions.length} decisions in the system.\n\nAsk me about: overdue tasks, decisions, meeting summaries, upcoming meetings, or team performance.\n\n_Note: AI responses are currently in demo mode. Configure your Anthropic API key to enable full AI capabilities._`
-    : `أنا أمين، مساعدكم الذكي التنفيذي. لديّ اطلاع على ${meetings.length} اجتماعاً، ${tasks.length} مهمة، و${decisions.length} قراراً في النظام.\n\nيمكنكم سؤالي عن: المهام المتأخرة، القرارات، ملخصات الاجتماعات، الاجتماعات القادمة، أو أداء الفريق.\n\n_ملاحظة: الردود حالياً في الوضع التجريبي. لتفعيل قدرات الذكاء الاصطناعي الكاملة، قم بتهيئة مفتاح Anthropic API._`;
+    ? `${demoBadge}\n\nI'm Ameen, your executive AI secretary. Here's a live snapshot:\n• ${openTasksCount} open tasks (${overdueCount} overdue)\n• ${thisMonthCount} meetings this month\n• ${completedCount} meetings completed\n• ${boards} boards, ${committees} committees\n• ${approvals} approvals pending\n• Next meeting: ${nextMeeting ? (nextMeeting.title_en || nextMeeting.title_ar) + ' on ' + nextMeeting.meeting_date : 'none scheduled'}\n\nYou can ask me: "How many meetings this month?", "What is the next meeting?", "How many boards?", "Pending approvals", "Open tasks", "Overdue tasks", "Decisions", or "Meeting summary".\n\n_Connect an Anthropic API key for full AI capabilities._`
+    : `${demoBadge}\n\nأنا أمين، مساعدكم الذكي التنفيذي. إليكم لقطة مباشرة:\n• ${openTasksCount} مهمة مفتوحة (${overdueCount} متأخرة)\n• ${thisMonthCount} اجتماع هذا الشهر\n• ${completedCount} اجتماع مكتمل\n• ${boards} مجلس، ${committees} لجنة\n• ${approvals} موافقة معلقة\n• الاجتماع القادم: ${nextMeeting ? (nextMeeting.title_ar || nextMeeting.title_en) + ' بتاريخ ' + nextMeeting.meeting_date : 'لا يوجد مجدول'}\n\nيمكنكم السؤال عن: "اجتماعات هذا الشهر"، "الاجتماع القادم"، "عدد المجالس"، "الموافقات المعلقة"، "المهام المفتوحة"، "المهام المتأخرة"، أو "القرارات".\n\n_أضف مفتاح Anthropic API لتفعيل قدرات الذكاء الاصطناعي الكاملة._`;
 }
 
 // ── AI: Document Generator (PRO — reports/documents) ───────────────────────

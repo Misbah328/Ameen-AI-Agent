@@ -1,0 +1,583 @@
+FINAL BUG-FIX AND VERIFICATION PASS — ALL REMAINING QA ISSUES
+
+Do not make broad architectural changes.
+
+Do not redesign unrelated modules.
+
+Do not modify already completed workflows unless a shared dependency makes a narrowly targeted change necessary.
+
+The goal is to fully fix and verify all remaining bugs from the latest QA report.
+
+==================================================
+BUGS TO FIX
+==================================================
+
+1. Add Task form freezes the application when Save is clicked with required fields empty.
+
+2. Permission counts previously showed values such as 36 of 34 and 35 of 34.
+
+3. Global Search returned duplicate meeting entries because the same meeting existed in both meetings and schedule search results.
+
+4. Create Meeting sticky action bar overlapped form content while scrolling.
+
+5. Meetings list tabs were clipped behind the Create Meeting button.
+
+6. Ask Ameen returned a generic canned demo response instead of useful answers.
+
+7. Change Password fields appeared pre-filled due to browser autofill.
+
+8. Global Search required a second click before typing worked.
+
+==================================================
+IMPORTANT RULES
+==================================================
+
+1. Investigate and fix root causes, not only visual symptoms.
+
+2. Do not mark any issue fixed based only on code inspection.
+
+3. Every issue must be reproduced before the fix where possible and verified after the fix.
+
+4. Do not hide data problems using frontend deduplication if the API or database is the source.
+
+5. Do not change totals such as permission counts without confirming the canonical number of unique permissions.
+
+6. Do not disable all browser autofill globally.
+
+7. Do not use native blocking alert or confirm dialogs for validation.
+
+8. Do not start the full application regression test until these eight issues are individually verified.
+
+==================================================
+ISSUE 1 — ADD TASK FREEZE
+==================================================
+
+Reproduce exactly:
+
+- Open Tasks
+- Click Add Task
+- Leave Task Title empty
+- Leave Owner empty
+- Click Save
+
+Current reported behavior:
+
+- Entire application becomes unresponsive
+- No clicks work
+- DOM inspection hangs
+- Only full reload recovers the app
+
+Investigate:
+
+- native alert or confirm calls
+- infinite synchronous loops
+- recursive save calls
+- unresolved modal focus traps
+- duplicated click handlers
+- button disabled state
+- validation re-render loops
+- overlay/backdrop not removed
+- owner dropdown population
+- submit handler re-entry
+- accidental form submission reload
+- uncaught synchronous exceptions
+- promise chains that never settle
+
+Required fix:
+
+- Replace blocking validation with non-blocking inline validation or toast
+- Prevent duplicate submission
+- Lock Save only during actual async save
+- Restore Save state after validation failure or API failure
+- Keep modal open after validation error
+- Focus the first invalid field
+- Show clear validation for Title and Owner
+- Keep the rest of the application responsive
+
+Verification:
+
+T1. Open Add Task, leave Title and Owner empty, click Save
+Expected:
+- no freeze
+- validation shown
+- modal remains open
+- app remains clickable
+
+T2. Repeat the same invalid submission twice
+Expected:
+- no freeze
+- no duplicate listeners
+- no stacked overlays
+
+T3. Enter Title only, leave Owner empty
+Expected:
+- Owner validation only
+
+T4. Enter Owner only, leave Title empty
+Expected:
+- Title validation only
+
+T5. Enter valid Title and Owner
+Expected:
+- task saves once
+- modal closes
+- task appears once
+- no duplicate record
+
+T6. Simulate API failure
+Expected:
+- modal remains open
+- values remain
+- Save re-enables
+- retry works
+
+Capture:
+- console errors
+- page errors
+- network request count
+- task count before and after
+
+==================================================
+ISSUE 2 — PERMISSION COUNTS
+==================================================
+
+Confirmed investigation should determine the canonical permission total.
+
+Audit:
+
+- all distinct permission keys
+- duplicate permission keys
+- inherited permissions
+- role-specific permissions
+- hidden permissions
+- disabled permissions
+- frontend permission list
+- backend permission list
+- database permission rows
+
+Required behavior:
+
+- Denominator equals the actual number of unique canonical permissions
+- Numerator counts unique permissions only
+- No role can display more than the total
+- Progress bars must never exceed 100 percent
+- Super Admin should show the actual full total
+- Organization Admin should show its actual unique total
+
+Verification:
+
+- Print the list and count of all unique permission keys
+- Confirm the canonical total
+- Confirm Super Admin count
+- Confirm Organization Admin count
+- Confirm all other role counts
+- Confirm progress widths are clamped correctly
+- Confirm no duplicated permission is counted twice
+
+Do not simply change 34 to 36 without proving 36 is correct.
+
+==================================================
+ISSUE 3 — DUPLICATE GLOBAL SEARCH RESULTS
+==================================================
+
+Investigate all sources contributing meeting results:
+
+- meetings table
+- schedule table
+- search index
+- seed data
+- cached results
+- combined API search loops
+- source_meeting_id relationships
+
+Expected root-cause behavior:
+
+A scheduled copy that points to a source meeting must not appear as a second independent search result for the same meeting.
+
+Required fix:
+
+- Fix duplication at API or query level
+- Use stable source identity
+- Exclude schedule rows that mirror existing meeting rows
+- Preserve legitimate standalone schedule entries
+- Do not hide real distinct meetings with the same title
+- Frontend dedup may remain as defensive protection, but must not be the only fix
+
+Verification:
+
+Search for:
+
+- Board Meeting
+- Q3 Board Meeting
+- Budget Ratification
+
+Confirm:
+
+- same source record appears once
+- legitimate different meetings with similar titles still appear separately
+- result links open the correct record
+- no stale duplicates after refresh
+- no duplicate results in English or Arabic
+
+Provide:
+- query before fix
+- query after fix
+- number of duplicate rows excluded
+- explanation of source_meeting_id handling
+
+==================================================
+ISSUE 4 — CREATE MEETING ACTION BAR OVERLAP
+==================================================
+
+The bottom action bar must never cover form content.
+
+Inspect:
+
+- scroll container
+- flex layout
+- sticky/fixed positioning
+- bottom padding
+- z-index
+- viewport height
+- nested overflow containers
+- mobile safe-area spacing
+
+Required fix:
+
+- Action bar should remain accessible
+- Form content must scroll fully above it
+- Agenda header and Add Agenda Item button must never be hidden
+- Last form field must be fully visible
+- No awkward empty gap
+- No double scrollbar
+
+Verify on:
+
+- 1440 × 900
+- 1280 × 720
+- 1024 × 768
+- 768 × 1024
+- 390 × 844
+
+Test:
+- top of form
+- middle of form
+- Agenda section
+- bottom of form
+- browser zoom 100 percent and 125 percent
+- English
+- Arabic RTL
+
+Capture screenshots at the Agenda section and bottom of the form.
+
+==================================================
+ISSUE 5 — MEETING TABS CLIPPED
+==================================================
+
+Current issue:
+
+The Upcoming tab and later tabs are clipped behind the Create Meeting button.
+
+Investigate:
+
+- flex-shrink
+- min-width
+- overflow
+- white-space
+- button width
+- responsive breakpoint
+- horizontal scroll
+- tab container width
+
+Required behavior:
+
+- All tabs readable at standard desktop width
+- Create Meeting button does not cover tabs
+- Tabs may wrap or horizontally scroll cleanly on narrow screens
+- Active tab remains visible
+- Counts remain readable
+- No overlapping elements
+
+Verify on:
+
+- 1440 × 900
+- 1280 × 720
+- 1024 × 768
+- 768 × 1024
+- 390 × 844
+
+Verify:
+- All
+- Draft
+- Upcoming
+- In Progress
+- Completed
+
+Capture screenshots for desktop, tablet, and mobile.
+
+==================================================
+ISSUE 6 — ASK AMEEN
+==================================================
+
+If Anthropic or another LLM API key is available:
+
+- connect the real AI flow
+- use actual application context
+- answer real user questions
+- handle API errors gracefully
+
+If no API key is available:
+
+Implement a truthful and useful development fallback.
+
+The fallback must:
+
+- clearly show that it is Demo Mode
+- answer supported factual questions using live application data
+- never invent values
+- never expose internal debug markers
+- never show hidden text such as:
+  Demo reply — Add Anthropic API key
+
+Supported demo questions should include at minimum:
+
+- How many meetings are scheduled this month?
+- How many tasks are open?
+- How many meetings are completed?
+- How many boards or committees exist?
+- What is the next meeting?
+- How many pending approvals exist?
+
+Required behavior:
+
+- Use live database/API data
+- Show a visible Demo Mode label
+- State unsupported questions honestly
+- Do not use hardcoded fake names or counts
+- Preserve Arabic and English support
+
+Verification:
+
+Ask at least 10 questions:
+- 6 supported data questions
+- 2 unsupported questions
+- 1 Arabic question
+- 1 follow-up question
+
+Confirm:
+- counts match database
+- no generic intro-only response
+- no hidden internal warning
+- no hallucinated records
+
+==================================================
+ISSUE 7 — CHANGE PASSWORD AUTOFILL
+==================================================
+
+Current issue:
+
+Current Password or Confirm Password appears pre-filled when the dialog opens.
+
+Investigate:
+
+- HTML autocomplete attributes
+- delayed browser autofill
+- form naming
+- hidden username field requirements
+- password manager behavior
+- default values
+- modal open timing
+- browser restoration
+- JavaScript field assignment
+
+Required behavior:
+
+- Current Password should be empty when dialog opens unless the browser explicitly fills it
+- New Password should be empty
+- Confirm Password should be empty
+- No application code should assign a password value
+- No password value should exist in HTML
+- No password should be logged
+- Password manager support should remain standards-compliant
+
+Use appropriate attributes:
+
+- current password: autocomplete="current-password"
+- new password: autocomplete="new-password"
+- confirm password: autocomplete="new-password"
+
+Do not blindly use autocomplete="off" as the primary solution.
+
+If the browser still autofills after modal open:
+
+- use a standards-safe form structure
+- add hidden username/email context only if required
+- clear only when opening a fresh change-password modal
+- do not clear user-entered values after typing
+- do not use repeated timers that erase real input
+
+Verification:
+
+- Open dialog fresh
+- Confirm all fields empty before user interaction
+- Wait 2 seconds
+- Confirm still empty
+- Type into all fields
+- Confirm no timer clears user input
+- Close and reopen
+- Confirm fresh empty state
+- Test Chrome/Chromium
+- Test Edge behavior if available
+- Confirm no password values are visible in DOM source or logs
+
+==================================================
+ISSUE 8 — GLOBAL SEARCH ONE-CLICK FOCUS
+==================================================
+
+Current issue:
+
+First click expands search but typing does not work until a second click.
+
+Investigate:
+
+- focus timing
+- animation timing
+- wrapper click handling
+- event propagation
+- input recreation
+- DOM replacement
+- pointer-events
+- click target
+- dropdown opening sequence
+- focus being stolen by another element
+
+Required behavior:
+
+- One click expands search
+- Input receives focus immediately
+- Cursor is visible
+- User can type immediately
+- Existing Ctrl or Cmd + K behavior remains
+- ESC closes search
+- Arrow keys and Enter still work
+- Search input value is preserved
+- Focus restores correctly when closed
+
+Implement robustly:
+
+- focus the actual input after expansion
+- use requestAnimationFrame if needed
+- do not recreate the input element
+- avoid arbitrary long timers
+- prevent wrapper logic from stealing focus
+- do not break mobile tap behavior
+
+Verification:
+
+T1. Click once and type immediately
+T2. Open with Ctrl + K and type
+T3. Open with Cmd + K where applicable
+T4. Press ESC and confirm close
+T5. Reopen and confirm focus
+T6. Use Arrow Down, Arrow Up, Enter
+T7. Test rapid open/close 10 times
+T8. Test mobile tap
+T9. Confirm no focus loss after search results render
+
+==================================================
+FULL TARGETED VERIFICATION
+==================================================
+
+After fixes, run one focused regression covering all eight issues.
+
+Do not only restart the server and take one screenshot.
+
+For every issue provide:
+
+- reproduction steps before
+- root cause
+- files changed
+- functions changed
+- exact fix
+- runtime verification
+- screenshots where relevant
+- console error result
+- API/network result
+- data integrity result
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+Before testing record:
+
+- users count
+- tasks count
+- meetings count
+- schedule count
+- boards count
+- permissions count
+- policies count
+- audit log count
+
+Track all test records.
+
+After testing:
+
+- delete temporary tasks
+- delete temporary meetings
+- remove temporary schedule entries
+- delete temporary board members
+- restore edited settings
+- confirm counts return to baseline where expected
+
+No test record may remain.
+
+==================================================
+FINAL PASS/FAIL TABLE
+==================================================
+
+Provide a table with exactly these items:
+
+1. Add Task freeze
+2. Permission counts
+3. Duplicate global search results
+4. Meeting action bar overlap
+5. Meeting tab clipping
+6. Ask Ameen behavior
+7. Change Password autofill
+8. Global Search one-click focus
+
+Each item must be marked:
+
+- PASS
+- FAIL
+- PARTIAL
+- NOT APPLICABLE
+
+Do not group issues.
+
+==================================================
+FINAL CONCLUSION
+==================================================
+
+Only conclude:
+
+“ALL 8 QA ISSUES FULLY FIXED AND VERIFIED.”
+
+if:
+
+- all eight items pass
+- no temporary test data remains
+- no new console errors exist
+- no new regression is introduced
+- all responsive screenshots are captured
+- Add Task freeze is reproduced and confirmed resolved twice
+
+If any item does not pass, conclude:
+
+“QA FIX PASS INCOMPLETE — REMAINING ISSUES:”
+
+and list only the verified remaining issues.
+
+Do not begin the full end-to-end regression test until this targeted pass is complete.

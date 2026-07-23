@@ -6912,9 +6912,18 @@ const Modals = {
     const tc = document.getElementById("task-timeline-container");
     if (tc) tc.remove();
   },
+  _clearTaskErrors() {
+    ["nt-ar", "nt-owner"].forEach(id => {
+      const el = $(id);
+      if (el) { el.style.borderColor = ""; el.style.boxShadow = ""; }
+    });
+    const hint = $("nt-owner-hint");
+    if (hint) { hint.style.display = "none"; hint.textContent = ""; }
+  },
   async saveTask() {
     const l = App.lang;
     const statusSel = $("nt-status");
+    this._clearTaskErrors();
     const data = {
       text_ar: ($("nt-ar") || {}).value?.trim() || "",
       text_en: ($("nt-en") || {}).value?.trim() || ($("nt-ar") || {}).value?.trim() || "",
@@ -6924,7 +6933,17 @@ const Modals = {
     };
     if (this._editingId && statusSel && statusSel.value) data.status = statusSel.value;
     if (!data.text_ar) {
+      const el = $("nt-ar");
+      if (el) { el.style.borderColor = "var(--red,#dc3545)"; el.style.boxShadow = "0 0 0 2px rgba(220,53,69,.15)"; el.focus(); }
       showToast(l === "ar" ? "أدخل نص المهمة" : "Enter task text", "error");
+      return;
+    }
+    if (!data.owner_id) {
+      const sel = $("nt-owner");
+      if (sel) { sel.style.borderColor = "var(--red,#dc3545)"; sel.style.boxShadow = "0 0 0 2px rgba(220,53,69,.15)"; sel.focus(); }
+      const hint = $("nt-owner-hint");
+      if (hint) { hint.textContent = l === "ar" ? "الرجاء تحديد المسؤول" : "Please select an owner"; hint.style.color = "var(--red,#dc3545)"; hint.style.display = "block"; }
+      showToast(l === "ar" ? "حدد المسؤول عن المهمة" : "Select a task owner", "error");
       return;
     }
     const saveBtn = document.querySelector("#modal-task .btn-gold");
@@ -12818,7 +12837,8 @@ const RolesPanel = {
       const desc = l === "ar" ? r.description_ar : (r.description_en || r.description_ar);
       const color = ROLE_COLORS[r.role_key] || "#888";
       const icon = ICONS[r.role_key] || "🔧";
-      const pct = Math.round((r.permissions.length / TOTAL_PERMS) * 100);
+      const uniquePerms = new Set(r.permissions).size;
+      const pct = Math.min(Math.round((uniquePerms / TOTAL_PERMS) * 100), 100);
       return `<div class="rp-role-card${!r.is_active ? " rp-role-disabled" : ""}" style="--rc:${color}">
         <div class="rp-role-head">
           <div class="rp-role-icon">${icon}</div>
@@ -12832,7 +12852,7 @@ const RolesPanel = {
         </div>
         <div class="rp-role-desc">${esc(desc || (l === "ar" ? "—" : "—"))}</div>
         <div class="rp-role-perm-bar"><div class="rp-role-perm-fill" style="width:${pct}%;background:${color}"></div></div>
-        <div class="rp-role-perm-label"><span style="color:${color}">${r.permissions.length}</span> ${l === "ar" ? `من ${TOTAL_PERMS} صلاحية` : `of ${TOTAL_PERMS} permissions`}</div>
+        <div class="rp-role-perm-label"><span style="color:${color}">${uniquePerms}</span> ${l === "ar" ? `من ${TOTAL_PERMS} صلاحية` : `of ${TOTAL_PERMS} permissions`}</div>
         <div class="rp-role-actions">
           <button class="btn-ghost btn-xs" onclick="RolesPanel.editPermissions(${r.id})">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -13708,13 +13728,22 @@ function openChangePassword() {
     var el = document.getElementById(id);
     if (el) el.style.display = "none";
   });
+  var uHint = document.getElementById("cp-username-hint");
+  if (uHint && window.App && App.user) uHint.value = App.user.email || "";
   m.style.display = "flex";
   setTimeout(function () {
     ["cp-current", "cp-new", "cp-confirm"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) el.value = "";
+      if (el && !el._userTyped) el.value = "";
     });
-  }, 150);
+  }, 200);
+}
+function _cpTrackTyping(id) {
+  var el = document.getElementById(id);
+  if (el && !el._typingTracked) {
+    el._typingTracked = true;
+    el.addEventListener("input", function() { el._userTyped = true; });
+  }
 }
 function closeChangePassword() {
   var m = document.getElementById("modal-change-password");
