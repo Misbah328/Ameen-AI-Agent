@@ -4768,20 +4768,19 @@ router.post('/meetings/:id/approval-cycle/deadline', auth, requireTier('plus'), 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/meetings/:id/approval-cycle/comments  — add a comment (Plus+, requires e-signature)
+// POST /api/meetings/:id/approval-cycle/comments  — add a comment (Plus+)
 router.post('/meetings/:id/approval-cycle/comments', auth, requireTier('plus'), requirePermission('minutes.view'), (req, res) => {
   const mid = parseInt(req.params.id);
-  const { content, clause_ref, signature_data, signature_type } = req.body || {};
+  const { content, clause_ref, commenter_name, signature_data, signature_type } = req.body || {};
   if (!content || !content.trim()) return res.status(400).json({ error: 'content required' });
-  if (!signature_data || !signature_data.trim()) return res.status(400).json({ error: 'e-signature required' });
   const actor = resolveActor(req.user.id);
-  const name = actor.name || req.user.email || 'Attendee';
+  const name = commenter_name || actor.name || req.user.email || 'Attendee';
   const role = req.user.system_role || '';
   try {
     const r = db.prepare(`INSERT INTO minutes_comments
       (meeting_id,commenter_id,commenter_name,commenter_role,clause_ref,content,signature_data,signature_type)
       VALUES (?,?,?,?,?,?,?,?)`
-    ).run(mid, req.user.id, name, role, clause_ref || '', content.trim(), signature_data, signature_type || 'type');
+    ).run(mid, req.user.id, name, role, clause_ref || '', content.trim(), signature_data || '', signature_type || 'type');
     res.json({ success: true, id: r.lastInsertRowid });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

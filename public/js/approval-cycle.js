@@ -3300,10 +3300,7 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
         await this._load();
         this._renderStep3Reviews();
       } catch(e) {
-        overlay.remove();
-        showToast(t('✅ تم تسجيل التعليق','✅ Comment recorded'), 'success');
-        await this._load();
-        this._renderStep3Reviews();
+        showToast(t('❌ خطأ في إضافة التعليق','❌ Failed to add comment: ') + (e.message||''), 'error');
       }
     };
   },
