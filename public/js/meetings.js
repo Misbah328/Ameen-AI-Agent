@@ -1048,12 +1048,13 @@ const MT = {
     } catch (e) { showToast(this.t("تعذّر رفض المهمة: ", "Could not reject task: ") + e.message, "error"); }
   },
 
-  editAiTask(id) {
+  async editAiTask(id) {
     const task = this._d.tasks.find((x) => x.id === id);
     if (!task) return;
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
-    const users = this._d.attendees || [];
+    let users = [];
+    try { users = await api("/api/users"); } catch (_) {}
     document.getElementById("pm-edit-modal")?.remove();
     const el = document.createElement("div");
     el.className = "lmt-overlay";
@@ -1154,10 +1155,11 @@ const MT = {
   },
 
   // ── Add Action / Assign Action ────────────────────────────────
-  addAction() {
+  async addAction() {
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
-    const users = this._d.attendees || [];
+    let users = [];
+    try { users = await api("/api/users"); } catch (_) {}
     const m = this._d.meeting;
     document.getElementById("mt-action-modal")?.remove();
     const el = document.createElement("div");
@@ -1225,12 +1227,13 @@ const MT = {
     } catch (e) { showToast(this.t("تعذّر إضافة الإجراء: ", "Could not add action: ") + e.message, "error"); }
   },
 
-  assignAction(taskId) {
+  async assignAction(taskId) {
     const t = (ar, en) => this.t(ar, en);
     const l = App.lang;
     const task = this._d.tasks.find((x) => x.id === taskId);
     if (!task) return;
-    const users = this._d.attendees || [];
+    let users = [];
+    try { users = await api("/api/users"); } catch (_) {}
     document.getElementById("mt-assign-modal")?.remove();
     const el = document.createElement("div");
     el.className = "modal-overlay open";
