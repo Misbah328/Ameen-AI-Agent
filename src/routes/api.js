@@ -2933,7 +2933,7 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
     transitionMeeting(meetingId, 'invited', req.user.id, `${list.length} attendee(s) invited`);
     transitionMeeting(meetingId, 'scheduled', req.user.id, 'Meeting date/time confirmed');
     // Send email invitations to every attendee with an email address.
-    const mtg = db.prepare('SELECT id, title_ar, title_en, meeting_date, meeting_time FROM meetings WHERE id=?').get(meetingId);
+    const mtg = db.prepare("SELECT id, title_ar, title_en, meeting_date, strftime('%H:%M', meeting_date) AS meeting_time FROM meetings WHERE id=?").get(meetingId);
     if (mtg) {
       const invitees = list.filter(a => a.email);
       notifyMeetingInvite(mtg, invitees, req.user.id);
@@ -2945,7 +2945,7 @@ router.post('/meetings/:id/attendees', auth, (req, res) => {
 // Add a single attendee to an existing meeting without replacing others.
 router.post('/meetings/:id/attendees/add', auth, (req, res) => {
   const meetingId = req.params.id;
-  const meeting = db.prepare('SELECT id, title_ar, title_en, meeting_date, meeting_time FROM meetings WHERE id=?').get(meetingId);
+  const meeting = db.prepare("SELECT id, title_ar, title_en, meeting_date, strftime('%H:%M', meeting_date) AS meeting_time FROM meetings WHERE id=?").get(meetingId);
   if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
   const { name, email, phone } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
