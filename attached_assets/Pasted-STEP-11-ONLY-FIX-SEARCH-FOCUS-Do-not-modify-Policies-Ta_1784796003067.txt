@@ -1,0 +1,449 @@
+STEP 11 ONLY — FIX SEARCH FOCUS
+
+Do not modify Policies, Tasks, Meetings, Dashboard Review Now, Boards, Members, Voting, Autofill, or any previously completed fixes.
+
+==================================================
+PROBLEM
+==================================================
+
+The application search input has focus-related problems.
+
+Possible symptoms:
+
+- Search input loses focus while typing
+- Typing one character causes the input to blur
+- Search results re-render and move focus elsewhere
+- Search works only after clicking the field repeatedly
+- Search focus is lost after navigation
+- Search focus is lost when filters or tabs update
+- Opening or closing a result panel does not restore focus correctly
+- Keyboard shortcut opens search, but the input is not focused
+- Search input auto-focuses unexpectedly and interrupts other forms
+- The cursor jumps to the beginning or end
+- Search query disappears during re-render
+- ESC clears the query but does not restore a usable state
+- Search behaves differently in English and Arabic
+- Mobile search cannot retain focus while typing
+- Browser Back or Forward creates stale search focus
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+1. Clicking the search input should focus it immediately.
+
+2. Focus should remain in the search field while the user types.
+
+3. Re-rendering search results must not replace or blur the active input unnecessarily.
+
+4. The cursor position must remain stable while typing.
+
+5. Existing search text must remain visible unless the user clears it.
+
+6. The existing search keyboard shortcut, if supported, must:
+
+- open or activate search
+- focus the input
+- place the cursor in a predictable position
+- not trigger while the user is already typing in another input, textarea, select, or editable element unless intentionally designed
+
+7. ESC behavior should be predictable:
+
+- If a result dropdown or overlay is open, close it first
+- If the query is present, clear it only if that matches the current product behavior
+- Do not navigate away
+- Do not leave an invisible overlay
+- Do not trigger unrelated modal ESC handlers
+
+8. When a search result is opened:
+
+- Navigate to the correct record
+- Close the search overlay if applicable
+- Do not leave stale focus or backdrop
+- Browser Back should return to a usable previous state
+
+9. Search must not automatically steal focus when:
+
+- a modal opens
+- a form is being edited
+- the user is typing in another field
+- a dropdown or date picker is active
+- the page first loads, unless auto-focus is an explicit existing requirement
+
+10. Search must work in English, Arabic, desktop, tablet, and mobile layouts.
+
+==================================================
+INVESTIGATION
+==================================================
+
+Inspect:
+
+- Global search HTML
+- Smart Search component
+- Search input IDs and selectors
+- Search render function
+- Result dropdown or overlay
+- Search state object
+- Search query storage
+- Input event handlers
+- Keydown handlers
+- Ctrl+K / Cmd+K shortcut handling
+- ESC handling
+- Navigation after result selection
+- Any innerHTML replacement affecting the search input
+- Debounce or throttling logic
+- Async search requests
+- Race-condition protection
+- Focus restoration logic
+- Mobile search layout
+- RTL search layout
+- Browser history interactions
+- Modal and overlay z-index interactions
+
+Look specifically for:
+
+- Input being recreated on every keystroke
+- outerHTML or innerHTML replacement around the input
+- autofocus applied repeatedly
+- focus() called during every render
+- query state not preserved
+- duplicate event listeners
+- shortcut handler firing inside other inputs
+- asynchronous results from an older query replacing newer results
+- ESC handler conflicts
+- stale overlay remaining after navigation
+- hidden search input retaining focus
+- setTimeout focus hacks without cleanup
+- cursor position reset because value is reassigned
+- duplicate IDs
+- mobile search element using a different implementation
+- Arabic mode using a separate selector or DOM branch
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+==================================================
+
+1. Preserve the existing search input element whenever possible.
+
+Do not recreate the input on every result render.
+
+2. Keep search results in a separate container from the input.
+
+Update only the results area when the query changes.
+
+3. Preserve:
+
+- input focus
+- query text
+- selectionStart
+- selectionEnd
+
+when a render is genuinely necessary.
+
+4. Use one source of truth for the query.
+
+Avoid separate unsynchronized values in:
+
+- DOM
+- global state
+- module state
+- URL state
+
+5. If search is asynchronous, add race protection.
+
+Only the latest query response may update the results.
+
+Use a request sequence, AbortController, or equivalent architecture already used in the codebase.
+
+6. Do not focus search automatically during normal page renders.
+
+Focus only when:
+
+- user clicks the input
+- user activates the search shortcut
+- user deliberately opens the search interface
+
+7. Keyboard shortcut requirements:
+
+- Support the existing shortcut only
+- If both Ctrl+K and Cmd+K are expected, support both
+- preventDefault only when the shortcut is actually handled
+- ignore the shortcut when focus is inside an input, textarea, select, contenteditable element, or active modal unless the current product intentionally supports it
+
+8. ESC requirements:
+
+- close the topmost search dropdown or overlay
+- preserve page state
+- prevent conflicts with Policy and other modal ESC handlers
+- remove stale listeners if search uses temporary listeners
+
+9. On result selection:
+
+- route to the exact result
+- close search cleanly
+- remove overlay
+- reset temporary result state only if existing behavior requires it
+- do not erase the search query before navigation unless intended
+
+10. Focus restoration:
+
+If search opens as a modal or overlay, save the opener and restore focus when search closes.
+
+If search is an always-visible input, keep focus there after result updates.
+
+11. Accessibility:
+
+- Search input has an accessible label
+- Results container uses appropriate listbox or list semantics if already compatible
+- Active result is keyboard-reachable
+- Arrow keys do not move page unexpectedly while navigating results
+- Enter opens the highlighted result
+- ESC closes results
+- Focus indicator remains visible
+
+12. Do not change the visual design.
+
+==================================================
+TESTS
+==================================================
+
+T1 — Click focus
+Click the search input.
+Confirm document.activeElement is the search input.
+
+T2 — Continuous typing
+Type at least 20 characters slowly.
+Confirm:
+- focus never leaves the input
+- no character is lost
+- query text matches exactly
+
+T3 — Fast typing
+Type a search phrase quickly.
+Confirm:
+- final query is correct
+- latest results match the final query
+- no stale async result replaces it
+
+T4 — Cursor preservation
+Type text.
+Move the cursor into the middle.
+Insert characters.
+Confirm the cursor does not jump unexpectedly.
+
+T5 — Backspace and delete
+Use Backspace and Delete.
+Confirm focus remains stable and query updates correctly.
+
+T6 — Results re-render
+Type a query that returns results.
+Wait for multiple result renders.
+Confirm the same input DOM node remains active.
+
+T7 — Empty results
+Search for a value with no matches.
+Confirm empty state appears and input remains focused.
+
+T8 — Clear search
+Use the existing clear action.
+Confirm:
+- query clears
+- results reset
+- focus remains in or returns to the search input
+
+T9 — Keyboard shortcut
+Use the existing Ctrl+K or Cmd+K shortcut.
+Confirm search opens and input receives focus.
+
+T10 — Shortcut guard
+Focus:
+- text input
+- textarea
+- select
+- contenteditable element if one exists
+
+Use the search shortcut.
+Confirm it does not steal focus unless current design intentionally allows it.
+
+T11 — ESC with results open
+Open search results.
+Press ESC.
+Confirm results or overlay close first and the page remains stable.
+
+T12 — ESC with no search open
+Press ESC while search is inactive.
+Confirm nothing changes.
+
+T13 — Arrow navigation
+With results visible, test:
+- Arrow Down
+- Arrow Up
+
+Confirm the active result changes without losing search focus or scrolling the page unexpectedly.
+
+T14 — Enter selection
+Highlight a result and press Enter.
+Confirm the exact record opens.
+
+T15 — Mouse selection
+Click a result.
+Confirm the exact record opens.
+
+T16 — Search result navigation
+Verify at least one result type from each supported category, for example:
+
+- Meeting
+- Task
+- Policy
+- Resolution
+- Document
+- Board or Committee
+
+Only test categories that currently exist in the application.
+
+T17 — Search after navigation
+Open a result.
+Return to search.
+Confirm search is still usable and has no stale overlay or listener.
+
+T18 — Browser Back/Forward
+Open a search result.
+Use Back and Forward.
+Confirm no stale result dropdown, broken focus, or duplicate navigation occurs.
+
+T19 — Modal conflict
+Open a modal.
+Confirm search does not steal focus.
+Press the search shortcut while the modal is open.
+Confirm behavior matches the intended modal priority.
+
+T20 — Policy ESC regression
+Open the Policy modal.
+Press ESC.
+Confirm the Policy modal still closes correctly and search does not intercept the event.
+
+T21 — Repeated open/close
+Open and close search at least five times.
+Confirm:
+- no duplicate listener
+- no stale overlay
+- no focus leak
+- no console error
+
+T22 — English
+Run typing, ESC, shortcut, and result selection in English.
+
+T23 — Arabic / RTL
+Run typing, ESC, shortcut, and result selection in Arabic.
+Confirm:
+- text direction is correct
+- cursor behavior remains stable
+- result alignment remains correct
+
+T24 — Desktop
+Test at 1280×720 or similar.
+
+T25 — Tablet
+Test at 768×1024 or similar.
+
+T26 — Mobile
+Test at approximately 390×844.
+Confirm:
+- search remains accessible
+- virtual-keyboard-safe layout
+- result list remains usable
+- focus is not lost after each character
+
+T27 — Refresh
+Refresh while the search interface is active.
+Confirm the page returns to a clean usable state without a stuck overlay.
+
+T28 — API error
+Simulate a search API failure.
+Confirm:
+- a clear error or safe empty state appears
+- input remains usable
+- retry works
+- no permanent focus loss
+
+T29 — Console errors
+Confirm no new JavaScript errors, unhandled promise rejections, or duplicate-listener warnings.
+
+T30 — Regression
+Confirm:
+- normal page navigation still works
+- Policy ESC still works
+- Task scrolling still works
+- modal focus behavior still works
+- search no longer steals focus from forms
+
+==================================================
+DATA INTEGRITY
+==================================================
+
+This is a search focus and UI lifecycle fix only.
+
+Confirm it does not:
+
+- Create records
+- Delete records
+- Edit records
+- Change workflow status
+- Change approvals
+- Change assignees
+- Change dates
+- Create duplicate records
+- Create unexpected audit entries
+
+Use read-only search operations for all verification.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause
+2. Exact search DOM structure
+3. Search state architecture before and after
+4. Input and results rendering behavior
+5. Keyboard listener architecture
+6. Async race-protection behavior
+7. Files modified
+8. Functions modified
+9. Old behavior
+10. New behavior
+11. Focus preservation method
+12. Cursor preservation method
+13. ESC and shortcut behavior
+14. Result navigation map by record type
+15. PASS/FAIL table for all 30 tests
+16. English and Arabic verification
+17. Desktop, tablet, and mobile verification
+18. Browser Back/Forward verification
+19. Console error check
+20. Data integrity confirmation
+21. Authenticated screenshots showing:
+   - Search input focused
+   - Results visible
+   - Empty state
+   - Keyboard-highlighted result
+   - Result opened
+   - Arabic search
+   - Mobile search
+   - Modal open without search stealing focus
+
+Include exact measurements or logs for:
+
+- activeElement before and after typing
+- input node identity before and after result rendering
+- query text expected versus actual
+- selectionStart and selectionEnd before and after insertion
+- latest async request sequence or cancellation result
+- listener count or equivalent proof after five open/close cycles
+
+If all applicable tests pass, conclude exactly:
+
+“STEP 11 FULLY VERIFIED AND COMPLETE.”
+
+Do not start Step 12.

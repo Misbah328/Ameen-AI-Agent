@@ -7321,9 +7321,13 @@ const NotificationCenter = {
 const SmartSearch = {
   _open: false,
   _outsideHandler: null,
+  _sel: -1,
+  _seq: 0,
+  _opener: null,
 
   toggle() {
     if (this._open) return this.close();
+    this._opener = document.activeElement;
     this._open = true;
     const dd = $("smart-search-dropdown");
     if (!dd) return;
@@ -7345,6 +7349,9 @@ const SmartSearch = {
       document.removeEventListener("click", this._outsideHandler);
       this._outsideHandler = null;
     }
+    this._sel = -1;
+    try { if (this._opener && this._opener.id !== "smart-search-input") this._opener.focus(); } catch (_) {}
+    this._opener = null;
   },
 
   onInput(v) {
@@ -7352,7 +7359,32 @@ const SmartSearch = {
     this._debounce = setTimeout(() => this.run(v.trim()), 300);
   },
 
+  onKey(e) {
+    if (e.key === "Escape") { e.stopPropagation(); this.close(); return; }
+    const items = $("smart-search-results")?.querySelectorAll("[data-idx]") || [];
+    if (!items.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      this._setHighlight(Math.min(this._sel + 1, items.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      this._setHighlight(Math.max(this._sel - 1, 0));
+    } else if (e.key === "Enter" && this._sel >= 0) {
+      e.preventDefault();
+      this.open(this._sel);
+    }
+  },
+
+  _setHighlight(idx) {
+    const items = $("smart-search-results")?.querySelectorAll("[data-idx]") || [];
+    items.forEach((el, i) => {
+      el.style.background = i === idx ? "var(--bg2,#F9F5EF)" : "";
+    });
+    this._sel = idx;
+  },
+
   async run(q) {
+    const seq = ++this._seq;
     const l = App.lang;
     const results = $("smart-search-results");
     if (!results) return;
@@ -7365,9 +7397,11 @@ const SmartSearch = {
     try {
       data = await api(`/api/search?q=${encodeURIComponent(q)}`);
     } catch (e) {
+      if (seq !== this._seq) return;
       results.innerHTML = `<div class="es" style="padding:20px;color:var(--red);font-size:12px">${esc(e.message)}</div>`;
       return;
     }
+    if (seq !== this._seq) return;
     const all = [...(data.results || []), ...this._localAskAmeenMatches(q)];
     if (!all.length) {
       results.innerHTML = `<div class="es" style="padding:24px"><div style="font-size:26px;margin-bottom:6px">🔍</div><div style="font-size:12px;color:var(--text3)">${l === "ar" ? "لا نتائج" : "No results"}</div></div>`;
@@ -7386,17 +7420,18 @@ const SmartSearch = {
     all.forEach((r) => { (byCategory[r.category] = byCategory[r.category] || []).push(r); });
     results.innerHTML = Object.keys(byCategory).map((cat) => {
       const label = CAT_LABEL[cat] || { ar: cat, en: cat };
-      const rows = byCategory[cat].slice(0, 8).map((r, i) => {
+      const rows = byCategory[cat].slice(0, 8).map((r) => {
         const idx = all.indexOf(r);
         const title = l === "ar" ? r.title_ar : r.title_en || r.title_ar;
         const subtitle = l === "ar" ? r.subtitle_ar : r.subtitle_en || r.subtitle_ar;
-        return `<div onclick="SmartSearch.open(${idx})" style="padding:9px 16px;cursor:pointer;border-bottom:1px solid var(--border3)">
+        return `<div data-idx="${idx}" onclick="SmartSearch.open(${idx})" style="padding:9px 16px;cursor:pointer;border-bottom:1px solid var(--border3)">
           <div style="font-size:12.5px;font-weight:600;color:var(--text)">${esc(title || "")}</div>
           ${subtitle ? `<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(subtitle)}</div>` : ""}
         </div>`;
       }).join("");
       return `<div style="padding:8px 16px 4px;font-size:11px;font-weight:700;color:var(--gold);background:var(--navy3)">${l === "ar" ? label.ar : label.en}</div>${rows}`;
     }).join("");
+    this._sel = -1;
     this._lastResults = all;
   },
 
@@ -14108,6 +14143,10 @@ const NotifPrefs = {
 // ── Ctrl+K / Cmd+K → SmartSearch ────────────────────────────────────────────
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+    const ae = document.activeElement;
+    const tag = ae?.tagName?.toUpperCase();
+    const inSearch = ae?.id === "smart-search-input";
+    if (!inSearch && (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ae?.isContentEditable)) return;
     e.preventDefault();
     SmartSearch.toggle();
   }
