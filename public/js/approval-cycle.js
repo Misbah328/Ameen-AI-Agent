@@ -1236,6 +1236,58 @@ ${i < STAGES.length - 1 ? `<div class="ac-step-arrow ${done || active ? 'done' :
       <div class="rv-table-note">ℹ️ ${t('يمكن للحضور إضافة تعليقات، اقتراح تعديلات، وتقديم للمراجعة قبل الموعد النهائي.','Attendees can add comments, suggest edits, and submit for review before the deadline.')}</div>
 
       ${deadlineAlert}
+
+      <!-- Inline Comments Panel -->
+      <div style="margin-top:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:14px;font-weight:700;color:#0F1728">
+            💬 ${t('التعليقات على المحضر','Comments on Minutes')}
+            ${totalComs ? `<span style="background:#EEF2FF;color:#4F46E5;border-radius:10px;padding:2px 9px;font-size:11.5px;font-weight:600;margin-${l==='ar'?'right':'left'}:8px">${totalComs}</span>` : ''}
+          </div>
+          <button class="dv-filter-btn" style="color:#0C7A3D;border-color:rgba(12,122,61,.3)" onclick="ApprovalCycle._rvAddComment()">+ ${t('إضافة تعليق','Add Comment')}</button>
+        </div>
+        ${comments.length === 0
+          ? `<div style="background:#F8F9FB;border:1px dashed #D0D5DD;border-radius:10px;padding:28px;text-align:center;color:#98A2B3;font-size:13px">
+              <div style="font-size:28px;margin-bottom:8px">💬</div>
+              <div style="font-weight:600;margin-bottom:4px">${t('لا توجد تعليقات بعد','No comments yet')}</div>
+              <div>${t('سيظهر تعليق الحضور هنا فور إضافتهم.','Attendee comments will appear here once added.')}</div>
+            </div>`
+          : comments.map(c => {
+              const STATUS_STYLE = {
+                pending:  { label: t('معلّق','Pending'),  bg:'rgba(168,132,44,.12)', color:'#A8842C' },
+                accepted: { label: t('مقبول','Accepted'), bg:'rgba(12,122,61,.12)',  color:'#0C7A3D' },
+                rejected: { label: t('مرفوض','Rejected'), bg:'rgba(196,69,60,.12)', color:'#C4453C' },
+              };
+              const st = STATUS_STYLE[c.status] || STATUS_STYLE.pending;
+              const AV_COLORS2 = ['#0F1728','#0C7A3D','#A8842C','#1A5276','#7D3C98','#0E6655','#B03A2E'];
+              const name = c.commenter_name || '?';
+              const initials = name.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase()||'?';
+              const bg = AV_COLORS2[(c.id||0) % AV_COLORS2.length];
+              const when = (c.created_at||'').slice(0,16).replace('T',' ');
+              return `<div style="background:#fff;border:1px solid #E4E7EC;border-radius:10px;padding:14px 16px;margin-bottom:10px">
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <div style="flex-shrink:0;width:34px;height:34px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700">${initials}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                      <span style="font-size:13px;font-weight:700;color:#0F1728">${esc(name)}</span>
+                      ${c.commenter_role ? `<span style="font-size:11.5px;color:#98A2B3">${esc(c.commenter_role)}</span>` : ''}
+                      <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:${st.bg};color:${st.color};font-weight:600">${st.label}</span>
+                      <span style="font-size:11px;color:#98A2B3;margin-${l==='ar'?'right':'left'}:auto">${when}</span>
+                    </div>
+                    ${c.clause_ref ? `<div style="font-size:11.5px;font-weight:600;color:#4F46E5;margin-bottom:6px">📌 ${esc(c.clause_ref)}</div>` : ''}
+                    <div style="font-size:13px;color:#15201A;line-height:1.65;white-space:pre-wrap">${esc(c.content||'')}</div>
+                    ${c.secretary_note ? `<div style="margin-top:8px;padding:8px 10px;background:#F8F9FB;border-radius:6px;font-size:12px;color:#697386">📝 ${t('ملاحظة الأمانة:','Secretary Note:')} ${esc(c.secretary_note)}</div>` : ''}
+                  </div>
+                  ${c.status==='pending' ? `<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+                    <button onclick="ApprovalCycle._rvAcceptComment(${c.id},this)" style="font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid rgba(12,122,61,.3);background:rgba(12,122,61,.08);color:#0C7A3D;cursor:pointer">✅ ${t('قبول','Accept')}</button>
+                    <button onclick="ApprovalCycle._rvRejectComment(${c.id},this)" style="font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid rgba(196,69,60,.3);background:rgba(196,69,60,.08);color:#C4453C;cursor:pointer">✗ ${t('رفض','Reject')}</button>
+                  </div>` : ''}
+                </div>
+              </div>`;
+            }).join('')
+        }
+      </div>
+
     </div>
 
     <!-- RIGHT panel -->
