@@ -668,7 +668,7 @@ h1.hh .gold{display:block;color:var(--gold)}
 footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding:2rem 2.5rem}
 .ft-i{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:2rem;flex-wrap:wrap}
 .ft-brand{display:flex;align-items:center;gap:.5rem;text-decoration:none}
-.ft-brand img{width:20px;height:20px;object-fit:contain;filter:brightness(10)}
+.ft-brand img{height:50px;width:auto;object-fit:contain;flex-shrink:0}
 .ft-bname{font-size:.85rem;font-weight:800;color:rgba(255,255,255,.75)}
 .ft-bname em{color:var(--gold);font-style:normal}
 .ft-links{display:flex;gap:1.3rem}
@@ -1446,9 +1446,7 @@ footer{background:var(--gmid);border-top:1px solid rgba(255,255,255,.06);padding
 <footer>
 <div class="ft-i">
   <a href="/" class="ft-brand" style="display:inline-flex;align-items:center;text-decoration:none">
-    <div style="height:44px;display:flex;align-items:center;flex-shrink:0">
-      <img src="/logo-light.png" alt="Ameen Secretary" id="ft-logo" style="height:44px;width:auto;flex-shrink:0"/>
-    </div>
+    <img src="/logo-dark.png" alt="Ameen Secretary" id="ft-logo"/>
   </a>
   <div class="ft-links">
     <a href="#feat"  data-t="fl1">Features</a>
@@ -1724,9 +1722,8 @@ function applyTheme(dark){
   localStorage.setItem('ameen-theme',dark?'dark':'light');
   const src=dark?'/logo-dark.png':'/logo-light.png';
   const nl=document.getElementById('nav-logo');
-  const fl=document.getElementById('ft-logo');
   if(nl)nl.src=src;
-  if(fl)fl.src=src;
+  // footer is always dark green — always use logo-dark
 }
 function toggleTheme(){applyTheme(!isDark);}
 
