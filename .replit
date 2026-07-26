@@ -56,3 +56,6 @@ JWT_SECRET = "c6dbaf462910f5d56b609ac38399efd144518d592f4a4bd3d405f5f6f888ba2bfe
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 60000
+
+[deployment]
+deploymentTarget = "cloudrun"
